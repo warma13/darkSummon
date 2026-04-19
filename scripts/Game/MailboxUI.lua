@@ -1,0 +1,411 @@
+-- Game/MailboxUI.lua
+-- 邮件系统 UI：展示邮件列表，支持领取和清理
+
+local MailboxData    = require("Game.MailboxData")
+local Toast          = require("Game.Toast")
+local Tooltip        = require("Game.Tooltip")
+local RewardIconMod  = require("Game.RewardIcon")
+local SlotSave       = require("Game.SlotSaveSystem")
+local RewardDisplay  = require("Game.RewardDisplay")
+local Config         = require("Game.Config")
+
+local MailboxUI = {}
+
+---@type any
+local UI = nil
+---@type any
+local pageRoot = nil
+
+-- 样式常量（暗紫主题）
+local S = {
+    bgPage     = { 12, 10, 25, 250 },
+    bgHeader   = { 30, 22, 50, 240 },
+    bgCard     = { 35, 28, 55, 220 },
+    bgCardDim  = { 25, 20, 40, 180 },
+    border     = { 80, 65, 120, 150 },
+    borderGold = { 220, 180, 60, 200 },
+    textTitle  = { 255, 220, 100, 255 },
+    textWhite  = { 240, 235, 255, 255 },
+    textNormal = { 220, 210, 240, 255 },
+    textDim    = { 150, 140, 170, 200 },
+    textGold   = { 255, 200, 60, 255 },
+    textGreen  = { 100, 220, 120, 255 },
+    accent     = { 180, 120, 255, 255 },
+    red        = { 255, 80, 80, 255 },
+    claimBg    = { 200, 100, 40, 255 },
+    claimedBg  = { 60, 60, 60, 200 },
+}
+
+-- ============================================================================
+-- 公开接口
+-- ============================================================================
+
+--- VirtualList 单行高度
+local MAIL_ITEM_HEIGHT = 110
+
+--- 缓存邮件数据供 VirtualList 使用
+local mailListData = {}
+
+function MailboxUI.CreatePage(uiModule)
+    UI = uiModule
+
+    pageRoot = UI.Panel {
+        width = "100%", height = "100%",
+        backgroundColor = S.bgPage,
+        overflow = "hidden",
+        children = {
+            MailboxUI._BuildHeader(),
+            -- VirtualList 容器
+            UI.Panel {
+                id = "mailListContainer",
+                width = "100%",
+                flexGrow = 1, flexShrink = 1,
+                flexBasis = 0,
+                paddingLeft = 12, paddingRight = 12,
+                paddingTop = 8, paddingBottom = 8,
+            },
+            -- 底部操作栏容器
+            UI.Panel {
+                id = "mailActionBar",
+                width = "100%",
+                flexShrink = 0,
+                paddingBottom = 8,
+            },
+        },
+    }
+    return pageRoot
+end
+
+--- 创建邮件卡片模板（VirtualList createItem）
+local function _CreateMailItem()
+    local item = UI.Panel {
+        width = "100%",
+        height = MAIL_ITEM_HEIGHT,
+        backgroundColor = S.bgCard,
+        borderRadius = 8,
+        borderWidth = 1,
+        borderColor = S.border,
+        paddingTop = 8, paddingBottom = 8,
+        paddingLeft = 10, paddingRight = 10,
+        gap = 6,
+    }
+
+    -- 标题行
+    local titleRow = UI.Panel {
+        flexDirection = "row",
+        justifyContent = "space-between",
+        alignItems = "center",
+        width = "100%",
+    }
+    local titleLeft = UI.Panel {
+        flexDirection = "row", alignItems = "center", gap = 6, flexShrink = 1,
+    }
+    local iconLabel = UI.Label { id = "mailIcon", text = "📩", fontSize = 14 }
+    local titleLabel = UI.Label {
+        id = "mailTitle", text = "", fontSize = 13,
+        fontColor = S.textWhite, fontWeight = "bold",
+    }
+    titleLeft:AddChild(iconLabel)
+    titleLeft:AddChild(titleLabel)
+    local timeLabel = UI.Label {
+        id = "mailTime", text = "", fontSize = 10, fontColor = S.textDim,
+    }
+    titleRow:AddChild(titleLeft)
+    titleRow:AddChild(timeLabel)
+    item:AddChild(titleRow)
+
+    -- 描述
+    local descLabel = UI.Label {
+        id = "mailDesc", text = "", fontSize = 11, fontColor = S.textDim, width = "100%",
+    }
+    item:AddChild(descLabel)
+
+    -- 奖励行 + 按钮
+    local rewardRow = UI.Panel {
+        id = "mailRewardRow",
+        flexDirection = "row",
+        alignItems = "center",
+        justifyContent = "space-between",
+        width = "100%",
+    }
+    local rewardIcons = UI.Panel {
+        id = "mailRewardIcons",
+        flexDirection = "row", gap = 4, pointerEvents = "auto",
+    }
+    rewardRow:AddChild(rewardIcons)
+
+    local claimBtn = UI.Panel {
+        id = "mailClaimBtn",
+        paddingLeft = 14, paddingRight = 14,
+        paddingTop = 6, paddingBottom = 6,
+        borderRadius = 6,
+        backgroundColor = S.claimBg,
+        borderWidth = 1,
+        borderColor = { 255, 160, 60, 200 },
+        pointerEvents = "auto",
+        children = {
+            UI.Label {
+                text = "领取", fontSize = 12,
+                fontColor = { 255, 255, 255 }, fontWeight = "bold",
+            },
+        },
+    }
+    rewardRow:AddChild(claimBtn)
+    item:AddChild(rewardRow)
+
+    -- 缓存引用
+    item._iconLabel = iconLabel
+    item._titleLabel = titleLabel
+    item._timeLabel = timeLabel
+    item._descLabel = descLabel
+    item._rewardIcons = rewardIcons
+    item._claimBtn = claimBtn
+    item._rewardRow = rewardRow
+
+    return item
+end
+
+--- 绑定邮件数据到卡片（VirtualList bindItem）
+local function _BindMailItem(widget, data, index)
+    local mail = data
+    local claimed = mail.claimed
+
+    -- 背景 & 透明度
+    widget:SetStyle({
+        backgroundColor = claimed and S.bgCardDim or S.bgCard,
+        borderColor = claimed and { 50, 45, 60, 80 } or S.border,
+        opacity = claimed and 0.5 or 1.0,
+    })
+
+    -- 标题
+    widget._iconLabel:SetText(claimed and "📧" or "📩")
+    widget._titleLabel:SetText(mail.title or "系统邮件")
+    widget._titleLabel:SetStyle({
+        fontColor = claimed and S.textDim or S.textWhite,
+        fontWeight = claimed and "normal" or "bold",
+    })
+
+    -- 时间/状态
+    local timeStr = ""
+    if claimed then
+        timeStr = "已领取"
+    elseif mail.timestamp then
+        timeStr = os.date("%m-%d %H:%M", mail.timestamp)
+    end
+    widget._timeLabel:SetText(timeStr)
+    widget._timeLabel:SetStyle({
+        fontColor = claimed and { 120, 200, 120, 180 } or S.textDim,
+    })
+
+    -- 描述
+    widget._descLabel:SetText(mail.desc or "")
+    widget._descLabel:SetVisible(mail.desc ~= nil and mail.desc ~= "")
+
+    -- 奖励图标
+    widget._rewardIcons:ClearChildren()
+    if mail.rewards then
+        for _, reward in ipairs(mail.rewards) do
+            local iconId = reward.id
+            if reward.type == "chest" then
+                iconId = reward.id .. "_chest"
+            end
+            local icon = RewardIconMod.Create(UI, 32, iconId, reward.amount, {
+                muted = claimed,
+            })
+            widget._rewardIcons:AddChild(icon)
+        end
+    end
+
+    -- 领取按钮
+    local showBtn = not claimed and mail.rewards and #mail.rewards > 0
+    widget._claimBtn:SetVisible(showBtn)
+    if showBtn then
+        widget._claimBtn.props.onClick = function()
+            local ok, msg = MailboxData.Claim(index)
+            if ok then
+                SlotSave.MarkDirty()
+                MailboxUI.Refresh()
+                local rewardItems = {}
+                for _, r in ipairs(mail.rewards) do
+                    local cdef = Config.CURRENCY[r.id]
+                    if r.type == "chest" then
+                        local chestDef = Config.CHEST_TYPES_MAP and Config.CHEST_TYPES_MAP[r.id]
+                        rewardItems[#rewardItems + 1] = {
+                            icon = (chestDef and chestDef.image) or "📦",
+                            name = (chestDef and chestDef.name) or r.id,
+                            amount = r.amount,
+                            borderColor = chestDef and chestDef.color or { 200, 170, 60 },
+                        }
+                    else
+                        rewardItems[#rewardItems + 1] = {
+                            icon = (cdef and cdef.image) or "💎",
+                            name = (cdef and cdef.name) or r.id,
+                            amount = r.amount,
+                            borderColor = (cdef and cdef.color) or { 200, 170, 60 },
+                        }
+                    end
+                end
+                if #rewardItems > 0 then
+                    RewardDisplay.Show(UI, pageRoot, {
+                        title = mail.title or "邮件奖励",
+                        rewards = rewardItems,
+                    })
+                end
+            else
+                Toast.Show(msg or "领取失败", "error")
+            end
+        end
+    end
+end
+
+function MailboxUI.Refresh()
+    if not pageRoot then return end
+
+    -- 更新邮件数量
+    local countLabel = pageRoot:FindById("mailCountLabel")
+    local mails = MailboxData.GetAll()
+    local unclaimed = MailboxData.GetUnclaimedCount()
+    if countLabel then
+        countLabel:SetText("未读 " .. unclaimed .. " / 共 " .. #mails)
+    end
+
+    -- 列表容器
+    local container = pageRoot:FindById("mailListContainer")
+    if not container then return end
+    container:ClearChildren()
+
+    -- 底部操作栏
+    local actionBar = pageRoot:FindById("mailActionBar")
+    if actionBar then
+        actionBar:ClearChildren()
+    end
+
+    if #mails == 0 then
+        container:AddChild(MailboxUI._BuildEmptyState())
+        return
+    end
+
+    -- 用 VirtualList 渲染邮件
+    mailListData = mails
+    local vlist = UI.VirtualList {
+        width = "100%",
+        height = "100%",
+        data = mailListData,
+        itemHeight = MAIL_ITEM_HEIGHT,
+        itemGap = 8,
+        poolBuffer = 3,
+        createItem = _CreateMailItem,
+        bindItem = _BindMailItem,
+    }
+    container:AddChild(vlist)
+
+    -- 底部操作栏
+    if actionBar then
+        actionBar:AddChild(MailboxUI._BuildActionBar())
+    end
+
+    Tooltip.Init(UI, pageRoot)
+end
+
+-- ============================================================================
+-- 顶部标题
+-- ============================================================================
+
+function MailboxUI._BuildHeader()
+    return UI.Panel {
+        width = "100%",
+        paddingTop = 14, paddingBottom = 10,
+        paddingLeft = 14, paddingRight = 14,
+        backgroundColor = S.bgHeader,
+        borderBottomWidth = 1,
+        borderColor = { 100, 80, 160, 80 },
+        flexDirection = "row",
+        justifyContent = "space-between",
+        alignItems = "center",
+        children = {
+            UI.Panel {
+                gap = 1,
+                children = {
+                    UI.Label {
+                        text = "📬 邮件",
+                        fontSize = 18, fontColor = S.textTitle, fontWeight = "bold",
+                    },
+                    UI.Label {
+                        id = "mailCountLabel",
+                        text = "未读 0 / 共 0",
+                        fontSize = 10, fontColor = S.textDim,
+                    },
+                },
+            },
+        },
+    }
+end
+
+-- ============================================================================
+-- 空状态
+-- ============================================================================
+
+function MailboxUI._BuildEmptyState()
+    return UI.Panel {
+        width = "100%", height = 200,
+        justifyContent = "center",
+        alignItems = "center",
+        gap = 8,
+        children = {
+            UI.Label {
+                text = "📭",
+                fontSize = 40,
+            },
+            UI.Label {
+                text = "暂无邮件",
+                fontSize = 14, fontColor = S.textDim,
+            },
+        },
+    }
+end
+
+-- ============================================================================
+-- 底部操作栏
+-- ============================================================================
+
+function MailboxUI._BuildActionBar()
+    local hasUnclaimed = MailboxData.HasUnclaimed()
+    local hasClaimed = false
+    for _, m in ipairs(MailboxData.GetAll()) do
+        if m.claimed then hasClaimed = true; break end
+    end
+
+    return UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        justifyContent = "center",
+        gap = 12,
+        marginTop = 8,
+        children = {
+            -- 清理已读
+            hasClaimed and UI.Panel {
+                paddingLeft = 20, paddingRight = 20,
+                paddingTop = 8, paddingBottom = 8,
+                backgroundColor = { 60, 50, 80, 200 },
+                borderRadius = 6,
+                borderWidth = 1,
+                borderColor = S.border,
+                pointerEvents = "auto",
+                onClick = function(self)
+                    MailboxData.ClearClaimed()
+                    SlotSave.MarkDirty()
+                    Toast.Show("已清理", { 180, 170, 200 })
+                    MailboxUI.Refresh()
+                end,
+                children = {
+                    UI.Label {
+                        text = "清理已读",
+                        fontSize = 12, fontColor = S.textDim,
+                    },
+                },
+            } or nil,
+        },
+    }
+end
+
+return MailboxUI

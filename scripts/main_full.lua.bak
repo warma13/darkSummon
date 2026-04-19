@@ -1,0 +1,236 @@
+-- ============================================================================
+-- Dark Merge TD - 暗黑合成塔防
+-- Version 1.0
+-- ============================================================================
+
+local UI = require("urhox-libs/UI")
+
+-- 游戏模块
+local Config = require("Game.Config")
+local State = require("Game.State")
+local Grid = require("Game.Grid")
+local Tower = require("Game.Tower")
+local Enemy = require("Game.Enemy")
+local Wave = require("Game.Wave")
+local Combat = require("Game.Combat")
+local Renderer = require("Game.Renderer")
+local GameUI = require("Game.GameUI")
+
+-- NanoVG 独立上下文（用于游戏渲染，在 UI 层下面）
+local vg = nil
+local fontId = -1
+
+-- ============================================================================
+-- 生命周期
+-- ============================================================================
+
+function Start()
+    graphics.windowTitle = Config.TITLE
+    print("=== " .. Config.TITLE .. " Starting ===")
+
+    -- 1. 初始化 UI 系统
+    InitUI()
+
+    -- 2. 初始化 NanoVG（游戏渲染层）
+    InitNanoVG()
+
+    -- 3. 计算网格偏移（居中）
+    CalculateGridOffset()
+
+    -- 4. 初始化游戏状态
+    State.Reset()
+
+    -- 5. 创建 UI
+    GameUI.Init(UI)
+    GameUI.CreateUI()
+
+    -- 6. 订阅事件
+    SubscribeToEvents()
+
+    print("=== " .. Config.TITLE .. " Ready ===")
+end
+
+function Stop()
+    if vg then nvgDelete(vg) end
+    UI.Shutdown()
+end
+
+-- ============================================================================
+-- 初始化
+-- ============================================================================
+
+function InitUI()
+    UI.Init({
+        fonts = {
+            { family = "sans", weights = {
+                normal = "Fonts/MiSans-Regular.ttf",
+            } }
+        },
+        scale = UI.Scale.DEFAULT,
+    })
+end
+
+function InitNanoVG()
+    vg = nvgCreate(1)
+    if not vg then
+        print("[ERROR] Failed to create NanoVG context!")
+        return
+    end
+    fontId = nvgCreateFont(vg, "sans", "Fonts/MiSans-Regular.ttf")
+    if fontId == -1 then
+        print("[ERROR] Failed to load font!")
+    end
+    Renderer.vg = vg
+    Renderer.fontId = fontId
+    print("[Init] NanoVG context created, fontId=" .. fontId)
+end
+
+function CalculateGridOffset()
+    local dpr = graphics:GetDPR()
+    local screenW = graphics:GetWidth() / dpr
+    local screenH = graphics:GetHeight() / dpr
+    local gridW = Config.GRID_COLS * Config.CELL_SIZE
+    local gridH = Config.GRID_ROWS * Config.CELL_SIZE
+    Renderer.gridOffsetX = (screenW - gridW) * 0.5
+    Renderer.gridOffsetY = (screenH - gridH) * 0.5
+    print("[Init] Grid offset: " .. Renderer.gridOffsetX .. ", " .. Renderer.gridOffsetY)
+    print("[Init] Screen: " .. screenW .. "x" .. screenH .. " DPR=" .. dpr)
+end
+
+function SubscribeToEvents()
+    SubscribeToEvent("Update", "HandleUpdate")
+    SubscribeToEvent("MouseButtonDown", "HandleMouseDown")
+    SubscribeToEvent("TouchBegin", "HandleTouchBegin")
+    SubscribeToEvent("ScreenMode", "HandleScreenMode")
+
+    -- NanoVG 游戏渲染（在 UI 之下）
+    SubscribeToEvent(vg, "NanoVGRender", "HandleNanoVGRender")
+end
+
+--- 窗口大小变化时重新计算网格偏移
+function HandleScreenMode(eventType, eventData)
+    CalculateGridOffset()
+    print("[Event] ScreenMode changed, grid offset recalculated")
+end
+
+-- ============================================================================
+-- 游戏逻辑更新
+-- ============================================================================
+
+---@param eventType string
+---@param eventData UpdateEventData
+function HandleUpdate(eventType, eventData)
+    local dt = eventData["TimeStep"]:GetFloat()
+    State.time = State.time + dt
+
+    if State.phase == State.PHASE_PLAYING then
+        -- 更新塔
+        Tower.Update(dt)
+
+        -- 更新波次（生成敌人）
+        Wave.Update(dt)
+
+        -- 更新敌人（移动）
+        Enemy.Update(dt, Renderer.gridOffsetX, Renderer.gridOffsetY)
+
+        -- 更新战斗（攻击、弹道）
+        Combat.Update(dt, Renderer.gridOffsetX, Renderer.gridOffsetY)
+
+        -- 合成闪光衰减
+        if State.mergeFlash > 0 then
+            State.mergeFlash = State.mergeFlash - dt
+        end
+        if State.summonFlash > 0 then
+            State.summonFlash = State.summonFlash - dt
+        end
+
+        -- 检查游戏结束
+        if State.lives <= 0 then
+            State.phase = State.PHASE_GAME_OVER
+            print("[Game] Game Over! Score=" .. State.score)
+        end
+    elseif State.phase == State.PHASE_WAVE_READY then
+        -- 波次准备阶段也更新塔动画
+        Tower.Update(dt)
+        if State.mergeFlash > 0 then
+            State.mergeFlash = State.mergeFlash - dt
+        end
+        if State.summonFlash > 0 then
+            State.summonFlash = State.summonFlash - dt
+        end
+    end
+
+    -- 更新 UI
+    GameUI.Update(dt)
+end
+
+-- ============================================================================
+-- 输入处理
+-- ============================================================================
+
+---@param eventType string
+---@param eventData MouseButtonDownEventData
+function HandleMouseDown(eventType, eventData)
+    local button = eventData["Button"]:GetInt()
+    if button ~= MOUSEB_LEFT then return end
+
+    local dpr = graphics:GetDPR()
+    local mx = eventData["X"]:GetInt() / dpr
+    local my = eventData["Y"]:GetInt() / dpr
+
+    HandleClick(mx, my)
+end
+
+---@param eventType string
+---@param eventData TouchBeginEventData
+function HandleTouchBegin(eventType, eventData)
+    local dpr = graphics:GetDPR()
+    local tx = eventData["X"]:GetInt() / dpr
+    local ty = eventData["Y"]:GetInt() / dpr
+
+    HandleClick(tx, ty)
+end
+
+function HandleClick(x, y)
+    if State.phase ~= State.PHASE_PLAYING and State.phase ~= State.PHASE_WAVE_READY then
+        return
+    end
+
+    local ox = Renderer.gridOffsetX
+    local oy = Renderer.gridOffsetY
+    local col, row = Grid.ScreenToCell(x, y, ox, oy)
+
+    -- 检查是否点击了网格内的塔
+    if col >= 1 and col <= Config.GRID_COLS and row >= 1 and row <= Config.GRID_ROWS then
+        local tower = State.grid[col][row]
+        if tower then
+            Tower.Select(tower)
+            return
+        end
+    end
+
+    -- 点击空白区域取消选中
+    State.selectedTower = nil
+end
+
+-- ============================================================================
+-- NanoVG 渲染
+-- ============================================================================
+
+function HandleNanoVGRender(eventType, eventData)
+    if not vg then return end
+
+    local dpr = graphics:GetDPR()
+    local physW = graphics:GetWidth()
+    local physH = graphics:GetHeight()
+    local logW = physW / dpr
+    local logH = physH / dpr
+
+    -- 模式 B: 系统逻辑分辨率 + DPR 修正
+    nvgBeginFrame(vg, logW, logH, dpr)
+
+    -- 渲染游戏画面
+    Renderer.Render(vg, logW, logH)
+
+    nvgEndFrame(vg)
+end
