@@ -586,4 +586,243 @@ ctx.RARITY_COLORS = RARITY_COLORS
 
 --- 格式化数字
 
+-- ============================================================================
+-- 伤害战报面板
+-- ============================================================================
+
+local DamageStats = require("Game.DamageStats")
+
+--- 格式化大数字（k/m）
+local function FmtDmg(n)
+    if n >= 1000000 then return string.format("%.1fM", n / 1000000)
+    elseif n >= 1000 then return string.format("%.1fK", n / 1000)
+    else return tostring(math.floor(n)) end
+end
+
+--- 打开/关闭伤害战报浮层（每次打开重新读取最新数据）
+function GameUI.ShowDamageStatsPanel(show)
+    if not ctx.uiRoot then return end
+
+    -- 关闭：移除已有浮层
+    local existing = ctx.uiRoot:FindById("damageStatsOverlay")
+    if existing then
+        existing:Remove()
+        if not show then return end
+    end
+    if not show then return end
+
+    -- 读取统计数据
+    local list, totalDmg = DamageStats.GetSorted()
+
+    -- 构建每行英雄条目
+    local rows = {}
+    for rank, s in ipairs(list) do
+        if rank > 12 then break end  -- 最多显示 12 条
+
+        local pct = (totalDmg > 0) and (s.totalDmg / totalDmg) or 0
+        local pctStr = string.format("%.1f%%", pct * 100)
+        local dmgStr = FmtDmg(s.totalDmg)
+        local c = s.color or { 180, 140, 255 }
+
+        -- 星级文字
+        local starStr = string.rep("★", math.min(s.star or 0, 5))
+
+        rows[#rows + 1] = ctx.UI.Panel {
+            flexDirection = "column",
+            gap = 3,
+            paddingTop = 6, paddingBottom = 6,
+            paddingLeft = 10, paddingRight = 10,
+            backgroundColor = rank == 1
+                and { c[1] * 0.3, c[2] * 0.3, c[3] * 0.3, 80 }
+                or { 15, 12, 28, 60 },
+            borderRadius = 6,
+            children = {
+                -- 名称行
+                ctx.UI.Panel {
+                    flexDirection = "row",
+                    alignItems = "center",
+                    justifyContent = "space-between",
+                    children = {
+                        ctx.UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = 6,
+                            children = {
+                                -- 排名角标
+                                ctx.UI.Label {
+                                    text = tostring(rank),
+                                    fontSize = 10,
+                                    fontColor = rank == 1 and { 255, 210, 60, 255 }
+                                        or { 150, 140, 170, 200 },
+                                    fontWeight = "bold",
+                                    width = 14,
+                                    textAlign = "center",
+                                },
+                                -- 英雄名 + 星级
+                                ctx.UI.Label {
+                                    text = (s.heroName or "未知"),
+                                    fontSize = 13,
+                                    fontColor = { c[1], c[2], c[3], 255 },
+                                    fontWeight = "bold",
+                                },
+                                ctx.UI.Label {
+                                    text = starStr,
+                                    fontSize = 9,
+                                    fontColor = { 255, 210, 60, 200 },
+                                },
+                            },
+                        },
+                        -- 右侧：伤害值 + 占比
+                        ctx.UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = 6,
+                            children = {
+                                ctx.UI.Label {
+                                    text = pctStr,
+                                    fontSize = 11,
+                                    fontColor = { 160, 145, 190, 200 },
+                                },
+                                ctx.UI.Label {
+                                    text = dmgStr,
+                                    fontSize = 14,
+                                    fontColor = { 230, 215, 255, 255 },
+                                    fontWeight = "bold",
+                                    minWidth = 52,
+                                    textAlign = "right",
+                                },
+                            },
+                        },
+                    },
+                },
+                -- 进度条
+                ctx.UI.Panel {
+                    height = 4,
+                    backgroundColor = { 40, 35, 60, 200 },
+                    borderRadius = 2,
+                    overflow = "hidden",
+                    children = {
+                        ctx.UI.Panel {
+                            width = string.format("%.1f%%", pct * 100),
+                            height = 4,
+                            backgroundColor = { c[1], c[2], c[3], 200 },
+                            borderRadius = 2,
+                        },
+                    },
+                },
+                -- 暴击 + 击杀
+                ctx.UI.Label {
+                    text = string.format("暴击 %d 次  · 击杀 %d",
+                        s.critCount, s.killCount),
+                    fontSize = 10,
+                    fontColor = { 140, 130, 165, 180 },
+                },
+            },
+        }
+    end
+
+    -- 空数据提示
+    if #rows == 0 then
+        rows[1] = ctx.UI.Label {
+            text = "本场暂无伤害数据\n开始战斗后自动记录",
+            fontSize = 13,
+            fontColor = { 160, 150, 190, 200 },
+            textAlign = "center",
+            marginTop = 20, marginBottom = 20,
+        }
+    end
+
+    -- 总伤害摘要行
+    local summaryText = totalDmg > 0
+        and ("总伤害：" .. FmtDmg(totalDmg))
+        or ""
+
+    -- 刷新时直接还原到位，首次打开才触发滑入动画
+    local initRight = GameUI._dmgIsRefresh and 0 or -300
+
+    local overlay = ctx.UI.Panel {
+        id = "damageStatsOverlay",
+        position = "absolute",
+        top = 0, left = 0, right = 0, bottom = 0,
+        backgroundColor = { 0, 0, 0, 0 },  -- 全透明遮罩
+        pointerEvents = "auto",
+        onClick = function(self) self:Remove() end,
+        children = {
+            ctx.UI.Panel {
+                id = "dmgStatsCard",
+                position = "absolute",
+                top = 0, bottom = 0,
+                right = initRight,
+                width = 280,
+                backgroundColor = { 18, 14, 35, 180 },
+                borderWidth = 1,
+                borderColor = { 80, 55, 130, 180 },
+                paddingTop = 12, paddingBottom = 14,
+                paddingLeft = 12, paddingRight = 12,
+                gap = 8,
+                overflow = "scroll",
+                onClick = function() end,  -- 阻止冒泡关闭
+                children = {
+                    -- 标题行
+                    ctx.UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        justifyContent = "space-between",
+                        marginBottom = 2,
+                        children = {
+                            ctx.UI.Label {
+                                text = "伤害战报",
+                                fontSize = 16,
+                                fontColor = { 220, 200, 255, 255 },
+                                fontWeight = "bold",
+                            },
+                            ctx.UI.Panel {
+                                width = 26, height = 26,
+                                borderRadius = 13,
+                                backgroundColor = { 50, 38, 75, 220 },
+                                justifyContent = "center",
+                                alignItems = "center",
+                                pointerEvents = "auto",
+                                onClick = function()
+                                    local ov = ctx.uiRoot and ctx.uiRoot:FindById("damageStatsOverlay")
+                                    if ov then ov:Remove() end
+                                end,
+                                children = {
+                                    ctx.UI.Label {
+                                        text = "×",
+                                        fontSize = 14,
+                                        fontColor = { 200, 180, 230, 255 },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    -- 总伤害摘要
+                    summaryText ~= "" and ctx.UI.Label {
+                        text = summaryText,
+                        fontSize = 11,
+                        fontColor = { 160, 145, 200, 200 },
+                        textAlign = "right",
+                        alignSelf = "flex-end",
+                    } or nil,
+                    -- 英雄列表
+                    ctx.UI.Panel {
+                        flexDirection = "column",
+                        gap = 4,
+                        children = rows,
+                    },
+                },
+            },
+        },
+    }
+
+    ctx.uiRoot:AddChild(overlay)
+
+    -- 首次打开触发滑入动画
+    if not GameUI._dmgIsRefresh then
+        GameUI._dmgAnimating = true
+        GameUI._dmgSlideOffset = 300
+    end
+end
+
 end

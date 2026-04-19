@@ -286,8 +286,14 @@ function Wave.BuildStageWaves(stageNum)
         local hpScale    = GetHPScale(stageNum, waveInStage)
         local speedScale = GetSpeedScale(stageNum)
         -- 将缩放系数嵌入 entry，供 BattleManager.SpawnEntry 使用
+        -- Boss entry 需额外乘 tierMult（3^(tier-1)），与 SpawnFromEntry 逻辑保持一致
         for _, entry in ipairs(queue) do
-            entry.hpScale    = hpScale
+            if entry.type == "__boss" then
+                local tierMult = 3.0 ^ ((entry.bossTier or 1) - 1)
+                entry.hpScale = hpScale * tierMult
+            else
+                entry.hpScale = hpScale
+            end
             entry.speedScale = speedScale
         end
         -- waveType 作为非整数字段存储（ipairs 会忽略它，不影响生成逻辑）
@@ -304,6 +310,11 @@ end
 --- 开始下一波
 function Wave.StartNext()
     State.currentWave = State.currentWave + 1
+    -- 新战斗第一波：重置伤害统计
+    if State.currentWave == 1 then
+        local DamageStats = require("Game.DamageStats")
+        DamageStats.Reset()
+    end
     Currency.CollectDarkSoul(Config.WAVE_DARK_SOUL_BONUS)
     State.waveActive = true
 

@@ -17,6 +17,7 @@ local SFX_ATTACK_INTERVAL = 0.15   -- 攻击音效最小间隔
 local SFX_HIT_INTERVAL = 0.12      -- 命中音效最小间隔
 local Tower = require("Game.Tower")
 local LootDrop = require("Game.LootDrop")
+local DamageStats = require("Game.DamageStats")
 
 local Combat = {}
 
@@ -253,6 +254,7 @@ local function HandleChainAttack(tower, firstTarget, damage)
         local modDmg = HeroSkills.ModifyDamage(tower, nextTarget, currentDmg)
         local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, nextTarget, modDmg)
         local killed = Enemy.TakeDamage(nextTarget, finalDmg)
+        DamageStats.Record(tower, finalDmg, isCrit, killed)
 
         -- 伤害飘字（元素着色）
         local elemColor = GetElementDmgColor(heroElem, elemMult, tower.typeDef.color)
@@ -329,6 +331,7 @@ local function OnProjectileHit(proj)
         local damage = HeroSkills.ModifyDamage(tower, target, proj.damage)
         local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, target, damage)
         local killed = Enemy.TakeDamage(target, finalDmg)
+        DamageStats.Record(tower, finalDmg, isCrit, killed)
 
         -- 伤害飘字（元素着色）
         local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
@@ -369,6 +372,7 @@ local function OnProjectileHit(proj)
                     local damage = HeroSkills.ModifyDamage(tower, e, proj.damage * dmgMult)
                     local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, e, damage)
                     local killed = Enemy.TakeDamage(e, finalDmg)
+                    DamageStats.Record(tower, finalDmg, isCrit, killed)
 
                     -- 伤害飘字（元素着色）
                     local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
@@ -403,6 +407,7 @@ local function OnProjectileHit(proj)
         local damage = HeroSkills.ModifyDamage(tower, target, proj.damage)
         local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, target, damage)
         local killed = Enemy.TakeDamage(target, finalDmg)
+        DamageStats.Record(tower, finalDmg, isCrit, killed)
 
         -- 伤害飘字（元素着色）
         local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)

@@ -334,11 +334,35 @@ function GameUI.CreateBattlePage()
             GameUI.CreateAfkButton(),
             GameUI.CreateIdleRewardPanel(),
             GameUI.CreateMenuPanel(),
-            -- x3 加速按钮（独立定位，在自动召唤上方）
+            -- 战报按钮（在x2加速上方）
+            UI.Panel {
+                id = "damageStatsBtn",
+                position = "absolute",
+                right = 12, bottom = 154,
+                paddingLeft = 10, paddingRight = 10,
+                paddingTop = 5, paddingBottom = 5,
+                borderRadius = 6,
+                borderWidth = 1,
+                borderColor = { 120, 90, 180, 160 },
+                backgroundColor = { 30, 22, 50, 210 },
+                pointerEvents = "auto",
+                alignItems = "center",
+                onClick = function(self)
+                    GameUI.ShowDamageStatsPanel(true)
+                end,
+                children = {
+                    UI.Label {
+                        text = "战报",
+                        fontSize = 11,
+                        fontColor = { 200, 170, 240, 255 },
+                    },
+                },
+            },
+            -- x2 加速按钮（独立定位，在自动召唤上方）
             UI.Panel {
                 id = "speedBoostBtn",
                 position = "absolute",
-                right = 12, bottom = 108,
+                right = 12, bottom = 114,
                 paddingLeft = 10, paddingRight = 10,
                 paddingTop = 5, paddingBottom = 5,
                 borderRadius = 6,
@@ -1568,6 +1592,39 @@ function GameUI.Update(dt)
     -- 时装签到预览动画
     if GameUI._costumeSignInPage and GameUI._costumeSignInPage:IsVisible() then
         CostumeSignInUI.Update(dt)
+    end
+
+    -- 战报浮窗实时刷新（1秒一次，标记为刷新以跳过动画）
+    if ctx.uiRoot then
+        local ov = ctx.uiRoot:FindById("damageStatsOverlay")
+        if ov then
+            GameUI._dmgRefreshTimer = (GameUI._dmgRefreshTimer or 0) + dt
+            if GameUI._dmgRefreshTimer >= 1.0 then
+                GameUI._dmgRefreshTimer = 0
+                GameUI._dmgIsRefresh = true
+                GameUI.ShowDamageStatsPanel(true)
+                GameUI._dmgIsRefresh = false
+            end
+        else
+            GameUI._dmgRefreshTimer = 0
+        end
+    end
+
+    -- 战报面板滑入动画（easing: exponential decay）
+    if GameUI._dmgAnimating then
+        local offset = GameUI._dmgSlideOffset or 300
+        offset = math.max(0, offset - (offset * 10 + 80) * dt)
+        GameUI._dmgSlideOffset = offset
+        local card = ctx.uiRoot and ctx.uiRoot:FindById("dmgStatsCard")
+        if card then
+            card:SetStyle({ right = -offset })
+            if offset < 0.5 then
+                card:SetStyle({ right = 0 })
+                GameUI._dmgAnimating = false
+            end
+        else
+            GameUI._dmgAnimating = false
+        end
     end
 end
 

@@ -375,7 +375,7 @@ function GameUI.CreateBottomBar()
                 position = "absolute",
                 right = 12, bottom = 6,
                 flexDirection = "column",
-                gap = 6,
+                gap = 8,
                 pointerEvents = "auto",
                 alignItems = "center",
                 children = {
