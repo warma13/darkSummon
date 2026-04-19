@@ -238,6 +238,7 @@ function Tower.Summon()
         -- 每日任务追踪
         local ok2, DTD = pcall(require, "Game.DailyTaskData")
         if ok2 and DTD then DTD.AddProgress("summon", 1) end
+
     end
     print("[Tower] Summon #" .. State.summonCount .. " cost=" .. cost .. " next=" .. Tower.GetSummonCost())
     return tower

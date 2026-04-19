@@ -145,6 +145,10 @@ function DailyTaskData.ClaimTask(taskId)
     data.totalPoints = (data.totalPoints or 0) + pts
     HeroData.Save()
 
+    -- 同步周积分
+    local ok2, WPD = pcall(require, "Game.WeeklyPointsData")
+    if ok2 and WPD then WPD.AddPoints(pts) end
+
     print("[DailyTask] Task " .. taskId .. " claimed, +" .. pts
         .. " pts (total=" .. data.totalPoints .. ")")
     return true, "+" .. pts .. " 积分"
@@ -218,6 +222,12 @@ function DailyTaskData.HasClaimable()
         if (data.totalPoints or 0) >= m.threshold and not data.milestonesClaimed[tostring(i)] then
             return true
         end
+    end
+
+    -- 周积分里程碑（已达成但未领取）
+    local ok2, WPD = pcall(require, "Game.WeeklyPointsData")
+    if ok2 and WPD and WPD.HasClaimable then
+        if WPD.HasClaimable() then return true end
     end
 
     return false

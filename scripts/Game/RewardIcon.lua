@@ -33,7 +33,8 @@ local REWARD_DESC = {
     devour_stone_bag    = "打开可获得50~500噬魂石",
     forge_iron_bag      = "打开可获得30~300锻魂铁",
     -- 道具
-    dungeon_ticket        = "每日免费次数用完后，消耗门票可额外挑战资源副本1次",
+    dungeon_ticket            = "每日免费次数用完后，消耗门票可额外挑战资源副本1次",
+    recruit_ticket_select_box = "使用后可选择当前开放的招募池，获得对应招募券",
     -- 碎片箱
     random_ur_shard_box   = "打开随机获得1个UR英雄碎片",
     r_shard_random_box    = "打开随机获得1个R英雄碎片",
@@ -59,7 +60,7 @@ local REWARD_DESC = {
 function RewardIcon.Create(UI, size, currencyId, amount, opts)
     opts = opts or {}
     local cdef = Config.CURRENCY[currencyId]
-    local img = cdef and cdef.image
+    local img = opts.image or (cdef and cdef.image)
     local muted = opts.muted
     local displayName = opts.label or (cdef and cdef.name) or currencyId
     local desc = opts.desc or REWARD_DESC[currencyId] or ""

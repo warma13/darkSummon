@@ -579,9 +579,11 @@ Config.CURRENCY = {
     trial_ticket    = { name = "试练券",   icon = "ticket",   color = { 80, 200, 220 },  image = "image/trial_ticket.png",            usage = "试练塔" },
     shadow_essence  = { name = "暗影精粹", icon = "essence",  color = { 180, 140, 255 }, image = "image/currency_shadow_essence.png",  usage = "兑换" },
     shadow_orb      = { name = "幽影珠",   icon = "orb",      color = { 160, 80, 200 },  image = "image/currency_shadow_orb.png",     usage = "高级" },
+    wood_chest      = { name = "朽木宝箱", icon = "chest",    color = { 160, 130, 80 },  image = "image/chest_wood.png",              usage = "开启" },
     bronze_chest    = { name = "青铜宝箱", icon = "chest",    color = { 180, 140, 80 },  image = "image/chest_bronze.png",            usage = "开启" },
     gold_chest      = { name = "黄金宝箱", icon = "chest",    color = { 255, 215, 0 },   image = "image/chest_gold.png",              usage = "开启" },
-    platinum_chest  = { name = "铂金宝箱", icon = "chest",    color = { 180, 220, 255 }, image = "image/chest_platinum.png",           usage = "开启" },
+    platinum_chest  = { name = "铂金宝箱", icon = "chest",    color = { 180, 220, 255 }, image = "image/chest_platinum.png",          usage = "开启" },
+    diamond_chest   = { name = "钻石宝箱", icon = "chest",    color = { 255, 100, 255 }, image = "image/chest_diamond.png",           usage = "开启" },
     ur_shard_box    = { name = "万能UR碎片箱", icon = "box",  color = { 255, 200, 50 },  image = "image/icon_universal_ur_shard_box.png", usage = "选择UR碎片" },
     random_ur_shard_box = { name = "随机UR碎片箱", icon = "box", color = { 180, 100, 255 }, image = "image/icon_random_ur_shard_box.png", usage = "随机UR碎片" },
     -- R/SR/SSR 自选 & 随机碎片礼包
@@ -597,9 +599,11 @@ Config.CURRENCY = {
     devour_stone_bag     = { name = "噬魂石福袋",   icon = "bag",     color = { 60, 160, 80 },   image = "image/icon_devour_stone_bag.png",    usage = "获取噬魂石" },
     forge_iron_bag       = { name = "锻魂铁福袋",   icon = "bag",     color = { 130, 160, 200 }, image = "image/icon_forge_iron_bag.png",      usage = "获取锻魂铁" },
     -- 限定招募
-    frost_pact           = { name = "霜誓契约", icon = "fpact", color = { 130, 210, 255 }, image = "image/currency_frost_pact.png", usage = "限定招募" },
+    frost_pact           = { name = "霜誓契约", icon = "fpact",  color = { 130, 210, 255 }, image = "image/currency_frost_pact.png",          usage = "限定招募" },
+    linyan_oath          = { name = "翎嫣之誓", icon = "oath",   color = { 100, 220, 140 }, image = "image/currency_linyan_oath_20260419133529.png", usage = "苍华极脉招募" },
     -- 道具
-    dungeon_ticket       = { name = "资源副本门票", icon = "ticket", color = { 255, 180, 60 }, image = "image/item_dungeon_ticket.png", usage = "进入副本" },
+    dungeon_ticket           = { name = "资源副本门票", icon = "ticket", color = { 255, 180, 60 }, image = "image/item_dungeon_ticket.png",     usage = "进入副本" },
+    recruit_ticket_select_box = { name = "招募券自选包", icon = "ticket", color = { 200, 150, 255 }, image = "image/icon_recruit_ticket_select_box.png", usage = "选择招募池" },
     -- 淬炼货币
     pale_jade            = { name = "粹玉",   icon = "jade",    color = { 220, 240, 255 }, image = "image/currency_pale_jade.png", usage = "淬炼" },
     rainbow_jade         = { name = "封魂玉", icon = "rjade",   color = { 255, 120, 220 }, image = "image/currency_rainbow_jade.png", usage = "锁定淬炼孔位" },
@@ -688,36 +692,77 @@ Config.RECRUIT_POOL = {
 }
 
 -- ============================================================================
--- 限定招募池
+-- 限定招募池（支持多池）
 -- ============================================================================
-Config.LIMITED_BANNER = {
-    heroId = "glacial_sovereign",
-    currency = "frost_pact",             -- 使用霜誓契约
-    singleCost = 1,
-    tenCost = 10,
-    pity = 50,                           -- 50抽保底
-    pityResetOnGet = true,               -- 提前获得则重置保底计数
-    durationDays = 30,                   -- 持续30天
-    buyPrice = 300,                      -- 暗影精粹购买价格（每张）
-    buyCurrency = "shadow_essence",
-    -- 限定池概率：UP英雄独占UR位，其余品质复用常驻池
-    rates = {
-        N   = 40,
-        R   = 30,
-        SR  = 17,
-        SSR = 8,
-        UR  = 3,        -- 出UR时必定是限定英雄
-        LR  = 1,
+Config.LIMITED_BANNERS = {
+    -- 池1：凛冬君王
+    {
+        id          = "glacial",
+        name        = "凛冬君王",
+        heroId      = "glacial_sovereign",
+        avatar      = "image/avatars/avatar_glacial.png",
+        currency    = "frost_pact",
+        singleCost  = 1,
+        tenCost     = 10,
+        pity        = 50,
+        pityResetOnGet = true,
+        durationDays   = 30,
+        buyPrice    = 300,
+        buyCurrency = "shadow_essence",
+        -- startDate 使用 Config.LIMITED_BANNER_START（在 Config_Core 中定义）
+        rates = {
+            N   = 40,
+            R   = 30,
+            SR  = 17,
+            SSR = 8,
+            UR  = 3,
+            LR  = 1,
+        },
+        fallbackPool = {
+            N   = Config.RECRUIT_POOL.N,
+            R   = Config.RECRUIT_POOL.R,
+            SR  = Config.RECRUIT_POOL.SR,
+            SSR = Config.RECRUIT_POOL.SSR,
+            LR  = Config.RECRUIT_POOL.LR,
+        },
     },
-    -- 限定池内非UP英雄来源（复用常驻池，UR位除外）
-    fallbackPool = {
-        N   = Config.RECRUIT_POOL.N,
-        R   = Config.RECRUIT_POOL.R,
-        SR  = Config.RECRUIT_POOL.SR,
-        SSR = Config.RECRUIT_POOL.SSR,
-        LR  = Config.RECRUIT_POOL.LR,
+    -- 池2：苍华极脉·翎嫣（4月22日解锁）
+    {
+        id           = "nature",
+        name         = "苍华极脉",
+        heroId       = "nature_elf",
+        avatar       = "image/avatars/avatar_nature_elf.png",
+        artworkImage = "image/lingyan_artwork_20260419123010.png",
+        bannerBg     = "image/limited_banner_bg_nature_20260419130050.png",
+        currency    = "linyan_oath",
+        singleCost  = 1,
+        tenCost     = 10,
+        pity        = 50,
+        pityResetOnGet = true,
+        durationDays   = 30,
+        buyPrice    = 300,
+        buyCurrency = "shadow_essence",
+        startDate   = "2026-04-22",      -- 活动起始日期
+        unlockDate  = "2026-04-22",      -- 此日期前锁定，不可招募
+        rates = {
+            N   = 40,
+            R   = 30,
+            SR  = 17,
+            SSR = 8,
+            UR  = 3,
+            LR  = 1,
+        },
+        fallbackPool = {
+            N   = Config.RECRUIT_POOL.N,
+            R   = Config.RECRUIT_POOL.R,
+            SR  = Config.RECRUIT_POOL.SR,
+            SSR = Config.RECRUIT_POOL.SSR,
+            LR  = Config.RECRUIT_POOL.LR,
+        },
     },
 }
+-- 向后兼容：保留单一引用
+Config.LIMITED_BANNER = Config.LIMITED_BANNERS[1]
 
 Config.SETTLE_TOKEN_BASE = 1
 Config.SETTLE_TOKEN_PER_10 = 1

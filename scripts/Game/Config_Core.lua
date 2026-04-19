@@ -7,7 +7,7 @@ local function apply(Config)
 -- 游戏基础设置
 -- ============================================================================
 Config.SERVER_START_DATE        = "2026-04-12"  -- 开服日期（YYYY-MM-DD）
-Config.WEEKLY_ACTIVITY_START    = "2026-04-13"  -- 宝箱周活动起始日期
+Config.WEEKLY_ACTIVITY_START    = "2026-04-06"  -- 宝箱周活动起始日期（测试用，正式改回 2026-04-13）
 Config.LIMITED_BANNER_START     = "2026-04-14"  -- 限定池起始日期
 Config.COSTUME_SIGN_IN_START    = "2026-04-18"  -- 暗影之翼时装签到活动起始日期（YYYY-MM-DD）
 Config.TITLE = "Dark Merge TD"

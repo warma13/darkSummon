@@ -1,11 +1,12 @@
 -- Game/WelfareData.lua
 -- 限时福利数据：每日看广告领宝箱 + 每周广告进度领暗影精粹
 
-local HeroData   = require("Game.HeroData")
-local ChestData  = require("Game.ChestData")
-local Currency   = require("Game.Currency")
-local WAD        = require("Game.WeeklyActivityData")
-local SaveRegistry = require("Game.SaveRegistry")
+local HeroData      = require("Game.HeroData")
+local ChestData     = require("Game.ChestData")
+local Currency      = require("Game.Currency")
+local WAD           = require("Game.WeeklyActivityData")
+local SaveRegistry  = require("Game.SaveRegistry")
+local InventoryData = require("Game.InventoryData")
 
 local WelfareData = {}
 
@@ -13,7 +14,7 @@ local WelfareData = {}
 -- 配置
 -- ============================================================================
 
---- 每日奖励（11 次，第 1 次免费，后续看广告解锁，从朽木→青铜→黄金→铂金）
+--- 宝箱周每日奖励（11 次，第 1 次免费，后续看广告解锁，从朽木→青铜→黄金→铂金）
 --- 每天重置
 WelfareData.DAILY_AD_REWARDS = {
     { chestId = "wood",     amount = 5,  free = true },  -- 第 1 次：免费 5 朽木
@@ -31,6 +32,33 @@ WelfareData.DAILY_AD_REWARDS = {
 -- 每日总直接积分: 2290，× 7天 × 2.08滚雪球 ≈ 33,346
 
 WelfareData.MAX_DAILY_ADS = #WelfareData.DAILY_AD_REWARDS
+
+--- 招募周每日奖励（10 次，第 1 次免费，后续看广告，奖励为招募券）
+--- 每天重置，共 10 次/天
+WelfareData.RECRUIT_DAILY_REWARDS = {
+    { ticketAmount = 6,  free = true },  -- 第 1 次：免费 6 包
+    { ticketAmount = 8  },               -- 第 2 次：8 包
+    { ticketAmount = 10 },               -- 第 3 次：10 包
+    { ticketAmount = 10 },               -- 第 4 次：10 包
+    { ticketAmount = 12 },               -- 第 5 次：12 包
+    { ticketAmount = 12 },               -- 第 6 次：12 包
+    { ticketAmount = 12 },               -- 第 7 次：12 包
+    { ticketAmount = 14 },               -- 第 8 次：14 包
+    { ticketAmount = 16 },               -- 第 9 次：16 包
+    { ticketAmount = 20 },               -- 第 10 次：20 包
+}
+-- 合计：6+8+10+10+12+12+12+14+16+20 = 120 包/天
+
+WelfareData.MAX_RECRUIT_DAILY = #WelfareData.RECRUIT_DAILY_REWARDS
+
+--- 返回当前周有效的每日奖励列表
+---@return table rewards, number maxCount
+function WelfareData.GetEffectiveDailyRewards()
+    if WAD.GetCurrentWeekType() == "recruit" then
+        return WelfareData.RECRUIT_DAILY_REWARDS, WelfareData.MAX_RECRUIT_DAILY
+    end
+    return WelfareData.DAILY_AD_REWARDS, WelfareData.MAX_DAILY_ADS
+end
 
 --- 每周广告进度里程碑（累计一周，每 10 次广告领 1000 暗影精粹）
 WelfareData.WEEKLY_MILESTONES = {
@@ -121,13 +149,15 @@ function WelfareData.IsDailyUnlocked(index)
     return WelfareData.IsDailyClaimed(index - 1)
 end
 
---- 看广告并领取对应奖励
+--- 看广告并领取对应奖励（自动适配宝箱周/招募周）
 function WelfareData.ClaimDailyReward(index, onDone)
     local data = WelfareData.EnsureData()
     ResetDailyIfNeeded(data)
 
+    local rewards, maxCount = WelfareData.GetEffectiveDailyRewards()
+
     -- 校验
-    if index < 1 or index > WelfareData.MAX_DAILY_ADS then
+    if index < 1 or index > maxCount then
         if onDone then onDone(false, "无效索引") end
         return
     end
@@ -140,7 +170,7 @@ function WelfareData.ClaimDailyReward(index, onDone)
         return
     end
 
-    local reward = WelfareData.DAILY_AD_REWARDS[index]
+    local reward = rewards[index]
 
     -- 免费奖励直接发放
     if reward.free then
@@ -160,9 +190,14 @@ function WelfareData.ClaimDailyReward(index, onDone)
 end
 
 function WelfareData._ApplyDailyReward(data, index, reward)
-    -- 发放宝箱
-    ChestData.Add(reward.chestId, reward.amount)
-    ChestData.Save()
+    if reward.ticketAmount then
+        -- 招募周：发放招募券自选包（可在仓库选择招募池兑换对应票券）
+        InventoryData.Add("recruit_ticket_select_box", reward.ticketAmount)
+    else
+        -- 宝箱周：发放宝箱
+        ChestData.Add(reward.chestId, reward.amount)
+        ChestData.Save()
+    end
 
     -- 标记已领取
     data.dailyClaimed[index] = true
@@ -235,7 +270,8 @@ function WelfareData.HasClaimable()
     ResetDailyIfNeeded(data)
 
     -- 检查每日广告奖励：是否有已解锁且未领取的
-    for i = 1, WelfareData.MAX_DAILY_ADS do
+    local _, maxCount = WelfareData.GetEffectiveDailyRewards()
+    for i = 1, maxCount do
         if WelfareData.IsDailyUnlocked(i) and not (data.dailyClaimed[i] or false) then
             return true
         end

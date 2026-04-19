@@ -1144,20 +1144,32 @@ function GameUI.CreateDailyTaskOverlay()
         id = "dailyTaskOverlay",
         position = "absolute",
         top = 0, left = 0, right = 0, bottom = 0,
+        flexDirection = "column",
         visible = false,
         children = {
-            content,
-            -- 左下角返回键
+            -- 内容区占满剩余高度
             UI.Panel {
-                position = "absolute",
-                left = 8, bottom = 120,
-                pointerEvents = "auto",
+                width = "100%",
+                flexGrow = 1, flexShrink = 1,
+                overflow = "hidden",
+                children = { content },
+            },
+            -- 底部返回键行
+            UI.Panel {
+                width = "100%",
+                height = 54,
+                flexShrink = 0,
+                backgroundColor = { 15, 12, 30, 240 },
+                borderTopWidth = 1,
+                borderColor = { 80, 65, 120, 100 },
+                justifyContent = "center",
+                alignItems = "center",
                 children = {
                     UI.Button {
                         text = "返回",
-                        fontSize = 20,
-                        width = 90,
-                        height = 54,
+                        fontSize = 16,
+                        width = 120,
+                        height = 38,
                         borderRadius = 8,
                         variant = "outline",
                         onClick = function()

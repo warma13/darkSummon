@@ -2,10 +2,12 @@
 -- 每日任务 UI（独立全屏页面，参考 LaunchGiftUI 布局）
 
 local DailyTaskData  = require("Game.DailyTaskData")
+local WPD            = require("Game.WeeklyPointsData")
 local Toast          = require("Game.Toast")
 local Tooltip        = require("Game.Tooltip")
 local RewardIconMod  = require("Game.RewardIcon")
 local TaskCard       = require("Game.TaskCard")
+local ChestData      = require("Game.ChestData")
 
 local DailyTaskUI = {}
 
@@ -72,9 +74,11 @@ function DailyTaskUI.Refresh()
 
     DailyTaskData.EnsureData()
 
-    -- 1) 积分里程碑区
+    -- 1) 周积分里程碑区（在上）
+    area:AddChild(DailyTaskUI._BuildWeeklyMilestoneSection())
+    -- 2) 每日积分里程碑区
     area:AddChild(DailyTaskUI._BuildMilestoneSection())
-    -- 2) 每日任务列表
+    -- 3) 每日任务列表
     area:AddChild(DailyTaskUI._BuildDailyTasks())
 end
 
@@ -320,6 +324,212 @@ function DailyTaskUI._BuildMilestoneSection()
                         children = {
                             UI.Label { text = "全部", fontSize = 11, fontColor = { 240, 235, 255, 255 }, textAlign = "center" },
                             UI.Label { text = "领取", fontSize = 11, fontColor = { 240, 235, 255, 255 }, textAlign = "center" },
+                        },
+                    },
+                },
+            },
+        },
+    }
+end
+
+-- ============================================================================
+-- 周积分里程碑区（累积每日积分，每周重置）
+-- ============================================================================
+
+function DailyTaskUI._BuildWeeklyMilestoneSection()
+    local totalPts   = WPD.GetPoints()
+    local milestones = WPD.MILESTONES
+    local maxThr     = milestones[#milestones].threshold
+    local ICON_SZ    = 24
+    local CELL_SZ    = ICON_SZ + 12  -- 36
+
+    -- 颜色系（金色/暗金调）
+    local bgWeekly  = { 35, 30, 18, 230 }
+    local borderW   = { 160, 130, 50, 150 }
+    local barFillW  = { 200, 160, 40, 255 }
+    local textWeekT = { 255, 215, 60, 255 }
+    local textWeekD = { 160, 145, 100, 200 }
+    local textWeekV = { 255, 230, 100, 255 }
+    local btnActive = { 160, 115, 20, 200 }
+    local btnInact  = { 60, 50, 20, 150 }
+
+    local anyCanClaim = WPD.HasClaimable()
+
+    -- 奖励图标行
+    local iconRow = {}
+    for i, m in ipairs(milestones) do
+        local canClaim, claimed, reached = WPD.GetMilestoneStatus(i)
+        local reward = m.rewards[1]
+        local milestoneIdx = i
+
+        -- chest 类型从 ChestData 查图片，其他类型走 Config.CURRENCY
+        local iconOpts = { muted = claimed }
+        if reward.type == "chest" then
+            local cdef = ChestData.GetChestDef(reward.id)
+            if cdef then
+                iconOpts.image = cdef.image
+                iconOpts.label = cdef.name
+            end
+        end
+        local icon = RewardIconMod.Create(UI, CELL_SZ, reward.id, reward.amount, iconOpts)
+
+        iconRow[#iconRow + 1] = UI.Panel {
+            width = CELL_SZ, height = CELL_SZ,
+            flexShrink = 0,
+            overflow = "visible",
+            opacity = claimed and 0.35 or (reached and 1.0 or 0.5),
+            pointerEvents = "auto",
+            onClick = function()
+                local ok, msg = WPD.ClaimMilestone(milestoneIdx)
+                Toast.Show(msg, ok and S.textGreen or S.red)
+                if ok then DailyTaskUI.Refresh() end
+            end,
+            children = {
+                icon,
+                -- 可领取红点
+                canClaim and UI.Panel {
+                    position = "absolute", top = -3, right = -3,
+                    width = 8, height = 8, borderRadius = 4,
+                    backgroundColor = S.red, zIndex = 3,
+                    pointerEvents = "none",
+                } or nil,
+                -- 已领取 ✓
+                claimed and UI.Panel {
+                    position = "absolute", top = 0, left = 0, right = 0, bottom = 0,
+                    justifyContent = "center", alignItems = "center",
+                    zIndex = 2,
+                    backgroundColor = { 0, 0, 0, 100 },
+                    borderRadius = 6,
+                    pointerEvents = "none",
+                    children = {
+                        UI.Label { text = "\u{2713}", fontSize = 16, fontColor = S.textGreen, fontWeight = "bold" },
+                    },
+                } or nil,
+            },
+        }
+    end
+
+    -- 进度条
+    local barH = 6
+    local pct = maxThr > 0 and math.min(1, totalPts / maxThr) or 0
+
+    local thresholdLabels = {}
+    for _, m in ipairs(milestones) do
+        thresholdLabels[#thresholdLabels + 1] = UI.Label {
+            text = tostring(m.threshold),
+            fontSize = 9,
+            fontColor = (totalPts >= m.threshold) and textWeekT or textWeekD,
+            textAlign = "center",
+            flexGrow = 1,
+        }
+    end
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = bgWeekly,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = borderW,
+        padding = 10,
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        children = {
+            -- 左列：周积分
+            UI.Panel {
+                width = 50,
+                flexShrink = 0,
+                alignItems = "center",
+                justifyContent = "center",
+                gap = 2,
+                children = {
+                    UI.Label {
+                        text = "本周",
+                        fontSize = 10, fontColor = textWeekD,
+                    },
+                    UI.Label {
+                        text = tostring(totalPts),
+                        fontSize = 22, fontColor = textWeekV, fontWeight = "bold",
+                    },
+                    UI.Label {
+                        text = "积分",
+                        fontSize = 10, fontColor = textWeekD,
+                    },
+                },
+            },
+            -- 中列：图标 + 进度条 + 阈值
+            UI.Panel {
+                flexGrow = 1, flexShrink = 1,
+                width = "100%",
+                gap = 4,
+                children = {
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        alignItems = "center",
+                        children = iconRow,
+                    },
+                    UI.Panel {
+                        width = "100%", height = barH,
+                        backgroundColor = { 60, 50, 20, 200 },
+                        borderRadius = barH / 2,
+                        overflow = "hidden",
+                        children = {
+                            UI.Panel {
+                                width = math.floor(pct * 100) .. "%",
+                                height = "100%",
+                                backgroundColor = barFillW,
+                                borderRadius = barH / 2,
+                            },
+                        },
+                    },
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        children = thresholdLabels,
+                    },
+                },
+            },
+            -- 右列：全部领取
+            UI.Panel {
+                width = 50,
+                flexShrink = 0,
+                alignItems = "center",
+                justifyContent = "center",
+                children = {
+                    UI.Panel {
+                        width = 48, height = 44,
+                        borderRadius = 8,
+                        borderWidth = 1,
+                        borderColor = anyCanClaim and borderW or { 80, 65, 30, 100 },
+                        backgroundColor = anyCanClaim and btnActive or btnInact,
+                        justifyContent = "center",
+                        alignItems = "center",
+                        gap = 1,
+                        pointerEvents = "auto",
+                        opacity = anyCanClaim and 1.0 or 0.5,
+                        onClick = function()
+                            if not anyCanClaim then
+                                Toast.Show("没有可领取的奖励", S.textDim)
+                                return
+                            end
+                            local claimed = false
+                            for idx = 1, #milestones do
+                                local ok = WPD.ClaimMilestone(idx)
+                                if ok then claimed = true end
+                            end
+                            if claimed then
+                                Toast.Show("周里程碑奖励已领取", S.textGreen)
+                                DailyTaskUI.Refresh()
+                            else
+                                Toast.Show("没有可领取的奖励", S.textDim)
+                            end
+                        end,
+                        children = {
+                            UI.Label { text = "全部", fontSize = 11, fontColor = { 255, 230, 150, 255 }, textAlign = "center" },
+                            UI.Label { text = "领取", fontSize = 11, fontColor = { 255, 230, 150, 255 }, textAlign = "center" },
                         },
                     },
                 },

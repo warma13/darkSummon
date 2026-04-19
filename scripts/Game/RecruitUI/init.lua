@@ -2,6 +2,7 @@
 -- 招募页面 UI 入口（常驻池 + 限定池标签切换）
 -- require("Game.RecruitUI") 会自动加载此文件
 
+local Config    = require("Game.Config")
 local NormalPool = require("Game.RecruitUI.NormalPool")
 local LimitedPool = require("Game.RecruitUI.LimitedPool")
 local GachaResult = require("Game.RecruitUI.GachaResult")
@@ -15,6 +16,9 @@ local pageRoot = nil
 
 -- 当前标签页（"normal" 常驻池 / "limited" 限定池）
 local currentTab = "normal"
+
+-- 当前选中的限定池索引（对应 Config.LIMITED_BANNERS）
+local limitedBannerIdx = 1
 
 -- 返回回调（由 GameUI 设置）
 local onBackCallback = nil
@@ -77,6 +81,8 @@ end
 
 --- 刷新常驻池内容
 function RecruitUI.RefreshNormal()
+    -- 切换到常驻池时停止限定池立绘动画
+    LimitedPool.StopArtworkAnim()
     -- 顶部招募令显示
     pageRoot:AddChild(NormalPool.CreateTokenBar(UI))
     -- 池子横幅
@@ -92,15 +98,19 @@ end
 
 --- 刷新限定池内容
 function RecruitUI.RefreshLimited()
-    -- 顶部限定货币栏
-    pageRoot:AddChild(LimitedPool.CreateTokenBar(UI))
-    -- 限定池横幅
-    pageRoot:AddChild(LimitedPool.CreateBanner(UI,
-        function() LimitedPool.ShowAdFrostDialog(UI, pageRoot, RecruitUI.Refresh) end,
-        function() LimitedPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG) end
+    local bannerCfg = Config.LIMITED_BANNERS[limitedBannerIdx]
+        or Config.LIMITED_BANNERS[1]
+
+    -- 顶部货币栏
+    pageRoot:AddChild(LimitedPool.CreateTokenBar(UI, bannerCfg))
+    -- 横幅
+    pageRoot:AddChild(LimitedPool.CreateBanner(UI, bannerCfg,
+        function() LimitedPool.ShowAdFrostDialog(UI, pageRoot, bannerCfg, RecruitUI.Refresh) end,
+        function() LimitedPool.ShowAdTicketDialog(UI, pageRoot, bannerCfg, RecruitUI.Refresh) end,
+        function() LimitedPool.ShowDetailPopup(UI, pageRoot, bannerCfg, RARITY_COLORS, RARITY_BG) end
     ))
-    -- 底部按钮区
-    pageRoot:AddChild(LimitedPool.CreateButtonArea(UI, pageRoot, RARITY_COLORS, currentTab, RecruitUI.Refresh))
+    -- 按钮区
+    pageRoot:AddChild(LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, currentTab, RecruitUI.Refresh))
     -- 标签栏 + 返回
     pageRoot:AddChild(RecruitUI.CreateTabBar())
 end
@@ -109,126 +119,117 @@ end
 -- 标签栏 + 返回按钮
 -- ============================================================================
 
---- 创建标签栏（常驻池 / 限定池 + 返回按钮）
+--- 创建标签栏：[返回] [常驻池] [凛冬君王] [苍华极脉] ...
 function RecruitUI.CreateTabBar()
     local LBD = require("Game.LimitedBannerData")
 
-    local function tabStyle(tabId)
-        local isActive = (currentTab == tabId)
-        return {
-            bg = isActive and { 100, 70, 180, 255 } or { 40, 35, 55, 200 },
-            border = isActive and { 180, 140, 255, 200 } or { 60, 50, 80, 100 },
-            font = isActive and { 255, 255, 255, 255 } or { 150, 140, 170, 200 },
+    -- 常驻池是否选中
+    local normalActive = (currentTab == "normal")
+
+    local children = {
+        -- 返回按钮
+        UI.Panel {
+            width = 72, height = 44,
+            borderRadius = 8,
+            backgroundColor = { 50, 40, 70, 255 },
+            borderWidth = 1,
+            borderColor = { 120, 90, 160, 180 },
+            justifyContent = "center",
+            alignItems = "center",
+            flexShrink = 0,
+            onClick = function(self)
+                if onBackCallback then onBackCallback() end
+            end,
+            children = {
+                UI.Label {
+                    text = "返回",
+                    fontSize = 15,
+                    fontColor = { 200, 180, 240, 255 },
+                    fontWeight = "bold",
+                },
+            },
+        },
+        -- 常驻池
+        UI.Panel {
+            flex = 1, height = 44,
+            borderRadius = 8,
+            backgroundColor = normalActive and { 100, 70, 180, 255 } or { 40, 35, 55, 200 },
+            borderWidth = 1,
+            borderColor = normalActive and { 180, 140, 255, 200 } or { 60, 50, 80, 100 },
+            justifyContent = "center",
+            alignItems = "center",
+            onClick = function(self)
+                if currentTab ~= "normal" then
+                    currentTab = "normal"
+                    RecruitUI.Refresh()
+                end
+            end,
+            children = {
+                UI.Label {
+                    text = "常驻池",
+                    fontSize = 15,
+                    fontColor = normalActive and { 255, 255, 255, 255 } or { 150, 140, 170, 200 },
+                    fontWeight = "bold",
+                },
+            },
+        },
+    }
+
+    -- 每个限定池直接作为独立标签
+    for i, bc in ipairs(Config.LIMITED_BANNERS) do
+        local isActive = (currentTab == "limited" and limitedBannerIdx == i)
+        local isLocked = LBD.IsLocked(bc)
+        local poolName = bc.name or bc.heroId
+
+        -- 主题色
+        local tc = { 130, 210, 255 }
+        for _, td in ipairs(Config.TOWER_TYPES) do
+            if td.id == bc.heroId then tc = td.color; break end
+        end
+
+        children[#children + 1] = UI.Panel {
+            flex = 1, height = 44,
+            borderRadius = 8,
+            backgroundColor = isActive
+                and { math.floor(tc[1] * 0.3), math.floor(tc[2] * 0.3), math.floor(tc[3] * 0.3), 255 }
+                or  { 40, 35, 55, 200 },
+            borderWidth = isActive and 2 or 1,
+            borderColor = isActive
+                and { tc[1], tc[2], tc[3], 220 }
+                or  { 60, 50, 80, 100 },
+            justifyContent = "center",
+            alignItems = "center",
+            gap = 2,
+            onClick = function()
+                currentTab        = "limited"
+                limitedBannerIdx  = i
+                RecruitUI.Refresh()
+            end,
+            children = {
+                UI.Label {
+                    text = (isLocked and "🔒 " or "") .. poolName,
+                    fontSize = 14,
+                    fontColor = isActive
+                        and { tc[1], tc[2], tc[3], 255 }
+                        or  { 150, 140, 170, 200 },
+                    fontWeight = isActive and "bold" or "normal",
+                },
+            },
         }
-    end
-
-    local normalStyle = tabStyle("normal")
-    local limitedStyle = tabStyle("limited")
-
-    -- 限定池标签文字（附带剩余天数）
-    local limitedText = "限定池"
-    if LBD.IsActive() then
-        limitedText = "限定池(" .. LBD.GetRemainingDays() .. "天)"
-    else
-        limitedText = "限定池(已结束)"
     end
 
     return UI.Panel {
         width = "100%",
         flexDirection = "row",
         alignItems = "center",
-        gap = 8,
+        gap = 6,
         paddingTop = 8, paddingBottom = 10,
         paddingLeft = 12, paddingRight = 12,
         backgroundColor = { 20, 16, 32, 230 },
         borderWidth = 1,
         borderColor = { 70, 55, 100, 120 },
         flexShrink = 0,
-        children = {
-            -- 返回按钮
-            UI.Panel {
-                width = 72, height = 44,
-                borderRadius = 8,
-                backgroundColor = { 50, 40, 70, 255 },
-                borderWidth = 1,
-                borderColor = { 120, 90, 160, 180 },
-                justifyContent = "center",
-                alignItems = "center",
-                flexShrink = 0,
-                onClick = function(self)
-                    if onBackCallback then onBackCallback() end
-                end,
-                children = {
-                    UI.Label {
-                        text = "返回",
-                        fontSize = 15,
-                        fontColor = { 200, 180, 240, 255 },
-                        fontWeight = "bold",
-                    },
-                },
-            },
-            -- 常驻池标签
-            UI.Panel {
-                flex = 1, height = 44,
-                borderRadius = 8,
-                backgroundColor = normalStyle.bg,
-                borderWidth = 1,
-                borderColor = normalStyle.border,
-                justifyContent = "center",
-                alignItems = "center",
-                onClick = function(self)
-                    if currentTab ~= "normal" then
-                        currentTab = "normal"
-                        RecruitUI.Refresh()
-                    end
-                end,
-                children = {
-                    UI.Label {
-                        text = "常驻池",
-                        fontSize = 15,
-                        fontColor = normalStyle.font,
-                        fontWeight = "bold",
-                    },
-                },
-            },
-            -- 限定池标签
-            UI.Panel {
-                flex = 1, height = 44,
-                borderRadius = 8,
-                backgroundColor = limitedStyle.bg,
-                borderWidth = 1,
-                borderColor = limitedStyle.border,
-                justifyContent = "center",
-                alignItems = "center",
-                onClick = function(self)
-                    if currentTab ~= "limited" then
-                        currentTab = "limited"
-                        RecruitUI.Refresh()
-                    end
-                end,
-                children = {
-                    UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 4,
-                        children = {
-                            UI.Label {
-                                text = limitedText,
-                                fontSize = 15,
-                                fontColor = limitedStyle.font,
-                                fontWeight = "bold",
-                            },
-                            -- 限定池活跃指示点
-                            LBD.IsActive() and UI.Panel {
-                                width = 8, height = 8,
-                                borderRadius = 4,
-                                backgroundColor = { 130, 210, 255, 255 },
-                            } or nil,
-                        },
-                    },
-                },
-            },
-        },
+        children = children,
     }
 end
 

@@ -377,6 +377,38 @@ InventoryData.ITEM_DEFS = {
             }
         end,
     },
+    -- 招募券自选包：使用后选择招募池，获得对应票券
+    recruit_ticket_select_box = {
+        id       = "recruit_ticket_select_box",
+        name     = "招募券自选包",
+        desc     = "使用后可选择当前开放的招募池，获得对应招募券",
+        icon     = "recruit_ticket_select_box",
+        rarity   = "SR",
+        stackable = true,
+        useMode  = "select_pool",
+        ---@param amount number  消耗的自选包数量
+        ---@param poolId string  "normal" | 限定池 id
+        use = function(amount, poolId)
+            local curr
+            if poolId == "normal" then
+                curr = "void_pact"
+            else
+                for _, banner in ipairs(Config.LIMITED_BANNERS) do
+                    if banner.id == poolId then
+                        curr = banner.currency or "frost_pact"
+                        break
+                    end
+                end
+            end
+            if not curr then return nil, nil end
+            Currency.Add(curr, amount)
+            local cdef = Config.CURRENCY[curr]
+            local cname = cdef and cdef.name or curr
+            return "获得" .. cname .. " ×" .. amount, {
+                { icon = Currency.GetImage(curr), name = cname, amount = amount },
+            }
+        end,
+    },
 }
 
 -- ============================================================================

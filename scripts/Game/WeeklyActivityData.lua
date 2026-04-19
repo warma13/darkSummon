@@ -87,6 +87,25 @@ local function GetCurrentWeekStart()
     return os.date("%Y-%m-%d", weekStartTs)
 end
 
+--- 计算当前周期编号（从 0 开始）
+local function GetCurrentWeekNum()
+    local t0 = ServerStartTime()
+    local daysSince = math.max(0, math.floor((os.time() - t0) / 86400))
+    return math.floor(daysSince / WAD.EVENT_DAYS)
+end
+
+--- 对外暴露当前周期起始日（供其他模块同步重置）
+---@return string  "YYYY-MM-DD"
+function WAD.GetCurrentWeekStart()
+    return GetCurrentWeekStart()
+end
+
+--- 当前周类型：偶数周=宝箱周，奇数周=招募周
+---@return "chest"|"recruit"
+function WAD.GetCurrentWeekType()
+    return GetCurrentWeekNum() % 2 == 0 and "chest" or "recruit"
+end
+
 -- ============================================================================
 -- 数据访问
 -- ============================================================================

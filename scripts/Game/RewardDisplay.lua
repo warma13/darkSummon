@@ -50,6 +50,20 @@ local function CreateRewardCard(UI, reward)
     local isNew = reward.isNew
 
     -- 图标区域
+    -- icon 可以是：直接图片路径("image/xxx.png")、货币ID("void_pact")、emoji("🎫")
+    local iconImg = nil
+    if icon and type(icon) == "string" then
+        if icon:find("%.png$") or icon:find("%.jpg$") then
+            iconImg = icon
+        else
+            -- 尝试作为货币 ID 查找图片
+            local cdef = Config.CURRENCY and Config.CURRENCY[icon]
+            if cdef and cdef.image then
+                iconImg = cdef.image
+            end
+        end
+    end
+
     local iconChild
     if avatarImage then
         iconChild = UI.Panel {
@@ -59,10 +73,10 @@ local function CreateRewardCard(UI, reward)
             backgroundImage = avatarImage,
             backgroundFit = "cover",
         }
-    elseif icon and type(icon) == "string" and icon:find("%.png$") then
+    elseif iconImg then
         iconChild = UI.Panel {
             width = 48, height = 48,
-            backgroundImage = icon,
+            backgroundImage = iconImg,
             backgroundFit = "contain",
         }
     else

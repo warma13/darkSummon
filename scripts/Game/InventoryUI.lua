@@ -629,6 +629,310 @@ local function ShowHeroSelectPopup(item)
 end
 
 -- ============================================================================
+-- 招募池选择弹窗（招募券自选包专用）
+-- ============================================================================
+
+local function ShowPoolSelectPopup(item)
+    if not overlay or not UI then return end
+    local def = item.def
+    local maxAmount = InventoryData.GetCount(item.id)
+    if maxAmount <= 0 then return end
+
+    ---@type string|nil
+    local selectedPool = nil
+    local selectAmount = 1
+
+    -- 构建可选池子列表
+    local poolOptions = {}
+    -- 常驻池
+    poolOptions[#poolOptions + 1] = {
+        id       = "normal",
+        name     = "常驻招募池",
+        currency = "void_pact",
+        subname  = Config.CURRENCY["void_pact"] and Config.CURRENCY["void_pact"].name or "虚空契约",
+        img      = Currency.GetImage("void_pact"),
+    }
+    -- 限定池
+    for _, banner in ipairs(Config.LIMITED_BANNERS) do
+        local curr = banner.currency or "frost_pact"
+        local cdef = Config.CURRENCY[curr]
+        poolOptions[#poolOptions + 1] = {
+            id       = banner.id,
+            name     = banner.name,
+            currency = curr,
+            subname  = cdef and cdef.name or curr,
+            img      = Currency.GetImage(curr),
+        }
+    end
+
+    local popupId = "poolSelectPopup"
+
+    local function closePopup()
+        local p = overlay:FindById(popupId)
+        if p then overlay:RemoveChild(p) end
+    end
+
+    local function numBtn(text, onClick, disabled)
+        return UI.Panel {
+            paddingLeft = 8, paddingRight = 8,
+            paddingTop = 5, paddingBottom = 5,
+            borderRadius = 4,
+            backgroundColor = disabled and { 55, 45, 35, 200 } or { 75, 165, 55, 255 },
+            borderWidth = 1,
+            borderColor = disabled and { 70, 60, 50, 150 } or { 100, 200, 75, 200 },
+            onClick = (not disabled) and onClick or nil,
+            children = {
+                UI.Label {
+                    text = text,
+                    fontSize = 12,
+                    fontColor = disabled and { 120, 110, 100, 180 } or { 255, 255, 255, 255 },
+                    fontWeight = "bold",
+                },
+            },
+        }
+    end
+
+    local function refreshPopup()
+        closePopup()
+
+        local canClaim = (selectedPool ~= nil) and selectAmount > 0
+
+        -- 池子选项卡
+        local poolCards = {}
+        for _, opt in ipairs(poolOptions) do
+            local isSel = (selectedPool == opt.id)
+            poolCards[#poolCards + 1] = UI.Panel {
+                flexGrow = 1,
+                flexBasis = 0,
+                height = 72,
+                backgroundColor = isSel and { 60, 35, 90, 255 } or { 35, 26, 50, 220 },
+                borderRadius = 8,
+                borderWidth = isSel and 2.5 or 1,
+                borderColor = isSel and { 200, 150, 255, 255 } or { 80, 65, 110, 120 },
+                flexDirection = "column",
+                alignItems = "center",
+                justifyContent = "center",
+                gap = 4,
+                onClick = function()
+                    selectedPool = opt.id
+                    refreshPopup()
+                end,
+                children = {
+                    -- 货币图标
+                    UI.Panel {
+                        width = 28, height = 28,
+                        backgroundImage = opt.img,
+                        backgroundFit = "contain",
+                        backgroundPosition = "center",
+                    },
+                    -- 池子名称
+                    UI.Label {
+                        text = opt.name,
+                        fontSize = 10,
+                        fontColor = isSel and { 220, 180, 255, 255 } or { 200, 190, 220, 220 },
+                        fontWeight = isSel and "bold" or "normal",
+                        textAlign = "center",
+                    },
+                    -- 对应票券名
+                    UI.Label {
+                        text = opt.subname,
+                        fontSize = 8,
+                        fontColor = isSel and { 180, 140, 255, 255 } or { 140, 130, 160, 180 },
+                        textAlign = "center",
+                    },
+                    -- 选中标记
+                    isSel and UI.Panel {
+                        position = "absolute", top = 4, right = 4,
+                        width = 14, height = 14, borderRadius = 7,
+                        backgroundColor = { 200, 150, 255, 255 },
+                        justifyContent = "center", alignItems = "center",
+                        children = {
+                            UI.Label { text = "✓", fontSize = 9, fontColor = { 255, 255, 255, 255 }, fontWeight = "bold" },
+                        },
+                    } or nil,
+                },
+            }
+        end
+
+        local popup = UI.Panel {
+            id = popupId,
+            position = "absolute",
+            top = 0, left = 0, right = 0, bottom = 0,
+            backgroundColor = { 0, 0, 0, 180 },
+            justifyContent = "center",
+            alignItems = "center",
+            onClick = function() end,
+            children = {
+                UI.Panel {
+                    width = "88%",
+                    backgroundColor = { 28, 20, 42, 252 },
+                    borderRadius = 12,
+                    borderWidth = 1,
+                    borderColor = { 100, 75, 140, 200 },
+                    flexDirection = "column",
+                    overflow = "hidden",
+                    children = {
+                        -- 标题
+                        UI.Panel {
+                            width = "100%", height = 42, flexShrink = 0,
+                            justifyContent = "center", alignItems = "center",
+                            backgroundColor = { 40, 28, 60, 250 },
+                            borderWidth = { bottom = 1 },
+                            borderColor = { 100, 75, 140, 120 },
+                            children = {
+                                UI.Label {
+                                    text = "选择招募池",
+                                    fontSize = 16,
+                                    fontColor = { 200, 150, 255, 255 },
+                                    fontWeight = "bold",
+                                },
+                            },
+                        },
+                        -- 提示文字
+                        UI.Panel {
+                            width = "100%", flexShrink = 0,
+                            paddingTop = 10, paddingBottom = 4,
+                            paddingLeft = 12, paddingRight = 12,
+                            justifyContent = "center", alignItems = "center",
+                            children = {
+                                UI.Label {
+                                    text = "选择后获得对应招募券 ×" .. selectAmount,
+                                    fontSize = 12,
+                                    fontColor = { 180, 165, 210, 220 },
+                                },
+                            },
+                        },
+                        -- 池子卡片行
+                        UI.Panel {
+                            width = "100%", flexShrink = 0,
+                            paddingLeft = 12, paddingRight = 12,
+                            paddingTop = 6, paddingBottom = 6,
+                            flexDirection = "row",
+                            gap = 8,
+                            children = poolCards,
+                        },
+                        -- 数量控制区
+                        UI.Panel {
+                            width = "100%", flexShrink = 0,
+                            paddingTop = 8, paddingBottom = 8,
+                            flexDirection = "row",
+                            justifyContent = "center", alignItems = "center",
+                            gap = 6,
+                            children = {
+                                numBtn("-10", function()
+                                    selectAmount = math.max(1, selectAmount - 10)
+                                    refreshPopup()
+                                end, selectAmount <= 1),
+                                numBtn("-", function()
+                                    selectAmount = math.max(1, selectAmount - 1)
+                                    refreshPopup()
+                                end, selectAmount <= 1),
+                                UI.Panel {
+                                    width = 50, height = 28,
+                                    backgroundColor = { 25, 18, 38, 240 },
+                                    borderRadius = 4,
+                                    borderWidth = 1,
+                                    borderColor = { 80, 60, 110, 150 },
+                                    justifyContent = "center", alignItems = "center",
+                                    children = {
+                                        UI.Label {
+                                            text = tostring(selectAmount),
+                                            fontSize = 14,
+                                            fontColor = { 255, 255, 255, 255 },
+                                            fontWeight = "bold",
+                                        },
+                                    },
+                                },
+                                numBtn("+", function()
+                                    selectAmount = math.min(maxAmount, selectAmount + 1)
+                                    refreshPopup()
+                                end, selectAmount >= maxAmount),
+                                numBtn("+10", function()
+                                    selectAmount = math.min(maxAmount, selectAmount + 10)
+                                    refreshPopup()
+                                end, selectAmount >= maxAmount),
+                                numBtn("最大", function()
+                                    selectAmount = maxAmount
+                                    refreshPopup()
+                                end, selectAmount >= maxAmount),
+                            },
+                        },
+                        -- 确认/关闭按钮
+                        UI.Panel {
+                            width = "100%", flexShrink = 0,
+                            paddingTop = 4, paddingBottom = 14,
+                            justifyContent = "center", alignItems = "center",
+                            flexDirection = "row", gap = 12,
+                            children = {
+                                UI.Panel {
+                                    paddingLeft = 30, paddingRight = 30,
+                                    paddingTop = 10, paddingBottom = 10,
+                                    borderRadius = 8,
+                                    backgroundColor = canClaim and { 75, 165, 55, 255 } or { 65, 58, 48, 220 },
+                                    borderWidth = 1,
+                                    borderColor = canClaim and { 100, 200, 75, 200 } or { 80, 70, 60, 150 },
+                                    onClick = canClaim and function()
+                                        local ok, msg, rewards = InventoryData.Use(item.id, selectAmount, selectedPool)
+                                        if not ok then
+                                            print("[InventoryUI] Pool select use failed: " .. (msg or ""))
+                                            return
+                                        end
+                                        closePopup()
+                                        if InventoryData.GetCount(item.id) <= 0 then
+                                            selectedItemId = nil
+                                        end
+                                        if rewards and #rewards > 0 then
+                                            RewardDisplay.Show(UI, overlay, {
+                                                title = "使用 " .. def.name .. " ×" .. selectAmount,
+                                                rewards = rewards,
+                                                onClose = function()
+                                                    RefreshInventoryContent()
+                                                end,
+                                            })
+                                        else
+                                            RefreshInventoryContent()
+                                        end
+                                    end or nil,
+                                    children = {
+                                        UI.Label {
+                                            text = "确认",
+                                            fontSize = 15,
+                                            fontColor = canClaim and { 255, 255, 255, 255 } or { 120, 110, 100, 180 },
+                                            fontWeight = "bold",
+                                        },
+                                    },
+                                },
+                                UI.Panel {
+                                    paddingLeft = 20, paddingRight = 20,
+                                    paddingTop = 10, paddingBottom = 10,
+                                    borderRadius = 8,
+                                    backgroundColor = { 80, 40, 100, 230 },
+                                    borderWidth = 1,
+                                    borderColor = { 120, 60, 150, 200 },
+                                    onClick = function() closePopup() end,
+                                    children = {
+                                        UI.Label {
+                                            text = "关闭",
+                                            fontSize = 15,
+                                            fontColor = { 255, 255, 255, 255 },
+                                            fontWeight = "bold",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+
+        overlay:AddChild(popup)
+    end
+
+    refreshPopup()
+end
+
+-- ============================================================================
 -- 底部详情栏
 -- ============================================================================
 
@@ -696,9 +1000,14 @@ local function CreateDetailBar(item)
                 borderColor = S.btnUseBorder,
                 flexShrink = 0,
                 onClick = function(self)
-                    -- 自选英雄碎片模式：弹出选择弹窗（含英雄网格+数量）
+                    -- 自选英雄碎片模式：弹出英雄选择弹窗
                     if def.useMode == "select_hero" then
                         ShowHeroSelectPopup(item)
+                        return
+                    end
+                    -- 招募券自选包：弹出池子选择弹窗
+                    if def.useMode == "select_pool" then
+                        ShowPoolSelectPopup(item)
                         return
                     end
                     -- 其他礼包：弹出数量选择窗口

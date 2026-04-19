@@ -8,6 +8,7 @@ local Tooltip        = require("Game.Tooltip")
 local RewardIconMod  = require("Game.RewardIcon")
 local Config         = require("Game.Config")
 local RewardDisplay  = require("Game.RewardDisplay")
+local RMD            = require("Game.RecruitMilestoneData")
 
 local WeeklyActivityUI = {}
 
@@ -224,14 +225,47 @@ end
 
 --- 子标签红点判断
 local SUB_TAB_RED_DOT = {
-    chest         = function() return WAD.HasClaimable() end,
+    chest = function()
+        if WAD.GetCurrentWeekType() == "recruit" then
+            return RMD.HasClaimable()
+        end
+        return WAD.HasClaimable()
+    end,
     welfare       = function() return WelfareData.HasClaimable() end,
     weekend_bonus = function() return IsWeekend() end,
 }
 
+--- 获取"chest"子标签的动态标签名
+local function GetChestTabLabel()
+    return WAD.GetCurrentWeekType() == "recruit" and "招募达标" or "宝箱达标"
+end
+
+--- 获取"chest"子标签的动态图标
+local function GetChestTabIcon()
+    return WAD.GetCurrentWeekType() == "recruit"
+        and "image/icon_recruit_milestone.png"
+        or "image/icon_cumulate.png"
+end
+
+--- 获取"welfare"子标签的动态图标
+local function GetWelfareTabIcon()
+    return WAD.GetCurrentWeekType() == "recruit"
+        and "image/icon_welfare_recruit.png"
+        or "image/icon_welfare_chest.png"
+end
+
 function WeeklyActivityUI._CreateSubTabIcon(tab, isActive)
     local s = isActive and SUB_TAB_ACTIVE or SUB_TAB_INACTIVE
     local hasRed = SUB_TAB_RED_DOT[tab.id] and SUB_TAB_RED_DOT[tab.id]() or false
+    -- 动态标签名（"宝箱达标" ↔ "招募达标"）
+    local displayLabel = (tab.id == "chest") and GetChestTabLabel() or tab.label
+    -- 动态图标
+    local displayIcon = tab.icon
+    if tab.id == "chest" then
+        displayIcon = GetChestTabIcon()
+    elseif tab.id == "welfare" then
+        displayIcon = GetWelfareTabIcon()
+    end
 
     return UI.Panel {
         id = "waSubTab_" .. tab.id,
@@ -256,7 +290,7 @@ function WeeklyActivityUI._CreateSubTabIcon(tab, isActive)
             -- 上部 70%：图标
             UI.Panel {
                 width = "100%", height = "70%",
-                backgroundImage = tab.icon,
+                backgroundImage = displayIcon,
                 backgroundFit = "cover",
                 backgroundPosition = "center",
                 pointerEvents = "none",
@@ -270,7 +304,7 @@ function WeeklyActivityUI._CreateSubTabIcon(tab, isActive)
                 children = {
                     UI.Label {
                         id = "waSubTabLabel_" .. tab.id,
-                        text = tab.label,
+                        text = displayLabel,
                         fontSize = 10,
                         fontColor = s.label,
                         fontWeight = s.fontW,
@@ -308,6 +342,10 @@ function WeeklyActivityUI._UpdateSubTabHighlight()
         local labelWidget = pageRoot:FindById("waSubTabLabel_" .. tab.id)
         if labelWidget then
             labelWidget:SetStyle({ fontColor = s.label, fontWeight = s.fontW })
+            -- 刷新动态标签文字
+            if tab.id == "chest" then
+                labelWidget:SetText(GetChestTabLabel())
+            end
         end
         -- 刷新红点
         local redDot = pageRoot:FindById("waSubTabRedDot_" .. tab.id)
@@ -330,9 +368,15 @@ function WeeklyActivityUI._RenderWeeklyTab(area)
     end
 
     if activeSubTab == "chest" then
-        -- 宝箱达标
-        area:AddChild(WeeklyActivityUI._BuildActivityBanner())
-        area:AddChild(WeeklyActivityUI._BuildMilestoneList())
+        if WAD.GetCurrentWeekType() == "recruit" then
+            -- 招募达标
+            area:AddChild(WeeklyActivityUI._BuildRecruitBanner())
+            area:AddChild(WeeklyActivityUI._BuildRecruitMilestoneList())
+        else
+            -- 宝箱达标
+            area:AddChild(WeeklyActivityUI._BuildActivityBanner())
+            area:AddChild(WeeklyActivityUI._BuildMilestoneList())
+        end
     elseif activeSubTab == "welfare" then
         -- 限时福利
         area:AddChild(WeeklyActivityUI._RenderWelfareContent())
@@ -588,25 +632,458 @@ function WeeklyActivityUI._BuildMilestoneCard(index, milestone, score, allDone)
 end
 
 -- ============================================================================
+-- 招募达标 内容（招募周专用）
+-- ============================================================================
+
+function WeeklyActivityUI._BuildRecruitBanner()
+    local round   = RMD.GetRound()
+    local count   = RMD.GetRoundCount()
+    local allDone = round > RMD.MAX_ROUNDS
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = S.bgSection,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = S.border,
+        overflow = "hidden",
+        children = {
+            -- 顶部装饰条（紫色，与宝箱周金色区分）
+            UI.Panel {
+                width = "100%", height = 3,
+                backgroundColor = { 140, 80, 255, 255 },
+            },
+            UI.Panel {
+                width = "100%",
+                paddingTop = 10, paddingBottom = 10,
+                paddingLeft = 14, paddingRight = 14,
+                gap = 6,
+                children = {
+                    -- 标题行
+                    UI.Panel {
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        alignItems = "center",
+                        width = "100%",
+                        children = {
+                            UI.Label {
+                                text = "招募达标奖励",
+                                fontSize = 16, fontColor = { 200, 160, 255, 255 }, fontWeight = "bold",
+                            },
+                            -- 前往招募
+                            UI.Panel {
+                                paddingLeft = 10, paddingRight = 10,
+                                paddingTop = 4, paddingBottom = 4,
+                                backgroundColor = { 80, 40, 160, 220 },
+                                borderRadius = 10,
+                                pointerEvents = "auto",
+                                onClick = function()
+                                    local GameUI = require("Game.GameUI")
+                                    GameUI.ShowWeeklyActivityOverlay(false)
+                                end,
+                                children = {
+                                    UI.Label {
+                                        text = "去招募",
+                                        fontSize = 11, fontColor = S.textWhite, fontWeight = "bold",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    -- 说明
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 4,
+                        children = {
+                            UI.Label { text = "i", fontSize = 11, fontColor = S.accent, fontWeight = "bold" },
+                            UI.Label {
+                                text = "使用招募券召唤英雄累积次数，达标自动发送奖励到邮件",
+                                fontSize = 11, fontColor = S.textDim,
+                            },
+                        },
+                    },
+                    -- 轮次与进度行
+                    UI.Panel {
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        width = "100%",
+                        marginTop = 2,
+                        children = {
+                            UI.Panel {
+                                flexDirection = "row", alignItems = "center", gap = 4,
+                                children = {
+                                    UI.Label {
+                                        text = "当前轮数",
+                                        fontSize = 12, fontColor = S.textNormal,
+                                    },
+                                    UI.Label {
+                                        text = allDone and "已完成" or (round .. "/" .. RMD.MAX_ROUNDS),
+                                        fontSize = 14, fontColor = { 180, 140, 255, 255 }, fontWeight = "bold",
+                                    },
+                                },
+                            },
+                            UI.Label {
+                                text = allDone and "全部轮次已完成" or ("本轮: " .. count .. "/" .. RMD.ROUND_MAX .. " 次"),
+                                fontSize = 12,
+                                fontColor = allDone and S.textGreen or S.textDim,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+end
+
+function WeeklyActivityUI._BuildRecruitMilestoneList()
+    local count   = RMD.GetRoundCount()
+    local allDone = RMD.GetRound() > RMD.MAX_ROUNDS
+    local container = UI.Panel { width = "100%", gap = 8 }
+    for i, m in ipairs(RMD.MILESTONES) do
+        container:AddChild(WeeklyActivityUI._BuildRecruitMilestoneCard(i, m, count, allDone))
+    end
+    return container
+end
+
+function WeeklyActivityUI._BuildRecruitMilestoneCard(index, milestone, count, allDone)
+    local _, claimed, reached
+    if allDone then
+        claimed, reached = true, true
+    else
+        _, claimed, reached = RMD.GetMilestoneStatus(index)
+    end
+    local pct = allDone and 1 or math.min(1, count / milestone.threshold)
+
+    local statusText, statusColor
+    if claimed then
+        statusText  = "已发放"
+        statusColor = S.textDim
+    elseif reached then
+        statusText  = "已达成"
+        statusColor = S.textGreen
+    else
+        statusText  = math.min(count, milestone.threshold) .. "/" .. milestone.threshold
+        statusColor = S.textDim
+    end
+
+    -- 奖励图标
+    local rewardIcons = UI.Panel { flexDirection = "row", gap = 4, pointerEvents = "auto" }
+    for _, reward in ipairs(milestone.rewards) do
+        local iconId = reward.id
+        if reward.type == "chest" then iconId = reward.id .. "_chest" end
+        local icon = RewardIconMod.Create(UI, 38, iconId, reward.amount, { muted = claimed })
+        rewardIcons:AddChild(icon)
+    end
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = S.bgCard,
+        borderRadius = 8,
+        borderWidth = 1,
+        borderColor = claimed and { 60, 60, 60, 100 } or (reached and { 140, 80, 255, 200 } or S.border),
+        paddingTop = 8, paddingBottom = 8,
+        paddingLeft = 10, paddingRight = 0,
+        flexDirection = "row",
+        alignItems = "center",
+        opacity = claimed and 0.6 or 1.0,
+        children = {
+            -- 左侧：次数 + 进度条
+            UI.Panel {
+                width = "58%",
+                flexShrink = 0,
+                gap = 4,
+                paddingRight = 8,
+                children = {
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 6,
+                        children = {
+                            UI.Label {
+                                text = milestone.threshold .. "次",
+                                fontSize = 14,
+                                fontColor = claimed and S.textDim or { 200, 160, 255, 255 },
+                                fontWeight = "bold",
+                            },
+                            UI.Label { text = statusText, fontSize = 11, fontColor = statusColor },
+                        },
+                    },
+                    UI.Panel {
+                        width = "100%", height = 6,
+                        backgroundColor = S.barBg,
+                        borderRadius = 3,
+                        overflow = "hidden",
+                        children = {
+                            UI.Panel {
+                                width = math.floor(pct * 100) .. "%",
+                                height = "100%",
+                                backgroundColor = claimed and { 80, 80, 80, 200 } or { 140, 80, 255, 255 },
+                                borderRadius = 3,
+                            },
+                        },
+                    },
+                },
+            },
+            -- 分隔线
+            UI.Panel { width = 1, height = "80%", backgroundColor = { 80, 65, 120, 80 }, flexShrink = 0 },
+            -- 右侧：奖励图标
+            UI.ScrollView {
+                flexGrow = 1, flexShrink = 1,
+                height = 50,
+                scrollDirection = "horizontal",
+                paddingLeft = 6, paddingRight = 6,
+                flexDirection = "row",
+                alignItems = "center",
+                children = { rewardIcons },
+            },
+        },
+    }
+end
+
+-- ============================================================================
 -- 限时福利 内容
 -- ============================================================================
 
 function WeeklyActivityUI._RenderWelfareContent()
-    local container = UI.Panel {
-        width = "100%",
-        gap = 10,
-    }
+    if WAD.GetCurrentWeekType() == "recruit" then
+        return WeeklyActivityUI._RenderRecruitWelfareContent()
+    end
+
+    local container = UI.Panel { width = "100%", gap = 10 }
 
     -- 每日广告宝箱说明
     container:AddChild(WeeklyActivityUI._BuildWelfareBanner())
-
     -- 每日广告奖励列表
     container:AddChild(WeeklyActivityUI._BuildDailyAdList())
-
     -- 每周广告进度条
     container:AddChild(WeeklyActivityUI._BuildWeeklyAdProgress())
 
     return container
+end
+
+--- 招募周：限时福利内容（招募券）
+function WeeklyActivityUI._RenderRecruitWelfareContent()
+    local container = UI.Panel { width = "100%", gap = 10 }
+    container:AddChild(WeeklyActivityUI._BuildRecruitWelfareBanner())
+    container:AddChild(WeeklyActivityUI._BuildRecruitDailyAdList())
+    -- 每周广告里程碑奖励（与宝箱周共用）
+    container:AddChild(WeeklyActivityUI._BuildWeeklyAdProgress())
+    return container
+end
+
+--- 招募周福利说明横幅
+function WeeklyActivityUI._BuildRecruitWelfareBanner()
+    local dailyCount = WelfareData.GetDailyAdCount()
+    local maxCount   = WelfareData.MAX_RECRUIT_DAILY
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = S.bgSection,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = S.border,
+        overflow = "hidden",
+        children = {
+            UI.Panel { width = "100%", height = 3, backgroundColor = { 140, 80, 255, 255 } },
+            UI.Panel {
+                width = "100%",
+                paddingTop = 10, paddingBottom = 10,
+                paddingLeft = 14, paddingRight = 14,
+                gap = 6,
+                children = {
+                    UI.Panel {
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        alignItems = "center",
+                        width = "100%",
+                        children = {
+                            UI.Label {
+                                text = "免费领招募券自选包",
+                                fontSize = 16, fontColor = { 200, 160, 255, 255 }, fontWeight = "bold",
+                            },
+                            UI.Panel {
+                                paddingLeft = 10, paddingRight = 10,
+                                paddingTop = 4, paddingBottom = 4,
+                                backgroundColor = { 60, 40, 90, 200 },
+                                borderRadius = 10,
+                                children = {
+                                    UI.Label {
+                                        text = "今日 " .. dailyCount .. "/" .. maxCount,
+                                        fontSize = 12, fontColor = S.accent, fontWeight = "bold",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 4,
+                        children = {
+                            UI.Label { text = "i", fontSize = 11, fontColor = S.accent, fontWeight = "bold" },
+                            UI.Label {
+                                text = "招募券自选包可在仓库使用，选择招募池获得对应招募券",
+                                fontSize = 11, fontColor = S.textDim,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+end
+
+--- 招募周每日奖励列表
+function WeeklyActivityUI._BuildRecruitDailyAdList()
+    local container = UI.Panel { width = "100%", gap = 6 }
+    for i, reward in ipairs(WelfareData.RECRUIT_DAILY_REWARDS) do
+        container:AddChild(WeeklyActivityUI._BuildRecruitDailyAdCard(i, reward))
+    end
+    return container
+end
+
+--- 单个招募券奖励卡片
+function WeeklyActivityUI._BuildRecruitDailyAdCard(index, reward)
+    local claimed  = WelfareData.IsDailyClaimed(index)
+    local unlocked = WelfareData.IsDailyUnlocked(index)
+    local ticketColor = { 180, 130, 255, 255 }
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = claimed and { 25, 22, 35, 180 } or S.bgCard,
+        borderRadius = 8,
+        borderWidth = 1,
+        borderColor = (unlocked and not claimed) and { 140, 80, 255, 180 } or { 60, 50, 80, 100 },
+        paddingTop = 8, paddingBottom = 8,
+        paddingLeft = 10, paddingRight = 10,
+        flexDirection = "row",
+        alignItems = "center",
+        opacity = claimed and 0.6 or (unlocked and 1.0 or 0.5),
+        children = {
+            -- 序号
+            UI.Panel {
+                width = 28, height = 28,
+                borderRadius = 14,
+                backgroundColor = (unlocked and not claimed) and { 140, 80, 255, 60 } or { 50, 40, 70, 150 },
+                justifyContent = "center",
+                alignItems = "center",
+                flexShrink = 0,
+                children = {
+                    UI.Label {
+                        text = tostring(index),
+                        fontSize = 13,
+                        fontColor = (unlocked and not claimed) and ticketColor or S.textDim,
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            -- 券图标 + 描述
+            UI.Panel {
+                flexGrow = 1, flexShrink = 1,
+                marginLeft = 8, marginRight = 8,
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 8,
+                children = {
+                    -- 券图标
+                    UI.Panel {
+                        width = 36, height = 36, flexShrink = 0,
+                        justifyContent = "center", alignItems = "center",
+                        backgroundColor = { 80, 40, 150, 120 },
+                        borderRadius = 8,
+                        borderWidth = 1,
+                        borderColor = { 140, 80, 255, 120 },
+                        backgroundImage = "image/icon_recruit_ticket_select_box.png",
+                        backgroundFit = "contain",
+                        backgroundPosition = "center",
+                        children = {},
+                    },
+                    -- 描述
+                    UI.Panel {
+                        gap = 2,
+                        children = {
+                            UI.Label {
+                                text = "招募券自选包 ×" .. reward.ticketAmount,
+                                fontSize = 13,
+                                fontColor = claimed and S.textDim or ticketColor,
+                                fontWeight = "bold",
+                            },
+                            reward.free and UI.Label {
+                                text = "免费领取",
+                                fontSize = 10, fontColor = { 80, 200, 120, 200 },
+                            } or UI.Label {
+                                text = "观看广告解锁",
+                                fontSize = 10, fontColor = S.textDim,
+                            },
+                        },
+                    },
+                },
+            },
+            -- 按钮
+            (function()
+                if claimed then
+                    return UI.Panel {
+                        paddingLeft = 12, paddingRight = 12,
+                        paddingTop = 6, paddingBottom = 6,
+                        borderRadius = 6,
+                        backgroundColor = { 50, 45, 55, 200 },
+                        borderWidth = 1,
+                        borderColor = { 70, 65, 75, 120 },
+                        children = {
+                            UI.Label { text = "已领取", fontSize = 12, fontColor = { 120, 115, 125, 180 }, fontWeight = "bold" },
+                        },
+                    }
+                elseif unlocked then
+                    local isFree = reward.free
+                    return UI.Panel {
+                        paddingLeft = 10, paddingRight = 12,
+                        paddingTop = 6, paddingBottom = 6,
+                        borderRadius = 6,
+                        backgroundColor = isFree and { 60, 170, 90, 255 } or { 80, 40, 160, 255 },
+                        borderWidth = 1,
+                        borderColor = isFree and { 100, 220, 140, 200 } or { 160, 100, 255, 200 },
+                        flexDirection = "row",
+                        alignItems = "center",
+                        justifyContent = "center",
+                        pointerEvents = "auto",
+                        onClick = function()
+                            WelfareData.ClaimDailyReward(index, function(success, errMsg)
+                                if success then
+                                    WeeklyActivityUI.Refresh()
+                                    RewardDisplay.Show(UI, pageRoot, {
+                                        title = isFree and "免费招募券自选包" or "广告招募券自选包",
+                                        rewards = {
+                                            {
+                                                icon = "recruit_ticket_select_box",
+                                                name = "招募券自选包",
+                                                amount = reward.ticketAmount,
+                                                borderColor = { 140, 80, 255 },
+                                            },
+                                        },
+                                    })
+                                else
+                                    Toast.Show(errMsg or "领取失败", "error")
+                                end
+                            end)
+                        end,
+                        children = isFree and {
+                            UI.Label { text = "领取", fontSize = 12, fontColor = { 255, 255, 255 }, fontWeight = "bold" },
+                        } or {
+                            UI.Panel { width = 16, height = 16, backgroundImage = "image/icon_watch_ad.png", backgroundFit = "contain", marginRight = 4 },
+                            UI.Label { text = "观看", fontSize = 12, fontColor = { 255, 255, 255 }, fontWeight = "bold" },
+                        },
+                    }
+                else
+                    return UI.Panel {
+                        paddingLeft = 12, paddingRight = 12,
+                        paddingTop = 6, paddingBottom = 6,
+                        borderRadius = 6,
+                        backgroundColor = { 45, 40, 55, 200 },
+                        borderWidth = 1,
+                        borderColor = { 65, 60, 75, 120 },
+                        children = {
+                            UI.Label { text = "未解锁", fontSize = 12, fontColor = { 120, 115, 125, 180 }, fontWeight = "bold" },
+                        },
+                    }
+                end
+            end)(),
+        },
+    }
 end
 
 --- 限时福利说明横幅

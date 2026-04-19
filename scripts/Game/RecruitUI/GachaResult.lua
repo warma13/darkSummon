@@ -266,6 +266,9 @@ function GachaResult.DoRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, p
     if ok then
         local AudioManager = require("Game.AudioManager")
         AudioManager.PlayRecruit()
+        -- 招募周里程碑追踪
+        local okRMD, RMD = pcall(require, "Game.RecruitMilestoneData")
+        if okRMD and RMD then RMD.AddCount(pullCount) end
         GachaResult.ShowResultPopup(UI, pageRoot, RARITY_COLORS, currentTab, result, "深渊祭坛", refreshFn)
     else
         print("[RecruitUI] Pull failed: " .. tostring(result))
@@ -280,12 +283,16 @@ end
 ---@param currentTab string
 ---@param pullCount number
 ---@param refreshFn function
-function GachaResult.DoLimitedRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, pullCount, refreshFn)
+function GachaResult.DoLimitedRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, pullCount, refreshFn, bannerCfg)
     local LBD = require("Game.LimitedBannerData")
-    local ok, result = LBD.DoPull(pullCount)
+    local cfg = bannerCfg or require("Game.Config").LIMITED_BANNER
+    local ok, result = LBD.DoPull(cfg, pullCount)
     if ok then
         local AudioManager = require("Game.AudioManager")
         AudioManager.PlayRecruit()
+        -- 招募周里程碑追踪
+        local okRMD, RMD = pcall(require, "Game.RecruitMilestoneData")
+        if okRMD and RMD then RMD.AddCount(pullCount) end
         GachaResult.ShowResultPopup(UI, pageRoot, RARITY_COLORS, currentTab, result, "限定祭坛", refreshFn)
     else
         local Toast = require("Game.Toast")
