@@ -13,25 +13,26 @@ local ARD = {}
 -- 常量
 -- ============================================================================
 --- 里程碑配置：threshold = 解锁次数, rewards = 奖励列表
+--- type: "currency" → Currency.Add, "item" → InventoryData.Add, "chest" → ChestData.Add
 local MILESTONES = {
-    { threshold = 3,  rewards = { { id = "ad_ticket", amount = 1 } } },
-    { threshold = 6,  rewards = { { id = "ad_ticket", amount = 1 } } },
-    { threshold = 9,  rewards = { { id = "ad_ticket", amount = 1 } } },
-    { threshold = 12, rewards = { { id = "ad_ticket", amount = 2 } } },
+    { threshold = 3,  rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
+    { threshold = 6,  rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
+    { threshold = 9,  rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
+    { threshold = 12, rewards = { { type = "currency", id = "ad_ticket", amount = 2 } } },
     { threshold = 15, rewards = {
-        { id = "ad_ticket", amount = 3 },
-        { id = "dungeon_ticket", amount = 2 },
+        { type = "currency", id = "ad_ticket", amount = 3 },
+        { type = "item",     id = "dungeon_ticket", amount = 2 },
     }},
     { threshold = 17, rewards = {
-        { id = "ad_ticket", amount = 3 },
-        { id = "recruit_ticket_select_box", amount = 10 },
+        { type = "currency", id = "ad_ticket", amount = 3 },
+        { type = "item",     id = "recruit_ticket_select_box", amount = 10 },
     }},
     { threshold = 20, rewards = {
-        { id = "ad_ticket", amount = 5 },
-        { id = "recruit_ticket_select_box", amount = 5 },
-        { id = "platinum_chest", amount = 5 },
-        { id = "trial_ticket", amount = 10 },
-        { id = "dungeon_ticket", amount = 3 },
+        { type = "currency", id = "ad_ticket", amount = 5 },
+        { type = "item",     id = "recruit_ticket_select_box", amount = 5 },
+        { type = "chest",    id = "platinum", amount = 5 },
+        { type = "currency", id = "trial_ticket", amount = 10 },
+        { type = "item",     id = "dungeon_ticket", amount = 3 },
     }},
 }
 local STREAK_THRESHOLD = 3           -- 每日看广告>=3次才计入连续天数
@@ -83,7 +84,7 @@ local function DayRollover()
         if oldTodayAds >= ms.threshold and not d.milestonesClaimed[tostring(i)] then
             local mailRewards = {}
             for _, r in ipairs(ms.rewards) do
-                mailRewards[#mailRewards + 1] = { type = "currency", id = r.id, amount = r.amount }
+                mailRewards[#mailRewards + 1] = { type = r.type, id = r.id, amount = r.amount }
             end
             MailboxData.Add({
                 title = "减负奖励补发",
@@ -183,10 +184,10 @@ function ARD.ClaimMilestone(index)
 
     d.milestonesClaimed[key] = true
 
-    -- 发放所有奖励
+    -- 发放所有奖励（按 type 路由到正确的存储系统）
     local Currency = require("Game.Currency")
     for _, r in ipairs(ms.rewards) do
-        Currency.Add(r.id, r.amount)
+        Currency.GrantReward(r)
     end
 
     HeroData.Save()
@@ -365,6 +366,28 @@ SaveRegistry.Register("adRelief", {
             d._overCapFixed = true
             HeroData.Save()
             print("[AdRelief] OverCap check done (one-time)")
+        end
+
+        -- 一次性补偿：里程碑奖励写错存储导致玩家领了但没到账
+        -- 条件：累计成功观看广告 > 20 次的玩家
+        if not d._milestoneBugCompensated then
+            local AdTracker = require("Game.AdTracker")
+            local totalAds = AdTracker.GetTotalCount()
+            if totalAds > 20 then
+                local Currency = require("Game.Currency")
+                local compensations = {
+                    { type = "item",     id = "dungeon_ticket",            amount = 5 },
+                    { type = "currency", id = "trial_ticket",             amount = 10 },
+                    { type = "chest",    id = "platinum",                 amount = 5 },
+                    { type = "item",     id = "recruit_ticket_select_box", amount = 15 },
+                }
+                for _, r in ipairs(compensations) do
+                    Currency.GrantReward(r)
+                end
+                print("[AdRelief] Milestone bug compensation granted (totalAds=" .. totalAds .. "): dungeon_ticket×5, trial_ticket×10, platinum_chest×5, recruit_ticket_select_box×15")
+            end
+            d._milestoneBugCompensated = true
+            HeroData.Save()
         end
     end,
 })
