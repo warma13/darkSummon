@@ -206,6 +206,7 @@ function BattleManager.StartNextWave()
     end
 
     State.waveSpawnQueue = queue
+    State.waveSpawnIdx = 1
     State.waveSpawnTimer = 0.5
 
     -- 判断波次类型（优先使用 BuildStageWaves 预嵌的 _waveType 元数据）
@@ -241,28 +242,32 @@ function BattleManager.UpdateWaves(dt)
     local cfg = BattleManager.config
     if not cfg then return end
 
-    -- 生成敌人（从 spawn queue）
+    -- 生成敌人（从 spawn queue，索引推进替代 table.remove）
     -- 使用 while 循环：加速倍率下一帧可能需要生成多个敌人
-    if #State.waveSpawnQueue > 0 then
+    local queue = State.waveSpawnQueue
+    local queueLen = #queue
+    if State.waveSpawnIdx <= queueLen then
         State.waveSpawnTimer = State.waveSpawnTimer - dt
-        while State.waveSpawnTimer <= 0 and #State.waveSpawnQueue > 0 do
-            local entry = table.remove(State.waveSpawnQueue, 1)
+        while State.waveSpawnTimer <= 0 and State.waveSpawnIdx <= queueLen do
+            local entry = queue[State.waveSpawnIdx]
+            State.waveSpawnIdx = State.waveSpawnIdx + 1
             BattleManager.SpawnEntry(entry)
-            if #State.waveSpawnQueue > 0 then
+            if State.waveSpawnIdx <= queueLen then
                 -- 将剩余负值时间累积到下一个条目的 delay 中
-                State.waveSpawnTimer = State.waveSpawnTimer + State.waveSpawnQueue[1].delay
+                State.waveSpawnTimer = State.waveSpawnTimer + queue[State.waveSpawnIdx].delay
             else
                 State.waveSpawnTimer = 0
             end
         end
     end
 
+    local spawnDone = State.waveSpawnIdx > queueLen
     local currentWave = State.currentWave
 
     -- 非最后一波
     if currentWave < cfg.totalWaves then
         -- 当前波生成完毕 + 敌人全清 → 下一波
-        if #State.waveSpawnQueue == 0 and Enemy.GetAliveCount() == 0 then
+        if spawnDone and Enemy.GetAliveCount() == 0 then
             if cfg.autoAdvanceWave then
                 BattleManager.StartNextWave()
                 return
@@ -282,7 +287,7 @@ function BattleManager.UpdateWaves(dt)
     -- 通关判定：最后一波敌人全清（世界BOSS模式跳过，胜利由计时器控制）
     if cfg.mode ~= "world_boss"
        and currentWave >= cfg.totalWaves
-       and #State.waveSpawnQueue == 0 then
+       and spawnDone then
         local aliveCount = Enemy.GetAliveCount()
         if aliveCount == 0 then
             State.waveActive = false

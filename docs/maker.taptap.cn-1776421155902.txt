@@ -1,0 +1,1368 @@
+ [Sentry] Initialized
+ [TapTap] isInTapTapApp check: Object
+ [Tracker] Page view queued: Object
+ Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ index-CuVcAi3D.js:76
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid internalformat
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+WebGL: INVALID_ENUM: getInternalformatParameter: invalid target
+ WebGL: INVALID_ENUM: getParameter: invalid parameter name
+emscriptenWebGLGet @ blob:https://9c3b925…9dd1-8ebc4dbd5c84:1
+ [Deprecation] The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)
+1824743 @ blob:https://9c3b925…9dd1-8ebc4dbd5c84:1
+9c3b9259-319b-4641-9e16-7ad8455fffe5.games.tapapps.cn/:1 [.WebGL-0x556c01596300] GL_INVALID_ENUM: Invalid cap.
+ Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ index-CuVcAi3D.js:76
+ WebGL: INVALID_ENUM: getParameter: invalid parameter name
+emscriptenWebGLGet @ blob:https://9c3b925…bb5d-0b9716a6d57d:1
+ [Deprecation] The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)
+1824743 @ blob:https://9c3b925…bb5d-0b9716a6d57d:1
+9c3b9259-319b-4641-9e16-7ad8455fffe5.games.tapapps.cn/:1 [.WebGL-0x556c062ec700] GL_INVALID_ENUM: Invalid cap.
+ [addWSMessage] Duplicate user prompt ignored: c291bc34-6332-4712-b5eb-9d80ff80a06f
+(anonymous) @ index-CuVcAi3D.js:76
+ [MultiDebug] Extension initialized
+ [UrhoX] ✓ Env: production
+ [UrhoX] ✓ Project: p_o9fd
+ Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ index-CuVcAi3D.js:76
+ [UrhoX] ✓ All files downloaded
+ [UrhoX] ✓ Engine JS executed
+ [UrhoX] === preRun ===
+ [UrhoX] Final Module.arguments: Array(4)
+ [UrhoX] Canvas size OK: 1207x874
+ [2026-04-17 18_18_57_815][0] INFO: DownloadManager initialized
+ [2026-04-17 18_18_57_819][0] INFO: a couple of Subsystems registered finish.
+ [2026-04-17 18_18_57_819][0] INFO: Engine construct finish.
+ [2026-04-17 18_18_57_824][0] WARNING: Graphics::SetMode called with zero dimensions: 0x0 (will maximize window)
+ WebGL: INVALID_ENUM: getParameter: invalid parameter name
+emscriptenWebGLGet @ blob:https://9c3b925…b624-5de38fda8988:1
+ [2026-04-17 18_18_57_907][0] WARNING: Could not get application preferences directory
+ [Deprecation] The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)
+1824743 @ blob:https://9c3b925…b624-5de38fda8988:1
+ [2026-04-17 18_18_57_931][0] WARNING: Localization::ReadUserPrefLanguage: userPrefPath_ is empty
+ [UrhoX] === postRun: Engine ready ===
+9c3b9259-319b-4641-9e16-7ad8455fffe5.games.tapapps.cn/:1 [.WebGL-0x556c00106a00] GL_INVALID_ENUM: Invalid cap.
+ [2026-04-17 18_18_58_462][33] WARNING: Next log has been output too many times and will not be output again.
+ 开始创建网络管理
+ 结束创建网络管理
+ 创建WebNetwork the key: 1
+ WebNetwork创建成功
+ 开始连接服务器
+ wss://entrance-new-pd.spark.xd.com/
+ 已经向服务器发送连接请求
+ 成功连接到服务器... Event
+ [UrhoX] Loading screen hidden
+ [2026-04-17 18_19_00_328][137] WARNING: RuntimeRetargeterCache: Cannot load mapping table: uuid://F4ItQUiV0gmvAelLXpk5yrTs
+ [2026-04-17 18_19_00_332][137][Script] IsNetworkMode:    false
+ [2026-04-17 18_19_00_339][137][Script] [InputAdaptor] Loading input event adaptor...
+ [2026-04-17 18_19_00_339][137][Script] [InputAdaptor] Hooked SubscribeToEvent for event mapping.
+ [2026-04-17 18_19_00_339][137][Script] [InputAdaptor] Platform: Web, isTouchPlatform: false
+ [2026-04-17 18_19_00_339][137][Script] [InputAdaptor] Hooked Input methods for touch emulation fallback.
+ [2026-04-17 18_19_00_342][137][Script] Check Transition.lua SimpleGrid.lua
+ [2026-04-17 18_19_00_408][137][Script] [State] Game state reset
+ [2026-04-17 18_19_00_412][137][Script] [SaveRegistry] Registered '_core' (group=core, order=1)
+ [2026-04-17 18_19_00_414][137][Script] [SaveRegistry] Registered 'equipData' (group=equip, order=30)
+ [2026-04-17 18_19_00_430][137][Script] [SaveRegistry] Registered 'chestData' (group=meta_game, order=50)
+ [2026-04-17 18_19_00_435][137][Script] [SaveRegistry] Registered 'runeData' (group=equip, order=35)
+ [2026-04-17 18_19_00_438][137][Script] [SaveRegistry] Registered 'towerData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_439][137][Script] [SaveRegistry] Registered 'resourceDungeon' (group=meta_game, order=55)
+ [2026-04-17 18_19_00_439][137][Script] [SaveRegistry] Registered 'worldBossData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_444][137][Script] [SaveRegistry] Registered 'activityData' (group=meta_game, order=60)
+ [2026-04-17 18_19_00_446][137][Script] [SaveRegistry] Registered 'launchGiftData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_449][137][Script] [SaveRegistry] Registered 'mailboxData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_449][137][Script] [SaveRegistry] Registered 'weeklyActivityData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_451][137][Script] [SaveRegistry] Registered 'welfareData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_454][137][Script] [SaveRegistry] Registered 'dailyTaskData' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_456][137][Script] [SaveRegistry] Registered 'exchangeShop' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_464][137][Script] === Dark Merge TD Starting ===
+ [2026-04-17 18_19_00_468][137][Script] [Init] NanoVG context created, fontId=0.0
+ [2026-04-17 18_19_00_468][137][Script] [Init] Toast NanoVG context created, renderOrder=999995, fontId=0.0
+ [2026-04-17 18_19_00_468][137][Script] [Init] Grid offset: 435.5, 290.0
+ [2026-04-17 18_19_00_468][137][Script] [Init] Screen: 1207.0x874.0 DPR=1.0
+ [2026-04-17 18_19_00_468][137][Script] [State] Game state reset
+ [2026-04-17 18_19_00_478][137][Script] [AudioManager] Init OK, 14 sfx loaded
+ [2026-04-17 18_19_00_484][137][Script] [WelfareData] Migrated dailyClaimed indices +1 for free chest
+ [2026-04-17 18_19_00_488][137][Script] [LaunchGift] Daily reset for 2026-04-17
+ [2026-04-17 18_19_00_497][137][Script] [LB] FetchMyRank key=lb_tower
+ [2026-04-17 18_19_00_497][137][Script] [LB] FetchMyRank key=lb_dungeon
+ [2026-04-17 18_19_00_497][137][Script] [LB] FetchMyRank key=lb_world_boss
+ [2026-04-17 18_19_00_499][137][Script] [TabNav] Created with activeTab=battle
+ [2026-04-17 18_19_00_500][137][Script] [SaveRegistry] Registered 'limitedBanner' (group=meta_game, order=70)
+ [2026-04-17 18_19_00_508][137][Script] [SaveRegistry] EnsureModulesLoaded: loading 15 data modules...
+ [2026-04-17 18_19_00_508][137][Script] [SaveRegistry] EnsureModulesLoaded: 15 modules registered
+ [2026-04-17 18_19_00_510][137][Script] [SaveManager] Saved successfully
+ [2026-04-17 18_19_00_510][137][Script] [ActivityData] MarkLogin: day 1
+ [2026-04-17 18_19_00_515][137][Script] [ScrollView] Auto-set flexBasis=0 (flexGrow=1 detected). ScrollView needs flexBasis=0 to scroll in flex layout. Set flexBasis explicitly to suppress this message.
+ [2026-04-17 18_19_00_516][137][Script] [ScrollView] Auto-set flexBasis=0 (flexGrow=1 detected). ScrollView needs flexBasis=0 to scroll in flex layout. Set flexBasis explicitly to suppress this message.
+ [2026-04-17 18_19_00_516][137][Script] [ScrollView] Auto-set flexBasis=0 (flexGrow=1 detected). ScrollView needs flexBasis=0 to scroll in flex layout. Set flexBasis explicitly to suppress this message.
+ [2026-04-17 18_19_00_516][137][Script] [ScrollView] Auto-set flexBasis=0 (flexGrow=1 detected). ScrollView needs flexBasis=0 to scroll in flex layout. Set flexBasis explicitly to suppress this message.
+ [2026-04-17 18_19_00_519][137][Script] [ScrollView] Auto-set flexBasis=0 (flexGrow=1 detected). ScrollView needs flexBasis=0 to scroll in flex layout. Set flexBasis explicitly to suppress this message.
+ [2026-04-17 18_19_00_520][137][Script] [SlotSave] Init: loading save_meta from cloud...
+ [2026-04-17 18_19_00_520][137][Script] === Dark Merge TD Ready ===
+ [2026-04-17 18_19_00_523][137][Script] [MobImage] Loaded: image/icon_monster.png
+ [2026-04-17 18_19_00_537][137][Script] [Layout Warning] Overflow in 'currencyDisplay': children=66x112, container=64x146. Consider: flexShrink=1 on children, or increase container size.
+ [2026-04-17 18_19_00_537][137][Script] [Layout Warning] Overflow in 'Panel': children=24x34, container=32x32. Consider: flexShrink=1 on children, or increase container size.
+ [2026-04-17 18_19_00_537][137][Script] [Layout Warning] Overflow in 'Panel': children=27x38, container=36x36. Consider: flexShrink=1 on children, or increase container size.
+ [2026-04-17 18_19_00_537][137][Script] [Layout Warning] Overflow in 'Panel': children=125x308, container=1207x257. Consider: flexShrink=1 on children, or increase container size.
+ [2026-04-17 18_19_00_539][137][Script] [Layout Warning] Overflow in 'Panel': children=1207x679, container=1207x120. Consider: flexShrink=1 on children, or increase container size.
+ [2026-04-17 18_19_00_539][137][Script] [Layout Warning] Overflow in 'Panel': children=1430x142, container=1207x324. Consider: flexShrink=1 on children, or increase container size.
+ [2026-04-17 18_19_00_556][137][Script] [LB] FetchMyRank result: rank=62 score=2
+ [2026-04-17 18_19_00_564][138][Script] [LB] FetchMyRank result: rank=50 score=4
+ [2026-04-17 18_19_00_564][138][Script] [LB] FetchMyRank result: rank=22 score=426285186
+ [2026-04-17 18_19_00_564][138][Script] [SlotSave] Init: meta loaded, 2 slots
+ [2026-04-17 18_19_00_564][138][Script] [Main] SlotSaveSystem ready, isNewPlayer=false
+ [2026-04-17 18_19_02_552][258][Script] [StartGame] Loading slot 1...
+ [2026-04-17 18_19_02_552][258][Script] [SlotSave] LoadSlot(1)...
+ [2026-04-17 18_19_02_631][263][Script] [SlotSave] Sharded load OK for slot 1
+ [2026-04-17 18_19_02_632][263][Script] [SaveRegistry] RestoreAll: 15 modules
+ [2026-04-17 18_19_02_632][263][Script] [HeroData] Core deserialized
+ [2026-04-17 18_19_02_632][263][Script] [ChestData] Deserialized OK: platinum=34,bronze=69,wood=99,gold=24
+ [2026-04-17 18_19_02_632][263][Script] [ResourceDungeonData] Deserialized OK: bestWave=0/0/0/0
+ [2026-04-17 18_19_02_632][263][Script] [HeroData] RestoreFromSnapshot complete (via SaveRegistry)
+ [2026-04-17 18_19_02_632][263][Script] [SlotSave] Slot 1 loaded (offline 0 min)
+ [2026-04-17 18_19_02_632][263][Script] [StartGame] Slot 1 loaded, isNew=false
+ [2026-04-17 18_19_02_632][263][Script] [ChestData] Load: HeroData.chestData = {"score":100,"claimedMilestones":[true,true,true,true],"inventory":{"platinum":34,"diamond":0,"bronze":69,"wood":99,"gold":24}}
+ [2026-04-17 18_19_02_632][263][Script] [ChestData] Load OK: platinum=34,bronze=69,wood=99,gold=24
+ [2026-04-17 18_19_02_632][263][Script] [Tower] Leader 暗影君主 placed at (5,4) Lv.856 ATK=832633
+ [2026-04-17 18_19_02_632][263][Script] [Wave] Stage 40 Wave 1/20 (normal) started, spawn=17, hpScale=3.28
+ [2026-04-17 18_19_02_633][263][Script] [StartGame] Offline 0 min added to AFK timer
+ [2026-04-17 18_19_02_633][263][Script] [SpeedBoost] Init: remaining=0s, adsUsed=2, elapsed=369s
+ [2026-04-17 18_19_02_635][263][Script] [LB] F10 hotkey registered: export campaign top 200
+ [2026-04-17 18_19_02_646][264][Script] [SpriteSheet] Loaded 'leader': image/shadow_lord_spritesheet.png
+ [2026-04-17 18_19_03_127][293][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+ [2026-04-17 18_19_03_128][293][Script] [MobImage] Loaded: image/mobs/void_minion.png
+ [2026-04-17 18_19_03_627][323][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+ [2026-04-17 18_19_04_128][353][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+ [2026-04-17 18_19_04_143][354][Script] [Enemy] 虚空虱 killed, reward=2
+ [2026-04-17 18_19_04_627][383][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+ [2026-04-17 18_19_04_628][383][Script] [SlotSave] Encode OK for group equip (9834 bytes)
+ [2026-04-17 18_19_04_628][383][Script] [SlotSave] Encode OK for group meta_game (3447 bytes)
+ [2026-04-17 18_19_04_689][386][Script] [SlotSave] Cloud save OK (slot 1)
+ [2026-04-17 18_19_05_127][413][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+ [2026-04-17 18_19_05_143][414][Script] [Enemy] 虚空虱 killed, reward=2
+ [2026-04-17 18_19_05_427][430][Script] [LB] FetchMyRank key=lb_campaign
+ [2026-04-17 18_19_05_463][433][Script] [LB] FetchMyRank result: rank=17 score=100780
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[0]: userId=2020363704, nickname=九玄尺
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[1]: userId=1931873719, nickname=殇之空
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[2]: userId=191390351, nickname=身是心的囚犯
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[3]: userId=897945791, nickname=哇哇哇
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[4]: userId=1699603952, nickname=死神
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[5]: userId=346333596, nickname=L
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[6]: userId=1840951947, nickname=三分运七分躺
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[7]: userId=1732013179, nickname=皮皮狼正在摸鱼
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[8]: userId=1006084432, nickname=盾
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[9]: userId=1996655648, nickname=动手术
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[10]: userId=1318083359, nickname=爱老虎油
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[11]: userId=834166930, nickname=风邪
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[12]: userId=891277712, nickname=幾張過期的廢紙
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[13]: userId=2091211151, nickname=她和他的他
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[14]: userId=1915921944, nickname=对不起
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[15]: userId=881479440, nickname=小明不背锅
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[16]: userId=1779057459, nickname=游玩
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[17]: userId=1484115547, nickname=楚门的世界
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[18]: userId=946074957, nickname=七仔
+ [2026-04-17 18_19_05_496][435] WARNING:   => nickname[19]: userId=1296664190, nickname=不言
+ [2026-04-17 18_19_05_496][435] WARNING: => ResponseBatchUserNickname JSON: {
+ 	"errorCode": 0,
+ 	"nicknames": [
+ 		{
+ 			"userId": 2020363704.0,
+ 			"nickname": "九玄尺"
+ 		},
+ 		{
+ 			"userId": 1931873719.0,
+ 			"nickname": "殇之空"
+ 		},
+ 		{
+ 			"userId": 191390351.0,
+ 			"nickname": "身是心的囚犯"
+ 		},
+ 		{
+ 			"userId": 897945791.0,
+ 			"nickname": "哇哇哇"
+ 		},
+ 		{
+ 			"userId": 1699603952.0,
+ 			"nickname": "死神"
+ 		},
+ 		{
+ 			"userId": 346333596.0,
+ 			"nickname": "L"
+ 		},
+ 		{
+ 			"userId": 1840951947.0,
+ 			"nickname": "三分运七分躺"
+ 		},
+ 		{
+ 			"userId": 1732013179.0,
+ 			"nickname": "皮皮狼正在摸鱼"
+ 		},
+ 		{
+ 			"userId": 1006084432.0,
+ 			"nickname": "盾"
+ 		},
+ 		{
+ 			"userId": 1996655648.0,
+ 			"nickname": "动手术"
+ 		},
+ 		{
+ 			"userId": 1318083359.0,
+ 			"nickname": "爱老虎油"
+ 		},
+ 		{
+ 			"userId": 834166930.0,
+ 			"nickname": "风邪"
+ 		},
+ 		{
+ 			"userId": 891277712.0,
+ 			"nickname": "幾張過期的廢紙"
+ 		},
+ 		{
+ 			"userId": 2091211151.0,
+ 			"nickname": "她和他的他"
+ 		},
+ 		{
+ 			"userId": 1915921944.0,
+ 			"nickname": "对不起"
+68899799-abf6-4d41-b624-5de38fda8988:1 		},
+68899799-abf6-4d41-b624-5de38fda8988:1 		{
+68899799-abf6-4d41-b624-5de38fda8988:1 			"userId": 881479440.0,
+68899799-abf6-4d41-b624-5de38fda8988:1 			"nickname": "小明不背锅"
+68899799-abf6-4d41-b624-5de38fda8988:1 		},
+68899799-abf6-4d41-b624-5de38fda8988:1 		{
+68899799-abf6-4d41-b624-5de38fda8988:1 			"userId": 1779057459.0,
+68899799-abf6-4d41-b624-5de38fda8988:1 			"nickname": "游玩"
+68899799-abf6-4d41-b624-5de38fda8988:1 		},
+68899799-abf6-4d41-b624-5de38fda8988:1 		{
+68899799-abf6-4d41-b624-5de38fda8988:1 			"userId": 1484115547.0,
+68899799-abf6-4d41-b624-5de38fda8988:1 			"nickname": "楚门的世界"
+68899799-abf6-4d41-b624-5de38fda8988:1 		},
+68899799-abf6-4d41-b624-5de38fda8988:1 		{
+68899799-abf6-4d41-b624-5de38fda8988:1 			"userId": 946074957.0,
+68899799-abf6-4d41-b624-5de38fda8988:1 			"nickname": "七仔"
+68899799-abf6-4d41-b624-5de38fda8988:1 		},
+68899799-abf6-4d41-b624-5de38fda8988:1 		{
+68899799-abf6-4d41-b624-5de38fda8988:1 			"userId": 1296664190.0,
+68899799-abf6-4d41-b624-5de38fda8988:1 			"nickname": "不言"
+68899799-abf6-4d41-b624-5de38fda8988:1 		}
+68899799-abf6-4d41-b624-5de38fda8988:1 	]
+68899799-abf6-4d41-b624-5de38fda8988:1 }
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_05_627][443][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_06_009][466][Script] [Enemy] 虚空虱 killed, reward=2
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_06_126][473][Script] [Enemy] Spawned 虚空虱 HP=22140 SPD=166
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_06_892][519][Script] [Enemy] 虚空虱 killed, reward=2
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_126][533][Script] [Enemy] Spawned 虚空先驱 HP=51660 SPD=78
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_128][533][Script] [MobImage] Loaded: image/mobs/void_support.png
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_643][562][Script] [Init] Grid offset: 435.5, 110.0
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_643][562][Script] [Init] Screen: 1207.0x514.0 DPR=1.0
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_643][562][Script] [Event] ScreenMode changed, grid offset recalculated
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_654][563][Script] [Layout Warning] Overflow in 'Panel': children=78x18, container=933x17. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_654][563][Script] [Layout Warning] Overflow in 'leftSideButtons': children=55x442, container=55x440. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_07_654][563][Script] [Layout Warning] Overflow in 'chestPage': children=1428x624, container=1428x552. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_118][588][Script] [Enemy] Spawned 虚空先驱 HP=51660 SPD=78
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_228][594][Script] [Enemy] 虚空虱 killed, reward=2
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_240][594][Script] [Layout Warning] Overflow in 'Panel': children=133x54, container=133x53. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_241][594][Script] [Layout Warning] Overflow in 'Panel': children=133x54, container=133x53. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_241][594][Script] [Layout Warning] Overflow in 'Panel': children=79x54, container=79x53. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_241][594][Script] [Layout Warning] Overflow in 'Panel': children=185x54, container=185x53. Consider: flexShrink=1 on children, or increase container size.
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_08_806][627][Script] [Enemy] 虚空虱 killed, reward=2
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_09_116][645][Script] [Enemy] Spawned 虚空先驱 HP=51660 SPD=78
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_09_679][677][Script] [Enemy] 虚空虱 killed, reward=2
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_10_124][703][Script] [Enemy] Spawned 虚空先驱 HP=51660 SPD=78
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_10_435][721][Script] [Enemy] 虚空先驱 killed, reward=8
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_057][757][Script] [LB-Export] ========== 开始导出主线排行榜 TOP 200 ==========
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_127][762][Script] [Enemy] Spawned 虚空先驱 HP=51660 SPD=78
+ [2026-04-17 18_19_11_172][764] WARNING:   => nickname[0]: userId=2020363704, nickname=九玄尺
+ [2026-04-17 18_19_11_172][764] WARNING:   => nickname[1]: userId=1931873719, nickname=殇之空
+ [2026-04-17 18_19_11_172][764] WARNING:   => nickname[2]: userId=191390351, nickname=身是心的囚犯
+ [2026-04-17 18_19_11_172][764] WARNING:   => nickname[3]: userId=897945791, nickname=哇哇哇
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[4]: userId=1699603952, nickname=死神
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[5]: userId=346333596, nickname=L
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[6]: userId=1840951947, nickname=三分运七分躺
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[7]: userId=1732013179, nickname=皮皮狼正在摸鱼
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[8]: userId=1006084432, nickname=盾
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[9]: userId=1996655648, nickname=动手术
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[10]: userId=1318083359, nickname=爱老虎油
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[11]: userId=834166930, nickname=风邪
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[12]: userId=891277712, nickname=幾張過期的廢紙
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[13]: userId=2091211151, nickname=她和他的他
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[14]: userId=1915921944, nickname=对不起
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[15]: userId=881479440, nickname=小明不背锅
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[16]: userId=1779057459, nickname=游玩
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[17]: userId=1484115547, nickname=楚门的世界
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[18]: userId=946074957, nickname=七仔
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[19]: userId=1296664190, nickname=不言
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[20]: userId=748065890, nickname=Ｍr.李
+ [2026-04-17 18_19_11_174][764] WARNING:   => nickname[21]: userId=564418097, nickname=666
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[22]: userId=167706129, nickname=情深不寿
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[23]: userId=454920882, nickname=。
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[24]: userId=1261081970, nickname=逢考必过
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[25]: userId=2028526586, nickname=好运的八幡（顺）
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[26]: userId=207736188, nickname=臭兔奶茶
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[27]: userId=1496964265, nickname=契约雨季
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[28]: userId=775402848, nickname=手机用户25265716
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[29]: userId=2051179867, nickname=艾希
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[30]: userId=109012304, nickname=点点点点点点点点点点点点点点点
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[31]: userId=245165705, nickname=The Priest
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[32]: userId=700145371, nickname=叮当
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[33]: userId=325089170, nickname=Lucifel
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[34]: userId=1879205879, nickname=User437011539
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[35]: userId=274791815, nickname=hhhUP
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[36]: userId=387796072, nickname=jg
+ [2026-04-17 18_19_11_175][764] WARNING:   => nickname[37]: userId=2007770672, nickname=板鸭99
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[38]: userId=297004786, nickname=User435067919
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[39]: userId=401852988, nickname=神丑
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[40]: userId=1067207118, nickname=FRED
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[41]: userId=1423946121, nickname=老黑
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[42]: userId=193359618, nickname=kisum
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[43]: userId=131827644, nickname=西装、
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[44]: userId=1539976632, nickname=利
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[45]: userId=1633980224, nickname=露娜
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[46]: userId=1876099833, nickname=米
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[47]: userId=206314218, nickname=User104168324
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[48]: userId=1367044334, nickname=、东左
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[49]: userId=119895248, nickname=没惹任何人
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[50]: userId=269928001, nickname=问天
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[51]: userId=618075321, nickname=宿命
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[52]: userId=1282500428, nickname=手机用户56836825
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[53]: userId=2002684324, nickname=手机用户57049218
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[54]: userId=495148045, nickname=丿Dream丨永恒
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[55]: userId=1655784214, nickname=手机用户109188857
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[56]: userId=1870353422, nickname=SinQ丶
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[57]: userId=1964036015, nickname=尘帝
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[58]: userId=2123455409, nickname=手机用户32959116
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[59]: userId=1451919725, nickname=狗子哥哥
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[60]: userId=916796984, nickname=骚磊
+ [2026-04-17 18_19_11_176][764] WARNING:   => nickname[61]: userId=1039992199, nickname=天空
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[62]: userId=1445552941, nickname=林狗子
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[63]: userId=1757491293, nickname=不服输的旅行者
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[64]: userId=1882627292, nickname=上善若水
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[65]: userId=866787093, nickname=沉芯之下
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[66]: userId=272984296, nickname=锦鲤
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[67]: userId=335861629, nickname=User357292022
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[68]: userId=873234404, nickname=傲娇的教授
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[69]: userId=943097607, nickname=User17584683
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[70]: userId=1217462873, nickname=孔粉
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[71]: userId=2099051752, nickname=大老黑
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[72]: userId=43403298, nickname=星星
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[73]: userId=427490200, nickname=Winner！……＃★
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[74]: userId=906922086, nickname=Zee8
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[75]: userId=1094909353, nickname=酒柒七
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[76]: userId=1157287233, nickname=手机用户101453828
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[77]: userId=1361621003, nickname=朝三暮四醉生梦死
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[78]: userId=334267249, nickname=手机用户65615045
+ [2026-04-17 18_19_11_177][764] WARNING:   => nickname[79]: userId=1450505971, nickname=小门神
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[80]: userId=2095015368, nickname=钱ゞ串串
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[81]: userId=1472611886, nickname=User593646800
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[82]: userId=1558991381, nickname=新白娘子砍传奇
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[83]: userId=52140186, nickname=伟大的蜗牛
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[84]: userId=255787037, nickname=一命通关的大师
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[85]: userId=258517379, nickname=鸡蛋酱
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[86]: userId=416333665, nickname=ᯤ
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[87]: userId=600188821, nickname=宇哥
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[88]: userId=877957650, nickname=林子涵
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[89]: userId=1210530881, nickname=手机用户23387333
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[90]: userId=1332431322, nickname=惹人爱的调律者
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[91]: userId=1803685670, nickname=福利局
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[92]: userId=1993012413, nickname=人气爆棚的旅人
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[93]: userId=2007100563, nickname=千年一遇的大阴阳师
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[94]: userId=848730628, nickname=AA丶冬影
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[95]: userId=676035608, nickname=溺于她心🍀
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[96]: userId=224346719, nickname=手机用户102885168
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[97]: userId=392461447, nickname=xlorry
+ [2026-04-17 18_19_11_179][764] WARNING:   => nickname[98]: userId=403859421, nickname=꧁吸~墨꧂
+ [2026-04-17 18_19_11_180][764] WARNING:   => nickname[99]: userId=496429438, nickname=-已注销
+ [2026-04-17 18_19_11_180][764] WARNING: => ResponseBatchUserNickname JSON: {
+ 	"errorCode": 0,
+ 	"nicknames": [
+ 		{
+ 			"userId": 2020363704.0,
+ 			"nickname": "九玄尺"
+ 		},
+ 		{
+ 			"userId": 1931873719.0,
+ 			"nickname": "殇之空"
+ 		},
+ 		{
+ 			"userId": 191390351.0,
+ 			"nickname": "身是心的囚犯"
+ 		},
+ 		{
+ 			"userId": 897945791.0,
+ 			"nickname": "哇哇哇"
+ 		},
+ 		{
+ 			"userId": 1699603952.0,
+ 			"nickname": "死神"
+ 		},
+ 		{
+ 			"userId": 346333596.0,
+ 			"nickname": "L"
+ 		},
+ 		{
+ 			"userId": 1840951947.0,
+ 			"nickname": "三分运七分躺"
+ 		},
+ 		{
+ 			"userId": 1732013179.0,
+ 			"nickname": "皮皮狼正在摸鱼"
+ 		},
+ 		{
+ 			"userId": 1006084432.0,
+ 			"nickname": "盾"
+ 		},
+ 		{
+ 			"userId": 1996655648.0,
+ 			"nickname": "动手术"
+ 		},
+ 		{
+ 			"userId": 1318083359.0,
+ 			"nickname": "爱老虎油"
+ 		},
+ 		{
+ 			"userId": 834166930.0,
+ 			"nickname": "风邪"
+ 		},
+ 		{
+ 			"userId": 891277712.0,
+ 			"nickname": "幾張過期的廢紙"
+ 		},
+ 		{
+ 			"userId": 2091211151.0,
+ 			"nickname": "她和他的他"
+ 		},
+ 		{
+ 			"userId": 1915921944.0,
+ 			"nickname": "对不起"
+ 		},
+ 		{
+ 			"userId": 881479440.0,
+ 			"nickname": "小明不背锅"
+ 		},
+ 		{
+ 			"userId": 1779057459.0,
+ 			"nickname": "游玩"
+ 		},
+ 		{
+ 			"userId": 1484115547.0,
+ 			"nickname": "楚门的世界"
+ 		},
+ 		{
+ 			"userId": 946074957.0,
+ 			"nickname": "七仔"
+ 		},
+ 		{
+ 			"userId": 1296664190.0,
+ 			"nickname": "不言"
+ 		},
+ 		{
+ 			"userId": 748065890.0,
+ 			"nickname": "Ｍr.李"
+ 		},
+ 		{
+ 			"userId": 564418097.0,
+ 			"nickname": "666"
+ 		},
+ 		{
+ 			"userId": 167706129.0,
+ 			"nickname": "情深不寿"
+ 		},
+ 		{
+ 			"userId": 454920882.0,
+ 			"nickname": "。"
+ 		},
+ 		{
+ 			"userId": 1261081970.0,
+ 			"nickname": "逢考必过"
+ 		},
+ 		{
+ 			"userId": 2028526586.0,
+ 			"nickname": "好运的八幡（顺）"
+ 		},
+ 		{
+ 			"userId": 207736188.0,
+ 			"nickname": "臭兔奶茶"
+ 		},
+ 		{
+ 			"userId": 1496964265.0,
+ 			"nickname": "契约雨季"
+ 		},
+ 		{
+ 			"userId": 775402848.0,
+ 			"nickname": "手机用户25265716"
+ 		},
+ 		{
+ 			"userId": 2051179867.0,
+ 			"nickname": "艾希"
+ 		},
+ 		{
+ 			"userId": 109012304.0,
+ 			"nickname": "点点点点点点点点点点点点点点点"
+ 		},
+ 		{
+ 			"userId": 245165705.0,
+ 			"nickname": "The Priest"
+ 		},
+ 		{
+ 			"userId": 700145371.0,
+ 			"nickname": "叮当"
+ 		},
+ 		{
+ 			"userId": 325089170.0,
+ 			"nickname": "Lucifel"
+ 		},
+ 		{
+ 			"userId": 1879205879.0,
+ 			"nickname": "User437011539"
+ 		},
+ 		{
+ 			"userId": 274791815.0,
+ 			"nickname": "hhhUP"
+ 		},
+ 		{
+ 			"userId": 387796072.0,
+ 			"nickname": "jg"
+ 		},
+ 		{
+ 			"userId": 2007770672.0,
+ 			"nickname": "板鸭99"
+ 		},
+ 		{
+ 			"userId": 297004786.0,
+ 			"nickname": "User435067919"
+ 		},
+ 		{
+ 			"userId": 401852988.0,
+ 			"nickname": "神丑"
+ 		},
+ 		{
+ 			"userId": 1067207118.0,
+ 			"nickname": "FRED"
+ 		},
+ 		{
+ 			"userId": 1423946121.0,
+ 			"nickname": "老黑"
+ 		},
+ 		{
+ 			"userId": 193359618.0,
+ 			"nickname": "kisum"
+ 		},
+ 		{
+ 			"userId": 131827644.0,
+ 			"nickname": "西装、"
+ 		},
+ 		{
+ 			"userId": 1539976632.0,
+ 			"nickname": "利"
+ 		},
+ 		{
+ 			"userId": 1633980224.0,
+ 			"nickname": "露娜"
+ 		},
+ 		{
+ 			"userId": 1876099833.0,
+ 			"nickname": "米"
+ 		},
+ 		{
+ 			"userId": 206314218.0,
+ 			"nickname": "User104168324"
+ 		},
+ 		{
+ 			"userId": 1367044334.0,
+ 			"nickname": "、东左"
+ 		},
+ 		{
+ 			"userId": 119895248.0,
+ 			"nickname": "没惹任何人"
+ 		},
+ 		{
+ 			"userId": 269928001.0,
+ 			"nickname": "问天"
+ 		},
+ 		{
+ 			"userId": 618075321.0,
+ 			"nickname": "宿命"
+ 		},
+ 		{
+ 			"userId": 1282500428.0,
+ 			"nickname": "手机用户56836825"
+ 		},
+ 		{
+ 			"userId": 2002684324.0,
+ 			"nickname": "手机用户57049218"
+ 		},
+ 		{
+ 			"userId": 495148045.0,
+ 			"nickname": "丿Dream丨永恒"
+ 		},
+ 		{
+ 			"userId": 1655784214.0,
+ 			"nickname": "手机用户109188857"
+ 		},
+ 		{
+ 			"userId": 1870353422.0,
+ 			"nickname": "SinQ丶"
+ 		},
+ 		{
+ 			"userId": 1964036015.0,
+ 			"nickname": "尘帝"
+ 		},
+ 		{
+ 			"userId": 2123455409.0,
+ 			"nickname": "手机用户32959116"
+ 		},
+ 		{
+ 			"userId": 1451919725.0,
+ 			"nickname": "狗子哥哥"
+ 		},
+ 		{
+ 			"userId": 916796984.0,
+ 			"nickname": "骚磊"
+ 		},
+ 		{
+ 			"userId": 1039992199.0,
+ 			"nickname": "天空"
+ 		},
+ 		{
+ 			"userId": 1445552941.0,
+ 			"nickname": "林狗子"
+ 		},
+ 		{
+ 			"userId": 1757491293.0,
+ 			"nickname": "不服输的旅行者"
+ 		},
+ 		{
+ 			"userId": 1882627292.0,
+ 			"nickname": "上善若水"
+ 		},
+ 		{
+ 			"userId": 866787093.0,
+ 			"nickname": "沉芯之下"
+ 		},
+ 		{
+ 			"userId": 272984296.0,
+ 			"nickname": "锦鲤"
+ 		},
+ 		{
+ 			"userId": 335861629.0,
+ 			"nickname": "User357292022"
+ 		},
+ 		{
+ 			"userId": 873234404.0,
+ 			"nickname": "傲娇的教授"
+ 		},
+ 		{
+ 			"userId": 943097607.0,
+ 			"nickname": "User17584683"
+ 		},
+ 		{
+ 			"userId": 1217462873.0,
+ 			"nickname": "孔粉"
+ 		},
+ 		{
+ 			"userId": 2099051752.0,
+ 			"nickname": "大老黑"
+ 		},
+ 		{
+ 			"userId": 43403298.0,
+ 			"nickname": "星星"
+ 		},
+ 		{
+ 			"userId": 427490200.0,
+ 			"nickname": "Winner！……＃★"
+ 		},
+ 		{
+ 			"userId": 906922086.0,
+ 			"nickname": "Zee8"
+ 		},
+ 		{
+ 			"userId": 1094909353.0,
+ 			"nickname": "酒柒七"
+ 		},
+ 		{
+ 			"userId": 1157287233.0,
+ 			"nickname": "手机用户101453828"
+ 		},
+ 		{
+ 			"userId": 1361621003.0,
+ 			"nickname": "朝三暮四醉生梦死"
+ 		},
+ 		{
+ 			"userId": 334267249.0,
+ 			"nickname": "手机用户65615045"
+ 		},
+ 		{
+ 			"userId": 1450505971.0,
+ 			"nickname": "小门神"
+ 		},
+ 		{
+ 			"userId": 2095015368.0,
+ 			"nickname": "钱ゞ串串"
+ 		},
+ 		{
+ 			"userId": 1472611886.0,
+ 			"nickname": "User593646800"
+ 		},
+ 		{
+ 			"userId": 1558991381.0,
+ 			"nickname": "新白娘子砍传奇"
+ 		},
+ 		{
+ 			"userId": 52140186.0,
+ 			"nickname": "伟大的蜗牛"
+ 		},
+ 		{
+ 			"userId": 255787037.0,
+ 			"nickname": "一命通关的大师"
+ 		},
+ 		{
+ 			"userId": 258517379.0,
+ 			"nickname": "鸡蛋酱"
+ 		},
+ 		{
+ 			"userId": 416333665.0,
+ 			"nickname": "ᯤ"
+ 		},
+ 		{
+ 			"userId": 600188821.0,
+ 			"nickname": "宇哥"
+ 		},
+ 		{
+ 			"userId": 877957650.0,
+ 			"nickname": "林子涵"
+ 		},
+ 		{
+ 			"userId": 1210530881.0,
+ 			"nickname": "手机用户23387333"
+ 		},
+ 		{
+ 			"userId": 1332431322.0,
+ 			"nickname": "惹人爱的调律者"
+ 		},
+ 		{
+ 			"userId": 1803685670.0,
+ 			"nickname": "福利局"
+ 		},
+ 		{
+ 			"userId": 1993012413.0,
+ 			"nickname": "人气爆棚的旅人"
+ 		},
+ 		{
+ 			"userId": 2007100563.0,
+ 			"nickname": "千年一遇的大阴阳师"
+ 		},
+ 		{
+ 			"userId": 848730628.0,
+ 			"nickname": "AA丶冬影"
+ 		},
+ 		{
+ 			"userId": 676035608.0,
+ 			"nickname": "溺于她心🍀"
+ 		},
+ 		{
+ 			"userId": 224346719.0,
+ 			"nickname": "手机用户102885168"
+ 		},
+ 		{
+ 			"userId": 392461447.0,
+ 			"nickname": "xlorry"
+ 		},
+ 		{
+ 			"userId": 403859421.0,
+ 			"nickname": "꧁吸~墨꧂"
+ 		},
+ 		{
+ 			"userId": 496429438.0,
+ 			"nickname": "-已注销"
+ 		}
+ 	]
+ }
+ [2026-04-17 18_19_11_195][764][Script] [LB-Export] ==========================================
+ [2026-04-17 18_19_11_195][764][Script] 排名 | 用户ID        | 昵称               | 原始分数 | 关卡进度
+ [2026-04-17 18_19_11_195][764][Script] -------|-----------------|----------------------|----------|----------------
+ [2026-04-17 18_19_11_195][764][Script] 1      | 2020363704      | 九玄尺            | 101787   | 第90关 第7波
+ [2026-04-17 18_19_11_195][764][Script] 2      | 1931873719      | 殇之空            | 101780   | 第89关 第20波
+ [2026-04-17 18_19_11_195][764][Script] 3      | 191390351       | 身是心的囚犯   | 101701   | 第86关 第1波
+ [2026-04-17 18_19_11_195][764][Script] 4      | 897945791       | 哇哇哇            | 101680   | 第84关 第20波
+ [2026-04-17 18_19_11_195][764][Script] 5      | 1699603952      | 死神               | 101660   | 第83关 第20波
+ [2026-04-17 18_19_11_195][764][Script] 6      | 346333596       | L                    | 101540   | 第77关 第20波
+ [2026-04-17 18_19_11_195][764][Script] 7      | 1840951947      | 三分运七分躺   | 101460   | 第73关 第20波
+ [2026-04-17 18_19_11_195][764][Script] 8      | 1732013179      | 皮皮狼正在摸鱼 | 101440   | 第72关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 9      | 1006084432      | 盾                  | 101349   | 第68关 第9波
+ [2026-04-17 18_19_11_196][764][Script] 10     | 1996655648      | 动手术            | 101317   | 第66关 第17波
+ [2026-04-17 18_19_11_196][764][Script] 11     | 1318083359      | 爱老虎油         | 101300   | 第65关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 12     | 834166930       | 风邪               | 101280   | 第64关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 13     | 891277712       | 幾張過期的廢紙 | 101220   | 第61关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 14     | 2091211151      | 她和他的他      | 101040   | 第52关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 15     | 1915921944      | 对不起            | 100900   | 第45关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 16     | 881479440       | 小明不背锅      | 100841   | 第43关 第1波
+ [2026-04-17 18_19_11_196][764][Script] 17     | 1779057459      | 游玩               | 100780   | 第39关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 18     | 1484115547      | 楚门的世界      | 100680   | 第34关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 19     | 946074957       | 七仔               | 100677   | 第34关 第17波
+ [2026-04-17 18_19_11_196][764][Script] 20     | 1296664190      | 不言               | 100660   | 第33关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 21     | 748065890       | Ｍr.李             | 100645   | 第33关 第5波
+ [2026-04-17 18_19_11_196][764][Script] 22     | 564418097       | 666                  | 100629   | 第32关 第9波
+ [2026-04-17 18_19_11_196][764][Script] 23     | 167706129       | 情深不寿         | 100621   | 第32关 第1波
+ [2026-04-17 18_19_11_196][764][Script] 24     | 454920882       | 。                  | 100620   | 第31关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 25     | 1261081970      | 逢考必过         | 100601   | 第31关 第1波
+ [2026-04-17 18_19_11_196][764][Script] 26     | 2028526586      | 好运的八幡（顺） | 100540   | 第27关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 27     | 207736188       | 臭兔奶茶         | 100500   | 第25关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 28     | 1496964265      | 契约雨季         | 100500   | 第25关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 29     | 775402848       | 手机用户25265716 | 100494   | 第25关 第14波
+ [2026-04-17 18_19_11_196][764][Script] 30     | 2051179867      | 艾希               | 100476   | 第24关 第16波
+ [2026-04-17 18_19_11_196][764][Script] 31     | 109012304       | 点点点点点点点点点点点点点点点 | 100460   | 第23关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 32     | 245165705       | The Priest           | 100460   | 第23关 第20波
+ [2026-04-17 18_19_11_196][764][Script] 33     | 700145371       | 叮当               | 100401   | 第21关 第1波
+ [2026-04-17 18_19_11_198][764][Script] 34     | 325089170       | Lucifel              | 100400   | 第20关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 35     | 1879205879      | User437011539        | 100400   | 第20关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 36     | 274791815       | hhhUP                | 100380   | 第19关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 37     | 387796072       | jg                   | 100380   | 第19关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 38     | 2007770672      | 板鸭99             | 100369   | 第19关 第9波
+ [2026-04-17 18_19_11_198][764][Script] 39     | 297004786       | User435067919        | 100360   | 第18关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 40     | 401852988       | 神丑               | 100350   | 第18关 第10波
+ [2026-04-17 18_19_11_198][764][Script] 41     | 1067207118      | FRED                 | 100340   | 第17关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 42     | 1423946121      | 老黑               | 100340   | 第17关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 43     | 193359618       | kisum                | 100334   | 第17关 第14波
+ [2026-04-17 18_19_11_198][764][Script] 44     | 131827644       | 西装、            | 100320   | 第16关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 45     | 1539976632      | 利                  | 100320   | 第16关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 46     | 1633980224      | 露娜               | 100320   | 第16关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 47     | 1876099833      | 米                  | 100320   | 第16关 第20波
+ [2026-04-17 18_19_11_198][764][Script] 48     | 206314218       | User104168324        | 100300   | 第15关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 49     | 1367044334      | 、东左            | 100300   | 第15关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 50     | 119895248       | 没惹任何人      | 100280   | 第14关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 51     | 269928001       | 问天               | 100280   | 第14关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 52     | 618075321       | 宿命               | 100280   | 第14关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 53     | 1282500428      | 手机用户56836825 | 100280   | 第14关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 54     | 2002684324      | 手机用户57049218 | 100280   | 第14关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 55     | 495148045       | 丿Dream丨永恒    | 100260   | 第13关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 56     | 1655784214      | 手机用户109188857 | 100260   | 第13关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 57     | 1870353422      | SinQ丶              | 100260   | 第13关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 58     | 1964036015      | 尘帝               | 100260   | 第13关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 59     | 2123455409      | 手机用户32959116 | 100260   | 第13关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 60     | 1451919725      | 狗子哥哥         | 100220   | 第11关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 61     | 916796984       | 骚磊               | 100200   | 第10关 第20波
+ [2026-04-17 18_19_11_199][764][Script] 62     | 1039992199      | 天空               | 100200   | 第10关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 63     | 1445552941      | 林狗子            | 100200   | 第10关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 64     | 1757491293      | 不服输的旅行者 | 100200   | 第10关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 65     | 1882627292      | 上善若水         | 100200   | 第10关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 66     | 866787093       | 沉芯之下         | 100193   | 第10关 第13波
+ [2026-04-17 18_19_11_200][764][Script] 67     | 272984296       | 锦鲤               | 100190   | 第10关 第10波
+ [2026-04-17 18_19_11_200][764][Script] 68     | 335861629       | User357292022        | 100180   | 第9关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 69     | 873234404       | 傲娇的教授      | 100180   | 第9关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 70     | 943097607       | User17584683         | 100180   | 第9关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 71     | 1217462873      | 孔粉               | 100180   | 第9关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 72     | 2099051752      | 大老黑            | 100180   | 第9关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 73     | 43403298        | 星星               | 100160   | 第8关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 74     | 427490200       | Winner！……＃★ | 100160   | 第8关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 75     | 906922086       | Zee8                 | 100160   | 第8关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 76     | 1094909353      | 酒柒七            | 100160   | 第8关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 77     | 1157287233      | 手机用户101453828 | 100160   | 第8关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 78     | 1361621003      | 朝三暮四醉生梦死 | 100160   | 第8关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 79     | 334267249       | 手机用户65615045 | 100140   | 第7关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 80     | 1450505971      | 小门神            | 100140   | 第7关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 81     | 2095015368      | 钱ゞ串串         | 100140   | 第7关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 82     | 1472611886      | User593646800        | 100139   | 第7关 第19波
+ [2026-04-17 18_19_11_200][764][Script] 83     | 1558991381      | 新白娘子砍传奇 | 100125   | 第7关 第5波
+ [2026-04-17 18_19_11_200][764][Script] 84     | 52140186        | 伟大的蜗牛      | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 85     | 255787037       | 一命通关的大师 | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 86     | 258517379       | 鸡蛋酱            | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 87     | 416333665       | ᯤ                  | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 88     | 600188821       | 宇哥               | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 89     | 877957650       | 林子涵            | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_200][764][Script] 90     | 1210530881      | 手机用户23387333 | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 91     | 1332431322      | 惹人爱的调律者 | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 92     | 1803685670      | 福利局            | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 93     | 1993012413      | 人气爆棚的旅人 | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 94     | 2007100563      | 千年一遇的大阴阳师 | 100120   | 第6关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 95     | 848730628       | AA丶冬影          | 100106   | 第6关 第6波
+ [2026-04-17 18_19_11_201][764][Script] 96     | 676035608       | 溺于她心🍀     | 100101   | 第6关 第1波
+ [2026-04-17 18_19_11_201][764][Script] 97     | 224346719       | 手机用户102885168 | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 98     | 392461447       | xlorry               | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 99     | 403859421       | ꧁吸~墨꧂        | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 100    | 496429438       | -已注销           | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 101    | 496429438       | -已注销           | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 102    | 650074077       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 103    | 653727306       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_201][764][Script] 104    | 715665336       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 105    | 868709718       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 106    | 904918738       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 107    | 910571537       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 108    | 919095641       |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 109    | 1064772654      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 110    | 1198164965      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 111    | 1239137981      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 112    | 1446171235      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 113    | 1457215985      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 114    | 1457669922      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 115    | 1466399795      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 116    | 1665738335      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 117    | 1740450395      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_203][764][Script] 118    | 1751253646      |                      | 100100   | 第5关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 119    | 110484933       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 120    | 331752427       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 121    | 503487263       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 122    | 556448763       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 123    | 583705977       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 124    | 825188598       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 125    | 854049702       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 126    | 860246613       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 127    | 875534184       |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 128    | 1048863227      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 129    | 1184016209      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 130    | 1247689958      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 131    | 1283663886      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 132    | 1287973309      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 133    | 1306067981      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 134    | 1327558451      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 135    | 1534198407      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 136    | 1581296706      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 137    | 1611471373      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 138    | 2111340486      |                      | 100080   | 第4关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 139    | 1755818496      |                      | 100073   | 第4关 第13波
+ [2026-04-17 18_19_11_204][764][Script] 140    | 212576708       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 141    | 333707816       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 142    | 354983203       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 143    | 520541145       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 144    | 629712865       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 145    | 743991968       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 146    | 872755351       |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_204][764][Script] 147    | 1008515761      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 148    | 1081837956      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 149    | 1478354298      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 150    | 1589125468      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 151    | 1612927248      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 152    | 1676072742      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 153    | 1744120810      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 154    | 1797641984      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 155    | 1818166524      |                      | 100060   | 第3关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 156    | 221406954       |                      | 100050   | 第3关 第10波
+ [2026-04-17 18_19_11_206][764][Script] 157    | 171258081       |                      | 100049   | 第3关 第9波
+ [2026-04-17 18_19_11_206][764][Script] 158    | 545293927       |                      | 100047   | 第3关 第7波
+ [2026-04-17 18_19_11_206][764][Script] 159    | 2010377452      |                      | 100046   | 第3关 第6波
+ [2026-04-17 18_19_11_206][764][Script] 160    | 1715339605      |                      | 100041   | 第3关 第1波
+ [2026-04-17 18_19_11_206][764][Script] 161    | 143512556       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_206][764][Script] 162    | 154955192       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_207][764][Script] 163    | 161549444       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_207][764][Script] 164    | 184682554       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_207][764][Script] 165    | 192815818       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_207][764][Script] 166    | 294037728       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_207][764][Script] 167    | 359852280       |                      | 100040   | 第2关 第20波
+ [2026-04-17 18_19_11_207][764][Script] 168    | 645199302       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 169    | 659073503       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 170    | 726979543       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 171    | 736510107       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 172    | 765993298       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 173    | 797295374       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 174    | 812878144       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 175    | 838949832       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_207][764][Script] 176    | 865799524       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 177    | 870901184       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 178    | 873037689       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 179    | 873756536       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 180    | 951270429       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 181    | 967162897       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 182    | 967191872       |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 183    | 1034787989      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 184    | 1135651403      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 185    | 1171437591      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 186    | 1250341860      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 187    | 1297574786      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 188    | 1327014002      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 189    | 1367700010      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 190    | 1373321665      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 191    | 1392693663      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 192    | 1478621824      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 193    | 1526547665      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 194    | 1614323741      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 195    | 1686036671      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 196    | 1860990699      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 197    | 1913014619      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 198    | 1925659912      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 199    | 2119629164      |                      | 100040   | 第2关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] 200    | 18907874        |                      | 100020   | 第1关 第20波
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_208][764][Script] [LB-Export] ========== 共 200 条记录 ==========
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_345][773][Script] [Enemy] 虚空先驱 killed, reward=8
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_627][790][Script] [Enemy] Spawned 相位潜行者 HP=23616 SPD=180
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_11_643][790][Script] [MobImage] Loaded: image/mobs/void_assassin.png
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_12_127][820][Script] [Enemy] Spawned 相位潜行者 HP=23616 SPD=180
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_12_246][827][Script] [Enemy] 虚空先驱 killed, reward=8
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_12_627][850][Script] [Enemy] Spawned 相位潜行者 HP=23616 SPD=180
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_13_127][880][Script] [Enemy] Spawned 相位潜行者 HP=23616 SPD=180
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_13_184][883][Script] [Enemy] 虚空先驱 killed, reward=8
+68899799-abf6-4d41-b624-5de38fda8988:1 [2026-04-17 18_19_13_627][910][Script] [Enemy] Spawned 相位潜行者 HP=23616 SPD=180
+ [2026-04-17 18_19_14_279][949][Script] [Enemy] 相位潜行者 killed, reward=6
+ [2026-04-17 18_19_15_179][1003][Script] [Enemy] 相位潜行者 killed, reward=6
+ [2026-04-17 18_19_16_079][1057][Script] [Enemy] 相位潜行者 killed, reward=6
+ [2026-04-17 18_19_16_796][1100][Script] [Enemy] 虚空先驱 killed, reward=8

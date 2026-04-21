@@ -6,16 +6,15 @@ local State = require("Game.State")
 
 local Grid = {}
 
--- 路径占据格子的查找表
+-- 路径占据格子的查找表（数值 key: col * 1000 + row，避免字符串拼接开销）
 local pathCellLookup = {}
 for _, cell in ipairs(Config.PATH_CELLS) do
-    local key = cell[1] .. "," .. cell[2]
-    pathCellLookup[key] = true
+    pathCellLookup[cell[1] * 1000 + cell[2]] = true
 end
 
 --- 判断格子是否是路径
 function Grid.IsPathCell(col, row)
-    return pathCellLookup[col .. "," .. row] == true
+    return pathCellLookup[col * 1000 + row] == true
 end
 
 --- 判断格子是否可以放塔

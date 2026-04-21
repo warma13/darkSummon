@@ -185,8 +185,33 @@ function Config.GetThemeRound(stageNum)
     return math.floor((stageNum - 1) / (Config.STAGES_PER_THEME * Config.THEME_COUNT)) + 1
 end
 
---- 构建指定关卡+角色的完整怪物定义（运行时组合）
+-- BuildEnemyDef / BuildBossDef 缓存（Phase 3 优化）
+-- 原型缓存: key = stageNum * 16 + roleIdx，value = 原型 table
+-- 返回浅拷贝以防调用者修改
+local _enemyDefCache = {}
+local _bossDefCache = {}      -- stageNum → 原型 table
+local _roleIdxMap = {}        -- roleId → 数字索引（避免字符串拼接）
+do
+    local roles = { "minion", "infantry", "tank", "assassin", "dodger", "support", "splitter", "blinker", "special" }
+    for i, rid in ipairs(roles) do _roleIdxMap[rid] = i end
+end
+
+local function _shallowCopy(src)
+    local dst = {}
+    for k, v in pairs(src) do dst[k] = v end
+    return dst
+end
+
+--- 构建指定关卡+角色的完整怪物定义（运行时组合，带缓存）
 function Config.BuildEnemyDef(stageNum, roleId)
+    -- 缓存查找：同 stageNum+roleId 返回浅拷贝
+    local ridx = _roleIdxMap[roleId]
+    if ridx then
+        local cacheKey = stageNum * 16 + ridx
+        local proto = _enemyDefCache[cacheKey]
+        if proto then return _shallowCopy(proto) end
+    end
+
     local theme = Config.GetTheme(stageNum)
     local role = Config.ENEMY_ROLES[roleId]
     local skin = theme.monsters[roleId]
@@ -261,11 +286,20 @@ function Config.BuildEnemyDef(stageNum, roleId)
         end
     end
 
+    -- 缓存原型，返回浅拷贝
+    if ridx then
+        _enemyDefCache[stageNum * 16 + ridx] = def
+        return _shallowCopy(def)
+    end
     return def
 end
 
---- 构建指定关卡的 BOSS 定义
+--- 构建指定关卡的 BOSS 定义（带缓存）
 function Config.BuildBossDef(stageNum)
+    -- 缓存查找
+    local proto = _bossDefCache[stageNum]
+    if proto then return _shallowCopy(proto) end
+
     local theme = Config.GetTheme(stageNum)
     local boss = theme.boss
     local round = Config.GetThemeRound(stageNum)
@@ -285,7 +319,9 @@ function Config.BuildBossDef(stageNum)
         def.summonRole = "minion"
     end
 
-    return def
+    -- 缓存原型，返回浅拷贝
+    _bossDefCache[stageNum] = def
+    return _shallowCopy(def)
 end
 
 -- 向后兼容：保留 ENEMY_TYPES 和 BOSS_TYPES（用亡灵主题填充默认值）

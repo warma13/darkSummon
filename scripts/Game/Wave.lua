@@ -315,6 +315,7 @@ function Wave.StartNext()
     -- 生成波次内容
     local queue, waveType = Wave.Generate(stageNum, waveInStage)
     State.waveSpawnQueue = queue
+    State.waveSpawnIdx = 1
     State.waveSpawnTimer = 0.5
     State.waveType = waveType
 
@@ -367,26 +368,31 @@ function Wave.Update(dt)
     local stageNum = State.currentStage
     local waveInStage = State.currentWave
 
-    -- 生成敌人（从当前波的生成队列）
+    -- 生成敌人（从当前波的生成队列，索引推进替代 table.remove）
     -- 使用 while 循环：加速倍率下一帧可能需要生成多个敌人
-    if #State.waveSpawnQueue > 0 then
+    local queue = State.waveSpawnQueue
+    local queueLen = #queue
+    if State.waveSpawnIdx <= queueLen then
         State.waveSpawnTimer = State.waveSpawnTimer - dt
-        while State.waveSpawnTimer <= 0 and #State.waveSpawnQueue > 0 do
-            local entry = table.remove(State.waveSpawnQueue, 1)
+        while State.waveSpawnTimer <= 0 and State.waveSpawnIdx <= queueLen do
+            local entry = queue[State.waveSpawnIdx]
+            State.waveSpawnIdx = State.waveSpawnIdx + 1
             SpawnFromEntry(entry, stageNum, waveInStage)
-            if #State.waveSpawnQueue > 0 then
+            if State.waveSpawnIdx <= queueLen then
                 -- 将剩余负值时间累积到下一个条目的 delay 中
-                State.waveSpawnTimer = State.waveSpawnTimer + State.waveSpawnQueue[1].delay
+                State.waveSpawnTimer = State.waveSpawnTimer + queue[State.waveSpawnIdx].delay
             else
                 State.waveSpawnTimer = 0
             end
         end
     end
 
+    local spawnDone = State.waveSpawnIdx > queueLen
+
     -- 非最后一波: 清完敌人立即出下一波，或 30 秒定时自动出
     if waveInStage < Config.WAVES_PER_STAGE then
         -- 当前波生成完毕 + 场上怪物全清 → 立即下一波
-        if #State.waveSpawnQueue == 0 and Enemy.GetAliveCount() == 0 then
+        if spawnDone and Enemy.GetAliveCount() == 0 then
             Wave.StartNext()
             return
         end
@@ -398,9 +404,9 @@ function Wave.Update(dt)
         end
     end
 
-    -- 通关判定：最后一波的敌人全部清完 + 生成队列为空
+    -- 通关判定：最后一波的敌人全部清完 + 生成队列消费完毕
     if waveInStage >= Config.WAVES_PER_STAGE
-       and #State.waveSpawnQueue == 0
+       and spawnDone
        and Enemy.GetAliveCount() == 0 then
         State.waveActive = false
         State.phase = State.PHASE_STAGE_CLEAR

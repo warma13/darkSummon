@@ -480,6 +480,7 @@ function Tower.Remove(tower)
     for i = #State.towers, 1, -1 do
         if State.towers[i].id == tower.id then
             table.remove(State.towers, i)
+            State.MarkDirty()
             break
         end
     end

@@ -1,0 +1,130 @@
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_53_680][2992][Script] [Enemy] Spawned 裂隙爬行者 HP=2031892 SPD=178
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_53_928][3005][Script] [Enemy] Spawned 闪现恐魔 HP=1200664 SPD=137
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_53_952][3006][Script] [Enemy] 裂隙爬行者 split into 2
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_53_952][3006][Script] [Enemy] 裂隙爬行者 killed, reward=7
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_54_092][3013][Script] [Enemy] 虚空先驱 killed, reward=8
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_54_174][3017][Script] [Enemy] Spawned 熵能织者 HP=2770762 SPD=154
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_54_311][3024][Script] [Enemy] 闪现恐魔 killed, reward=8
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_54_424][3030][Script] [Enemy] Spawned 虚空虱 HP=554152 SPD=291
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_54_686][3044][Script] [Enemy] Spawned 虚空战兵 HP=1477740 SPD=171
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_54_931][3057][Script] [Enemy] Spawned 深渊泰坦 HP=5541525 SPD=75
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_55_080][3065][Script] [Enemy] 熵能织者 killed, reward=9
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_55_176][3070][Script] [Enemy] Spawned 相位潜行者 HP=591096 SPD=315
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_55_438][3084][Script] [Enemy] Spawned 扭曲暗影 HP=923587 SPD=188
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_55_678][3097][Script] [Enemy] Spawned 虚空先驱 HP=1293022 SPD=137
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_55_940][3111][Script] [Enemy] Spawned 裂隙爬行者 HP=2031892 SPD=178
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_070][3118][Script] [Enemy] 虚空先驱 killed, reward=8
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_184][3124][Script] [Enemy] Spawned 闪现恐魔 HP=1200664 SPD=137
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_369][3134][Script] [Enemy] 扭曲暗影 killed, reward=7
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_395][3135][Script] [Tower] Created 凛冬君王 ★1 Lv.428 紫星6星 ATK=751584 at (4,5)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_396][3135][Script] [Tower] Summon #9 cost=130 next=140
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_400][3135][Script] [Tower] Created 死灵术士 ★2 Lv.573 黄星2星 ATK=618628 at (4,5)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_400][3135][Script] [Tower] Merged into 死灵术士 ★2
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_441][3137][Script] [Enemy] Spawned 熵能织者 HP=2770762 SPD=154
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_556][3143][Script] [Enemy] 裂隙爬行者 split into 2
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_558][3143][Script] [Enemy] 裂隙爬行者 killed, reward=7
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_680][3149][Script] [Enemy] Spawned 虚空虱 HP=554152 SPD=291
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_56_939][3162][Script] [Enemy] Spawned 虚空战兵 HP=1477740 SPD=171
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_57_451][3188][Script] [Enemy] 相位潜行者 killed, reward=6
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_57_630][3197][Script] [Enemy] 闪现恐魔 killed, reward=8
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_57_987][3216][Script] [Enemy] 熵能织者 killed, reward=9
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_006][3217][Script] [BattleManager] === BATTLE WON! ===
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_015][3217][Script] [SlotSave] Encode OK for group equip (12817 bytes)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_016][3217][Script] [SlotSave] Encode OK for group meta_game (3940 bytes)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_024][3217][Script] [TrialTower] Floor 25 cleared! stones+10 gold+450
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_024][3217][Script] [BattleManager] Battle ended
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_025][3217][Script] [State] Game state reset
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_025][3217][Script] [Tower] Leader 暗影君主 placed at (5,4) Lv.1010 ATK=1079589
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_028][3217][Script] [Wave] Stage 50 Wave 1/20 (normal) started, spawn=17, hpScale=3.88
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_031][3217][Script] [TabNav] Switched from battle to dungeon
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_038][3217][Script] [GameUI] Exited dungeon battle, restored campaign stage 50
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_041][3217]INFO[TowerCnt] timer armed, autoClose=5
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_041][3217][Script] [BattleManager] Win callback fired: mode=trial_tower
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_048][3217][Script] [Layout Warning] Overflow in 'Panel': children=105x61, container=105x59. Consider: flexShrink=1 on children, or increase container size.
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_076][3218][Script] [LB] Tower score uploaded: 25
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_094][3219][Script] [SlotSave] Cloud save OK (slot 1, seq=567)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_224][3227][Script] [Tower] Created 凛冬君王 ★1 Lv.428 紫星6星 ATK=751584 at (4,4)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_225][3227][Script] [Tower] Summon #1 cost=50 next=60
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_263][3229][Script] [Enemy] Spawned 相位潜行者 HP=27936 SPD=182
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_505][3243][Script] [Enemy] Spawned 相位潜行者 HP=27936 SPD=182
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_750][3257]WARNINGNext log has been output too many times and will not be output again.
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_750][3257][Script] [Enemy] 相位潜行者 killed, reward=6
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_58_768][3258][Script] [Enemy] Spawned 相位潜行者 HP=27936 SPD=182
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_59_016][3272][Script] [Enemy] Spawned 相位潜行者 HP=27936 SPD=182
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_59_264][3286][Script] [Enemy] Spawned 相位潜行者 HP=27936 SPD=182
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_59_519][3300][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_36_59_764][3313][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_00_016][3327][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_00_263][3340][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_00_513][3354][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_00_760][3367][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_01_016][3381][Script] [Enemy] Spawned 虚空虱 HP=26190 SPD=168
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_01_504][3408][Script] [Enemy] Spawned 闪现恐魔 HP=56745 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_01_671][3417]WARNINGNext log has been output too many times and will not be output again.
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_01_671][3417][Script] [Enemy] 闪现恐魔 killed, reward=8
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_02_008][3436][Script] [Enemy] Spawned 闪现恐魔 HP=56745 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_02_204][3447][Script] [Tower] Created 死灵术士 ★1 Lv.573 黄星2星 ATK=309314 at (5,3)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_02_206][3447][Script] [Tower] Summon #2 cost=60 next=70
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_02_504][3464][Script] [Enemy] Spawned 闪现恐魔 HP=56745 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_03_012][3493][Script] [Enemy] Spawned 闪现恐魔 HP=56745 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_03_516][3522][Script] [Enemy] Spawned 闪现恐魔 HP=56745 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_03_678][3531][Script] [Wave] Stage 50 Wave 2/20 (normal) started, spawn=15, hpScale=4.04
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_03_928][3545][Script] [Enemy] Spawned 虚空战兵 HP=72634 SPD=99
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_04_436][3574][Script] [Enemy] Spawned 虚空战兵 HP=72634 SPD=99
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_04_935][3602][Script] [Enemy] Spawned 虚空战兵 HP=72634 SPD=99
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_05_432][3630][Script] [Enemy] Spawned 虚空战兵 HP=72634 SPD=99
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_05_587][3638][Script] [Tower] Created 死灵术士 ★1 Lv.573 黄星2星 ATK=309314 at (7,5)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_05_588][3638][Script] [Tower] Summon #3 cost=70 next=80
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_05_592][3638][Script] [Tower] Created 死灵术士 ★2 Lv.573 黄星2星 ATK=618628 at (7,5)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_05_593][3638][Script] [Tower] Merged into 死灵术士 ★2
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_05_936][3657][Script] [Enemy] Spawned 虚空战兵 HP=72634 SPD=99
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_06_424][3685][Script] [Enemy] Spawned 裂隙爬行者 HP=99871 SPD=103
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_06_534][3691]WARNINGNext log has been output too many times and will not be output again.
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_06_534][3691][Script] [Enemy] 裂隙爬行者 split into 2
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_06_534][3691]WARNINGNext log has been output too many times and will not be output again.
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_06_534][3691][Script] [Enemy] 裂隙爬行者 killed, reward=7
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_06_937][3714][Script] [Enemy] Spawned 裂隙爬行者 HP=99871 SPD=103
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_07_423][3741][Script] [Enemy] Spawned 裂隙爬行者 HP=99871 SPD=103
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_07_924][3769][Script] [Enemy] Spawned 裂隙爬行者 HP=99871 SPD=103
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_08_432][3797][Script] [Enemy] Spawned 裂隙爬行者 HP=99871 SPD=103
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_08_923][3824][Script] [Enemy] Spawned 熵能织者 HP=136188 SPD=89
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_09_380][3849]WARNINGNext log has been output too many times and will not be output again.
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_09_380][3849][Script] [Enemy] 熵能织者 killed, reward=9
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_09_438][3852][Script] [Enemy] Spawned 熵能织者 HP=136188 SPD=89
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_09_928][3880][Script] [Enemy] Spawned 熵能织者 HP=136188 SPD=89
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_10_439][3909][Script] [Enemy] Spawned 熵能织者 HP=136188 SPD=89
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_10_644][3920][Script] [Tower] Created 暴风领主 ★1 Lv.211 黄星5星 ATK=163380 at (4,6)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_10_647][3920][Script] [Tower] Summon #4 cost=80 next=90
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_10_928][3936][Script] [Enemy] Spawned 熵能织者 HP=136188 SPD=89
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_176][3948][Script] [Tower] RefreshAllStats: 4 towers updated
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_176][3948][Script] [TabNav] Switched from dungeon to battle
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_176][3948][Script] [State] Game state reset
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_176][3948][Script] [Tower] Leader 暗影君主 placed at (5,4) Lv.1010 ATK=1079589
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_176][3948][Script] [BattleManager] Wave 1/5 (normal) started, enemies=20
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_176][3948][Script] [BattleManager] Battle started: mode=trial_tower waves=5 label=试练塔 3-6
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_180][3948][Script] [GameUI] Entered dungeon battle: 试练塔 3-6
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_359][3958][Script] [Tower] Created 死灵术士 ★1 Lv.573 黄星2星 ATK=309314 at (6,5)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_360][3958][Script] [Tower] Summon #1 cost=50 next=60
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_11_404][3960][Script] [Enemy] Spawned [精英]虚空虱 [坚韧+迅捷] HP=1056024 SPD=459
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_12_012][3994][Script] [Enemy] Spawned [精英]虚空战兵 [不朽+吸血] HP=1408032 SPD=180
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_12_257][4008][Script] [Enemy] Spawned 深渊泰坦 HP=5280120 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_12_510][4022][Script] [Enemy] Spawned 相位潜行者 HP=563213 SPD=331
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_12_752][4035][Script] [Enemy] Spawned 扭曲暗影 HP=880020 SPD=198
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_000][4048][Script] [Enemy] Spawned 虚空先驱 HP=1232028 SPD=144
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_167][4056][Script] [SlotSave] Encode OK for group equip (12817 bytes)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_168][4056][Script] [SlotSave] Encode OK for group meta_game (3940 bytes)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_252][4060][Script] [SlotSave] Cloud save OK (slot 1, seq=568)
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_255][4061][Script] [Enemy] Spawned 裂隙爬行者 HP=1936044 SPD=187
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_515][4075][Script] [Enemy] Spawned 闪现恐魔 HP=1144026 SPD=144
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_13_759][4088][Script] [Enemy] Spawned 熵能织者 HP=2640060 SPD=162
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_14_000][4101][Script] [Enemy] Spawned 虚空虱 HP=528012 SPD=306
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_14_255][4115][Script] [Enemy] Spawned 虚空战兵 HP=1408032 SPD=180
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_14_504][4128][Script] [Enemy] Spawned 深渊泰坦 HP=5280120 SPD=79
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_14_764][4142][Script] [Enemy] Spawned 相位潜行者 HP=563213 SPD=331
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_15_000][4154][Script] [Enemy] Spawned 扭曲暗影 HP=880020 SPD=198
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_15_263][4168][Script] [Enemy] Spawned 虚空先驱 HP=1232028 SPD=144
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_15_516][4181][Script] [Enemy] Spawned 裂隙爬行者 HP=1936044 SPD=187
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_15_758][4192][Script] [Enemy] Spawned 闪现恐魔 HP=1144026 SPD=144
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_16_016][4205][Script] [Enemy] Spawned 熵能织者 HP=2640060 SPD=162
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_16_254][4217][Script] [Enemy] Spawned 虚空虱 HP=528012 SPD=306
+3e73cc3a-da8d-4a66-858c-0465cae1f390:1 [2026-04-18 23_37_16_504][4230][Script] [Enemy] Spawned 虚空战兵 HP=1408032 SPD=180

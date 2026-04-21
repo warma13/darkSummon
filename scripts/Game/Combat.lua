@@ -22,9 +22,42 @@ local DamageStats = require("Game.DamageStats")
 
 local Combat = {}
 
+-- 模块级 enemyById 查找表（Combat.Update 中构建，OnProjectileHit 中复用）
+local _enemyById = {}
+
+-- ========== 空间网格哈希（FindTarget / FindChainTarget 加速） ==========
+-- 每帧在 Combat.Update 中重建（O(E)），查询时只检查邻近格子（O(K)，K≪E）
+local SPATIAL_CELL = Config.CELL_SIZE  -- 42px，与网格格子大小一致
+local _spatialGrid = {}
+
+--- 重建空间网格（每帧调用一次）
+local function RebuildSpatialGrid()
+    -- 清除旧数据
+    for k in pairs(_spatialGrid) do _spatialGrid[k] = nil end
+    for _, e in ipairs(State.enemies) do
+        if e.alive and not e.phaseActive then
+            local cx = math.floor(e.x / SPATIAL_CELL)
+            local cy = math.floor(e.y / SPATIAL_CELL)
+            local key = cx * 10000 + cy
+            local cell = _spatialGrid[key]
+            if not cell then
+                cell = {}
+                _spatialGrid[key] = cell
+            end
+            cell[#cell + 1] = e
+        end
+    end
+end
+
 -- 粒子/飘字安全添加（带数量上限），共享定义在 State.lua
 local AddFloatingText = State.AddFloatingText
 local AddParticle = State.AddParticle
+
+-- 预定义飘字颜色（避免每次创建新 table）
+local COLOR_CRIT       = { 255, 60, 60, 255 }
+local COLOR_RESIST     = { 140, 140, 140 }
+local COLOR_AMP_MARK   = { 200, 100, 255, 255 }
+local COLOR_ARMOR_BREAK = { 255, 180, 60, 255 }
 
 --- 获取元素伤害的飘字颜色（弱点=元素色高亮，抗性=灰色，普通=塔色）
 ---@param heroElement string|nil
@@ -42,7 +75,7 @@ local function GetElementDmgColor(heroElement, elemMult, towerColor)
         return elemDef and elemDef.color or towerColor, nil
     elseif elemMult < 0.95 then
         -- 抗性：灰暗色
-        return { 140, 140, 140 }, nil
+        return COLOR_RESIST, nil
     end
     return towerColor, nil
 end
@@ -92,7 +125,7 @@ local function ShowDamageText(target, finalDmg, isCrit, elemColor)
             vx = vx, vy = vy,
             life = 0.9,
             maxLife = 0.9,
-            color = { 255, 60, 60, 255 },
+            color = COLOR_CRIT,
             fontSize = 16,
             isCrit = true,
         })
@@ -108,6 +141,9 @@ local function ShowDamageText(target, finalDmg, isCrit, elemColor)
         })
     end
 end
+
+-- 复用乘区表（避免每次 CalcFinalDamage 创建新 table）
+local _zones = {}
 
 --- 计算最终伤害（护甲系数 × 暴击倍率）
 --- 集成破甲叠加、光环暴击加成
@@ -127,7 +163,10 @@ local function CalcFinalDamage(tower, enemy, damage)
     -- 命名乘区表：每个乘区独立计算，最终统一相乘
     -- 新增乘区只需追加 zones.xxx = value，无需修改最终公式
     -- ====================================================================
-    local zones = {}
+    -- 清除上次残留的 key（已知全部 key，直接置 nil）
+    local zones = _zones
+    zones.def = nil; zones.crit = nil; zones.elemResist = nil
+    zones.chill = nil; zones.dmgBonus = nil; zones.elemDmg = nil; zones.vuln = nil
 
     -- [DEF减伤] ATK / (ATK + effectiveDEF)
     do
@@ -242,45 +281,55 @@ local function Distance(x1, y1, x2, y2)
     return math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
 end
 
---- 寻找塔攻击范围内最近的敌人（平方距离，避免 sqrt）
-local function FindTarget(tower, towerX, towerY)
-    -- 应用范围修正
-    local effectiveRange = HeroSkills.ModifyRange(tower, tower.range)
-    local bestDistSq = effectiveRange * effectiveRange
+--- 从空间网格中查找指定范围内最近的敌人（O(K)，K 为邻近格内敌人数）
+---@param px number 查询中心 X
+---@param py number 查询中心 Y
+---@param rangeSq number 范围的平方
+---@param range number 范围（用于计算搜索半径）
+---@param hitSet table|nil 排除集合（链弹用，key=敌人ID）
+---@return table|nil bestEnemy
+---@return number bestDistSq
+local function SpatialQuery(px, py, rangeSq, range, hitSet)
+    local cx = math.floor(px / SPATIAL_CELL)
+    local cy = math.floor(py / SPATIAL_CELL)
+    local r = math.ceil(range / SPATIAL_CELL)
+    local bestDistSq = rangeSq
     local bestEnemy = nil
-
-    for _, e in ipairs(State.enemies) do
-        if e.alive and not e.phaseActive then
-            local dx = e.x - towerX
-            local dy = e.y - towerY
-            local distSq = dx * dx + dy * dy
-            if distSq < bestDistSq then
-                bestDistSq = distSq
-                bestEnemy = e
+    for dx = -r, r do
+        for dy = -r, r do
+            local key = (cx + dx) * 10000 + (cy + dy)
+            local cell = _spatialGrid[key]
+            if cell then
+                for _, e in ipairs(cell) do
+                    if not hitSet or not hitSet[e.id] then
+                        local ddx = e.x - px
+                        local ddy = e.y - py
+                        local d2 = ddx * ddx + ddy * ddy
+                        if d2 < bestDistSq then
+                            bestDistSq = d2
+                            bestEnemy = e
+                        end
+                    end
+                end
             end
         end
     end
-    return bestEnemy
+    return bestEnemy, bestDistSq
 end
 
---- 寻找链式攻击的下一个目标
+--- 寻找塔攻击范围内最近的敌人（空间网格加速）
+local function FindTarget(tower, towerX, towerY)
+    local effectiveRange = HeroSkills.ModifyRange(tower, tower.range)
+    return SpatialQuery(towerX, towerY, effectiveRange * effectiveRange, effectiveRange, nil)
+end
+
+--- 寻找链式攻击的下一个目标（空间网格加速）
 ---@param source table  当前被击中的敌人
 ---@param hitSet table  已被击中的敌人id集合
 ---@param range number  链式搜索范围
 ---@return table|nil
 local function FindChainTarget(source, hitSet, range)
-    local bestDist = range
-    local bestEnemy = nil
-    for _, e in ipairs(State.enemies) do
-        if e.alive and not e.phaseActive and not hitSet[e.id] then
-            local dist = Distance(source.x, source.y, e.x, e.y)
-            if dist < bestDist then
-                bestDist = dist
-                bestEnemy = e
-            end
-        end
-    end
-    return bestEnemy
+    return SpatialQuery(source.x, source.y, range * range, range, hitSet)
 end
 
 --- 塔发起攻击
@@ -393,14 +442,8 @@ local function OnProjectileHit(proj)
     local tower = proj.tower
     local typeDef = tower.typeDef
 
-    -- 查找目标
-    local target = nil
-    for _, e in ipairs(State.enemies) do
-        if e.id == proj.targetId and e.alive then
-            target = e
-            break
-        end
-    end
+    -- 查找目标（复用 Combat.Update 中构建的 _enemyById 哈希表，O(1)）
+    local target = _enemyById[proj.targetId]
 
     if not target then return end
 
@@ -429,8 +472,11 @@ local function OnProjectileHit(proj)
         -- === AOE 伤害 ===
         for _, e in ipairs(State.enemies) do
             if e.alive then
-                local dist = Distance(proj.tx, proj.ty, e.x, e.y)
-                if dist < 50 then
+                local dx = proj.tx - e.x
+                local dy = proj.ty - e.y
+                local distSq = dx * dx + dy * dy
+                if distSq < 2500 then -- 50²
+                    local dist = math.sqrt(distSq)
                     local dmgMult = 1.0 - (dist / 50) * 0.5
                     local damage = HeroSkills.ModifyDamage(tower, e, proj.damage * dmgMult)
                     local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, e, damage)
@@ -485,7 +531,7 @@ local function OnProjectileHit(proj)
                 x = target.x + (math.random() - 0.5) * 10,
                 y = target.y - (target.typeDef.size or 8) - 16,
                 life = 0.5,
-                color = { 200, 100, 255, 255 },
+                color = COLOR_AMP_MARK,
                 fontSize = 11,
             })
         end
@@ -501,7 +547,7 @@ local function OnProjectileHit(proj)
                 x = target.x + (math.random() - 0.5) * 10,
                 y = target.y - (target.typeDef.size or 8) - 16,
                 life = 0.5,
-                color = { 255, 180, 60, 255 },
+                color = COLOR_ARMOR_BREAK,
                 fontSize = 11,
             })
         end
@@ -586,6 +632,9 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         end
     end
 
+    -- 重建空间网格哈希（O(E) 一次，FindTarget / FindChainTarget 复用）
+    RebuildSpatialGrid()
+
     -- 更新塔攻击 + 朝向
     for _, tower in ipairs(State.towers) do
         local tx, ty = Grid.CellToScreen(tower.col, tower.row, gridOffsetX, gridOffsetY)
@@ -603,11 +652,13 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         end
     end
 
-    -- 构建敌人 ID 查找表（O(e) 一次，替代每弹道 O(e) 线性扫描）
-    local enemyById = {}
+    -- 构建敌人 ID 查找表（O(e) 一次，OnProjectileHit 复用，避免每弹道 O(e) 线性扫描）
+    -- 先清除旧数据
+    for k in pairs(_enemyById) do _enemyById[k] = nil end
     for _, e in ipairs(State.enemies) do
-        if e.alive then enemyById[e.id] = e end
+        if e.alive then _enemyById[e.id] = e end
     end
+    local enemyById = _enemyById
 
     -- 更新弹道（swap-and-pop 避免 O(n) 的 table.remove）
     do

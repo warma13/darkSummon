@@ -216,18 +216,38 @@ end
 ---@type table<number, table[]>
 local debuffParticles = {}
 
---- 生成一个粒子
+-- ======== 粒子对象池（避免高频 GC） ========
+local _particlePool = {}
+local _particlePoolSize = 0
+
+--- 从对象池获取或创建粒子
 ---@return table particle
 local function SpawnParticle(texKey, x, y, vx, vy, life, pSize, rot, rotSpd)
-    return {
-        tex = texKey, x = x, y = y, vx = vx, vy = vy,
-        life = life, maxLife = life,
-        size = pSize, rot = rot or 0, rotSpd = rotSpd or 0,
-    }
+    local p
+    if _particlePoolSize > 0 then
+        p = _particlePool[_particlePoolSize]
+        _particlePool[_particlePoolSize] = nil
+        _particlePoolSize = _particlePoolSize - 1
+    else
+        p = {}
+    end
+    p.tex = texKey
+    p.x = x; p.y = y
+    p.vx = vx; p.vy = vy
+    p.life = life; p.maxLife = life
+    p.size = pSize
+    p.rot = rot or 0; p.rotSpd = rotSpd or 0
+    return p
+end
+
+--- 回收粒子到对象池
+local function RecycleParticle(p)
+    _particlePoolSize = _particlePoolSize + 1
+    _particlePool[_particlePoolSize] = p
 end
 
 --- 为指定敌人生成 debuff 粒子（每帧调用，按概率发射）
-local MAX_DEBUFF_PARTICLES_PER_ENEMY = 30  -- 每个敌人 debuff 粒子上限
+local MAX_DEBUFF_PARTICLES_PER_ENEMY = 20  -- 每个敌人 debuff 粒子上限（从30降至20，减少渲染量）
 local function EmitDebuffParticles(e, dt)
     -- 快速检查：无任何 debuff 则跳过
     local hasSlow = e.slowTimer and e.slowTimer > 0
@@ -246,7 +266,7 @@ local function EmitDebuffParticles(e, dt)
 
     -- 减速：脚底冰晶向上飘散
     if e.slowTimer and e.slowTimer > 0 then
-        if math.random() < dt * 8 then
+        if math.random() < dt * 5 then
             local ox = (math.random() - 0.5) * size * 2
             pool[#pool + 1] = SpawnParticle("ice",
                 e.x + ox, e.y + size * 0.5,
@@ -259,7 +279,7 @@ local function EmitDebuffParticles(e, dt)
 
     -- DOT：毒液/火焰从身体冒出上升
     if e.dotTimer and e.dotTimer > 0 then
-        if math.random() < dt * 10 then
+        if math.random() < dt * 6 then
             local ox = (math.random() - 0.5) * size * 1.6
             local oy = (math.random() - 0.5) * size * 1.2
             pool[#pool + 1] = SpawnParticle("poison",
@@ -273,7 +293,7 @@ local function EmitDebuffParticles(e, dt)
 
     -- 眩晕：星星绕头顶旋转飞散
     if e.stunTimer and e.stunTimer > 0 then
-        if math.random() < dt * 12 then
+        if math.random() < dt * 7 then
             local angle = math.random() * math.pi * 2
             local r = size * 0.8
             pool[#pool + 1] = SpawnParticle("star",
@@ -287,7 +307,7 @@ local function EmitDebuffParticles(e, dt)
 
     -- 冰冻：冰碎片从身体四周缓慢扩散
     if e.frozenTimer and e.frozenTimer > 0 then
-        if math.random() < dt * 6 then
+        if math.random() < dt * 4 then
             local angle = math.random() * math.pi * 2
             pool[#pool + 1] = SpawnParticle("frozen",
                 e.x + math.cos(angle) * size * 0.3, e.y + math.sin(angle) * size * 0.3,
@@ -300,7 +320,7 @@ local function EmitDebuffParticles(e, dt)
 
     -- 易伤：紫色符文从身体飘出上升
     if e.ampDamageTimer and e.ampDamageTimer > 0 then
-        if math.random() < dt * 6 then
+        if math.random() < dt * 4 then
             local ox = (math.random() - 0.5) * size * 1.4
             pool[#pool + 1] = SpawnParticle("curse",
                 e.x + ox, e.y - size * 0.3,
@@ -332,12 +352,15 @@ end
 local function UpdateDebuffParticles(dt)
     for eid, pool in pairs(debuffParticles) do
         local i = 1
-        while i <= #pool do
+        local n = #pool
+        while i <= n do
             local p = pool[i]
             p.life = p.life - dt
             if p.life <= 0 then
-                pool[i] = pool[#pool]
-                pool[#pool] = nil
+                RecycleParticle(p)
+                pool[i] = pool[n]
+                pool[n] = nil
+                n = n - 1
             else
                 p.x = p.x + p.vx * dt
                 p.y = p.y + p.vy * dt
@@ -346,42 +369,82 @@ local function UpdateDebuffParticles(dt)
             end
         end
         -- 清理已死敌人的空池
-        if #pool == 0 then
+        if n == 0 then
             debuffParticles[eid] = nil
         end
     end
 end
 
---- 绘制单个粒子纹理
-local function DrawParticleTex(vg, texKey, x, y, pSize, alpha, rot)
-    local img = particleTextures[texKey]
-    if not img or img == 0 then return end
+--- 绘制单个粒子纹理（仅用于有旋转的粒子）
+local function DrawParticleTexRotated(vg, img, x, y, pSize, alpha, rot)
     local half = pSize * 0.5
     nvgSave(vg)
-    if rot and rot ~= 0 then
-        nvgTranslate(vg, x, y)
-        nvgRotate(vg, rot)
-        nvgTranslate(vg, -x, -y)
-    end
-    local imgPaint = nvgImagePattern(vg, x - half, y - half, pSize, pSize, 0, img, alpha)
+    nvgTranslate(vg, x, y)
+    nvgRotate(vg, rot)
+    local imgPaint = nvgImagePattern(vg, -half, -half, pSize, pSize, 0, img, alpha)
     nvgBeginPath(vg)
-    nvgRect(vg, x - half, y - half, pSize, pSize)
+    nvgRect(vg, -half, -half, pSize, pSize)
     nvgFillPaint(vg, imgPaint)
     nvgFill(vg)
     nvgRestore(vg)
 end
 
---- 绘制指定敌人的所有 debuff 粒子
+-- 按纹理分组的粒子缓冲区（每帧复用，避免 GC）
+local _texGroups = {}       -- texKey -> { img, particles[] }
+local _texGroupKeys = {}    -- 有序的 texKey 列表
+
+--- 绘制指定敌人的所有 debuff 粒子（按纹理分组批绘）
 local function DrawEnemyDebuffParticles(vg, eid)
     local pool = debuffParticles[eid]
-    if not pool then return end
+    if not pool or #pool == 0 then return end
+
+    -- 清除分组缓冲
+    for _, key in ipairs(_texGroupKeys) do
+        local g = _texGroups[key]
+        for i = 1, #g do g[i] = nil end
+    end
+    for i = 1, #_texGroupKeys do _texGroupKeys[i] = nil end
+
+    -- 按纹理分组
     for _, p in ipairs(pool) do
-        local lifeRatio = p.life / p.maxLife
-        -- 后30%生命淡出
-        local alpha = lifeRatio < 0.3 and (lifeRatio / 0.3) or 1.0
-        -- 粒子大小随生命衰减（后半段缩小）
-        local sizeScale = lifeRatio < 0.5 and (0.5 + lifeRatio) or 1.0
-        DrawParticleTex(vg, p.tex, p.x, p.y, p.size * sizeScale, alpha, p.rot)
+        local texKey = p.tex
+        local g = _texGroups[texKey]
+        if not g then
+            g = {}
+            _texGroups[texKey] = g
+        end
+        if #g == 0 then
+            _texGroupKeys[#_texGroupKeys + 1] = texKey
+        end
+        g[#g + 1] = p
+    end
+
+    -- 按纹理组绘制
+    local ROT_THRESHOLD = 0.01
+    for _, texKey in ipairs(_texGroupKeys) do
+        local img = particleTextures[texKey]
+        if img and img ~= 0 then
+            local group = _texGroups[texKey]
+            for _, p in ipairs(group) do
+                local lifeRatio = p.life / p.maxLife
+                local alpha = lifeRatio < 0.3 and (lifeRatio / 0.3) or 1.0
+                local sizeScale = lifeRatio < 0.5 and (0.5 + lifeRatio) or 1.0
+                local pSize = p.size * sizeScale
+                local half = pSize * 0.5
+                local rot = p.rot
+                if rot and (rot > ROT_THRESHOLD or rot < -ROT_THRESHOLD) then
+                    -- 有旋转：单独绘制（需要 save/translate/rotate/restore）
+                    DrawParticleTexRotated(vg, img, p.x, p.y, pSize, alpha, rot)
+                else
+                    -- 无旋转：直接绘制（省去 save/restore）
+                    local imgPaint = nvgImagePattern(vg, p.x - half, p.y - half, pSize, pSize, 0, img, alpha)
+                    nvgBeginPath(vg)
+                    nvgRect(vg, p.x - half, p.y - half, pSize, pSize)
+                    nvgFillPaint(vg, imgPaint)
+                    nvgFill(vg)
+                end
+            end
+        end
     end
 end
 

@@ -31,6 +31,7 @@ function State.Reset()
     State.towers = {}
     -- 敌人列表
     State.enemies = {}
+    State.aliveEnemyCount = 0  -- 存活敌人运行计数（Enemy.lua 维护）
     -- 子弹/弹道列表
     State.projectiles = {}
     -- 粒子特效列表
@@ -42,6 +43,7 @@ function State.Reset()
 
     -- 波次状态
     State.waveSpawnQueue = {}
+    State.waveSpawnIdx = 1              -- 队列消费索引（替代 table.remove(1) 的 O(N) 开销）
     State.waveSpawnTimer = 0
     State.waveActive = false
 
@@ -91,6 +93,7 @@ function State.Reset()
     State.worldBossActive = false       -- 是否在世界BOSS战斗中
     State.worldBossTotalDamage = 0      -- 本场对BOSS累计伤害
     State.worldBossWarning = nil        -- 销毁预警 { timer, targetTowerId }
+    State.worldBoss = nil               -- 世界BOSS直接引用（避免每帧O(E)扫描）
 
     print("[State] Game state reset")
 end
@@ -118,8 +121,18 @@ local function compactArray(arr)
     end
 end
 
---- 每帧开头调用：压缩所有游戏数组，消除 nil 空洞
+-- dirty flag：仅在实际产生 nil 空洞时才执行压缩
+State._dirtyArrays = false
+
+--- 标记数组有空洞需要压缩（swap-and-pop 移除元素时调用）
+function State.MarkDirty()
+    State._dirtyArrays = true
+end
+
+--- 每帧开头调用：压缩所有游戏数组，消除 nil 空洞（仅在 dirty 时执行）
 function State.CompactArrays()
+    if not State._dirtyArrays then return end
+    State._dirtyArrays = false
     compactArray(State.enemies)
     compactArray(State.towers)
     compactArray(State.projectiles)

@@ -12,6 +12,12 @@ local HeroSkills = {}
 -- 飘字安全添加（带数量上限）
 local AddFloatingText = State.AddFloatingText
 
+-- 预定义飘字颜色（避免每次创建新 table）
+local COLOR_FROZEN      = { 100, 180, 255, 255 }
+local COLOR_CURSE_BURST = { 140, 180, 140, 255 }
+local COLOR_DOUBLE_SOUL = { 160, 80, 200, 255 }
+local COLOR_STUN        = { 255, 220, 60, 255 }
+
 -- 延迟 require 缓存（避免循环依赖）
 local _Enemy, _Combat, _CostumeData, _Debuff
 local function GetEnemy()
@@ -317,7 +323,7 @@ function HeroSkills.OnHit(tower, target, killed)
                                 x        = target.x + (math.random() - 0.5) * 10,
                                 y        = target.y - (target.typeDef.size or 8) - 16,
                                 life     = 0.6,
-                                color    = { 100, 180, 255, 255 },
+                                color    = COLOR_FROZEN,
                                 fontSize = 12,
                             })
                         end
@@ -337,7 +343,7 @@ function HeroSkills.OnHit(tower, target, killed)
                         x        = target.x + (math.random() - 0.5) * 10,
                         y        = target.y - (target.typeDef.size or 8) - 20,
                         life     = 0.7,
-                        color    = { 140, 180, 140, 255 },
+                        color    = COLOR_CURSE_BURST,
                         fontSize = 13,
                     })
                 end
@@ -354,7 +360,7 @@ function HeroSkills.OnHit(tower, target, killed)
                         x        = target.x,
                         y        = target.y - (target.typeDef.size or 8) - 24,
                         life     = 0.8,
-                        color    = { 160, 80, 200, 255 },
+                        color    = COLOR_DOUBLE_SOUL,
                         fontSize = 14,
                     })
                 end
@@ -615,7 +621,7 @@ function HeroSkills.ApplyStun(target, duration)
             x        = target.x + (math.random() - 0.5) * 10,
             y        = target.y - (target.typeDef.size or 8) - 16,
             life     = 0.6,
-            color    = { 255, 220, 60, 255 },
+            color    = COLOR_STUN,
             fontSize = 12,
         })
     end
@@ -694,7 +700,7 @@ function HeroSkills.CheckCritSplash(tower, target, damage)
                 if e.alive and e ~= target then
                     local dx = e.x - target.x
                     local dy = e.y - target.y
-                    if math.sqrt(dx * dx + dy * dy) < 60 then
+                    if dx * dx + dy * dy < 3600 then -- 60²
                         Enemy.TakeDamage(e, splashDmg)
                     end
                 end
@@ -713,7 +719,7 @@ function HeroSkills.CheckCritSplash(tower, target, damage)
                     if e.alive and e ~= target then
                         local dx = e.x - target.x
                         local dy = e.y - target.y
-                        if math.sqrt(dx * dx + dy * dy) < 50 then
+                        if dx * dx + dy * dy < 2500 then -- 50²
                             Enemy.TakeDamage(e, splashDmg)
                         end
                     end

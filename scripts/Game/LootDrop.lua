@@ -126,6 +126,7 @@ function LootDrop.Update(dt)
                 d.collected = true
             end
             table.remove(State.lootDrops, i)
+            State.MarkDirty()
         end
     end
 end

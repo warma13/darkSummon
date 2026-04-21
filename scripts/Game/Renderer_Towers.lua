@@ -160,27 +160,36 @@ function Renderer.DrawGrid(vg, ox, oy)
     nvgFillColor(vg, nvgRGBA(bgc[1], bgc[2], bgc[3], 200))
     nvgFill(vg)
 
+    -- 合并绘制：所有非路径格子背景 → 一次 fill，边框 → 一次 stroke
+    local half = Config.CELL_SIZE * 0.5 - 2
+    local cellW = half * 2
+
+    -- 批量填充背景
+    nvgBeginPath(vg)
     for c = 1, Config.GRID_COLS do
         for r = 1, Config.GRID_ROWS do
             if not Grid.IsPathCell(c, r) then
                 local cx, cy = Grid.CellToScreen(c, r, ox, oy)
-                local half = Config.CELL_SIZE * 0.5 - 2
-
-                -- 格子背景
-                nvgBeginPath(vg)
-                nvgRoundedRect(vg, cx - half, cy - half, half * 2, half * 2, 4)
-                nvgFillColor(vg, rgba(Config.COLORS.gridCell))
-                nvgFill(vg)
-
-                -- 格子边框
-                nvgBeginPath(vg)
-                nvgRoundedRect(vg, cx - half, cy - half, half * 2, half * 2, 4)
-                nvgStrokeWidth(vg, 1)
-                nvgStrokeColor(vg, rgba(Config.COLORS.gridLine))
-                nvgStroke(vg)
+                nvgRoundedRect(vg, cx - half, cy - half, cellW, cellW, 4)
             end
         end
     end
+    nvgFillColor(vg, rgba(Config.COLORS.gridCell))
+    nvgFill(vg)
+
+    -- 批量描边边框
+    nvgBeginPath(vg)
+    for c = 1, Config.GRID_COLS do
+        for r = 1, Config.GRID_ROWS do
+            if not Grid.IsPathCell(c, r) then
+                local cx, cy = Grid.CellToScreen(c, r, ox, oy)
+                nvgRoundedRect(vg, cx - half, cy - half, cellW, cellW, 4)
+            end
+        end
+    end
+    nvgStrokeWidth(vg, 1)
+    nvgStrokeColor(vg, rgba(Config.COLORS.gridLine))
+    nvgStroke(vg)
 
 end
 

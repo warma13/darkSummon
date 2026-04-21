@@ -365,12 +365,9 @@ function WBS.Update(dt)
     local elapsed = skillState.battleTimer
 
     -- ======== 渐进难度：实时更新Boss DEF ========
-    local newDEF = WB.GetScaledDEF(elapsed)
-    for _, enemy in ipairs(State.enemies) do
-        if enemy.isWorldBoss and enemy.alive then
-            enemy.def = newDEF
-            break
-        end
+    local boss = State.worldBoss
+    if boss and boss.alive then
+        boss.def = WB.GetScaledDEF(elapsed)
     end
 
     -- 更新束缚计时

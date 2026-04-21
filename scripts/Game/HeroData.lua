@@ -15,6 +15,10 @@ local F = require("Game.FormulaLib")
 
 local HeroData = {}
 
+-- Memoization 缓存（Phase 3 优化）
+local _starMultCache = {}       -- star(0-30) → multiplier
+local _advMultCache = {}        -- advanceLevel(0-20) → multiplier
+
 -- 存档版本号：用于识别数据格式，触发迁移
 -- v1(无版本号): 排行榜上传 bestStage
 -- v2: 排行榜上传 bestGlobalWave
@@ -888,6 +892,10 @@ function HeroData.GetStarMultiplier(heroId)
     local star = h.star or 0
     if star <= 0 then return 1.0 end
 
+    -- Memoization: star 值只有 0-30，缓存命中直接返回
+    local cached = _starMultCache[star]
+    if cached then return cached end
+
     local mult = 1.0
     local crownStart = Config.STAR_CROWN_START  -- 21
     local normalMult = Config.STAR_NORMAL_MULT  -- 1.10
@@ -911,6 +919,7 @@ function HeroData.GetStarMultiplier(heroId)
         prevTier = curTier
     end
 
+    _starMultCache[star] = mult
     return mult
 end
 
@@ -1074,10 +1083,18 @@ local function CalcAdvanceMultiplier(heroId)
     if not h then return 1.0 end
     local advLv = h.advanceLevel or 0
     if advLv <= 0 then return 1.0 end
-    return F.CompoundMult(advLv, function(i)
+
+    -- Memoization: advanceLevel 只有 0-20，按 advLv 缓存
+    local cached = _advMultCache[advLv]
+    if cached then return cached end
+
+    local result = F.CompoundMult(advLv, function(i)
         local gate = Config.ADVANCE_GATES[i]
         return gate and (1.0 + gate.bonus) or 1.0
     end)
+
+    _advMultCache[advLv] = result
+    return result
 end
 
 --- 获取英雄完整属性（二维 + 战斗子属性）
