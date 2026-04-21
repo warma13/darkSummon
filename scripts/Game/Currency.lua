@@ -111,6 +111,11 @@ function Currency.Add(currencyId, amount)
         if ok then ARD.AddTickets(amount) end
         return
     end
+    if currencyId == "trial_ticket" then
+        local ok, TTD = pcall(require, "Game.TrialTowerData")
+        if ok then TTD.AddTickets(amount) end
+        return
+    end
     local delta = math.floor(amount)
     local newVal = (HeroData.currencies[currencyId] or 0) + delta
     HeroData.currencies[currencyId] = newVal

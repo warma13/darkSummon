@@ -329,11 +329,15 @@ function DungeonUI.BuildDungeonCard(def)
         progressColor = S.gold
     elseif def.key == "resource" and isAvailable then
         local totalFree, totalTicket, totalAdRemain = 0, 0, 0
+        local InventoryData = require("Game.InventoryData")
+        local genericTickets = InventoryData.GetCount("dungeon_ticket")
         for _, rd in ipairs(RD.DUNGEON_DEFS) do
             totalFree = totalFree + RD.GetFreeRemaining(rd.key)
-            totalTicket = totalTicket + RD.GetTotalTicketCount(rd.key)
+            local specific = RD.GetDungeonTicketCount(rd.key)
+            totalTicket = totalTicket + specific
             totalAdRemain = totalAdRemain + RD.GetAdRemaining(rd.key)
         end
+        totalTicket = totalTicket + genericTickets
         local totalRemain = totalFree + totalTicket
         if totalTicket > 0 then
             progressText = "免费" .. totalFree .. " 券" .. totalTicket

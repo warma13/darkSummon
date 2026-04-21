@@ -126,9 +126,15 @@ function TrialTowerData.EnsureTickets()
         -- 神裔降临：试练塔挑战次数加成
         local DivineBlessDB = require("Game.DivineBlessData")
         local bonusTicket = DivineBlessDB.GetBuffValue("trial_ticket")
-        data.tickets    = DAILY_TICKET_GRANT + bonusTicket
+        local dailyMin = DAILY_TICKET_GRANT + bonusTicket
+        local cur = data.tickets or 0
+        if cur < dailyMin then
+            data.tickets = dailyMin
+            print("[TrialTower] New day, tickets topped up to " .. dailyMin .. " (was " .. cur .. ", bonus " .. bonusTicket .. ")")
+        else
+            print("[TrialTower] New day, tickets kept at " .. cur .. " (>= daily " .. dailyMin .. ")")
+        end
         HeroData.Save()
-        print("[TrialTower] New day, tickets reset to " .. data.tickets .. " (bonus " .. bonusTicket .. ")")
     end
     if data.tickets == nil then
         data.tickets = DAILY_TICKET_GRANT

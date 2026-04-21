@@ -30,12 +30,12 @@ local DAILY_AD_LIMIT = 4
 --- 北京时间偏移 (UTC+8)
 local CST_OFFSET = 8 * 3600
 
---- 活动解锁时间：明天 0 点北京时间（纯算术，不依赖服务器时区）
+--- 活动解锁时间：今天 0 点北京时间（纯算术，不依赖服务器时区）
 local function calcUnlockTime()
     local now = os.time()
     local beijingNow = now + CST_OFFSET
     local todayMidnight = now - (beijingNow % 86400)
-    return todayMidnight + 86400
+    return todayMidnight
 end
 local EVENT_UNLOCK_TIME = calcUnlockTime()
 
