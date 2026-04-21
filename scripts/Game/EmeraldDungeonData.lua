@@ -651,6 +651,16 @@ function Emerald.EndSession(session)
         print("[EmeraldDungeon] First clear " .. bestKey .. " → +1 ticket bonus")
     end
 
+    -- 上报排行榜
+    local ok, LB = pcall(require, "Game.LeaderboardData")
+    if ok then
+        LB.UploadEmeraldToken(data.tokenEarned)
+        local bestTier, bestWaveForLB = Emerald.GetBestProgress()
+        if bestTier > 0 then
+            LB.UploadEmeraldProgress(bestTier, bestWaveForLB)
+        end
+    end
+
     -- 保存
     HeroData.Save(true)
 
@@ -705,6 +715,26 @@ end
 ---@return number
 function Emerald.GetTokenBalance()
     return Currency.Get(CURRENCY_ID)
+end
+
+--- 获取最高通关进度（最高难度 tier + 该 tier 最佳波次）
+---@return number bestTier, number bestWave
+function Emerald.GetBestProgress()
+    local data = getData()
+    local bestTier = 0
+    local bestWave = 0
+    for _, diff in ipairs(Emerald.DIFFICULTIES) do
+        local waves = (data.bestWaves and data.bestWaves[diff.id]) or 0
+        if waves > 0 then
+            -- 更高 tier 总是优于更低 tier
+            -- 同 tier 取更高波次
+            if diff.tier > bestTier or (diff.tier == bestTier and waves > bestWave) then
+                bestTier = diff.tier
+                bestWave = waves
+            end
+        end
+    end
+    return bestTier, bestWave
 end
 
 -- ============================================================================

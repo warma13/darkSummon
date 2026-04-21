@@ -776,7 +776,12 @@ function Renderer.DrawBossIntro(vg, w, h)
     end
 
     local cx = w * 0.5
-    local cy = h * 0.4
+    -- 放在超限提醒文字上方（与怪物计数区域对齐）
+    local oy = Renderer.gridOffsetY or 0
+    local topY = oy + Config.CELL_SIZE * 0.5
+    local labelY = topY - Config.CELL_SIZE * 1.1
+    local overloadTextY = labelY - 16
+    local cy = overloadTextY - 42  -- 框中心在超限文字上方
 
     -- 框尺寸（基准）
     local boxW = 220

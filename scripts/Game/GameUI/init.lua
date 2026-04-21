@@ -13,6 +13,7 @@ local Currency = require("Game.Currency")
 local TabNav = require("Game.TabNav")
 local HeroUI = require("Game.HeroUI")
 local RecruitUI = require("Game.RecruitUI")
+local FormatNum = require("Game.FormatUtil").FormatNum
 local ChestUI = require("Game.ChestUI")
 local ChestData = require("Game.ChestData")
 local EquipUI = require("Game.EquipUI")
@@ -109,12 +110,7 @@ function GameUI.InvalidateHudCache()
     hudCache.speedText = nil
 end
 
---- 格式化大数字（万/亿）
-local function FormatNum(n)
-    if n >= 100000000 then return string.format("%.1f亿", n / 100000000) end
-    if n >= 10000 then return string.format("%.1f万", n / 10000) end
-    return tostring(math.floor(n))
-end
+-- FormatNum → 使用 FormatUtil.FormatNum
 ctx.FormatNum = FormatNum
 
 function GameUI.Init(uiModule)

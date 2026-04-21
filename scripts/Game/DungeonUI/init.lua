@@ -9,6 +9,7 @@ local RD = require("Game.ResourceDungeonData")
 local WB = require("Game.WorldBossData")
 local AbyssRift = require("Game.AbyssRiftDungeon")
 local EmeraldDungeonData = require("Game.EmeraldDungeonData")
+local FormatNum = require("Game.FormatUtil").FormatNum
 
 local LB = require("Game.LeaderboardData")
 
@@ -142,10 +143,7 @@ local DUNGEON_DEFS = {
 -- 辅助
 -- ============================================================================
 
-local function FormatNum(n)
-    if n >= 10000 then return string.format("%.1f万", n / 10000) end
-    return tostring(math.floor(n))
-end
+-- FormatNum → 使用 FormatUtil.FormatNum
 
 -- ============================================================================
 -- 公共访问器（供子模块使用）

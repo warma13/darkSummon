@@ -208,11 +208,12 @@ local function GenerateBossWave(stageNum)
     local bossDef = Config.BuildBossDef(stageNum)
     local bossTier = GetBossTier(stageNum)
 
-    -- BOSS 词缀：阶数-1 个（缩放）
+    -- BOSS 词缀：阶数-1 个（缩放），上限 5
     local bossAffixes = {}
     if bossTier > 1 then
         local level = math.max(1, math.floor(stageNum / 10))
-        bossAffixes = Config.PickAffixes(globalWave, bossTier - 1, level)
+        local affixCount = math.min(bossTier - 1, 3)
+        bossAffixes = Config.PickAffixes(globalWave, affixCount, level)
     end
 
     queue[#queue + 1] = {

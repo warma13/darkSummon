@@ -8,6 +8,7 @@ local EquipData = require("Game.EquipData")
 local Currency = require("Game.Currency")
 local TemperUI = require("Game.TemperUI")
 local TemperData = require("Game.TemperData")
+local FormatNumber = require("Game.FormatUtil").FormatNumber
 
 local RuneUI = require("Game.RuneUI")
 
@@ -22,17 +23,7 @@ local selectedHero = nil  -- 当前查看装备的英雄ID
 ---@type string
 local currentTab = "equip"  -- "equip" | "rune"
 
---- 格式化大数字
----@param n number
----@return string
-local function FormatNumber(n)
-    if n >= 100000000 then
-        return string.format("%.2f亿", n / 100000000)
-    elseif n >= 10000 then
-        return string.format("%.1f万", n / 10000)
-    end
-    return tostring(n)
-end
+-- FormatNumber → 使用 FormatUtil.FormatNumber
 
 --- 创建装备页面
 ---@param uiModule any

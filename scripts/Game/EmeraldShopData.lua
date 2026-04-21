@@ -50,7 +50,7 @@ EmeraldShop.SHOP_ITEMS = {
         icon = "linyan_oath",
         cost = 500,
         amount = 10,
-        reward = { type = "currency", id = "linyan_shard", amount = 10 },
+        reward = { type = "fragment", id = "nature_elf", amount = 10 },
         limit = 30,
         tag = "每日≈10个",
         tagColor = { 220, 180, 60 },
@@ -297,6 +297,17 @@ SaveRegistry.Register("emeraldShop", {
     end,
     deserialize = function(saved, _saveData)
         HeroData.emeraldShop = saved or nil
+
+        -- 迁移：linyan_shard 误存为货币 → 转移到 nature_elf 碎片
+        local stray = HeroData.currencies and HeroData.currencies["linyan_shard"]
+        if stray and stray > 0 then
+            local h = HeroData.heroes and HeroData.heroes["nature_elf"]
+            if h then
+                h.fragments = h.fragments + stray
+                print("[EmeraldShop] Migrated " .. stray .. " linyan_shard → nature_elf fragments")
+            end
+            HeroData.currencies["linyan_shard"] = nil
+        end
     end,
 })
 

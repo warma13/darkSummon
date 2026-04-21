@@ -7,6 +7,7 @@ return function(ctx)
 local Config = require("Game.Config")
 local Currency = require("Game.Currency")
 local Tooltip = require("Game.Tooltip")
+local FormatNum = require("Game.FormatUtil").FormatNum
 local Shared = {}
 
 -- ============================================================================
@@ -56,11 +57,7 @@ local ACTIVITY_TABS = {
 -- 辅助函数
 -- ============================================================================
 
-local function FormatNum(n)
-    if n >= 100000000 then return string.format("%.1f亿", n / 100000000) end
-    if n >= 10000 then return string.format("%.1f万", n / 10000) end
-    return tostring(math.floor(n))
-end
+-- FormatNum → 使用 FormatUtil.FormatNum
 
 --- 获取奖励简短文本+颜色
 local function GetRewardDisplay(reward)

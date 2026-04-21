@@ -19,23 +19,14 @@
 --   })
 
 local Config = require("Game.Config")
+local FormatNumber = require("Game.FormatUtil").FormatNumber
 
 local RewardDisplay = {}
 
 local POPUP_ID = "rewardDisplayPopup"
 
 
---- 格式化大数字
----@param n number
----@return string
-local function FormatNumber(n)
-    if n >= 100000000 then
-        return string.format("%.2f亿", n / 100000000)
-    elseif n >= 10000 then
-        return string.format("%.1f万", n / 10000)
-    end
-    return tostring(n)
-end
+-- FormatNumber → 使用 FormatUtil.FormatNumber
 
 --- 创建单个奖励卡片
 ---@param UI any

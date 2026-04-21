@@ -6,6 +6,7 @@ local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
 local TemperData = require("Game.TemperData")
 local Currency = require("Game.Currency")
+local FormatNumber = require("Game.FormatUtil").FormatNumber
 
 local TemperUI = {}
 
@@ -30,15 +31,7 @@ local resultColor = nil
 ---@type number
 local resultTimer = 0
 
---- 格式化大数字
-local function FormatNumber(n)
-    if n >= 100000000 then
-        return string.format("%.2f亿", n / 100000000)
-    elseif n >= 10000 then
-        return string.format("%.1f万", n / 10000)
-    end
-    return tostring(math.floor(n))
-end
+-- FormatNumber → 使用 FormatUtil.FormatNumber
 
 -- ============================================================================
 -- 顶部装备信息栏

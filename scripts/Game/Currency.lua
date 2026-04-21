@@ -388,6 +388,8 @@ function Currency.GrantReward(reward)
     elseif reward.type == "item" then
         local InventoryData = require("Game.InventoryData")
         InventoryData.Add(reward.id, amount)
+    elseif reward.type == "fragment" then
+        HeroData.AddFragments(reward.id, amount)
     else
         print("[Currency.GrantReward] Unknown reward type: " .. tostring(reward.type))
         return false

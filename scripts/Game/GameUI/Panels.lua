@@ -15,13 +15,8 @@ local HeroSkills = require("Game.HeroSkills")
 local SpeedBoost = require("Game.SpeedBoostData")
 
 local FormatNum = ctx.FormatNum
+local FormatStat = FormatNum  -- FormatStat 与 FormatNum 逻辑一致，统一使用
 local RARITY_COLORS = ctx.RARITY_COLORS
-
-local function FormatStat(n)
-    if n >= 100000000 then return string.format("%.1f亿", n / 100000000) end
-    if n >= 10000 then return string.format("%.1f万", n / 10000) end
-    return tostring(math.floor(n))
-end
 
 --- 攻击类型中文名
 local ATTACK_TYPE_NAMES = {

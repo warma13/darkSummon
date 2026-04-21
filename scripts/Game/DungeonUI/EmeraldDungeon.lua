@@ -10,6 +10,9 @@ local AdHelper         = require("Game.AdHelper")
 local Currency         = require("Game.Currency")
 
 local EmeraldBossSkills = require("Game.EmeraldBossSkills")
+local FormatNum = require("Game.FormatUtil").FormatNum
+local LeaderboardUI = require("Game.LeaderboardUI")
+local LB = require("Game.LeaderboardData")
 
 local EmeraldDungeon = {}
 
@@ -20,10 +23,7 @@ local subView = "detail"
 -- 辅助
 -- ============================================================================
 
-local function FormatNum(n)
-    if n >= 10000 then return string.format("%.1f万", n / 10000) end
-    return tostring(math.floor(n))
-end
+-- FormatNum → 使用 FormatUtil.FormatNum
 
 -- ============================================================================
 -- 主入口
@@ -390,6 +390,22 @@ function EmeraldDungeon._BuildDungeonView(ctx)
                 subView = "detail"
                 ctx.SetView("list")
             end,
+        },
+        UI.Panel {
+            width = 52, height = 46,
+            justifyContent = "center", alignItems = "center",
+            borderRadius = 8, borderWidth = 1,
+            borderColor = { 100, 220, 140, 120 },
+            backgroundColor = { 30, 60, 40, 200 },
+            onClick = function()
+                LeaderboardUI.ShowWithTabs({
+                    { key = LB.KEY_EMERALD_TOKEN,    label = "资源榜", format = function(s) return LB.FormatEmeraldToken(s) end },
+                    { key = LB.KEY_EMERALD_PROGRESS, label = "进度榜", format = function(s) return LB.FormatEmeraldProgress(s) end },
+                }, 1)
+            end,
+            children = {
+                UI.Label { text = "榜", fontSize = 15, fontWeight = "bold", fontColor = { 100, 220, 140 }, pointerEvents = "none" },
+            },
         },
         UI.Panel {
             flex = 1, height = 46,

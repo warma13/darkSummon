@@ -343,6 +343,156 @@ function Enemy.CreateSplitChildFromDef(typeDef, waveNum, progress, hpScale, spee
     return enemy
 end
 
+local function HandleEnemyDeath(enemy)
+
+    -- 不朽词缀：首次死亡复活
+    if enemy.affixIds["undying"] and not enemy.revived then
+        enemy.revived = true
+        local reviveRate = 0.5
+        for _, a in ipairs(enemy.affixes) do
+            if a.reviveHPRate then reviveRate = a.reviveHPRate end
+        end
+        enemy.hp = enemy.maxHP * reviveRate
+        -- 复活时强制解除隐身，确保玩家能看到复活效果并索敌
+        if enemy.phaseActive then
+            enemy.phaseActive = false
+            local interval = 4.0
+            for _, a in ipairs(enemy.affixes) do
+                if a.phaseInterval then interval = a.phaseInterval end
+            end
+            enemy.phaseTimer = interval
+        end
+        AddFloatingText({
+            text = "复活!",
+            x = enemy.x, y = enemy.y - 15,
+            life = 1.0,
+            color = { 255, 220, 60, 255 },
+        })
+        print("[Enemy] " .. enemy.typeDef.name .. " revived!")
+        return
+    end
+
+    enemy.alive = false
+    State.aliveEnemyCount = State.aliveEnemyCount - 1
+    EnemyAnim.OnDeath(enemy)     -- 死亡淡出动画
+    -- 击杀奖励：暗魂（战斗内货币，固定值）
+    local reward = enemy.typeDef.reward
+    Currency.CollectDarkSoul(reward)
+    State.score = State.score + reward
+
+    -- 暗魂飘字
+    AddFloatingText({
+        text = "+" .. reward,
+        x = enemy.x, y = enemy.y - 8,
+        life = 0.8,
+        color = { 80, 150, 220, 255 },
+        fontSize = 11,
+    })
+
+    -- ======== 击杀掉落局外货币（掉落物动画） ========
+    local enemyTier = enemy.isBoss and "boss" or (enemy.isElite and "elite" or "normal")
+    local s = State.currentStage - 1
+    local dropScale = 1.0 + s * Config.KILL_DROP.stageScale + s * s * (Config.KILL_DROP.stageQuadratic or 0)
+
+    -- 冥晶（紫色）→ 掉落物
+    local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
+    if crystalBase > 0 then
+        local crystalAmt = math.floor(crystalBase * dropScale)
+        -- 神裔降临：冥晶加成（周末磐古自动 ×1.5 / 工作日选择磐古时 ×1.5）
+        local crystalMulti = DivineBlessDB.GetBuffValue("crystal_multi")
+        if crystalMulti > 1.0 then crystalAmt = math.floor(crystalAmt * crystalMulti) end
+        if crystalAmt > 0 then
+            LootDrop.Spawn("nether_crystal", crystalAmt, enemy.x, enemy.y)
+        end
+    end
+
+    -- 噬魂石（绿色，精英/BOSS）→ 掉落物
+    local stoneBase = Config.KILL_DROP.stone[enemyTier] or 0
+    if stoneBase > 0 then
+        local stoneAmt = math.floor(stoneBase * dropScale)
+        -- 神裔降临：噬魂石加成
+        local stoneMulti = DivineBlessDB.GetBuffValue("stone_multi")
+        if stoneMulti > 1.0 then stoneAmt = math.floor(stoneAmt * stoneMulti) end
+        if stoneAmt > 0 then
+            LootDrop.Spawn("devour_stone", stoneAmt, enemy.x, enemy.y)
+        end
+    end
+
+    -- 锻魂铁（蓝白色，仅BOSS）→ 掉落物
+    local ironBase = Config.KILL_DROP.iron[enemyTier] or 0
+    if ironBase > 0 then
+        local ironAmt = math.floor(ironBase * dropScale)
+        -- 神裔降临：锻魂铁加成
+        local ironMulti = DivineBlessDB.GetBuffValue("iron_multi")
+        if ironMulti > 1.0 then ironAmt = math.floor(ironAmt * ironMulti) end
+        if ironAmt > 0 then
+            LootDrop.Spawn("forge_iron", ironAmt, enemy.x, enemy.y)
+        end
+    end
+
+    -- 死亡粒子
+    local particleCount = enemy.isBoss and 16 or 8
+    for i = 1, particleCount do
+        local angle = math.random() * math.pi * 2
+        local spd = 30 + math.random() * 50
+        AddParticle({
+            x = enemy.x, y = enemy.y,
+            vx = math.cos(angle) * spd,
+            vy = math.sin(angle) * spd,
+            life = 0.6 + math.random() * 0.4,
+            maxLife = 1.0,
+            color = enemy.typeDef.color,
+            size = 3 + math.random() * 3,
+        })
+    end
+
+    -- 分裂被动（支持 splitRole 和向后兼容 splitTypeId）
+    if enemy.typeDef.passive == "split" then
+        local count = enemy.typeDef.splitCount or 2
+        local hpScale, speedScale = CalcScalesFromGlobalWave(enemy.waveNum)
+        if enemy.typeDef.splitRole then
+            -- 新系统：按 role 分裂，用同主题的对应角色
+            local stageNum = math.floor((enemy.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+            local splitDef = Config.BuildEnemyDef(stageNum, enemy.typeDef.splitRole)
+            if splitDef then
+                for i = 1, count do
+                    Enemy.CreateSplitChildFromDef(splitDef, enemy.waveNum, enemy.progress, hpScale, speedScale)
+                end
+            end
+        elseif enemy.typeDef.splitTypeId then
+            -- 向后兼容
+            for i = 1, count do
+                Enemy.CreateSplitChild(enemy.typeDef.splitTypeId, enemy.waveNum, enemy.progress, hpScale, speedScale)
+            end
+        end
+        print("[Enemy] " .. enemy.typeDef.name .. " split into " .. count)
+    end
+
+    -- death_silence 特殊被动：死亡时沉默周围塔
+    if enemy.typeDef.specialPassive == "death_silence" then
+        local range = enemy.typeDef.silenceRange or 80
+        local dur = enemy.typeDef.silenceDuration or 2.0
+        for _, tower in ipairs(State.towers) do
+            local tx, ty = Grid.CellToScreen(tower.col, tower.row,
+                Enemy._gridOffsetX, Enemy._gridOffsetY)
+            local dx = tx - enemy.x
+            local dy = ty - enemy.y
+            if dx * dx + dy * dy <= range * range then
+                Debuff.Apply(tower, "silence", { duration = dur })
+            end
+        end
+        AddFloatingText({
+            text = "沉默!",
+            x = enemy.x, y = enemy.y - 10,
+            life = 1.0,
+            color = { 140, 60, 200, 255 },
+        })
+    end
+
+    print("[Enemy] " .. enemy.typeDef.name .. " killed, reward=" .. enemy.typeDef.reward)
+    return true  -- 返回击杀结果，供 OnHit 触发击杀效果（fire_spread/double_soul/killReset）
+end
+
 -- ============================================================================
 -- 伤害处理
 -- ============================================================================
@@ -416,153 +566,7 @@ function Enemy.TakeDamage(enemy, damage)
     enemy.hp = enemy.hp - damage
     if enemy.hp <= 0 then
         enemy.hp = 0
-
-        -- 不朽词缀：首次死亡复活
-        if enemy.affixIds["undying"] and not enemy.revived then
-            enemy.revived = true
-            local reviveRate = 0.5
-            for _, a in ipairs(enemy.affixes) do
-                if a.reviveHPRate then reviveRate = a.reviveHPRate end
-            end
-            enemy.hp = enemy.maxHP * reviveRate
-            -- 复活时强制解除隐身，确保玩家能看到复活效果并索敌
-            if enemy.phaseActive then
-                enemy.phaseActive = false
-                local interval = 4.0
-                for _, a in ipairs(enemy.affixes) do
-                    if a.phaseInterval then interval = a.phaseInterval end
-                end
-                enemy.phaseTimer = interval
-            end
-            AddFloatingText({
-                text = "复活!",
-                x = enemy.x, y = enemy.y - 15,
-                life = 1.0,
-                color = { 255, 220, 60, 255 },
-            })
-            print("[Enemy] " .. enemy.typeDef.name .. " revived!")
-            return
-        end
-
-        enemy.alive = false
-        State.aliveEnemyCount = State.aliveEnemyCount - 1
-        EnemyAnim.OnDeath(enemy)     -- 死亡淡出动画
-        -- 击杀奖励：暗魂（战斗内货币，固定值）
-        local reward = enemy.typeDef.reward
-        Currency.CollectDarkSoul(reward)
-        State.score = State.score + reward
-
-        -- 暗魂飘字
-        AddFloatingText({
-            text = "+" .. reward,
-            x = enemy.x, y = enemy.y - 8,
-            life = 0.8,
-            color = { 80, 150, 220, 255 },
-            fontSize = 11,
-        })
-
-        -- ======== 击杀掉落局外货币（掉落物动画） ========
-        local enemyTier = enemy.isBoss and "boss" or (enemy.isElite and "elite" or "normal")
-        local s = State.currentStage - 1
-        local dropScale = 1.0 + s * Config.KILL_DROP.stageScale + s * s * (Config.KILL_DROP.stageQuadratic or 0)
-
-        -- 冥晶（紫色）→ 掉落物
-        local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
-        if crystalBase > 0 then
-            local crystalAmt = math.floor(crystalBase * dropScale)
-            -- 神裔降临：冥晶加成（周末磐古自动 ×1.5 / 工作日选择磐古时 ×1.5）
-            local crystalMulti = DivineBlessDB.GetBuffValue("crystal_multi")
-            if crystalMulti > 1.0 then crystalAmt = math.floor(crystalAmt * crystalMulti) end
-            if crystalAmt > 0 then
-                LootDrop.Spawn("nether_crystal", crystalAmt, enemy.x, enemy.y)
-            end
-        end
-
-        -- 噬魂石（绿色，精英/BOSS）→ 掉落物
-        local stoneBase = Config.KILL_DROP.stone[enemyTier] or 0
-        if stoneBase > 0 then
-            local stoneAmt = math.floor(stoneBase * dropScale)
-            -- 神裔降临：噬魂石加成
-            local stoneMulti = DivineBlessDB.GetBuffValue("stone_multi")
-            if stoneMulti > 1.0 then stoneAmt = math.floor(stoneAmt * stoneMulti) end
-            if stoneAmt > 0 then
-                LootDrop.Spawn("devour_stone", stoneAmt, enemy.x, enemy.y)
-            end
-        end
-
-        -- 锻魂铁（蓝白色，仅BOSS）→ 掉落物
-        local ironBase = Config.KILL_DROP.iron[enemyTier] or 0
-        if ironBase > 0 then
-            local ironAmt = math.floor(ironBase * dropScale)
-            -- 神裔降临：锻魂铁加成
-            local ironMulti = DivineBlessDB.GetBuffValue("iron_multi")
-            if ironMulti > 1.0 then ironAmt = math.floor(ironAmt * ironMulti) end
-            if ironAmt > 0 then
-                LootDrop.Spawn("forge_iron", ironAmt, enemy.x, enemy.y)
-            end
-        end
-
-        -- 死亡粒子
-        local particleCount = enemy.isBoss and 16 or 8
-        for i = 1, particleCount do
-            local angle = math.random() * math.pi * 2
-            local spd = 30 + math.random() * 50
-            AddParticle({
-                x = enemy.x, y = enemy.y,
-                vx = math.cos(angle) * spd,
-                vy = math.sin(angle) * spd,
-                life = 0.6 + math.random() * 0.4,
-                maxLife = 1.0,
-                color = enemy.typeDef.color,
-                size = 3 + math.random() * 3,
-            })
-        end
-
-        -- 分裂被动（支持 splitRole 和向后兼容 splitTypeId）
-        if enemy.typeDef.passive == "split" then
-            local count = enemy.typeDef.splitCount or 2
-            local hpScale, speedScale = CalcScalesFromGlobalWave(enemy.waveNum)
-            if enemy.typeDef.splitRole then
-                -- 新系统：按 role 分裂，用同主题的对应角色
-                local stageNum = math.floor((enemy.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
-                local splitDef = Config.BuildEnemyDef(stageNum, enemy.typeDef.splitRole)
-                if splitDef then
-                    for i = 1, count do
-                        Enemy.CreateSplitChildFromDef(splitDef, enemy.waveNum, enemy.progress, hpScale, speedScale)
-                    end
-                end
-            elseif enemy.typeDef.splitTypeId then
-                -- 向后兼容
-                for i = 1, count do
-                    Enemy.CreateSplitChild(enemy.typeDef.splitTypeId, enemy.waveNum, enemy.progress, hpScale, speedScale)
-                end
-            end
-            print("[Enemy] " .. enemy.typeDef.name .. " split into " .. count)
-        end
-
-        -- death_silence 特殊被动：死亡时沉默周围塔
-        if enemy.typeDef.specialPassive == "death_silence" then
-            local range = enemy.typeDef.silenceRange or 80
-            local dur = enemy.typeDef.silenceDuration or 2.0
-            for _, tower in ipairs(State.towers) do
-                local tx, ty = Grid.CellToScreen(tower.col, tower.row,
-                    Enemy._gridOffsetX, Enemy._gridOffsetY)
-                local dx = tx - enemy.x
-                local dy = ty - enemy.y
-                if dx * dx + dy * dy <= range * range then
-                    Debuff.Apply(tower, "silence", { duration = dur })
-                end
-            end
-            AddFloatingText({
-                text = "沉默!",
-                x = enemy.x, y = enemy.y - 10,
-                life = 1.0,
-                color = { 140, 60, 200, 255 },
-            })
-        end
-
-        print("[Enemy] " .. enemy.typeDef.name .. " killed, reward=" .. enemy.typeDef.reward)
-        return true  -- 返回击杀结果，供 OnHit 触发击杀效果（fire_spread/double_soul/killReset）
+        return HandleEnemyDeath(enemy)
     end
 end
 
@@ -781,6 +785,520 @@ local function UpdateAuras(gridOffsetX, gridOffsetY)
 end
 
 --- 更新所有敌人
+local function UpdateHitFeedback(e, dt)
+    -- ======== 受击反馈计时器衰减 ========
+    if e.hitFlash and e.hitFlash > 0 then
+        e.hitFlash = e.hitFlash - dt
+        if e.hitFlash <= 0 then e.hitFlash = nil end
+    end
+    if e.hitShakeTimer and e.hitShakeTimer > 0 then
+        e.hitShakeTimer = e.hitShakeTimer - dt
+        if e.hitShakeTimer <= 0 then
+            e.hitShakeTimer = nil
+            e.hitShakeIntensity = nil
+        end
+    end
+
+end
+
+local function UpdateAffixEffects(e, dt)
+    -- ======== 词缀被动效果 ========
+
+    -- 再生词缀
+    if e.affixIds["regen"] then
+        local rate = 0.01
+        for _, a in ipairs(e.affixes) do
+            if a.regenRate then rate = a.regenRate end
+        end
+        e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
+    end
+
+    -- 铁壁词缀：每隔 N 秒增加 DEF
+    if e.affixIds["iron_wall"] then
+        local interval = 6.0
+        local defPct = 0.10
+        for _, a in ipairs(e.affixes) do
+            if a.ironWallInterval then interval = a.ironWallInterval end
+            if a.ironWallDefPct then defPct = a.ironWallDefPct end
+        end
+        e.ironWallTimer = (e.ironWallTimer or 0) + dt
+        if e.ironWallTimer >= interval then
+            e.ironWallTimer = e.ironWallTimer - interval
+            e.ironWallStacks = (e.ironWallStacks or 0) + 1
+            local addDef = math.floor((e.typeDef.baseDEF or 0) * defPct)
+            e.def = e.def + addDef
+            AddFloatingText({
+                text = "铁壁+" .. e.ironWallStacks,
+                x = e.x + (math.random() - 0.5) * 10,
+                y = e.y - (e.typeDef.size or 8) - 5,
+                life = 0.6,
+                color = { 160, 160, 180, 255 },
+                fontSize = 10,
+            })
+        end
+    end
+
+    -- 回春词缀：每隔 N 秒恢复已损失 HP 百分比
+    if e.affixIds["rejuvenate"] then
+        local interval = 5.0
+        local pct = 0.05
+        for _, a in ipairs(e.affixes) do
+            if a.rejuvInterval then interval = a.rejuvInterval end
+            if a.rejuvPct then pct = a.rejuvPct end
+        end
+        e.rejuvTimer = (e.rejuvTimer or 0) + dt
+        if e.rejuvTimer >= interval then
+            e.rejuvTimer = e.rejuvTimer - interval
+            local lost = e.maxHP - e.hp
+            if lost > 0 then
+                local heal = lost * pct
+                e.hp = math.min(e.hp + heal, e.maxHP)
+                AddFloatingText({
+                    text = "回春",
+                    x = e.x + (math.random() - 0.5) * 10,
+                    y = e.y - (e.typeDef.size or 8) - 5,
+                    life = 0.5,
+                    color = { 100, 220, 160, 255 },
+                    fontSize = 10,
+                })
+            end
+        end
+    end
+
+    -- 降星词缀：每隔 N 秒随机降低一个英雄塔 1 星
+    if e.affixIds["star_drain"] then
+        local interval = 12.0
+        for _, a in ipairs(e.affixes) do
+            if a.starDrainInterval then interval = a.starDrainInterval end
+        end
+        e.starDrainTimer = (e.starDrainTimer or 0) + dt
+        if e.starDrainTimer >= interval then
+            e.starDrainTimer = e.starDrainTimer - interval
+            -- 找一个星级 > 1 的非 Leader 塔降星
+            local candidates = {}
+            for _, t in ipairs(State.towers) do
+                if not t.isLeader and t.star > 1 then
+                    candidates[#candidates + 1] = t
+                end
+            end
+            if #candidates > 0 then
+                local target = candidates[math.random(1, #candidates)]
+                local oldStar = target.star
+                target.star = target.star - 1
+                -- 重新计算塔的战斗属性
+                Tower.RecalcStats(target)
+                AddFloatingText({
+                    text = target.typeDef.name .. " ★-1",
+                    x = e.x, y = e.y - (e.typeDef.size or 8) - 15,
+                    life = 1.0,
+                    color = { 200, 80, 200, 255 },
+                })
+                print("[Affix] star_drain: " .. target.typeDef.name .. " " .. oldStar .. "★ → " .. target.star .. "★")
+            end
+        end
+    end
+
+    -- 毁灭词缀：每隔 N 秒销毁一个随机英雄塔
+    if e.affixIds["annihilate"] then
+        local interval = 20.0
+        for _, a in ipairs(e.affixes) do
+            if a.annihilateInterval then interval = a.annihilateInterval end
+        end
+        e.annihilateTimer = (e.annihilateTimer or 0) + dt
+        if e.annihilateTimer >= interval then
+            e.annihilateTimer = e.annihilateTimer - interval
+            -- 找一个非 Leader 塔销毁
+            local candidates = {}
+            for _, t in ipairs(State.towers) do
+                if not t.isLeader then
+                    candidates[#candidates + 1] = t
+                end
+            end
+            if #candidates > 0 then
+                local target = candidates[math.random(1, #candidates)]
+                local towerName = target.typeDef and target.typeDef.name or "塔"
+                local tx, ty = Grid.CellToScreen(target.col, target.row,
+                    Enemy._gridOffsetX, Enemy._gridOffsetY)
+                Tower.Remove(target)
+                AddFloatingText({
+                    text = "毁灭! " .. towerName,
+                    x = tx, y = ty - 10,
+                    life = 1.2,
+                    color = { 255, 40, 40, 255 },
+                })
+                -- 毁灭粒子
+                for j = 1, 10 do
+                    local angle = math.random() * math.pi * 2
+                    AddParticle({
+                        x = tx, y = ty,
+                        vx = math.cos(angle) * 50,
+                        vy = math.sin(angle) * 50,
+                        life = 0.6, maxLife = 0.8,
+                        color = { 255, 40, 40 },
+                        size = 4,
+                    })
+                end
+                print("[Affix] annihilate: destroyed " .. towerName)
+            end
+        end
+    end
+
+    -- ====== 通用减益词缀（debuff category）======
+    -- 统一处理 atk_down/spd_down/crit_down/critdmg_down/pen_down/elem_down
+    do
+        -- 使用 ApplyAffixes 时预计算的 debuff 词缀列表
+        local debuffAffixes = e._debuffAffixes
+        if debuffAffixes then
+            -- 取最短间隔作为统一 tick（每个词缀独立判断自己的间隔也可，但这里共享 timer 简化）
+            for _, da in ipairs(debuffAffixes) do
+                local interval = da.debuffInterval or 10.0
+                -- 每个 debuff 词缀用自己 id 做独立计时器
+                local timerKey = "dbTimer_" .. da.id
+                e[timerKey] = (e[timerKey] or 0) + dt
+                if e[timerKey] >= interval then
+                    e[timerKey] = e[timerKey] - interval
+                    local stat = da.debuffStat
+                    local duration = da.debuffDuration or 4.0
+                    local value = da.debuffPct or da.debuffFlat or 0.1
+                    local mode = da.debuffPct and "pct" or "flat"
+                    local targeting = da.targeting or "single"
+                    local radius = da.debuffRadius or 120
+
+                    -- 根据 targeting 获取目标塔列表
+                    local targets = {}
+                    if targeting == "group" then
+                        -- 全体：所有非 Leader 塔
+                        for _, t in ipairs(State.towers) do
+                            if not t.isLeader then targets[#targets + 1] = t end
+                        end
+                    elseif targeting == "area" then
+                        -- 范围：以敌人位置为中心，半径内的塔
+                        for _, t in ipairs(State.towers) do
+                            if not t.isLeader then
+                                local tx, ty = Grid.CellToScreen(t.col, t.row,
+                                    Enemy._gridOffsetX, Enemy._gridOffsetY)
+                                local dist = math.sqrt((e.x - tx) ^ 2 + (e.y - ty) ^ 2)
+                                if dist <= radius then
+                                    targets[#targets + 1] = t
+                                end
+                            end
+                        end
+                    else
+                        -- 单体：随机一个非 Leader 塔
+                        local pool = {}
+                        for _, t in ipairs(State.towers) do
+                            if not t.isLeader then pool[#pool + 1] = t end
+                        end
+                        if #pool > 0 then
+                            targets[#targets + 1] = pool[math.random(1, #pool)]
+                        end
+                    end
+
+                    -- 施加 debuff
+                    for _, target in ipairs(targets) do
+                        Tower.ApplyDebuff(target, da.id, stat, value, mode, duration)
+                        local tx, ty = Grid.CellToScreen(target.col, target.row,
+                            Enemy._gridOffsetX, Enemy._gridOffsetY)
+                        AddFloatingText({
+                            text = da.name .. (targeting == "group" and "!" or ""),
+                            x = tx + (math.random() - 0.5) * 10,
+                            y = ty - 15,
+                            life = 0.8,
+                            color = da.color and { da.color[1], da.color[2], da.color[3], 255 }
+                                or { 255, 100, 100, 255 },
+                            fontSize = 10,
+                        })
+                    end
+                    if #targets > 0 then
+                        print("[Affix] " .. da.id .. " (" .. targeting .. "): debuff "
+                            .. stat .. " on " .. #targets .. " tower(s)")
+                    end
+                end
+            end
+        end
+    end
+
+    -- 狂暴词缀
+    if e.affixIds["berserk"] then
+        local threshold, mult = 0.5, 1.8
+        for _, a in ipairs(e.affixes) do
+            if a.enrageThreshold then threshold = a.enrageThreshold end
+            if a.enrageSpeedMult then mult = a.enrageSpeedMult end
+        end
+        if e.hp / e.maxHP <= threshold then
+            e.speed = e.baseSpeed * mult
+        end
+    end
+
+    -- 隐身词缀：周期性隐身（复用 phaseActive，与 BOSS phase 被动共享渲染逻辑）
+    if e.affixIds["stealth"] and e.typeDef.passive ~= "phase" then
+        local interval = 4.0
+        local duration = 1.5
+        for _, a in ipairs(e.affixes) do
+            if a.phaseInterval then interval = a.phaseInterval end
+            if a.phaseDuration then duration = a.phaseDuration end
+        end
+        -- NaN 防护：phaseTimer 异常时强制重置（NaN ~= NaN 为 true）
+        if e.phaseTimer ~= e.phaseTimer then
+            e.phaseActive = false
+            e.phaseTimer = interval
+            e._phaseElapsed = 0
+        elseif e.phaseActive then
+            e.phaseTimer = e.phaseTimer - dt
+            e._phaseElapsed = (e._phaseElapsed or 0) + dt
+            -- 安全上限：隐身时间不超过 duration × 2，防止边界情况导致永久隐身
+            if e.phaseTimer <= 0 or e._phaseElapsed >= duration * 2 then
+                e.phaseActive = false
+                e.phaseTimer = interval
+                e._phaseElapsed = 0
+            end
+        else
+            e._phaseElapsed = 0
+            e.phaseTimer = e.phaseTimer - dt
+            if e.phaseTimer <= 0 then
+                e.phaseActive = true
+                e.phaseTimer = duration
+            end
+        end
+    end
+
+end
+
+local function UpdateMonsterPassives(e, dt)
+    -- ======== 怪物被动效果 ========
+
+    -- BOSS: 狂暴被动
+    if e.typeDef.passive == "enrage" then
+        local threshold = e.typeDef.enrageThreshold or 0.5
+        local mult = e.typeDef.enrageSpeedMult or 2.0
+        if e.hp / e.maxHP <= threshold then
+            e.speed = math.max(e.speed, e.baseSpeed * mult)
+        end
+    end
+
+    -- BOSS: 隐身无敌
+    if e.typeDef.passive == "phase" then
+        local phaseDur = e.typeDef.phaseDuration or 2.5
+        local phaseInt = e.typeDef.phaseInterval or 5.0
+        -- NaN 防护：phaseTimer 异常时强制重置
+        if e.phaseTimer ~= e.phaseTimer then
+            e.phaseActive = false
+            e.phaseTimer = phaseInt
+            e._phaseElapsed = 0
+        elseif e.phaseActive then
+            e.phaseTimer = e.phaseTimer - dt
+            e._phaseElapsed = (e._phaseElapsed or 0) + dt
+            -- 安全上限：防止永久隐身
+            if e.phaseTimer <= 0 or e._phaseElapsed >= phaseDur * 2 then
+                e.phaseActive = false
+                e.phaseTimer = phaseInt
+                e._phaseElapsed = 0
+            end
+        else
+            e._phaseElapsed = 0
+            e.phaseTimer = e.phaseTimer - dt
+            if e.phaseTimer <= 0 then
+                e.phaseActive = true
+                e.phaseTimer = phaseDur
+            end
+        end
+    end
+
+    -- BOSS: 召唤小怪（支持 summonRole 和向后兼容 summonTypeId）
+    if e.typeDef.passive == "summon" then
+        e.summonTimer = e.summonTimer - dt
+        if e.summonTimer <= 0 then
+            e.summonTimer = e.typeDef.summonInterval or 6.0
+            local sCount = e.typeDef.summonCount or 2
+            local hpS, spS = CalcScalesFromGlobalWave(e.waveNum)
+            hpS = hpS * 0.5  -- 召唤物 HP 减半
+            if e.typeDef.summonRole then
+                local stageNum = math.floor((e.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+                local summonDef = Config.BuildEnemyDef(stageNum, e.typeDef.summonRole)
+                if summonDef then
+                    for j = 1, sCount do
+                        Enemy.CreateSplitChildFromDef(summonDef, e.waveNum, e.progress, hpS, spS)
+                    end
+                end
+            elseif e.typeDef.summonTypeId then
+                for j = 1, sCount do
+                    Enemy.CreateSplitChild(e.typeDef.summonTypeId, e.waveNum, e.progress, hpS, spS)
+                end
+            end
+            print("[Enemy] BOSS " .. e.typeDef.name .. " summoned " .. sCount)
+        end
+    end
+
+    -- 传送者: 闪烁
+    if e.typeDef.passive == "blink" then
+        e.blinkTimer = e.blinkTimer + dt
+        if e.blinkTimer >= (e.typeDef.blinkInterval or 4.0) then
+            e.blinkTimer = 0
+            e.progress = e.progress + (e.typeDef.blinkProgress or 0.08)
+            -- 闪烁粒子
+            for j = 1, 5 do
+                local angle = math.random() * math.pi * 2
+                AddParticle({
+                    x = e.x, y = e.y,
+                    vx = math.cos(angle) * 40,
+                    vy = math.sin(angle) * 40,
+                    life = 0.4, maxLife = 0.5,
+                    color = e.typeDef.color,
+                    size = 3,
+                })
+            end
+        end
+    end
+
+    -- BOSS: 禁锢（周期性沉默附近塔防）
+    if e.typeDef.passive == "disable" then
+        e.disableTimer = e.disableTimer - dt
+        if e.disableTimer <= 0 then
+            local dur = e.typeDef.disableDuration or 2.0
+            local range = 100  -- 禁锢范围
+            e.disableTimer = e.typeDef.disableInterval or 8.0
+            -- 沉默范围内的塔
+            for _, tower in ipairs(State.towers) do
+                local tx, ty = Grid.CellToScreen(tower.col, tower.row,
+                    Enemy._gridOffsetX, Enemy._gridOffsetY)
+                local dx = tx - e.x
+                local dy = ty - e.y
+                if dx * dx + dy * dy <= range * range then
+                    Debuff.Apply(tower, "silence", { duration = dur })
+                end
+            end
+            -- 禁锢特效
+            AddFloatingText({
+                text = "禁锢!",
+                x = e.x, y = e.y - (e.typeDef.size or 8) - 10,
+                life = 1.0,
+                color = { 200, 60, 60, 255 },
+            })
+            for j = 1, 8 do
+                local angle = j * math.pi / 4
+                AddParticle({
+                    x = e.x, y = e.y,
+                    vx = math.cos(angle) * 60,
+                    vy = math.sin(angle) * 60,
+                    life = 0.6, maxLife = 0.6,
+                    color = { 200, 60, 60 },
+                    size = 4,
+                })
+            end
+        end
+    end
+
+    -- ======== 坦克被动：regen（周期回血）========
+    if e.typeDef.tankPassive == "regen" then
+        local rate = e.typeDef.regenRate or 0.005
+        e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
+    end
+
+    -- ======== 特殊被动 ========
+
+    -- regen_lost: 每隔一段时间恢复已损失生命值的一定百分比
+    if e.typeDef.specialPassive == "regen_lost" then
+        e.regenLostTimer = (e.regenLostTimer or 0) + dt
+        local interval = e.typeDef.regenInterval or 3.0
+        if e.regenLostTimer >= interval then
+            e.regenLostTimer = e.regenLostTimer - interval
+            local pct = e.typeDef.regenLostPct or 0.05
+            local lost = e.maxHP - e.hp
+            if lost > 0 then
+                e.hp = math.min(e.hp + lost * pct, e.maxHP)
+            end
+        end
+    end
+
+    -- poison_trail: 经过的位置降低附近塔攻击力（通过标记实现）
+    if e.typeDef.specialPassive == "poison_trail" then
+        e.poisonTrailTimer = (e.poisonTrailTimer or 0) + dt
+        if e.poisonTrailTimer >= 1.0 then
+            e.poisonTrailTimer = e.poisonTrailTimer - 1.0
+            -- 在当前位置留下毒径粒子
+            AddParticle({
+                x = e.x, y = e.y,
+                vx = 0, vy = 0,
+                life = e.typeDef.trailDuration or 3.0,
+                maxLife = e.typeDef.trailDuration or 3.0,
+                color = { 100, 60, 140 },
+                size = 6,
+                isPoisonTrail = true,
+                atkReduce = e.typeDef.trailAtkReduce or 0.20,
+            })
+        end
+    end
+
+end
+
+local function UpdateTimers(e, dt)
+    -- ======== 光环速度加成 ========
+    if e.auraSpeedBoost and e.auraSpeedBoost > 0 then
+        -- 仅在非减速时应用加速
+        if e.slowTimer <= 0 then
+            e.speed = e.baseSpeed * (1 + e.auraSpeedBoost)
+        end
+    end
+
+    -- ======== 减速恢复 ========
+    if e.slowTimer > 0 then
+        e.slowTimer = e.slowTimer - dt
+        if e.slowTimer <= 0 then
+            -- 如果还有寒意减速，不完全恢复
+            if e.chillStacks and e.chillStacks > 0 then
+                local chillSlow = e.chillStacks * 0.10
+                if e.isBoss then
+                    chillSlow = chillSlow * (Config.BOSS_BALANCE and Config.BOSS_BALANCE.slowEfficiency or 0.50)
+                end
+                if e.typeDef.tankPassive == "slow_resist" then
+                    chillSlow = chillSlow * (1 - (e.typeDef.slowResist or 0.50))
+                end
+                e.speed = e.baseSpeed * (1 - chillSlow)
+            else
+                e.speed = e.baseSpeed
+            end
+        end
+    end
+
+    -- ======== 寒意衰减 ========
+    Enemy.UpdateChill(e, dt)
+
+    -- ======== DOT 伤害 ========
+    if e.dotTimer > 0 then
+        e.dotTimer = e.dotTimer - dt
+        e.dotTickTimer = e.dotTickTimer + dt
+        if e.dotTickTimer >= 0.5 then
+            e.dotTickTimer = e.dotTickTimer - 0.5
+            Enemy.TakeDamage(e, e.dotDamage * 0.5)
+        end
+    end
+
+end
+
+local function UpdateMovement(e, dt, pathLen, gridOffsetX, gridOffsetY)
+    -- ======== 移动（眩晕/冰冻时停止） ========
+    local isImmobilized = (e.stunTimer and e.stunTimer > 0)
+                       or (e.frozenTimer and e.frozenTimer > 0)
+    if e.alive and pathLen > 0 and not isImmobilized then
+        local moveDist = e.speed * dt
+        e.progress = e.progress + moveDist / pathLen
+
+        -- 到达终点后循环（环形路径直接绕圈，非环形也回起点继续）
+        if e.progress >= 1.0 then
+            e.progress = e.progress - 1.0
+            e.loops = e.loops + 1
+        end
+        e.x, e.y = Grid.GetPositionOnPath(e.progress, gridOffsetX, gridOffsetY)
+    end
+
+    -- ======== 缓存路径方向/法线供渲染使用 ========
+    local pdx, pdy = Grid.GetPathDirection(e.progress, gridOffsetX, gridOffsetY)
+    e._pdx, e._pdy = pdx, pdy
+    if e.isBoss then
+        e._pnx, e._pny = Grid.GetPathOutwardNormal(e.progress, gridOffsetX, gridOffsetY)
+    end
+end
+
 function Enemy.Update(dt, gridOffsetX, gridOffsetY)
     -- dt 防护：NaN 或异常大值（如设备休眠恢复）会破坏计时器算术
     if dt ~= dt or dt > 1.0 then
@@ -807,505 +1325,11 @@ function Enemy.Update(dt, gridOffsetX, gridOffsetY)
         if e ~= nil and e.alive then
             e.animTime = e.animTime + dt
 
-            -- ======== 受击反馈计时器衰减 ========
-            if e.hitFlash and e.hitFlash > 0 then
-                e.hitFlash = e.hitFlash - dt
-                if e.hitFlash <= 0 then e.hitFlash = nil end
-            end
-            if e.hitShakeTimer and e.hitShakeTimer > 0 then
-                e.hitShakeTimer = e.hitShakeTimer - dt
-                if e.hitShakeTimer <= 0 then
-                    e.hitShakeTimer = nil
-                    e.hitShakeIntensity = nil
-                end
-            end
-
-            -- ======== 词缀被动效果 ========
-
-            -- 再生词缀
-            if e.affixIds["regen"] then
-                local rate = 0.01
-                for _, a in ipairs(e.affixes) do
-                    if a.regenRate then rate = a.regenRate end
-                end
-                e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
-            end
-
-            -- 铁壁词缀：每隔 N 秒增加 DEF
-            if e.affixIds["iron_wall"] then
-                local interval = 6.0
-                local defPct = 0.10
-                for _, a in ipairs(e.affixes) do
-                    if a.ironWallInterval then interval = a.ironWallInterval end
-                    if a.ironWallDefPct then defPct = a.ironWallDefPct end
-                end
-                e.ironWallTimer = (e.ironWallTimer or 0) + dt
-                if e.ironWallTimer >= interval then
-                    e.ironWallTimer = e.ironWallTimer - interval
-                    e.ironWallStacks = (e.ironWallStacks or 0) + 1
-                    local addDef = math.floor((e.typeDef.baseDEF or 0) * defPct)
-                    e.def = e.def + addDef
-                    AddFloatingText({
-                        text = "铁壁+" .. e.ironWallStacks,
-                        x = e.x + (math.random() - 0.5) * 10,
-                        y = e.y - (e.typeDef.size or 8) - 5,
-                        life = 0.6,
-                        color = { 160, 160, 180, 255 },
-                        fontSize = 10,
-                    })
-                end
-            end
-
-            -- 回春词缀：每隔 N 秒恢复已损失 HP 百分比
-            if e.affixIds["rejuvenate"] then
-                local interval = 5.0
-                local pct = 0.05
-                for _, a in ipairs(e.affixes) do
-                    if a.rejuvInterval then interval = a.rejuvInterval end
-                    if a.rejuvPct then pct = a.rejuvPct end
-                end
-                e.rejuvTimer = (e.rejuvTimer or 0) + dt
-                if e.rejuvTimer >= interval then
-                    e.rejuvTimer = e.rejuvTimer - interval
-                    local lost = e.maxHP - e.hp
-                    if lost > 0 then
-                        local heal = lost * pct
-                        e.hp = math.min(e.hp + heal, e.maxHP)
-                        AddFloatingText({
-                            text = "回春",
-                            x = e.x + (math.random() - 0.5) * 10,
-                            y = e.y - (e.typeDef.size or 8) - 5,
-                            life = 0.5,
-                            color = { 100, 220, 160, 255 },
-                            fontSize = 10,
-                        })
-                    end
-                end
-            end
-
-            -- 降星词缀：每隔 N 秒随机降低一个英雄塔 1 星
-            if e.affixIds["star_drain"] then
-                local interval = 12.0
-                for _, a in ipairs(e.affixes) do
-                    if a.starDrainInterval then interval = a.starDrainInterval end
-                end
-                e.starDrainTimer = (e.starDrainTimer or 0) + dt
-                if e.starDrainTimer >= interval then
-                    e.starDrainTimer = e.starDrainTimer - interval
-                    -- 找一个星级 > 1 的非 Leader 塔降星
-                    local candidates = {}
-                    for _, t in ipairs(State.towers) do
-                        if not t.isLeader and t.star > 1 then
-                            candidates[#candidates + 1] = t
-                        end
-                    end
-                    if #candidates > 0 then
-                        local target = candidates[math.random(1, #candidates)]
-                        local oldStar = target.star
-                        target.star = target.star - 1
-                        -- 重新计算塔的战斗属性
-                        Tower.RecalcStats(target)
-                        AddFloatingText({
-                            text = target.typeDef.name .. " ★-1",
-                            x = e.x, y = e.y - (e.typeDef.size or 8) - 15,
-                            life = 1.0,
-                            color = { 200, 80, 200, 255 },
-                        })
-                        print("[Affix] star_drain: " .. target.typeDef.name .. " " .. oldStar .. "★ → " .. target.star .. "★")
-                    end
-                end
-            end
-
-            -- 毁灭词缀：每隔 N 秒销毁一个随机英雄塔
-            if e.affixIds["annihilate"] then
-                local interval = 20.0
-                for _, a in ipairs(e.affixes) do
-                    if a.annihilateInterval then interval = a.annihilateInterval end
-                end
-                e.annihilateTimer = (e.annihilateTimer or 0) + dt
-                if e.annihilateTimer >= interval then
-                    e.annihilateTimer = e.annihilateTimer - interval
-                    -- 找一个非 Leader 塔销毁
-                    local candidates = {}
-                    for _, t in ipairs(State.towers) do
-                        if not t.isLeader then
-                            candidates[#candidates + 1] = t
-                        end
-                    end
-                    if #candidates > 0 then
-                        local target = candidates[math.random(1, #candidates)]
-                        local towerName = target.typeDef and target.typeDef.name or "塔"
-                        local tx, ty = Grid.CellToScreen(target.col, target.row,
-                            Enemy._gridOffsetX, Enemy._gridOffsetY)
-                        Tower.Remove(target)
-                        AddFloatingText({
-                            text = "毁灭! " .. towerName,
-                            x = tx, y = ty - 10,
-                            life = 1.2,
-                            color = { 255, 40, 40, 255 },
-                        })
-                        -- 毁灭粒子
-                        for j = 1, 10 do
-                            local angle = math.random() * math.pi * 2
-                            AddParticle({
-                                x = tx, y = ty,
-                                vx = math.cos(angle) * 50,
-                                vy = math.sin(angle) * 50,
-                                life = 0.6, maxLife = 0.8,
-                                color = { 255, 40, 40 },
-                                size = 4,
-                            })
-                        end
-                        print("[Affix] annihilate: destroyed " .. towerName)
-                    end
-                end
-            end
-
-            -- ====== 通用减益词缀（debuff category）======
-            -- 统一处理 atk_down/spd_down/crit_down/critdmg_down/pen_down/elem_down
-            do
-                -- 使用 ApplyAffixes 时预计算的 debuff 词缀列表
-                local debuffAffixes = e._debuffAffixes
-                if debuffAffixes then
-                    -- 取最短间隔作为统一 tick（每个词缀独立判断自己的间隔也可，但这里共享 timer 简化）
-                    for _, da in ipairs(debuffAffixes) do
-                        local interval = da.debuffInterval or 10.0
-                        -- 每个 debuff 词缀用自己 id 做独立计时器
-                        local timerKey = "dbTimer_" .. da.id
-                        e[timerKey] = (e[timerKey] or 0) + dt
-                        if e[timerKey] >= interval then
-                            e[timerKey] = e[timerKey] - interval
-                            local stat = da.debuffStat
-                            local duration = da.debuffDuration or 4.0
-                            local value = da.debuffPct or da.debuffFlat or 0.1
-                            local mode = da.debuffPct and "pct" or "flat"
-                            local targeting = da.targeting or "single"
-                            local radius = da.debuffRadius or 120
-
-                            -- 根据 targeting 获取目标塔列表
-                            local targets = {}
-                            if targeting == "group" then
-                                -- 全体：所有非 Leader 塔
-                                for _, t in ipairs(State.towers) do
-                                    if not t.isLeader then targets[#targets + 1] = t end
-                                end
-                            elseif targeting == "area" then
-                                -- 范围：以敌人位置为中心，半径内的塔
-                                for _, t in ipairs(State.towers) do
-                                    if not t.isLeader then
-                                        local tx, ty = Grid.CellToScreen(t.col, t.row,
-                                            Enemy._gridOffsetX, Enemy._gridOffsetY)
-                                        local dist = math.sqrt((e.x - tx) ^ 2 + (e.y - ty) ^ 2)
-                                        if dist <= radius then
-                                            targets[#targets + 1] = t
-                                        end
-                                    end
-                                end
-                            else
-                                -- 单体：随机一个非 Leader 塔
-                                local pool = {}
-                                for _, t in ipairs(State.towers) do
-                                    if not t.isLeader then pool[#pool + 1] = t end
-                                end
-                                if #pool > 0 then
-                                    targets[#targets + 1] = pool[math.random(1, #pool)]
-                                end
-                            end
-
-                            -- 施加 debuff
-                            for _, target in ipairs(targets) do
-                                Tower.ApplyDebuff(target, da.id, stat, value, mode, duration)
-                                local tx, ty = Grid.CellToScreen(target.col, target.row,
-                                    Enemy._gridOffsetX, Enemy._gridOffsetY)
-                                AddFloatingText({
-                                    text = da.name .. (targeting == "group" and "!" or ""),
-                                    x = tx + (math.random() - 0.5) * 10,
-                                    y = ty - 15,
-                                    life = 0.8,
-                                    color = da.color and { da.color[1], da.color[2], da.color[3], 255 }
-                                        or { 255, 100, 100, 255 },
-                                    fontSize = 10,
-                                })
-                            end
-                            if #targets > 0 then
-                                print("[Affix] " .. da.id .. " (" .. targeting .. "): debuff "
-                                    .. stat .. " on " .. #targets .. " tower(s)")
-                            end
-                        end
-                    end
-                end
-            end
-
-            -- 狂暴词缀
-            if e.affixIds["berserk"] then
-                local threshold, mult = 0.5, 1.8
-                for _, a in ipairs(e.affixes) do
-                    if a.enrageThreshold then threshold = a.enrageThreshold end
-                    if a.enrageSpeedMult then mult = a.enrageSpeedMult end
-                end
-                if e.hp / e.maxHP <= threshold then
-                    e.speed = e.baseSpeed * mult
-                end
-            end
-
-            -- 隐身词缀：周期性隐身（复用 phaseActive，与 BOSS phase 被动共享渲染逻辑）
-            if e.affixIds["stealth"] and e.typeDef.passive ~= "phase" then
-                local interval = 4.0
-                local duration = 1.5
-                for _, a in ipairs(e.affixes) do
-                    if a.phaseInterval then interval = a.phaseInterval end
-                    if a.phaseDuration then duration = a.phaseDuration end
-                end
-                -- NaN 防护：phaseTimer 异常时强制重置（NaN ~= NaN 为 true）
-                if e.phaseTimer ~= e.phaseTimer then
-                    e.phaseActive = false
-                    e.phaseTimer = interval
-                    e._phaseElapsed = 0
-                elseif e.phaseActive then
-                    e.phaseTimer = e.phaseTimer - dt
-                    e._phaseElapsed = (e._phaseElapsed or 0) + dt
-                    -- 安全上限：隐身时间不超过 duration × 2，防止边界情况导致永久隐身
-                    if e.phaseTimer <= 0 or e._phaseElapsed >= duration * 2 then
-                        e.phaseActive = false
-                        e.phaseTimer = interval
-                        e._phaseElapsed = 0
-                    end
-                else
-                    e._phaseElapsed = 0
-                    e.phaseTimer = e.phaseTimer - dt
-                    if e.phaseTimer <= 0 then
-                        e.phaseActive = true
-                        e.phaseTimer = duration
-                    end
-                end
-            end
-
-            -- ======== 怪物被动效果 ========
-
-            -- BOSS: 狂暴被动
-            if e.typeDef.passive == "enrage" then
-                local threshold = e.typeDef.enrageThreshold or 0.5
-                local mult = e.typeDef.enrageSpeedMult or 2.0
-                if e.hp / e.maxHP <= threshold then
-                    e.speed = math.max(e.speed, e.baseSpeed * mult)
-                end
-            end
-
-            -- BOSS: 隐身无敌
-            if e.typeDef.passive == "phase" then
-                local phaseDur = e.typeDef.phaseDuration or 2.5
-                local phaseInt = e.typeDef.phaseInterval or 5.0
-                -- NaN 防护：phaseTimer 异常时强制重置
-                if e.phaseTimer ~= e.phaseTimer then
-                    e.phaseActive = false
-                    e.phaseTimer = phaseInt
-                    e._phaseElapsed = 0
-                elseif e.phaseActive then
-                    e.phaseTimer = e.phaseTimer - dt
-                    e._phaseElapsed = (e._phaseElapsed or 0) + dt
-                    -- 安全上限：防止永久隐身
-                    if e.phaseTimer <= 0 or e._phaseElapsed >= phaseDur * 2 then
-                        e.phaseActive = false
-                        e.phaseTimer = phaseInt
-                        e._phaseElapsed = 0
-                    end
-                else
-                    e._phaseElapsed = 0
-                    e.phaseTimer = e.phaseTimer - dt
-                    if e.phaseTimer <= 0 then
-                        e.phaseActive = true
-                        e.phaseTimer = phaseDur
-                    end
-                end
-            end
-
-            -- BOSS: 召唤小怪（支持 summonRole 和向后兼容 summonTypeId）
-            if e.typeDef.passive == "summon" then
-                e.summonTimer = e.summonTimer - dt
-                if e.summonTimer <= 0 then
-                    e.summonTimer = e.typeDef.summonInterval or 6.0
-                    local sCount = e.typeDef.summonCount or 2
-                    local hpS, spS = CalcScalesFromGlobalWave(e.waveNum)
-                    hpS = hpS * 0.5  -- 召唤物 HP 减半
-                    if e.typeDef.summonRole then
-                        local stageNum = math.floor((e.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
-                        local summonDef = Config.BuildEnemyDef(stageNum, e.typeDef.summonRole)
-                        if summonDef then
-                            for j = 1, sCount do
-                                Enemy.CreateSplitChildFromDef(summonDef, e.waveNum, e.progress, hpS, spS)
-                            end
-                        end
-                    elseif e.typeDef.summonTypeId then
-                        for j = 1, sCount do
-                            Enemy.CreateSplitChild(e.typeDef.summonTypeId, e.waveNum, e.progress, hpS, spS)
-                        end
-                    end
-                    print("[Enemy] BOSS " .. e.typeDef.name .. " summoned " .. sCount)
-                end
-            end
-
-            -- 传送者: 闪烁
-            if e.typeDef.passive == "blink" then
-                e.blinkTimer = e.blinkTimer + dt
-                if e.blinkTimer >= (e.typeDef.blinkInterval or 4.0) then
-                    e.blinkTimer = 0
-                    e.progress = e.progress + (e.typeDef.blinkProgress or 0.08)
-                    -- 闪烁粒子
-                    for j = 1, 5 do
-                        local angle = math.random() * math.pi * 2
-                        AddParticle({
-                            x = e.x, y = e.y,
-                            vx = math.cos(angle) * 40,
-                            vy = math.sin(angle) * 40,
-                            life = 0.4, maxLife = 0.5,
-                            color = e.typeDef.color,
-                            size = 3,
-                        })
-                    end
-                end
-            end
-
-            -- BOSS: 禁锢（周期性沉默附近塔防）
-            if e.typeDef.passive == "disable" then
-                e.disableTimer = e.disableTimer - dt
-                if e.disableTimer <= 0 then
-                    local dur = e.typeDef.disableDuration or 2.0
-                    local range = 100  -- 禁锢范围
-                    e.disableTimer = e.typeDef.disableInterval or 8.0
-                    -- 沉默范围内的塔
-                    for _, tower in ipairs(State.towers) do
-                        local tx, ty = Grid.CellToScreen(tower.col, tower.row,
-                            Enemy._gridOffsetX, Enemy._gridOffsetY)
-                        local dx = tx - e.x
-                        local dy = ty - e.y
-                        if dx * dx + dy * dy <= range * range then
-                            Debuff.Apply(tower, "silence", { duration = dur })
-                        end
-                    end
-                    -- 禁锢特效
-                    AddFloatingText({
-                        text = "禁锢!",
-                        x = e.x, y = e.y - (e.typeDef.size or 8) - 10,
-                        life = 1.0,
-                        color = { 200, 60, 60, 255 },
-                    })
-                    for j = 1, 8 do
-                        local angle = j * math.pi / 4
-                        AddParticle({
-                            x = e.x, y = e.y,
-                            vx = math.cos(angle) * 60,
-                            vy = math.sin(angle) * 60,
-                            life = 0.6, maxLife = 0.6,
-                            color = { 200, 60, 60 },
-                            size = 4,
-                        })
-                    end
-                end
-            end
-
-            -- ======== 坦克被动：regen（周期回血）========
-            if e.typeDef.tankPassive == "regen" then
-                local rate = e.typeDef.regenRate or 0.005
-                e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
-            end
-
-            -- ======== 特殊被动 ========
-
-            -- regen_lost: 每隔一段时间恢复已损失生命值的一定百分比
-            if e.typeDef.specialPassive == "regen_lost" then
-                e.regenLostTimer = (e.regenLostTimer or 0) + dt
-                local interval = e.typeDef.regenInterval or 3.0
-                if e.regenLostTimer >= interval then
-                    e.regenLostTimer = e.regenLostTimer - interval
-                    local pct = e.typeDef.regenLostPct or 0.05
-                    local lost = e.maxHP - e.hp
-                    if lost > 0 then
-                        e.hp = math.min(e.hp + lost * pct, e.maxHP)
-                    end
-                end
-            end
-
-            -- poison_trail: 经过的位置降低附近塔攻击力（通过标记实现）
-            if e.typeDef.specialPassive == "poison_trail" then
-                e.poisonTrailTimer = (e.poisonTrailTimer or 0) + dt
-                if e.poisonTrailTimer >= 1.0 then
-                    e.poisonTrailTimer = e.poisonTrailTimer - 1.0
-                    -- 在当前位置留下毒径粒子
-                    AddParticle({
-                        x = e.x, y = e.y,
-                        vx = 0, vy = 0,
-                        life = e.typeDef.trailDuration or 3.0,
-                        maxLife = e.typeDef.trailDuration or 3.0,
-                        color = { 100, 60, 140 },
-                        size = 6,
-                        isPoisonTrail = true,
-                        atkReduce = e.typeDef.trailAtkReduce or 0.20,
-                    })
-                end
-            end
-
-            -- ======== 光环速度加成 ========
-            if e.auraSpeedBoost and e.auraSpeedBoost > 0 then
-                -- 仅在非减速时应用加速
-                if e.slowTimer <= 0 then
-                    e.speed = e.baseSpeed * (1 + e.auraSpeedBoost)
-                end
-            end
-
-            -- ======== 减速恢复 ========
-            if e.slowTimer > 0 then
-                e.slowTimer = e.slowTimer - dt
-                if e.slowTimer <= 0 then
-                    -- 如果还有寒意减速，不完全恢复
-                    if e.chillStacks and e.chillStacks > 0 then
-                        local chillSlow = e.chillStacks * 0.10
-                        if e.isBoss then
-                            chillSlow = chillSlow * (Config.BOSS_BALANCE and Config.BOSS_BALANCE.slowEfficiency or 0.50)
-                        end
-                        if e.typeDef.tankPassive == "slow_resist" then
-                            chillSlow = chillSlow * (1 - (e.typeDef.slowResist or 0.50))
-                        end
-                        e.speed = e.baseSpeed * (1 - chillSlow)
-                    else
-                        e.speed = e.baseSpeed
-                    end
-                end
-            end
-
-            -- ======== 寒意衰减 ========
-            Enemy.UpdateChill(e, dt)
-
-            -- ======== DOT 伤害 ========
-            if e.dotTimer > 0 then
-                e.dotTimer = e.dotTimer - dt
-                e.dotTickTimer = e.dotTickTimer + dt
-                if e.dotTickTimer >= 0.5 then
-                    e.dotTickTimer = e.dotTickTimer - 0.5
-                    Enemy.TakeDamage(e, e.dotDamage * 0.5)
-                end
-            end
-
-            -- ======== 移动（眩晕/冰冻时停止） ========
-            local isImmobilized = (e.stunTimer and e.stunTimer > 0)
-                               or (e.frozenTimer and e.frozenTimer > 0)
-            if e.alive and pathLen > 0 and not isImmobilized then
-                local moveDist = e.speed * dt
-                e.progress = e.progress + moveDist / pathLen
-
-                -- 到达终点后循环（环形路径直接绕圈，非环形也回起点继续）
-                if e.progress >= 1.0 then
-                    e.progress = e.progress - 1.0
-                    e.loops = e.loops + 1
-                end
-                e.x, e.y = Grid.GetPositionOnPath(e.progress, gridOffsetX, gridOffsetY)
-            end
-
-            -- ======== 缓存路径方向/法线供渲染使用 ========
-            local pdx, pdy = Grid.GetPathDirection(e.progress, gridOffsetX, gridOffsetY)
-            e._pdx, e._pdy = pdx, pdy
-            if e.isBoss then
-                e._pnx, e._pny = Grid.GetPathOutwardNormal(e.progress, gridOffsetX, gridOffsetY)
-            end
+            UpdateHitFeedback(e, dt)
+            UpdateAffixEffects(e, dt)
+            UpdateMonsterPassives(e, dt)
+            UpdateTimers(e, dt)
+            UpdateMovement(e, dt, pathLen, gridOffsetX, gridOffsetY)
         end
 
         -- 不再需要 swap-and-pop：死亡敌人保留 alive=false 标记
