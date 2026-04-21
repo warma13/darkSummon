@@ -221,7 +221,7 @@ function WorldBoss.BuildDetailView(ctx)
                 UI.Panel {
                     flexDirection = "row", alignItems = "center", gap = 3,
                     children = {
-                        Currency.IconWidget(UI, "frost_pact", 12),
+                        Currency.IconWidget(UI, "recruit_ticket_select_box", 12),
                         UI.Label {
                             text = "×" .. amount .. " (累计" .. cumReward .. ")",
                             fontSize = 11,

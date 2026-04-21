@@ -432,7 +432,7 @@ end
 
 --- 结算奖励（战斗结束时调用）
 ---@param totalDamage number 本场对BOSS累计伤害
----@return table|nil rewards { frost_pact = amount }
+---@return table|nil rewards { recruit_ticket_select_box = amount }
 function WB.ClaimReward(totalDamage)
     local data = WB.GetData()
 

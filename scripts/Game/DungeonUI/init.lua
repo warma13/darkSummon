@@ -410,8 +410,8 @@ function DungeonUI.BuildDungeonCard(def)
     elseif def.key == "world_boss" and isAvailable then
         local rankText = rankCache.world_boss and ("  🏆 排名 第" .. rankCache.world_boss .. "名") or ""
         rewardChildren = {
-            Currency.IconWidget(UI, "frost_pact", 13),
-            UI.Label { text = "霜誓契约", fontSize = 11, fontColor = { 130, 210, 255 }, pointerEvents = "none" },
+            Currency.IconWidget(UI, "recruit_ticket_select_box", 13),
+            UI.Label { text = "招募券自选包", fontSize = 11, fontColor = { 130, 210, 255 }, pointerEvents = "none" },
             UI.Label { text = " 最高" .. WB.FormatDamage(WB.GetBestDamage()), fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
             UI.Label { id = "worldBossRankLabel", text = rankText, fontSize = 11, fontColor = S.gold, pointerEvents = "none" },
         }

@@ -58,7 +58,7 @@ local function GetData()
         d = {
             date = TodayStr(),
             todayAds = 0,
-            milestonesClaimed = {},   -- int keys: [1]=true, [2]=true, [3]=true (对应MILESTONES索引)
+            milestonesClaimed = {},   -- string keys: ["1"]=true, ["2"]=true (避免cjson int/string歧义)
             tickets = 0,             -- 免广告券余额（持久，不重置）
             streakDays = 0,          -- 连续看广告天数
             lastAdDate = "",         -- 上次看广告的日期
@@ -86,7 +86,7 @@ local function DayRollover()
     local MailboxData = require("Game.MailboxData")
     for i, ms in ipairs(MILESTONES) do
         -- 昨日广告数达标 但 未领取
-        if oldTodayAds >= ms.threshold and not d.milestonesClaimed[i] then
+        if oldTodayAds >= ms.threshold and not d.milestonesClaimed[tostring(i)] then
             local mailRewards = {}
             for _, r in ipairs(ms.rewards) do
                 mailRewards[#mailRewards + 1] = { type = "currency", id = r.id, amount = r.amount }
@@ -161,7 +161,7 @@ function ARD.GetMilestones()
     DayRollover()
     local result = {}
     for i, ms in ipairs(MILESTONES) do
-        local claimed = d.milestonesClaimed[i] == true
+        local claimed = d.milestonesClaimed[tostring(i)] == true
         local canClaim = (not claimed) and (d.todayAds >= ms.threshold)
         result[#result + 1] = {
             threshold = ms.threshold,
@@ -183,10 +183,11 @@ function ARD.ClaimMilestone(index)
     local ms = MILESTONES[index]
     if not ms then return false end
 
-    if d.milestonesClaimed[index] then return false end  -- 已领取
-    if d.todayAds < ms.threshold then return false end   -- 未达标
+    local key = tostring(index)
+    if d.milestonesClaimed[key] then return false end  -- 已领取
+    if d.todayAds < ms.threshold then return false end -- 未达标
 
-    d.milestonesClaimed[index] = true
+    d.milestonesClaimed[key] = true
 
     -- 发放所有奖励
     local Currency = require("Game.Currency")
@@ -310,16 +311,23 @@ SaveRegistry.Register("adRelief", {
             -- 确保字段完整（旧存档迁移）
             local d = HeroData.stats.adRelief
             d.milestonesClaimed = d.milestonesClaimed or {}
-            -- 迁移旧格式: 旧版用 threshold 值作 key (3,6,9)，新版用索引 (1,2,3)
+
+            -- 迁移：将所有 int key 统一为 string key（修复 cjson 稀疏数组问题）
             local mc = d.milestonesClaimed
-            if mc[6] or mc[9] or (mc[3] and not mc[1] and not mc[2]) then
-                local newMc = {}
-                for i, threshold in ipairs(MILESTONES) do
-                    if mc[threshold] then newMc[i] = true end
+            local newMc = {}
+            local needMigrate = false
+            for k, v in pairs(mc) do
+                if v == true then
+                    local sk = tostring(k)  -- int key 或 string key 都统一为 string
+                    newMc[sk] = true
+                    if type(k) == "number" then needMigrate = true end
                 end
-                d.milestonesClaimed = newMc
-                print("[AdRelief] Migrated milestonesClaimed from threshold-keys to index-keys")
             end
+            if needMigrate then
+                d.milestonesClaimed = newMc
+                print("[AdRelief] Migrated milestonesClaimed int-keys to string-keys")
+            end
+
             d.tickets = d.tickets or 0
             d.streakDays = d.streakDays or 0
             d.lastAdDate = d.lastAdDate or ""
@@ -329,6 +337,41 @@ SaveRegistry.Register("adRelief", {
 
     validate = function()
         ARD.Init()
+
+        -- 一次性修正：因里程碑重复领取 bug 导致的物资超发（只执行一次）
+        local d = GetData()
+        if not d._overCapFixed then
+            local InventoryData = require("Game.InventoryData")
+            local caps = {
+                { getter = function() return ARD.GetTickets() end,
+                  setter = function(v) d.tickets = v end,
+                  cap = 32, name = "ad_ticket" },
+                { getter = function() return InventoryData.GetCount("recruit_ticket_select_box") end,
+                  setter = function(v)
+                      for _, slot in ipairs(InventoryData.items or {}) do
+                          if slot.id == "recruit_ticket_select_box" then slot.count = v; return end
+                      end
+                  end,
+                  cap = 600, name = "recruit_ticket_select_box" },
+                { getter = function() return InventoryData.GetCount("dungeon_ticket") end,
+                  setter = function(v)
+                      for _, slot in ipairs(InventoryData.items or {}) do
+                          if slot.id == "dungeon_ticket" then slot.count = v; return end
+                      end
+                  end,
+                  cap = 16, name = "dungeon_ticket" },
+            }
+            for _, c in ipairs(caps) do
+                local cur = c.getter()
+                if cur > c.cap then
+                    print("[AdRelief] OverCap fix: " .. c.name .. " " .. cur .. " → " .. c.cap)
+                    c.setter(c.cap)
+                end
+            end
+            d._overCapFixed = true
+            HeroData.Save()
+            print("[AdRelief] OverCap check done (one-time)")
+        end
     end,
 })
 
