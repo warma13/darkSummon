@@ -7,6 +7,7 @@ local HeroData = require("Game.HeroData")
 local RuneConfig = require("Game.Config_Runes")
 local RuneData = require("Game.RuneData")
 local Currency = require("Game.Currency")
+local Tower = require("Game.Tower")
 
 local RuneUI = {}
 
@@ -321,7 +322,7 @@ function RuneUI.CreateEquippedSlots()
             children = {
                 UI.Label { text = "🔒", fontSize = 24, pointerEvents = "none" },
                 UI.Label {
-                    text = "第" .. slotDef.unlockStage .. "波",
+                    text = "第" .. slotDef.unlockStage .. "关",
                     fontSize = 8, fontColor = {120,110,140,180}, pointerEvents = "none",
                 },
             }
@@ -663,6 +664,7 @@ function RuneUI.CreateRuneDetailOverlay()
                 local ok, msg = RuneData.Unequip(selectedHero, selectedSlotIdx)
                 local Toast = require("Game.Toast")
                 Toast.Show(ok and "已卸下" or msg, ok and {100,255,100} or {255,100,80})
+                if ok then Tower.RefreshAllStats() end
                 selectedRune = nil
                 RuneUI.Refresh()
             end,
@@ -701,6 +703,7 @@ function RuneUI.CreateRuneDetailOverlay()
                 local ok, msg = RuneData.Equip(selectedHero, targetSlot, rune.runeId)
                 local Toast = require("Game.Toast")
                 Toast.Show(ok and "装备成功" or msg, ok and {100,255,100} or {255,100,80})
+                if ok then Tower.RefreshAllStats() end
                 selectedRune = nil
                 selectedSlotIdx = nil
                 RuneUI.Refresh()
@@ -715,6 +718,7 @@ function RuneUI.CreateRuneDetailOverlay()
         onClick = function(self)
             local RuneReforgeUI = require("Game.RuneReforgeUI")
             RuneReforgeUI.Open(pageRoot, rune, function()
+                Tower.RefreshAllStats()
                 RuneUI.Refresh()
             end)
         end,

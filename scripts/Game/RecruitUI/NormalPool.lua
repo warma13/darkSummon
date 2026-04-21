@@ -115,7 +115,7 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn)
                                 borderRadius = 4,
                                 children = {
                                     UI.Label {
-                                        text = "免费",
+                                        text = "广告",
                                         fontSize = 9,
                                         fontColor = RecruitData.CanClaimAdPact()
                                             and { 30, 20, 10, 255 }
@@ -523,7 +523,7 @@ function NormalPool.ShowAdPactDialog(UI, pageRoot, refreshFn)
                 onClick = function(self) end,
                 children = {
                     UI.Label {
-                        text = "免费契约",
+                        text = "广告契约",
                         fontSize = 18,
                         fontColor = { 255, 200, 60, 255 },
                         fontWeight = "bold",
@@ -562,7 +562,7 @@ function NormalPool.ShowAdPactDialog(UI, pageRoot, refreshFn)
                         paddingLeft = 10, paddingRight = 10,
                         children = {
                             UI.Label {
-                                text = "看广告免费获取虚空契约",
+                                text = "看广告获取虚空契约",
                                 fontSize = 12,
                                 fontColor = { 200, 190, 220, 200 },
                             },
@@ -587,7 +587,7 @@ function NormalPool.ShowAdPactDialog(UI, pageRoot, refreshFn)
                                 refreshFn()
                                 local def = Config.CURRENCY["void_pact"]
                                 RewardDisplay.Show(UI, pageRoot, {
-                                    title = "免费契约",
+                                    title = "广告契约",
                                     rewards = {
                                         {
                                             icon = def and def.image or "?",

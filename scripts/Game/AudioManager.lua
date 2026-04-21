@@ -29,6 +29,11 @@ local SFX = {
     coin        = "audio/sfx/sfx_coin.ogg",
     attack      = "audio/sfx/sfx_attack.ogg",
     enemy_hit   = "audio/sfx/sfx_enemy_hit.ogg",
+    -- 暗黑消除小游戏音效
+    card_click   = "audio/sfx/card_click.ogg",
+    card_move    = "audio/sfx/card_move.ogg",
+    card_match   = "audio/sfx/card_match.ogg",
+    card_shuffle = "audio/sfx/card_shuffle.ogg",
 }
 
 -- ============================================================

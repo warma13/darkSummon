@@ -230,6 +230,12 @@ function DailyTaskData.HasClaimable()
         if WPD.HasClaimable() then return true end
     end
 
+    -- 成就奖励（已达成但未领取）
+    local ok3, AchData = pcall(require, "Game.AchievementData")
+    if ok3 and AchData and AchData.HasClaimable then
+        if AchData.HasClaimable() then return true end
+    end
+
     return false
 end
 

@@ -12,6 +12,7 @@ local WelfareData         = require("Game.WelfareData")
 local VaultData           = require("Game.VaultData")
 local CostumeSignInData   = require("Game.CostumeSignInData")
 local WeeklyActivityUI    = require("Game.WeeklyActivityUI")
+local DivineBlessDB       = require("Game.DivineBlessData")
 
 local FormatNum = ctx.FormatNum
 
@@ -21,8 +22,8 @@ function GameUI.CreateStageBar()
     elseif State.waveType == "elite" then typeTag = " 精英" end
     local waveText = State.currentStage .. "-" .. State.currentWave .. typeTag
 
-    local wday = os.date("*t").wday
-    local isWeekend = (wday == 1 or wday == 7)
+    local hasBlessing = (DivineBlessDB.GetActiveBlessing() ~= nil)
+    local needChoose = not DivineBlessDB.HasChosen()
 
     return ctx.UI.Panel {
         width = "100%",
@@ -41,10 +42,10 @@ function GameUI.CreateStageBar()
                 gap = 4,
                 paddingLeft = 7, paddingRight = 9,
                 paddingTop = 5, paddingBottom = 5,
-                backgroundColor = isWeekend and { 48, 22, 85, 230 } or { 20, 16, 32, 190 },
+                backgroundColor = hasBlessing and { 48, 22, 85, 230 } or { 20, 16, 32, 190 },
                 borderRadius = 12,
                 borderWidth = 1,
-                borderColor = isWeekend and { 170, 90, 255, 200 } or { 70, 55, 100, 100 },
+                borderColor = hasBlessing and { 170, 90, 255, 200 } or { 70, 55, 100, 100 },
                 onClick = function()
                     WeeklyActivityUI.SetSubTab("weekend_bonus")
                     GameUI.ShowWeeklyActivityOverlay(true)
@@ -59,13 +60,18 @@ function GameUI.CreateStageBar()
                     ctx.UI.Label {
                         text = "神裔降临",
                         fontSize = 11,
-                        fontColor = isWeekend and { 215, 155, 255, 255 } or { 125, 115, 148, 200 },
+                        fontColor = hasBlessing and { 215, 155, 255, 255 } or { 125, 115, 148, 200 },
                     },
-                    -- 生效中的绿色圆点
-                    isWeekend and ctx.UI.Panel {
+                    -- 生效中绿色圆点 / 未选红色圆点
+                    hasBlessing and ctx.UI.Panel {
                         width = 5, height = 5,
                         borderRadius = 3,
                         backgroundColor = { 100, 235, 140, 255 },
+                        flexShrink = 0,
+                    } or needChoose and ctx.UI.Panel {
+                        width = 5, height = 5,
+                        borderRadius = 3,
+                        backgroundColor = { 255, 80, 80, 255 },
                         flexShrink = 0,
                     } or nil,
                 },
@@ -95,8 +101,8 @@ end
 function GameUI.CreateHUD()
     local safeTop = (ctx.UI.GetSafeAreaInsets().top or 0) + 8
 
-    local wday = os.date("*t").wday
-    local isWeekend = (wday == 1 or wday == 7)
+    local hasBlessing = (DivineBlessDB.GetActiveBlessing() ~= nil)
+    local needChoose  = not DivineBlessDB.HasChosen()
 
     return ctx.UI.Panel {
         id = "hud",
@@ -154,10 +160,10 @@ function GameUI.CreateHUD()
                 gap = 4,
                 paddingLeft = 7, paddingRight = 9,
                 paddingTop = 4, paddingBottom = 4,
-                backgroundColor = isWeekend and { 48, 22, 85, 230 } or { 28, 22, 44, 200 },
+                backgroundColor = hasBlessing and { 48, 22, 85, 230 } or { 28, 22, 44, 200 },
                 borderRadius = 10,
                 borderWidth = 1,
-                borderColor = isWeekend and { 170, 90, 255, 180 } or { 70, 55, 100, 100 },
+                borderColor = hasBlessing and { 170, 90, 255, 180 } or { 70, 55, 100, 100 },
                 pointerEvents = "auto",
                 onClick = function()
                     WeeklyActivityUI.SetSubTab("weekend_bonus")
@@ -173,13 +179,18 @@ function GameUI.CreateHUD()
                     ctx.UI.Label {
                         text = "神裔降临",
                         fontSize = 10,
-                        fontColor = isWeekend and { 215, 155, 255, 255 } or { 120, 110, 145, 200 },
+                        fontColor = hasBlessing and { 215, 155, 255, 255 } or { 120, 110, 145, 200 },
                         pointerEvents = "none",
                     },
-                    isWeekend and ctx.UI.Panel {
+                    hasBlessing and ctx.UI.Panel {
                         width = 5, height = 5,
                         borderRadius = 3,
                         backgroundColor = { 100, 235, 140, 255 },
+                        flexShrink = 0,
+                    } or needChoose and ctx.UI.Panel {
+                        width = 5, height = 5,
+                        borderRadius = 3,
+                        backgroundColor = { 255, 80, 80, 255 },
                         flexShrink = 0,
                     } or nil,
                 },
@@ -418,6 +429,8 @@ function GameUI.CreateCurrencyDisplay()
                     },
                 },
             },
+            -- 小游戏入口按钮（已隐藏）
+            -- ctx.UI.Panel { id = "miniGameBtn", ... },
         },
     }
 end

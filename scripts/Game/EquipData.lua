@@ -3,6 +3,7 @@
 -- 每个英雄4件装备(武器/铠甲/头盔/战马)，等级升级+品质突破
 
 local Config = require("Game.Config")
+local F = require("Game.FormulaLib")
 local HeroData = require("Game.HeroData")
 local SaveRegistry = require("Game.SaveRegistry")
 
@@ -89,17 +90,21 @@ function EquipData.GetTierIdxForLevel(level)
     return 1
 end
 
+-- 装备升级费用阶梯: { fromLevel, cost }
+local EQUIP_COST_STEPS = {
+    { 1,    1  },   -- 1~200:    1 噬魂石/级
+    { 201,  2  },   -- 201~1000: 2 噬魂石/级
+    { 1001, 4  },   -- 1001~2000: 4 噬魂石/级
+    { 2001, 8  },   -- 2001~3000: 8 噬魂石/级
+    { 3001, 15 },   -- 3001+:    15 噬魂石/级
+}
+
 --- 获取升级费用（噬魂石）
 ---@param level number
 ---@return number
 function EquipData.GetUpgradeCost(level)
     if level >= Config.EQUIP_MAX_LEVEL then return 0 end
-    if level >= 3001 then return 15
-    elseif level >= 2001 then return 8
-    elseif level >= 1001 then return 4
-    elseif level >= 201 then return 2
-    else return 1
-    end
+    return F.StepFunction(EQUIP_COST_STEPS, level)
 end
 
 --- 检查是否需要突破（到达品质等级上限）
@@ -142,11 +147,10 @@ function EquipData.Upgrade(heroId, slotId)
         return false, "已达最高等级"
     end
 
-    -- 装备等级不能超过英雄等级
-    local hero = HeroData.heroes[heroId]
-    local heroLevel = (hero and hero.level) or 1
-    if e.level >= heroLevel then
-        return false, "装备等级已达英雄等级上限(Lv" .. heroLevel .. ")"
+    -- 装备等级不能超过暗影君主等级
+    local leaderLevel = HeroData.GetLeaderLevel()
+    if e.level >= leaderLevel then
+        return false, "装备等级已达暗影君主等级上限(Lv" .. leaderLevel .. ")"
     end
 
     local cost = EquipData.GetUpgradeCost(e.level)
@@ -190,8 +194,7 @@ function EquipData.CalcUpgradeCost(heroId, slotId, wantCount)
     local equips = EquipData.GetHeroEquips(heroId)
     local e = equips[slotId]
     local tier = Config.EQUIP_TIERS[e.tierIdx]
-    local hero = HeroData.heroes[heroId]
-    local heroLevel = (hero and hero.level) or 1
+    local leaderLevel = HeroData.GetLeaderLevel()
     local iron = HeroData.currencies.forge_iron or 0
 
     local count = 0
@@ -202,7 +205,7 @@ function EquipData.CalcUpgradeCost(heroId, slotId, wantCount)
     while count < wantCount do
         if simLevel >= tier.maxLevel then break end
         if simLevel >= Config.EQUIP_MAX_LEVEL then break end
-        if simLevel >= heroLevel then break end
+        if simLevel >= leaderLevel then break end
         local c = EquipData.GetUpgradeCost(simLevel)
         if simIron < c then break end
         simIron = simIron - c
@@ -225,15 +228,14 @@ function EquipData.UpgradeMulti(heroId, slotId, maxCount)
     local tier = Config.EQUIP_TIERS[e.tierIdx]
     local upgraded = 0
     local totalCost = 0
-    local hero = HeroData.heroes[heroId]
-    local heroLevel = (hero and hero.level) or 1
+    local leaderLevel = HeroData.GetLeaderLevel()
 
     if maxCount < 0 then maxCount = Config.EQUIP_MAX_LEVEL end
 
     while upgraded < maxCount do
         if e.level >= tier.maxLevel then break end
         if e.level >= Config.EQUIP_MAX_LEVEL then break end
-        if e.level >= heroLevel then break end
+        if e.level >= leaderLevel then break end
 
         local cost = EquipData.GetUpgradeCost(e.level)
         if (HeroData.currencies.forge_iron or 0) < cost then break end

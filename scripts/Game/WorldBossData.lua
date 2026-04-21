@@ -7,6 +7,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
+local InventoryData = require("Game.InventoryData")
 
 local WB = {}
 
@@ -17,13 +18,27 @@ local WB = {}
 WB.CONFIG = {
     -- BOSS 属性（全服统一）
     bossHP = math.maxinteger,
-    bossDEF = 1000000,
+    bossDEF = 1000000,          -- 初始DEF（100万）
     bossSpeed = 12,
     bossSize = 28,
 
     -- 战斗时长
-    totalDuration = 300,        -- 300秒总时长
-    darkSoulDrain = 10,         -- BOSS每秒掉落暗魂数
+    totalDuration = 60,         -- 60秒总时长
+    darkSoulDrain = 50,         -- BOSS每秒掉落暗魂数
+
+    -- ========== 渐进难度（越打越难） ==========
+    -- DEF 随时间指数增长: bossDEF × (1 + defGrowthRate)^(elapsed / defGrowthInterval)
+    -- 0s=100万, 60s≈320万, 120s≈1000万, 180s≈3200万, 240s≈1亿, 300s≈3.2亿
+    defGrowthRate = 0.20,       -- 每个周期增长20%
+    defGrowthInterval = 5,      -- 每5秒增长一次
+
+    -- 技能CD衰减: cooldown × max(cdMinMult, 1 - cdDecayRate × elapsed)
+    -- 300秒时: shackle 15→7.5s, summon 30→15s, annihilate 45→22.5s
+    cdDecayRate = 1/600,        -- 每秒衰减 1/600（300秒时衰减50%）
+    cdMinMult = 0.5,            -- CD最低降至原来的50%
+
+    -- 精英HP随时间增强: eliteHP × (1 + eliteHPGrowth × elapsed)
+    eliteHPGrowthRate = 0.01,   -- 每秒+1%，300秒时精英HP ×4
 
     -- 束缚技能
     shackleCooldown = 15,
@@ -44,16 +59,23 @@ WB.CONFIG = {
 
     -- 奖励档位 { 伤害阈值, 霜誓契约数量 }
     rewardTiers = {
-        { 5000000,      1 },  -- 500万
-        { 10000000,     1 },  -- 1000万
-        { 50000000,     1 },  -- 5000万
-        { 250000000,    1 },  -- 2.5亿
-        { 500000000,    2 },  -- 5亿
-        { 1000000000,   2 },  -- 10亿
-        { 2500000000,   2 },  -- 25亿
-        { 5000000000,   4 },  -- 50亿
-        { 10000000000,  4 },  -- 100亿
-        { 25000000000,  4 },  -- 250亿
+        { 5000000,         1 },  -- 500万
+        { 10000000,        1 },  -- 1000万
+        { 50000000,        1 },  -- 5000万
+        { 250000000,       1 },  -- 2.5亿
+        { 500000000,       2 },  -- 5亿
+        { 1000000000,      2 },  -- 10亿
+        { 2500000000,      2 },  -- 25亿
+        { 5000000000,      4 },  -- 50亿
+        { 10000000000,     4 },  -- 100亿
+        { 25000000000,     4 },  -- 250亿
+        { 50000000000,     6 },  -- 500亿
+        { 100000000000,    6 },  -- 1000亿
+        { 500000000000,    8 },  -- 5000亿
+        { 1000000000000,   8 },  -- 1万亿
+        { 5000000000000,  10 },  -- 5万亿
+        { 10000000000000, 10 },  -- 10万亿
+        { 50000000000000, 12 },  -- 50万亿
     },
 }
 
@@ -91,6 +113,35 @@ function WB.CreateWorldBossDef()
         -- BOSS 平衡规则
         passive = nil,       -- 技能由 WorldBossSkills 模块管理
     }
+end
+
+-- ============================================================================
+-- 渐进难度：动态DEF / CD衰减 / 精英增强
+-- ============================================================================
+
+--- 计算当前战斗时间对应的动态DEF
+---@param elapsed number 战斗已过秒数
+---@return number currentDEF
+function WB.GetScaledDEF(elapsed)
+    local cfg = WB.CONFIG
+    local periods = math.floor(elapsed / cfg.defGrowthInterval)
+    return math.floor(cfg.bossDEF * (1 + cfg.defGrowthRate) ^ periods)
+end
+
+--- 计算技能CD衰减倍率（越久CD越短）
+---@param elapsed number 战斗已过秒数
+---@return number cdMult  0.5 ~ 1.0
+function WB.GetCDMultiplier(elapsed)
+    local cfg = WB.CONFIG
+    return math.max(cfg.cdMinMult, 1 - cfg.cdDecayRate * elapsed)
+end
+
+--- 计算精英怪HP增强倍率
+---@param elapsed number 战斗已过秒数
+---@return number hpMult  1.0 ~ 4.0
+function WB.GetEliteHPMultiplier(elapsed)
+    local cfg = WB.CONFIG
+    return 1 + cfg.eliteHPGrowthRate * elapsed
 end
 
 -- ============================================================================
@@ -261,17 +312,20 @@ function WB.GetData()
     if HeroData.worldBossData.lastResetDate ~= today then
         HeroData.worldBossData.todayAttempts = 0
         HeroData.worldBossData.todayAdAttempts = 0
+        HeroData.worldBossData.bestDailyDamage = 0
         HeroData.worldBossData.lastResetDate = today
     end
 
     return HeroData.worldBossData
 end
 
---- 获取剩余总次数
+--- 获取剩余总次数（含神裔降临加成）
 ---@return number
 function WB.GetRemainingAttempts()
     local data = WB.GetData()
-    return math.max(0, WB.DAILY_ATTEMPTS - data.todayAttempts)
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
+    return math.max(0, WB.DAILY_ATTEMPTS + bonusAttempt - data.todayAttempts)
 end
 
 --- 获取剩余免费次数
@@ -313,21 +367,47 @@ function WB.ConsumeAttempt()
     return true
 end
 
---- 消耗广告次数
+--- 消耗广告领券次数（看完广告后调用，发一张 boss_ticket 到背包）
 ---@return boolean
-function WB.ConsumeAdAttempt()
+function WB.ConsumeAdForTicket()
     local data = WB.GetData()
-    if data.todayAttempts >= WB.DAILY_ATTEMPTS then
-        Toast.Show("今日挑战次数已达上限", { 255, 200, 80 })
-        return false
-    end
     local adUsed = data.todayAdAttempts or 0
     if adUsed >= WB.AD_EXTRA_ATTEMPTS then
-        Toast.Show("今日广告次数已达上限", { 255, 200, 80 })
+        Toast.Show("今日广告领券次数已达上限", { 255, 200, 80 })
         return false
     end
-    data.todayAttempts = data.todayAttempts + 1
     data.todayAdAttempts = adUsed + 1
+    InventoryData.Add("boss_ticket", 1)
+    Toast.Show("获得 深渊主宰挑战券 ×1", { 80, 220, 120 })
+    HeroData.Save()
+    return true
+end
+
+--- 获取背包中 Boss 挑战券数量
+---@return number
+function WB.GetTicketCount()
+    return InventoryData.GetCount("boss_ticket")
+end
+
+--- 消耗一张 Boss 挑战券进入挑战
+---@return boolean
+function WB.ConsumeTicket()
+    if InventoryData.GetCount("boss_ticket") <= 0 then
+        Toast.Show("挑战券不足", { 255, 200, 80 })
+        return false
+    end
+    local data = WB.GetData()
+    -- 扣券
+    for i, slot in ipairs(InventoryData.items) do
+        if slot.id == "boss_ticket" then
+            slot.count = slot.count - 1
+            if slot.count <= 0 then
+                table.remove(InventoryData.items, i)
+            end
+            break
+        end
+    end
+    data.todayAttempts = data.todayAttempts + 1
     data.totalAttempts = (data.totalAttempts or 0) + 1
     HeroData.Save()
     return true
@@ -367,14 +447,20 @@ function WB.ClaimReward(totalDamage)
         Currency.Add("frost_pact", frostPact)
     end
 
-    -- 上传排行榜（历史总榜 + 每日榜）
+    -- 更新当日最高伤害
+    local bestDaily = data.bestDailyDamage or 0
+    if totalDamage > bestDaily then
+        data.bestDailyDamage = totalDamage
+    end
+
+    -- 上传排行榜（历史总榜 + 每日榜，均取最高）
     local ok, LBMod = pcall(require, "Game.LeaderboardData")
     if ok then
         if LBMod.UploadWorldBoss then
             LBMod.UploadWorldBoss(data.bestDamage)
         end
-        if LBMod.UploadWorldBossDaily then
-            LBMod.UploadWorldBossDaily(totalDamage)
+        if LBMod.UploadWorldBossDaily and totalDamage > bestDaily then
+            LBMod.UploadWorldBossDaily(data.bestDailyDamage)
         end
     end
 
@@ -395,7 +481,9 @@ end
 ---@param damage number
 ---@return string
 function WB.FormatDamage(damage)
-    if damage >= 100000000 then
+    if damage >= 1000000000000 then
+        return string.format("%.1f万亿", damage / 1000000000000)
+    elseif damage >= 100000000 then
         return string.format("%.1f亿", damage / 100000000)
     elseif damage >= 10000 then
         return string.format("%.0f万", damage / 10000)

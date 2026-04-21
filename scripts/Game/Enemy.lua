@@ -8,6 +8,8 @@ local Currency = require("Game.Currency")
 local LootDrop = require("Game.LootDrop")
 local EnemyAnim = require("Game.EnemyAnim")
 local Debuff    = require("Game.Debuff")
+local DivineBlessDB = require("Game.DivineBlessData")
+local Tower     = require("Game.Tower")
 
 local Enemy = {}
 
@@ -94,10 +96,9 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
     local hp = typeDef.baseHP * hpScale
     local speed = typeDef.speed * speedScale
 
-    -- DEF 成长: baseDEF × (1 + wave × 成长率)
+    -- DEF 成长: baseDEF × hpScale × 比率（与 HP 同源缩放，破甲全程有效）
     local baseDEF = typeDef.baseDEF or 0
-    local defMult = 1.0 + (waveNum or 0) * Config.ENEMY_DEF_GROWTH_RATE
-    local totalDEF = math.floor(baseDEF * defMult)
+    local totalDEF = math.floor(baseDEF * hpScale * Config.ENEMY_DEF_HP_RATIO)
 
     local enemy = {
         id = nextEnemyId,
@@ -155,6 +156,14 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
         scorchApplied = false,    -- scorch 是否已施加（命中时触发）
         firstHitArmored = typeDef.specialPassive == "first_hit_armor",  -- 首击减伤
         poisonTrailTimer = 0,     -- poison_trail 毒径计时
+
+        -- 新词缀计时器
+        ironWallTimer = 0,        -- 铁壁：DEF 增加周期
+        ironWallStacks = 0,       -- 铁壁：已叠加次数
+        rejuvTimer = 0,           -- 回春：已损失 HP 恢复周期
+        starDrainTimer = 0,       -- 降星：降低英雄星级周期
+        annihilateTimer = 0,      -- 毁灭：销毁英雄塔周期
+        debuffTimer = 0,          -- 通用减益词缀：施加 debuff 周期
     }
 
     -- 冰盾坦克被动：出生自带护盾
@@ -429,9 +438,9 @@ function Enemy.TakeDamage(enemy, damage)
         local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
         if crystalBase > 0 then
             local crystalAmt = math.floor(crystalBase * dropScale)
-            -- 神裔降临：周末（周六/周日）冥晶加成
-            local _wd = os.date("*t").wday
-            if _wd == 1 or _wd == 7 then crystalAmt = math.floor(crystalAmt * Config.WEEKEND_CRYSTAL_MULTI) end
+            -- 神裔降临：冥晶加成（周末磐古自动 ×1.5 / 工作日选择磐古时 ×1.5）
+            local crystalMulti = DivineBlessDB.GetBuffValue("crystal_multi")
+            if crystalMulti > 1.0 then crystalAmt = math.floor(crystalAmt * crystalMulti) end
             if crystalAmt > 0 then
                 LootDrop.Spawn("nether_crystal", crystalAmt, enemy.x, enemy.y)
             end
@@ -441,6 +450,9 @@ function Enemy.TakeDamage(enemy, damage)
         local stoneBase = Config.KILL_DROP.stone[enemyTier] or 0
         if stoneBase > 0 then
             local stoneAmt = math.floor(stoneBase * dropScale)
+            -- 神裔降临：噬魂石加成
+            local stoneMulti = DivineBlessDB.GetBuffValue("stone_multi")
+            if stoneMulti > 1.0 then stoneAmt = math.floor(stoneAmt * stoneMulti) end
             if stoneAmt > 0 then
                 LootDrop.Spawn("devour_stone", stoneAmt, enemy.x, enemy.y)
             end
@@ -450,6 +462,9 @@ function Enemy.TakeDamage(enemy, damage)
         local ironBase = Config.KILL_DROP.iron[enemyTier] or 0
         if ironBase > 0 then
             local ironAmt = math.floor(ironBase * dropScale)
+            -- 神裔降临：锻魂铁加成
+            local ironMulti = DivineBlessDB.GetBuffValue("iron_multi")
+            if ironMulti > 1.0 then ironAmt = math.floor(ironAmt * ironMulti) end
             if ironAmt > 0 then
                 LootDrop.Spawn("forge_iron", ironAmt, enemy.x, enemy.y)
             end
@@ -784,13 +799,214 @@ function Enemy.Update(dt, gridOffsetX, gridOffsetY)
                 e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
             end
 
-            -- 吸血词缀
-            if e.affixIds["vampiric"] then
-                local rate = 0.03
+            -- 铁壁词缀：每隔 N 秒增加 DEF
+            if e.affixIds["iron_wall"] then
+                local interval = 6.0
+                local defPct = 0.10
                 for _, a in ipairs(e.affixes) do
-                    if a.vampRate then rate = a.vampRate end
+                    if a.ironWallInterval then interval = a.ironWallInterval end
+                    if a.ironWallDefPct then defPct = a.ironWallDefPct end
                 end
-                e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
+                e.ironWallTimer = (e.ironWallTimer or 0) + dt
+                if e.ironWallTimer >= interval then
+                    e.ironWallTimer = e.ironWallTimer - interval
+                    e.ironWallStacks = (e.ironWallStacks or 0) + 1
+                    local addDef = math.floor((e.typeDef.baseDEF or 0) * defPct)
+                    e.def = e.def + addDef
+                    AddFloatingText({
+                        text = "铁壁+" .. e.ironWallStacks,
+                        x = e.x + (math.random() - 0.5) * 10,
+                        y = e.y - (e.typeDef.size or 8) - 5,
+                        life = 0.6,
+                        color = { 160, 160, 180, 255 },
+                        fontSize = 10,
+                    })
+                end
+            end
+
+            -- 回春词缀：每隔 N 秒恢复已损失 HP 百分比
+            if e.affixIds["rejuvenate"] then
+                local interval = 5.0
+                local pct = 0.05
+                for _, a in ipairs(e.affixes) do
+                    if a.rejuvInterval then interval = a.rejuvInterval end
+                    if a.rejuvPct then pct = a.rejuvPct end
+                end
+                e.rejuvTimer = (e.rejuvTimer or 0) + dt
+                if e.rejuvTimer >= interval then
+                    e.rejuvTimer = e.rejuvTimer - interval
+                    local lost = e.maxHP - e.hp
+                    if lost > 0 then
+                        local heal = lost * pct
+                        e.hp = math.min(e.hp + heal, e.maxHP)
+                        AddFloatingText({
+                            text = "回春",
+                            x = e.x + (math.random() - 0.5) * 10,
+                            y = e.y - (e.typeDef.size or 8) - 5,
+                            life = 0.5,
+                            color = { 100, 220, 160, 255 },
+                            fontSize = 10,
+                        })
+                    end
+                end
+            end
+
+            -- 降星词缀：每隔 N 秒随机降低一个英雄塔 1 星
+            if e.affixIds["star_drain"] then
+                local interval = 12.0
+                for _, a in ipairs(e.affixes) do
+                    if a.starDrainInterval then interval = a.starDrainInterval end
+                end
+                e.starDrainTimer = (e.starDrainTimer or 0) + dt
+                if e.starDrainTimer >= interval then
+                    e.starDrainTimer = e.starDrainTimer - interval
+                    -- 找一个星级 > 1 的非 Leader 塔降星
+                    local candidates = {}
+                    for _, t in ipairs(State.towers) do
+                        if not t.isLeader and t.star > 1 then
+                            candidates[#candidates + 1] = t
+                        end
+                    end
+                    if #candidates > 0 then
+                        local target = candidates[math.random(1, #candidates)]
+                        local oldStar = target.star
+                        target.star = target.star - 1
+                        -- 重新计算塔的战斗属性
+                        Tower.RecalcStats(target)
+                        AddFloatingText({
+                            text = target.typeDef.name .. " ★-1",
+                            x = e.x, y = e.y - (e.typeDef.size or 8) - 15,
+                            life = 1.0,
+                            color = { 200, 80, 200, 255 },
+                        })
+                        print("[Affix] star_drain: " .. target.typeDef.name .. " " .. oldStar .. "★ → " .. target.star .. "★")
+                    end
+                end
+            end
+
+            -- 毁灭词缀：每隔 N 秒销毁一个随机英雄塔
+            if e.affixIds["annihilate"] then
+                local interval = 20.0
+                for _, a in ipairs(e.affixes) do
+                    if a.annihilateInterval then interval = a.annihilateInterval end
+                end
+                e.annihilateTimer = (e.annihilateTimer or 0) + dt
+                if e.annihilateTimer >= interval then
+                    e.annihilateTimer = e.annihilateTimer - interval
+                    -- 找一个非 Leader 塔销毁
+                    local candidates = {}
+                    for _, t in ipairs(State.towers) do
+                        if not t.isLeader then
+                            candidates[#candidates + 1] = t
+                        end
+                    end
+                    if #candidates > 0 then
+                        local target = candidates[math.random(1, #candidates)]
+                        local towerName = target.typeDef and target.typeDef.name or "塔"
+                        local tx, ty = Grid.CellToScreen(target.col, target.row,
+                            Enemy._gridOffsetX, Enemy._gridOffsetY)
+                        Tower.Remove(target)
+                        AddFloatingText({
+                            text = "毁灭! " .. towerName,
+                            x = tx, y = ty - 10,
+                            life = 1.2,
+                            color = { 255, 40, 40, 255 },
+                        })
+                        -- 毁灭粒子
+                        for j = 1, 10 do
+                            local angle = math.random() * math.pi * 2
+                            AddParticle({
+                                x = tx, y = ty,
+                                vx = math.cos(angle) * 50,
+                                vy = math.sin(angle) * 50,
+                                life = 0.6, maxLife = 0.8,
+                                color = { 255, 40, 40 },
+                                size = 4,
+                            })
+                        end
+                        print("[Affix] annihilate: destroyed " .. towerName)
+                    end
+                end
+            end
+
+            -- ====== 通用减益词缀（debuff category）======
+            -- 统一处理 atk_down/spd_down/crit_down/critdmg_down/pen_down/elem_down
+            do
+                -- 收集当前敌人身上所有 debuff 类词缀
+                local debuffAffixes = {}
+                for _, a in ipairs(e.affixes) do
+                    if a.category == "debuff" and a.debuffStat then
+                        debuffAffixes[#debuffAffixes + 1] = a
+                    end
+                end
+                if #debuffAffixes > 0 then
+                    -- 取最短间隔作为统一 tick（每个词缀独立判断自己的间隔也可，但这里共享 timer 简化）
+                    for _, da in ipairs(debuffAffixes) do
+                        local interval = da.debuffInterval or 10.0
+                        -- 每个 debuff 词缀用自己 id 做独立计时器
+                        local timerKey = "dbTimer_" .. da.id
+                        e[timerKey] = (e[timerKey] or 0) + dt
+                        if e[timerKey] >= interval then
+                            e[timerKey] = e[timerKey] - interval
+                            local stat = da.debuffStat
+                            local duration = da.debuffDuration or 4.0
+                            local value = da.debuffPct or da.debuffFlat or 0.1
+                            local mode = da.debuffPct and "pct" or "flat"
+                            local targeting = da.targeting or "single"
+                            local radius = da.debuffRadius or 120
+
+                            -- 根据 targeting 获取目标塔列表
+                            local targets = {}
+                            if targeting == "group" then
+                                -- 全体：所有非 Leader 塔
+                                for _, t in ipairs(State.towers) do
+                                    if not t.isLeader then targets[#targets + 1] = t end
+                                end
+                            elseif targeting == "area" then
+                                -- 范围：以敌人位置为中心，半径内的塔
+                                for _, t in ipairs(State.towers) do
+                                    if not t.isLeader then
+                                        local tx, ty = Grid.CellToScreen(t.col, t.row,
+                                            Enemy._gridOffsetX, Enemy._gridOffsetY)
+                                        local dist = math.sqrt((e.x - tx) ^ 2 + (e.y - ty) ^ 2)
+                                        if dist <= radius then
+                                            targets[#targets + 1] = t
+                                        end
+                                    end
+                                end
+                            else
+                                -- 单体：随机一个非 Leader 塔
+                                local pool = {}
+                                for _, t in ipairs(State.towers) do
+                                    if not t.isLeader then pool[#pool + 1] = t end
+                                end
+                                if #pool > 0 then
+                                    targets[#targets + 1] = pool[math.random(1, #pool)]
+                                end
+                            end
+
+                            -- 施加 debuff
+                            for _, target in ipairs(targets) do
+                                Tower.ApplyDebuff(target, da.id, stat, value, mode, duration)
+                                local tx, ty = Grid.CellToScreen(target.col, target.row,
+                                    Enemy._gridOffsetX, Enemy._gridOffsetY)
+                                AddFloatingText({
+                                    text = da.name .. (targeting == "group" and "!" or ""),
+                                    x = tx + (math.random() - 0.5) * 10,
+                                    y = ty - 15,
+                                    life = 0.8,
+                                    color = da.color and { da.color[1], da.color[2], da.color[3], 255 }
+                                        or { 255, 100, 100, 255 },
+                                    fontSize = 10,
+                                })
+                            end
+                            if #targets > 0 then
+                                print("[Affix] " .. da.id .. " (" .. targeting .. "): debuff "
+                                    .. stat .. " on " .. #targets .. " tower(s)")
+                            end
+                        end
+                    end
+                end
             end
 
             -- 狂暴词缀

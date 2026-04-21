@@ -139,7 +139,7 @@ end
 function ActivityData.Load()
     local saved = HeroData.activityData
     if saved and saved.signIn and saved.signIn.totalLogins ~= nil then
-        ActivityData.data = saved
+        ActivityData.data = { signIn = saved.signIn }
         local si = ActivityData.data.signIn
         si.totalLogins = si.totalLogins or 0
         si.claimedCount = si.claimedCount or 0
@@ -189,9 +189,12 @@ function ActivityData.Load()
     end
 end
 
---- 保存到 HeroData
+--- 保存到 HeroData（仅更新 signIn 字段，保留 inventory 等其他子字段）
 function ActivityData.Save()
-    HeroData.activityData = ActivityData.data
+    if not HeroData.activityData then
+        HeroData.activityData = {}
+    end
+    HeroData.activityData.signIn = ActivityData.data.signIn
     HeroData.Save()
 end
 
@@ -313,6 +316,13 @@ function ActivityData.ClaimAll()
         end
     end
     ActivityData.Save()
+
+    -- 开服好礼任务追踪
+    local ok, LGD = pcall(require, "Game.LaunchGiftData")
+    if ok and LGD then LGD.AddProgress("signin", 1) end
+    -- 每日任务追踪
+    local ok2, DTD = pcall(require, "Game.DailyTaskData")
+    if ok2 and DTD then DTD.AddProgress("signin", 1) end
 
     local msg = table.concat(labels, ", ")
     print("[ActivityData] ClaimAll: claimed " .. unclaimed .. " days -> " .. msg)

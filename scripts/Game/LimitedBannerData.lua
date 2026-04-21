@@ -56,6 +56,18 @@ function LBD.IsLocked(bannerCfg)
     return os.time() < DateToTime(bannerCfg.unlockDate)
 end
 
+--- 指定英雄是否关联了尚未解锁的限定池
+---@param heroId string
+---@return boolean
+function LBD.IsHeroPoolLocked(heroId)
+    for _, bc in ipairs(Config.LIMITED_BANNERS) do
+        if bc.heroId == heroId and LBD.IsLocked(bc) then
+            return true
+        end
+    end
+    return false
+end
+
 --- 距解锁还剩几天（仅锁定期有效）
 ---@param bannerCfg table
 ---@return number
@@ -162,7 +174,9 @@ end
 ---@param bannerCfg table
 ---@return boolean
 function LBD.CanClaimAdFrost(bannerCfg)
-    return LBD.IsActive(bannerCfg) and LBD.GetAdFrostRemaining(bannerCfg) > 0
+    -- 锁定期也允许领取，仅排除已过期的池子
+    if not LBD.IsLocked(bannerCfg) and LBD.GetRemainingDays(bannerCfg) <= 0 then return false end
+    return LBD.GetAdFrostRemaining(bannerCfg) > 0
 end
 
 ---@param bannerCfg table

@@ -124,7 +124,9 @@ local function EncodeChunkedGroups(slotId, groups, saveSeq)
                         print("[SlotSave]   field '" .. k .. "': " .. vt)
                     end
                 end
-                jsonStr = "{}"
+                -- 中止本次保存，保留云端旧数据，避免写入空数据导致数据丢失
+                print("[SlotSave] !! ABORTING save to protect existing cloud data")
+                return nil, nil
             else
                 if groupName == "equip" or groupName == "meta_game" then
                     print("[SlotSave] Encode OK for group " .. groupName .. " (" .. #jsonStr .. " bytes)")
@@ -412,6 +414,21 @@ local function DoSave()
     local nextSeq = (confirmedSeq[activeSlot] or 0) + 1
     local groups = SplitIntoGroups(saveData)
     local kvPairs, headData = EncodeChunkedGroups(activeSlot, groups, nextSeq)
+
+    -- 编码失败：中止云端保存，保留旧数据，等待下次重试
+    if not kvPairs then
+        print("[SlotSave] Cloud save SKIPPED due to encode failure, will retry on next dirty cycle")
+        savingInProgress = false
+        local okT, Toast = pcall(require, "Game.Toast")
+        if okT and Toast and Toast.Show then
+            Toast.Show("云端保存失败，稍后自动重试", {255, 100, 80})
+        end
+        -- 标记 dirty 以便下次自动保存周期重试
+        if dirtyTimer < 0 then
+            dirtyTimer = DIRTY_DELAY
+        end
+        return
+    end
 
     -- 4. 构建 BatchSet
     local batch = clientCloud:BatchSet()

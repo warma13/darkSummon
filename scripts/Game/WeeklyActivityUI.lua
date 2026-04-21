@@ -9,6 +9,7 @@ local RewardIconMod  = require("Game.RewardIcon")
 local Config         = require("Game.Config")
 local RewardDisplay  = require("Game.RewardDisplay")
 local RMD            = require("Game.RecruitMilestoneData")
+local DivineBlessDB  = require("Game.DivineBlessData")
 
 local WeeklyActivityUI = {}
 
@@ -232,7 +233,7 @@ local SUB_TAB_RED_DOT = {
         return WAD.HasClaimable()
     end,
     welfare       = function() return WelfareData.HasClaimable() end,
-    weekend_bonus = function() return IsWeekend() end,
+    weekend_bonus = function() return not DivineBlessDB.HasChosen() end,
 }
 
 --- 获取"chest"子标签的动态标签名
@@ -680,6 +681,7 @@ function WeeklyActivityUI._BuildRecruitBanner()
                                 onClick = function()
                                     local GameUI = require("Game.GameUI")
                                     GameUI.ShowWeeklyActivityOverlay(false)
+                                    GameUI.ShowRecruitOverlay(true)
                                 end,
                                 children = {
                                     UI.Label {
@@ -1526,169 +1528,486 @@ end
 
 
 -- ============================================================================
--- 神裔降临 内容（周六日冥晶收益加成，倍率见 Config.WEEKEND_CRYSTAL_MULTI）
+-- 神裔降临 内容（每日 3 选 1 神裔加成，周末磐古自动降临）
 -- ============================================================================
 
-function WeeklyActivityUI._RenderWeekendBonusContent()
-    local isWeekend = IsWeekend()
-    local wdayNames = { "周日","周一","周二","周三","周四","周五","周六" }
-    local todayName = wdayNames[os.date("*t").wday]
-    local multiStr  = "×" .. string.format("%.1f", Config.WEEKEND_CRYSTAL_MULTI)
+-- 确认弹窗
+local _divineConfirmOverlay = nil  ---@type any
+local _divineConfirmEntry   = nil  ---@type DivineEntry
+local _divineConfirmIndex   = nil  ---@type number
 
-    local container = UI.Panel { width = "100%", gap = 10 }
+local function HideDivineConfirm()
+    if _divineConfirmOverlay then
+        _divineConfirmOverlay:SetVisible(false)
+        -- Refresh 会 ClearChildren，overlay 会被移除；清引用以便下次重建
+        if pageRoot then pcall(function() pageRoot:RemoveChild(_divineConfirmOverlay) end) end
+        _divineConfirmOverlay = nil
+    end
+    _divineConfirmEntry = nil
+    _divineConfirmIndex = nil
+end
 
-    -- ── 状态横幅 ─────────────────────────────────────────────────
-    container:AddChild(UI.Panel {
-        width  = "100%",
-        backgroundColor = isWeekend and { 32, 12, 62, 255 } or S.bgSection,
-        borderRadius = 10,
-        borderWidth  = 1,
-        borderColor  = isWeekend and { 150, 70, 240, 180 } or S.border,
-        overflow = "hidden",
+local function DoDivineConfirm()
+    if not _divineConfirmEntry or not _divineConfirmIndex then return end
+    local entry = _divineConfirmEntry
+    local c = entry.color
+    local ok, msg = DivineBlessDB.Choose(_divineConfirmIndex)
+    if ok then
+        Toast.Show(msg, { c[1], c[2], c[3], 255 })
+        local tok, Tower = pcall(require, "Game.Tower")
+        if tok then Tower.RefreshAllStats() end
+    else
+        Toast.Show(msg, { 255, 100, 100 })
+    end
+    HideDivineConfirm()
+    WeeklyActivityUI.Refresh()
+end
+
+local function ShowDivineConfirm(entry, index)
+    _divineConfirmEntry = entry
+    _divineConfirmIndex = index
+    local c = entry.color
+    local themeColor = { c[1], c[2], c[3], 255 }
+
+    if _divineConfirmOverlay then
+        -- 更新已有弹窗内容
+        local nameEl = _divineConfirmOverlay:FindById("dcDivineName")
+        local descEl = _divineConfirmOverlay:FindById("dcDivineDesc")
+        local iconEl = _divineConfirmOverlay:FindById("dcDivineIcon")
+        if nameEl then nameEl:SetText(entry.name .. " · " .. entry.title) end
+        if descEl then descEl:SetText(entry.desc) end
+        if iconEl then iconEl:SetText(entry.domain:sub(1, 3) or "?") end
+        _divineConfirmOverlay:SetVisible(true)
+        return
+    end
+
+    _divineConfirmOverlay = UI.Panel {
+        position = "absolute",
+        left = 0, top = 0,
+        width = "100%", height = "100%",
+        zIndex = 100,
+        backgroundColor = { 0, 0, 0, 170 },
+        justifyContent = "center",
+        alignItems = "center",
+        onClick = function() HideDivineConfirm() end,
         children = {
-            -- 顶部装饰条
             UI.Panel {
-                width = "100%", height = 3,
-                backgroundColor = isWeekend and { 180, 100, 255, 255 } or { 80, 70, 110, 200 },
-            },
-            UI.Panel {
-                width = "100%",
-                paddingTop = 18, paddingBottom = 18,
-                paddingLeft = 14, paddingRight = 14,
+                width = "80%",
+                paddingTop = 22, paddingBottom = 18,
+                paddingLeft = 20, paddingRight = 20,
+                backgroundColor = { 32, 26, 50, 252 },
+                borderRadius = 14,
+                borderWidth = 1,
+                borderColor = { 90, 78, 120, 180 },
+                gap = 14,
                 alignItems = "center",
-                gap = 8,
+                onClick = function() end,  -- 阻止点击穿透
                 children = {
                     UI.Label {
-                        text = isWeekend and "神裔降临中" or "神裔尚未降临",
-                        fontSize = 20,
-                        fontColor = isWeekend and { 220, 170, 255, 255 } or S.textDim,
-                        fontWeight = "bold",
-                        textAlign = "center",
-                    },
-                    UI.Label {
-                        text = isWeekend
-                            and ("今日 " .. todayName .. " · 冥晶收益 " .. multiStr .. " 已生效")
-                            or  ("今日 " .. todayName .. " · 周六日神裔方可降临"),
-                        fontSize = 12,
-                        fontColor = isWeekend and { 140, 255, 190, 210 } or S.textDim,
-                        textAlign = "center",
-                    },
-                },
-            },
-        },
-    })
-
-    -- ── 收益加成卡片 ─────────────────────────────────────────────
-    container:AddChild(UI.Panel {
-        width = "100%",
-        backgroundColor = isWeekend and { 38, 16, 72, 240 } or S.bgCard,
-        borderRadius = 10,
-        borderWidth  = 2,
-        borderColor  = isWeekend and { 170, 90, 255, 200 } or S.border,
-        paddingTop   = 16, paddingBottom = 16,
-        paddingLeft  = 14, paddingRight  = 14,
-        flexDirection = "row",
-        alignItems    = "center",
-        gap = 14,
-        children = {
-            -- 冥晶图标圆圈
-            UI.Panel {
-                width  = 54, height = 54,
-                borderRadius = 27,
-                backgroundColor = isWeekend and { 70, 30, 130, 200 } or { 40, 35, 65, 180 },
-                borderWidth = 2,
-                borderColor = isWeekend and { 190, 120, 255, 200 } or { 80, 70, 110, 120 },
-                justifyContent = "center",
-                alignItems     = "center",
-                flexShrink = 0,
-                children = {
-                    UI.Panel {
-                        width = 36, height = 36,
-                        backgroundImage = "image/currency_nether_crystal.png",
-                        backgroundFit   = "contain",
-                    },
-                },
-            },
-            -- 文字区
-            UI.Panel {
-                flexGrow = 1, gap = 4,
-                children = {
-                    UI.Label {
-                        text = "冥晶收益加成",
-                        fontSize = 14,
-                        fontColor = S.textNormal,
+                        text = "确认选择祝福",
+                        fontSize = 16,
+                        fontColor = { 230, 225, 245, 255 },
                         fontWeight = "bold",
                     },
                     UI.Panel {
-                        flexDirection = "row",
-                        alignItems    = "center",
-                        gap = 8,
+                        width = "100%", height = 1,
+                        backgroundColor = { 80, 70, 110, 120 },
+                    },
+                    -- 神裔图标
+                    UI.Panel {
+                        width = 52, height = 52,
+                        borderRadius = 26,
+                        backgroundColor = { c[1], c[2], c[3], 35 },
+                        borderWidth = 2,
+                        borderColor = themeColor,
+                        justifyContent = "center",
+                        alignItems = "center",
                         children = {
                             UI.Label {
-                                text = multiStr,
-                                fontSize = 30,
-                                fontColor = isWeekend and { 220, 150, 255, 255 } or S.textDim,
+                                id = "dcDivineIcon",
+                                text = entry.domain:sub(1, 3) or "?",
+                                fontSize = 20,
+                                fontColor = themeColor,
                                 fontWeight = "bold",
                             },
+                        },
+                    },
+                    -- 名字
+                    UI.Label {
+                        id = "dcDivineName",
+                        text = entry.name .. " · " .. entry.title,
+                        fontSize = 18,
+                        fontColor = themeColor,
+                        fontWeight = "bold",
+                    },
+                    -- 加成描述
+                    UI.Label {
+                        id = "dcDivineDesc",
+                        text = entry.desc,
+                        fontSize = 14,
+                        fontColor = { 140, 255, 190, 230 },
+                        fontWeight = "bold",
+                    },
+                    UI.Label {
+                        text = "选择后今日不可更改",
+                        fontSize = 11,
+                        fontColor = { 255, 180, 80, 200 },
+                    },
+                    -- 按钮行
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        gap = 10,
+                        children = {
                             UI.Panel {
-                                paddingLeft = 8, paddingRight = 8,
-                                paddingTop  = 3, paddingBottom = 3,
-                                backgroundColor = isWeekend and { 80, 40, 150, 220 } or { 40, 35, 65, 150 },
+                                flexGrow = 1,
+                                paddingTop = 10, paddingBottom = 10,
+                                alignItems = "center",
+                                backgroundColor = { 45, 40, 62, 220 },
                                 borderRadius = 8,
+                                borderWidth = 1,
+                                borderColor = { 75, 68, 98, 160 },
+                                onClick = function() HideDivineConfirm() end,
                                 children = {
                                     UI.Label {
-                                        text = isWeekend and "生效中" or "未生效",
-                                        fontSize = 11,
-                                        fontColor = isWeekend and S.textGreen or S.textDim,
+                                        text = "取消",
+                                        fontSize = 13,
+                                        fontColor = { 170, 160, 190, 230 },
+                                    },
+                                },
+                            },
+                            UI.Panel {
+                                flexGrow = 1,
+                                paddingTop = 10, paddingBottom = 10,
+                                alignItems = "center",
+                                backgroundColor = { c[1], c[2], c[3], 200 },
+                                borderRadius = 8,
+                                borderWidth = 1,
+                                borderColor = { c[1], c[2], c[3], 240 },
+                                onClick = function() DoDivineConfirm() end,
+                                children = {
+                                    UI.Label {
+                                        text = "确认",
+                                        fontSize = 13,
+                                        fontColor = { 255, 255, 255, 255 },
                                         fontWeight = "bold",
                                     },
                                 },
                             },
                         },
                     },
-
                 },
             },
         },
-    })
+    }
 
-    -- ── 世界观说明 ───────────────────────────────────────────────
+    -- 挂载到 pageRoot（全屏遮罩）
+    if pageRoot then
+        pageRoot:AddChild(_divineConfirmOverlay)
+    end
+end
+
+--- 创建一张神裔卡片
+---@param entry DivineEntry
+---@param index number       1-based 选项序号
+---@param isActive boolean   当前是否为生效中的神裔
+---@param isWeekend boolean  是否周末（周末磐古自动，不可选）
+---@param hasChosen boolean  今日是否已选
+local function _CreateDivineCard(entry, index, isActive, isWeekend, hasChosen)
+    local c = entry.color
+    local themeColor = { c[1], c[2], c[3], 255 }
+    local themeBg    = { c[1], c[2], c[3], isActive and 35 or 15 }
+    local themeBorder = { c[1], c[2], c[3], isActive and 200 or 80 }
+
+    -- 按钮状态
+    local btnText, btnBg, btnColor, btnEnabled
+    if isActive then
+        btnText = "降临中"
+        btnBg = { c[1], c[2], c[3], 60 }
+        btnColor = themeColor
+        btnEnabled = false
+    elseif isWeekend then
+        btnText = "自动降临"
+        btnBg = { 60, 60, 60, 200 }
+        btnColor = S.textDim
+        btnEnabled = false
+    elseif hasChosen then
+        btnText = "今日已选"
+        btnBg = { 60, 60, 60, 200 }
+        btnColor = S.textDim
+        btnEnabled = false
+    else
+        btnText = "选择祝福"
+        btnBg = { c[1], c[2], c[3], 180 }
+        btnColor = { 255, 255, 255, 255 }
+        btnEnabled = true
+    end
+
+    return UI.Panel {
+        flexGrow = 1, flexShrink = 1, flexBasis = 0,
+        backgroundColor = themeBg,
+        borderRadius = 12,
+        borderWidth = isActive and 2 or 1,
+        borderColor = themeBorder,
+        overflow = "hidden",
+        children = {
+            -- 顶部主题色装饰条
+            UI.Panel {
+                width = "100%", height = 3,
+                backgroundColor = themeColor,
+            },
+            -- 卡片内容
+            UI.Panel {
+                width = "100%",
+                flexGrow = 1,
+                paddingTop = 14, paddingBottom = 12,
+                paddingLeft = 10, paddingRight = 10,
+                alignItems = "center",
+                gap = 8,
+                children = {
+                    -- 神格图标圆圈
+                    UI.Panel {
+                        width = 44, height = 44,
+                        borderRadius = 22,
+                        backgroundColor = { c[1], c[2], c[3], isActive and 50 or 25 },
+                        borderWidth = 2,
+                        borderColor = themeBorder,
+                        justifyContent = "center",
+                        alignItems = "center",
+                        children = {
+                            UI.Label {
+                                text = entry.domain:sub(1, 3) or "?",
+                                fontSize = 16,
+                                fontColor = themeColor,
+                                fontWeight = "bold",
+                            },
+                        },
+                    },
+                    -- 名字
+                    UI.Label {
+                        text = entry.name,
+                        fontSize = 15,
+                        fontColor = themeColor,
+                        fontWeight = "bold",
+                        textAlign = "center",
+                    },
+                    -- 称号
+                    UI.Label {
+                        text = entry.title,
+                        fontSize = 11,
+                        fontColor = { c[1], c[2], c[3], 160 },
+                        textAlign = "center",
+                    },
+                    -- 分隔线
+                    UI.Panel {
+                        width = "80%", height = 1,
+                        backgroundColor = { c[1], c[2], c[3], 40 },
+                    },
+                    -- 加成描述
+                    UI.Panel {
+                        width = "100%",
+                        paddingLeft = 4, paddingRight = 4,
+                        paddingTop = 4, paddingBottom = 4,
+                        backgroundColor = { c[1], c[2], c[3], isActive and 25 or 10 },
+                        borderRadius = 6,
+                        alignItems = "center",
+                        children = {
+                            UI.Label {
+                                text = entry.desc,
+                                fontSize = 12,
+                                fontColor = isActive and { 255, 255, 255, 255 } or S.textNormal,
+                                fontWeight = "bold",
+                                textAlign = "center",
+                            },
+                        },
+                    },
+                    -- 世界观短文
+                    UI.Label {
+                        text = entry.lore,
+                        fontSize = 10,
+                        fontColor = S.textDim,
+                        textAlign = "center",
+                        flexWrap = "wrap",
+                    },
+                    -- 选择按钮（推到底部）
+                    UI.Panel {
+                        width = "100%",
+                        marginTop = "auto",
+                        paddingTop = 6,
+                        alignItems = "center",
+                        children = {
+                            UI.Button {
+                                text = btnText,
+                                fontSize = 13,
+                                fontWeight = "bold",
+                                fontColor = btnColor,
+                                backgroundColor = btnBg,
+                                borderRadius = 8,
+                                paddingLeft = 16, paddingRight = 16,
+                                paddingTop = 6, paddingBottom = 6,
+                                disabled = not btnEnabled,
+                                onClick = btnEnabled and function()
+                                    ShowDivineConfirm(entry, index)
+                                end or nil,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+end
+
+function WeeklyActivityUI._RenderWeekendBonusContent()
+    local isWeekend = DivineBlessDB.IsWeekend()
+    local hasChosen = DivineBlessDB.HasChosen()
+    local active    = DivineBlessDB.GetActiveBlessing()
+    local options   = DivineBlessDB.GetTodayOptions()
+
+    local wdayNames = { "周日","周一","周二","周三","周四","周五","周六" }
+    local todayName = wdayNames[os.date("*t").wday]
+
+    local container = UI.Panel { width = "100%", gap = 10 }
+
+    -- ── 状态横幅 ─────────────────────────────────────────────────
+    local statusText, statusSub
+    if isWeekend then
+        statusText = "磐古降临中"
+        statusSub = "今日 " .. todayName .. " · 冥晶收益 ×1.5 自动生效"
+    elseif active then
+        statusText = active.name .. " 降临中"
+        statusSub = "今日 " .. todayName .. " · " .. active.desc .. " 已生效"
+    else
+        statusText = "今日神裔待选"
+        statusSub = "今日 " .. todayName .. " · 选择一位初裔神获得全天加成"
+    end
+
+    local hasActive = (active ~= nil)
     container:AddChild(UI.Panel {
-        width = "100%",
-        backgroundColor = S.bgSection,
+        width  = "100%",
+        backgroundColor = hasActive and { 32, 12, 62, 255 } or S.bgSection,
         borderRadius = 10,
         borderWidth  = 1,
-        borderColor  = S.border,
+        borderColor  = hasActive and { 150, 70, 240, 180 } or S.border,
         overflow = "hidden",
         children = {
             UI.Panel {
                 width = "100%", height = 3,
-                backgroundColor = { 140, 80, 220, 200 },
+                backgroundColor = hasActive
+                    and { active.color[1], active.color[2], active.color[3], 255 }
+                    or { 80, 70, 110, 200 },
             },
             UI.Panel {
                 width = "100%",
-                paddingTop = 12, paddingBottom = 12,
+                paddingTop = 16, paddingBottom = 16,
                 paddingLeft = 14, paddingRight = 14,
-                gap = 8,
+                alignItems = "center",
+                gap = 6,
                 children = {
                     UI.Label {
-                        text = "| 土嗣·磐古降临",
-                        fontSize = 15,
-                        fontColor = S.textTitle,
+                        text = statusText,
+                        fontSize = 20,
+                        fontColor = hasActive
+                            and { active.color[1], active.color[2], active.color[3], 255 }
+                            or S.textDim,
                         fontWeight = "bold",
+                        textAlign = "center",
                     },
                     UI.Label {
-                        text = "十二初裔之一，土嗣·磐古，司掌大地能量与矿脉积聚之道。"
-                            .. "每逢周末，磐古降临暗界，以山脉之力庇佑旗下召唤师，"
-                            .. "令冥晶汲取之速提升至 " .. multiStr .. "，此乃大地神裔的馈赠。",
+                        text = statusSub,
                         fontSize = 12,
-                        fontColor = S.textDim,
-                        flexWrap  = "wrap",
+                        fontColor = hasActive and { 140, 255, 190, 210 } or S.textDim,
+                        textAlign = "center",
                     },
                 },
             },
         },
     })
+
+    -- ── 神裔选择卡片（横排 3 列） ───────────────────────────────
+    local cardChildren = {}
+    for i, entry in ipairs(options) do
+        local isThisActive = (active ~= nil and active.id == entry.id)
+        cardChildren[#cardChildren + 1] = _CreateDivineCard(entry, i, isThisActive, isWeekend, hasChosen)
+    end
+
+    container:AddChild(UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        gap = 8,
+        children = cardChildren,
+    })
+
+    -- ── 当前生效加成卡片（已选时显示） ──────────────────────────
+    if active then
+        local ac = active.color
+        container:AddChild(UI.Panel {
+            width = "100%",
+            backgroundColor = { ac[1], ac[2], ac[3], 20 },
+            borderRadius = 10,
+            borderWidth  = 1,
+            borderColor  = { ac[1], ac[2], ac[3], 120 },
+            paddingTop = 12, paddingBottom = 12,
+            paddingLeft = 14, paddingRight = 14,
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 12,
+            children = {
+                -- 图标
+                UI.Panel {
+                    width = 44, height = 44,
+                    borderRadius = 22,
+                    backgroundColor = { ac[1], ac[2], ac[3], 40 },
+                    borderWidth = 2,
+                    borderColor = { ac[1], ac[2], ac[3], 160 },
+                    justifyContent = "center",
+                    alignItems = "center",
+                    flexShrink = 0,
+                    children = {
+                        UI.Label {
+                            text = active.domain:sub(1, 3) or "?",
+                            fontSize = 18,
+                            fontColor = { ac[1], ac[2], ac[3], 255 },
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+                -- 文字
+                UI.Panel {
+                    flexGrow = 1, gap = 3,
+                    children = {
+                        UI.Label {
+                            text = active.name .. " · " .. active.title,
+                            fontSize = 14,
+                            fontColor = { ac[1], ac[2], ac[3], 255 },
+                            fontWeight = "bold",
+                        },
+                        UI.Label {
+                            text = active.desc .. "（今日全天生效）",
+                            fontSize = 12,
+                            fontColor = S.textNormal,
+                        },
+                    },
+                },
+                -- 状态标记
+                UI.Panel {
+                    paddingLeft = 8, paddingRight = 8,
+                    paddingTop = 3, paddingBottom = 3,
+                    backgroundColor = { ac[1], ac[2], ac[3], 50 },
+                    borderRadius = 8,
+                    flexShrink = 0,
+                    children = {
+                        UI.Label {
+                            text = "生效中",
+                            fontSize = 11,
+                            fontColor = S.textGreen,
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        })
+    end
 
     -- ── 活动规则 ─────────────────────────────────────────────────
     container:AddChild(UI.Panel {
@@ -1707,9 +2026,10 @@ function WeeklyActivityUI._RenderWeekendBonusContent()
                 fontColor = S.textTitle,
                 fontWeight = "bold",
             },
-            UI.Label { text = "· 时间：每周六、周日全天（00:00–23:59）", fontSize = 12, fontColor = S.textDim },
-            UI.Label { text = "· 战斗和挂机冥晶收益自动 " .. multiStr .. "，无需手动领取", fontSize = 12, fontColor = S.textDim },
-            UI.Label { text = "· 加成效果与特权冥晶增益叠加计算",            fontSize = 12, fontColor = S.textDim },
+            UI.Label { text = "· 周一至周五：每日随机降临 3 位初裔神，可选择 1 位获得全天加成", fontSize = 12, fontColor = S.textDim },
+            UI.Label { text = "· 周六、周日：土嗣·磐古自动降临，冥晶收益 ×1.5", fontSize = 12, fontColor = S.textDim },
+            UI.Label { text = "· 每日 00:00 刷新，选择后当日不可更改", fontSize = 12, fontColor = S.textDim },
+            UI.Label { text = "· 加成效果与特权、装备等增益叠加计算", fontSize = 12, fontColor = S.textDim },
         },
     })
 

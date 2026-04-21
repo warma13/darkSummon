@@ -7,6 +7,7 @@ local RuneConfig = require("Game.Config_Runes")
 local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local SaveRegistry = require("Game.SaveRegistry")
+local InventoryData = require("Game.InventoryData")
 
 local RuneData = {}
 
@@ -685,6 +686,45 @@ function RuneData.UseAbyssRiftEntry(isAd)
         end
         d.abyssRift.dailyFreeUsed = d.abyssRift.dailyFreeUsed + 1
     end
+    return true
+end
+
+--- 看广告领取深渊裂隙挑战券（计入广告次数，发券到背包）
+---@return boolean
+function RuneData.ConsumeAdForTicket()
+    RuneData.ResetDailyIfNeeded()
+    local d = EnsureData()
+    if d.abyssRift.dailyAdUsed >= RuneConfig.ABYSS_RIFT.dailyAd then
+        return false
+    end
+    d.abyssRift.dailyAdUsed = d.abyssRift.dailyAdUsed + 1
+    InventoryData.Add("abyss_ticket", 1)
+    HeroData.Save()
+    return true
+end
+
+--- 获取背包中深渊裂隙挑战券数量
+---@return number
+function RuneData.GetAbyssTicketCount()
+    return InventoryData.GetCount("abyss_ticket")
+end
+
+--- 消耗一张深渊裂隙挑战券
+---@return boolean
+function RuneData.ConsumeAbyssTicket()
+    if InventoryData.GetCount("abyss_ticket") <= 0 then
+        return false
+    end
+    for i, slot in ipairs(InventoryData.items) do
+        if slot.id == "abyss_ticket" then
+            slot.count = slot.count - 1
+            if slot.count <= 0 then
+                table.remove(InventoryData.items, i)
+            end
+            break
+        end
+    end
+    HeroData.Save()
     return true
 end
 

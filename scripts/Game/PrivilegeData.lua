@@ -78,6 +78,7 @@ PrivilegeData.CARDS = {
         daily       = {
             { currency = "shadow_essence", amount = 200 },
             { currency = "devour_stone",   amount = 200 },
+            { currency = "void_pact",      amount = 3 },
         },
     },
 }

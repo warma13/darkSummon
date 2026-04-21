@@ -105,26 +105,31 @@ end
 ---@param stageNum number
 function ChestData.GrantStageDrop(stageNum)
     local drop = Config.CHEST_STAGE_DROP
+    -- 神裔降临：宝箱掉落倍率
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local chestMulti = DivineBlessDB.GetBuffValue("chest_multi")
+    local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
+
     -- 每关都给
     if drop.perStage then
         for id, count in pairs(drop.perStage) do
-            ChestData.Add(id, count)
+            ChestData.Add(id, count * mult)
         end
     end
     -- 每5关
     if drop.per5Stage and stageNum % 5 == 0 then
         for id, count in pairs(drop.per5Stage) do
-            ChestData.Add(id, count)
+            ChestData.Add(id, count * mult)
         end
     end
     -- 每10关
     if drop.per10Stage and stageNum % 10 == 0 then
         for id, count in pairs(drop.per10Stage) do
-            ChestData.Add(id, count)
+            ChestData.Add(id, count * mult)
         end
     end
     ChestData.Save()
-    print("[ChestData] Stage " .. stageNum .. " drop granted")
+    print("[ChestData] Stage " .. stageNum .. " drop granted (x" .. mult .. ")")
 end
 
 --- 执行单次掉落判定
@@ -222,15 +227,18 @@ function ChestData.Open(chestId, count)
     -- 加积分
     ChestData.score = ChestData.score + totalScore
 
+    -- 成就：累计开箱次数追踪
+    local okAch, AchData = pcall(require, "Game.AchievementData")
+    if okAch and AchData then AchData.AddChestOpened(count) end
     -- 开服好礼任务追踪
     local ok, LGD = pcall(require, "Game.LaunchGiftData")
     if ok and LGD then LGD.AddProgress("chest", count) end
     -- 每日任务追踪
     local ok2, DTD = pcall(require, "Game.DailyTaskData")
     if ok2 and DTD then DTD.AddProgress("chest", count) end
-    -- 单周活动宝箱积分追踪
+    -- 单周活动宝箱积分追踪（仅活动期间有效）
     local ok3, WAD = pcall(require, "Game.WeeklyActivityData")
-    if ok3 and WAD then WAD.AddScore(totalScore) end
+    if ok3 and WAD and WAD.IsActive() then WAD.AddScore(totalScore) end
 
     ChestData.Save()
 

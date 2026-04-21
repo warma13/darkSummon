@@ -176,12 +176,12 @@ Config.HERO_SKILLS = {
           type = "active", interval = 10, damagePct = 0.40 },
     },
     nature_elf = {
-        { id = "nature_gift",    name = "自然馈赠", desc = "每1.5秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+60%、攻速+40%，并额外获得翎嫣ATK×50%的固定攻击加成",
+        { id = "nature_gift",    name = "自然馈赠", desc = "每3秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+60%、攻速+40%，并额外获得翎嫣ATK×10%的固定攻击加成",
+          type = "passive", starScale = true },
+        { id = "verdant_ward",   name = "翠意庇护", desc = "当英雄自然之力≥20时触发翠意状态，持续5秒内免疫沉默、禁锢等负面效果，内置20秒冷却",
           type = "passive" },
-        { id = "verdant_ward",   name = "翠意庇护", desc = "当英雄自然之力≥20时触发翠意状态，持续5秒内免疫沉默、禁锢等负面效果，内置3秒冷却",
-          type = "passive" },
-        { id = "wilds_call",     name = "绿野之呼", desc = "每20秒自动为范围内所有英雄提供50点自然之力；若范围内英雄≥4则翻倍为100点",
-          type = "active", interval = 20 },
+        { id = "wilds_call",     name = "绿野之呼", desc = "每20秒自动为所有英雄提供30点自然之力，并为攻击力最高且未持有鲜花环的英雄赠送鲜花环（+40%攻击力，持续10秒，每个英雄最多1个）",
+          type = "active", interval = 20, starScale = true },
     },
 }
 
@@ -240,54 +240,24 @@ Config.SETTLE_STONE_PER_5 = 1
 -- 挂机离线收益（咸鱼之王风格）
 -- ============================================================================
 Config.IDLE_MAX_SECONDS = 4 * 3600          -- 最大累计时长: 4小时
-Config.IDLE_MIN_SECONDS = 60                -- 最小领取阈值: 1分钟
+Config.IDLE_MIN_SECONDS = 10                -- 最小领取阈值: 10秒
 Config.IDLE_STAGE_SECONDS = 600             -- 一关平均战斗时长(秒): 20波×30秒
 Config.IDLE_RATE = 0.5                      -- 挂机效率系数(50%，低于实战)
 
---- 估算指定关卡一关的战斗掉落总量
---- 基于 KILL_DROP 和 SettleRewards 的实际公式推算
+--- 估算指定关卡一关的战斗掉落总量（线性公式）
+--- 挂机1小时冥晶 = stage × 3500（每10关 +35000），挂机过关数/小时 = 3
+--- 实战 = 2× 挂机（IDLE_RATE = 0.5）
 ---@param stageNum number 关卡数
 ---@return number crystal, number stone, number iron
 function Config.EstimateStageDrop(stageNum)
     local s = math.max(1, stageNum)
-    local dropScale = 1.0 + s * Config.KILL_DROP.stageScale
-                          + s * s * (Config.KILL_DROP.stageQuadratic or 0)
-
-    -- 普通怪数量估算: 15波普通波, 每波约 (4 + 波号*0.15 + stage*0.5) 个
-    -- 平均波号 ≈ 10, 近似 normalCount ≈ 15 * (4 + 10*0.15 + s*0.5)
-    local avgNormalPerWave = math.min(4 + 10 * 0.15 + s * 0.5, Config.WAVE_MAX_COUNT or 16)
-    local normalCount = math.floor(15 * avgNormalPerWave)
-
-    -- 精英数量: 3波精英波(波5,10,15), 每波精英数 1/2/3(stage<5/5-9/10+)
-    local elitePerWave = 1
-    if s >= 10 then elitePerWave = 3
-    elseif s >= 5 then elitePerWave = 2 end
-    local eliteCount = 3 * elitePerWave
-
-    -- BOSS波: 1个BOSS + 杂兵(不计杂兵，算入普通怪)
-    local bossCount = 1
-    -- BOSS波杂兵
-    local bossMinionCount = math.min(4 + s, 10)
-    normalCount = normalCount + bossMinionCount
-
-    -- 击杀掉落
-    local crystalKill = normalCount * math.floor((Config.KILL_DROP.crystal.normal or 0) * dropScale)
-                      + eliteCount * math.floor((Config.KILL_DROP.crystal.elite or 0) * dropScale)
-                      + bossCount  * math.floor((Config.KILL_DROP.crystal.boss or 0) * dropScale)
-
-    local stoneKill  = eliteCount * math.floor((Config.KILL_DROP.stone.elite or 0) * dropScale)
-                     + bossCount  * math.floor((Config.KILL_DROP.stone.boss or 0) * dropScale)
-
-    local ironKill   = bossCount  * math.floor((Config.KILL_DROP.iron.boss or 0) * dropScale)
-
-    -- 通关结算
-    local crystalSettle = Config.SETTLE_BASE_GOLD + s * Config.SETTLE_STAGE_GOLD
-    local stoneSettle   = math.floor(s / 5) * Config.SETTLE_STONE_PER_5
-    local ironSettle    = math.floor(s / 3) * 2
-
-    return crystalKill + crystalSettle,
-           stoneKill + stoneSettle,
-           ironKill + ironSettle
+    -- 冥晶: 挂机/hr = s*3500, 每关 = s*3500/3 ≈ s*1165
+    local crystal = math.floor(s * 1165)
+    -- 噬魂石: 挂机/hr ≈ s*6
+    local stone = math.floor(s * 2)
+    -- 锻魂铁: 挂机/hr ≈ s*3
+    local iron = math.floor(s * 1)
+    return crystal, stone, iron
 end
 
 -- 挂机宝箱掉落（按时长阶梯，可叠加）
@@ -297,8 +267,14 @@ Config.IDLE_CHEST_DROPS = {
 }
 -- 挂机随机宝箱（每小时判定一次，概率掉落）
 Config.IDLE_CHEST_RANDOM = {
-    { id = "gold",     chancePerHour = 0.05 },  -- 每小时5%概率掉1个黄金
-    { id = "platinum", chancePerHour = 0.01 },  -- 每小时1%概率掉1个铂金
+    { id = "gold",     chancePerHour = 0.50 },  -- 每小时50%概率掉1个黄金
+    { id = "platinum", chancePerHour = 0.50 },  -- 每小时50%概率掉1个铂金
+}
+-- 挂机随机碎片（每小时判定一次，概率掉落）
+Config.IDLE_FRAGMENT_RANDOM = {
+    { id = "sr_shard_random_box",  chancePerHour = 0.80 },  -- 每小时80%概率掉SR随机碎片箱
+    { id = "ssr_shard_random_box", chancePerHour = 0.50 },  -- 每小时50%概率掉SSR随机碎片箱
+    { id = "random_ur_shard_box",  chancePerHour = 0.50 },  -- 每小时50%概率掉随机UR碎片箱
 }
 
 -- ============================================================================

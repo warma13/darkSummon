@@ -21,7 +21,8 @@ function AbyssRift.BuildDetailView(ctx)
     local S = ctx.GetS()
 
     local free, ad = AbyssRiftData.GetRemaining()
-    local totalRemain = free + ad
+    local ticketCount = AbyssRiftData.GetTicketCount()
+    local canEnter = free > 0 or ticketCount > 0
 
     -- 标题栏
     pageRoot:AddChild(UI.Panel {
@@ -50,11 +51,18 @@ function AbyssRift.BuildDetailView(ctx)
             UI.Panel {
                 paddingLeft = 8, paddingRight = 12,
                 paddingTop = 3, paddingBottom = 3,
+                flexDirection = "row", alignItems = "center", gap = 8,
                 children = {
                     UI.Label {
-                        text = "剩余 " .. totalRemain .. " 次",
+                        text = "免费 " .. free,
                         fontSize = 12,
-                        fontColor = totalRemain > 0 and S.green or S.red,
+                        fontColor = free > 0 and S.green or S.dim,
+                        pointerEvents = "none",
+                    },
+                    UI.Label {
+                        text = "🎫 " .. ticketCount,
+                        fontSize = 12,
+                        fontColor = ticketCount > 0 and { 200, 180, 100 } or S.dim,
                         pointerEvents = "none",
                     },
                 },
@@ -89,8 +97,10 @@ function AbyssRift.BuildDetailView(ctx)
                 flexDirection = "row", alignItems = "center", gap = 6, marginTop = 4,
                 children = {
                     UI.Label { text = "每日免费 " .. AbyssRiftData.DAILY_FREE .. " 次", fontSize = 11, fontColor = { 100, 200, 120 }, pointerEvents = "none" },
-                    UI.Label { text = " + ", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
-                    UI.Label { text = "广告 " .. AbyssRiftData.DAILY_AD .. " 次", fontSize = 11, fontColor = { 200, 180, 100 }, pointerEvents = "none" },
+                    UI.Label { text = " | ", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
+                    UI.Label { text = "🎫 挑战券 " .. ticketCount .. " 张", fontSize = 11, fontColor = { 200, 180, 100 }, pointerEvents = "none" },
+                    UI.Label { text = " | ", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
+                    UI.Label { text = "📺 领券 " .. ad .. "/" .. AbyssRiftData.DAILY_AD, fontSize = 11, fontColor = { 180, 160, 120 }, pointerEvents = "none" },
                 },
             },
         },
@@ -117,6 +127,55 @@ function AbyssRift.BuildDetailView(ctx)
             or diff.id == "hard" and { 200, 160, 60 }
             or { 220, 80, 80 }
 
+        -- 构建右侧按钮组
+        local actionButtons = {}
+
+        if free > 0 then
+            -- 有免费次数：直接挑战
+            actionButtons[#actionButtons + 1] = UI.Panel {
+                paddingLeft = 12, paddingRight = 12,
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 6,
+                backgroundColor = { diffColor[1], diffColor[2], diffColor[3], 180 },
+                onClick = function()
+                    local ok = AbyssRiftData.ConsumeEntry()
+                    if ok then
+                        AbyssRift.StartBattle(UI, S, ctx, diff.id)
+                    end
+                end,
+                children = {
+                    UI.Label { text = "挑战", fontSize = 13, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
+                },
+            }
+        elseif ticketCount > 0 then
+            -- 有券：用券挑战
+            actionButtons[#actionButtons + 1] = UI.Panel {
+                paddingLeft = 10, paddingRight = 10,
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 6,
+                backgroundColor = { diffColor[1], diffColor[2], diffColor[3], 180 },
+                onClick = function()
+                    if AbyssRiftData.ConsumeTicket() then
+                        AbyssRift.StartBattle(UI, S, ctx, diff.id)
+                    end
+                end,
+                children = {
+                    UI.Label { text = "🎫 使用挑战券", fontSize = 12, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
+                },
+            }
+        else
+            -- 无免费也无券
+            actionButtons[#actionButtons + 1] = UI.Panel {
+                paddingLeft = 12, paddingRight = 12,
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 6,
+                backgroundColor = { 60, 50, 80, 180 },
+                children = {
+                    UI.Label { text = "次数不足", fontSize = 13, fontWeight = "bold", fontColor = S.dim, pointerEvents = "none" },
+                },
+            }
+        end
+
         contentChildren[#contentChildren + 1] = UI.Panel {
             width = "100%",
             backgroundColor = S.cardBg,
@@ -128,24 +187,10 @@ function AbyssRift.BuildDetailView(ctx)
             flexDirection = "row",
             alignItems = "center",
             justifyContent = "space-between",
-            onClick = function()
-                if totalRemain <= 0 then
-                    Toast.Show("今日挑战次数已用完", { 255, 200, 80 })
-                    return
-                end
-                local ok, msg = AbyssRiftData.ConsumeEntry()
-                if ok then
-                    AbyssRift.StartBattle(UI, S, ctx, diff.id)
-                elseif msg == "ad_required" then
-                    AdHelper.ShowRewardAd(function()
-                        AbyssRiftData.ConsumeAdEntry()
-                        AbyssRift.StartBattle(UI, S, ctx, diff.id)
-                    end)
-                end
-            end,
             children = {
                 UI.Panel {
                     flexDirection = "column", gap = 3,
+                    flexShrink = 1,
                     children = {
                         UI.Panel {
                             flexDirection = "row", alignItems = "center", gap = 6,
@@ -167,32 +212,8 @@ function AbyssRift.BuildDetailView(ctx)
                     },
                 },
                 UI.Panel {
-                    paddingLeft = 12, paddingRight = 12,
-                    paddingTop = 6, paddingBottom = 6,
-                    borderRadius = 6,
-                    flexDirection = "row",
-                    alignItems = "center",
-                    gap = 4,
-                    backgroundColor = totalRemain > 0
-                        and { diffColor[1], diffColor[2], diffColor[3], 180 }
-                        or { 60, 50, 80, 180 },
-                    children = (free <= 0 and ad > 0) and {
-                        UI.Label {
-                            text = "📺", fontSize = 14,
-                            pointerEvents = "none",
-                        },
-                        UI.Label {
-                            text = "挑战", fontSize = 13, fontWeight = "bold",
-                            fontColor = S.white, pointerEvents = "none",
-                        },
-                    } or {
-                        UI.Label {
-                            text = totalRemain > 0 and "挑战" or "次数不足",
-                            fontSize = 13, fontWeight = "bold",
-                            fontColor = totalRemain > 0 and S.white or S.dim,
-                            pointerEvents = "none",
-                        },
-                    },
+                    flexDirection = "row", alignItems = "center", gap = 6,
+                    children = actionButtons,
                 },
             },
         }
@@ -243,6 +264,19 @@ function AbyssRift.BuildDetailView(ctx)
                     AbyssRift._ShowDifficultyPicker(UI, S, ctx)
                 end,
             },
+            ad > 0 and UI.Button {
+                text = "📺 领券(" .. ad .. ")",
+                fontSize = 13,
+                width = 100, height = 46,
+                borderRadius = 8,
+                variant = "outline",
+                onClick = function()
+                    AdHelper.ShowRewardAd(function()
+                        AbyssRiftData.ConsumeAdForTicket()
+                        ctx.Refresh()
+                    end)
+                end,
+            } or nil,
             UI.Button {
                 text = "🏆 排行",
                 fontSize = 13,
@@ -270,7 +304,8 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
     if not root then return end
 
     local free, ad = AbyssRiftData.GetRemaining()
-    local totalRemain = free + ad
+    local ticketCount = AbyssRiftData.GetTicketCount()
+    local canEnter = free > 0 or ticketCount > 0
 
     local overlayId = "abyssDiffPicker"
     local old = root:FindById(overlayId)
@@ -288,6 +323,54 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
             or { 220, 80, 80 }
         local est = AbyssRiftData.EstimateFullClearDrops(diff.id)
 
+        -- 构建按钮组
+        local pickerButtons = {}
+
+        if free > 0 then
+            pickerButtons[#pickerButtons + 1] = UI.Panel {
+                paddingLeft = 12, paddingRight = 12,
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 6,
+                backgroundColor = { diffColor[1], diffColor[2], diffColor[3], 180 },
+                onClick = function()
+                    closePicker()
+                    local ok = AbyssRiftData.ConsumeEntry()
+                    if ok then
+                        AbyssRift.StartBattle(UI, S, ctx, diff.id)
+                    end
+                end,
+                children = {
+                    UI.Label { text = "挑战", fontSize = 13, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
+                },
+            }
+        elseif ticketCount > 0 then
+            pickerButtons[#pickerButtons + 1] = UI.Panel {
+                paddingLeft = 10, paddingRight = 10,
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 6,
+                backgroundColor = { diffColor[1], diffColor[2], diffColor[3], 180 },
+                onClick = function()
+                    closePicker()
+                    if AbyssRiftData.ConsumeTicket() then
+                        AbyssRift.StartBattle(UI, S, ctx, diff.id)
+                    end
+                end,
+                children = {
+                    UI.Label { text = "🎫 使用挑战券", fontSize = 12, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
+                },
+            }
+        else
+            pickerButtons[#pickerButtons + 1] = UI.Panel {
+                paddingLeft = 12, paddingRight = 12,
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 6,
+                backgroundColor = { 60, 50, 80, 180 },
+                children = {
+                    UI.Label { text = "次数不足", fontSize = 13, fontWeight = "bold", fontColor = S.dim, pointerEvents = "none" },
+                },
+            }
+        end
+
         diffCards[#diffCards + 1] = UI.Panel {
             width = "100%",
             backgroundColor = S.cardBg,
@@ -299,25 +382,10 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
             flexDirection = "row",
             alignItems = "center",
             justifyContent = "space-between",
-            onClick = function()
-                closePicker()
-                if totalRemain <= 0 then
-                    Toast.Show("今日挑战次数已用完", { 255, 200, 80 })
-                    return
-                end
-                local ok, msg = AbyssRiftData.ConsumeEntry()
-                if ok then
-                    AbyssRift.StartBattle(UI, S, ctx, diff.id)
-                elseif msg == "ad_required" then
-                    AdHelper.ShowRewardAd(function()
-                        AbyssRiftData.ConsumeAdEntry()
-                        AbyssRift.StartBattle(UI, S, ctx, diff.id)
-                    end)
-                end
-            end,
             children = {
                 UI.Panel {
                     flexDirection = "column", gap = 3,
+                    flexShrink = 1,
                     children = {
                         UI.Panel {
                             flexDirection = "row", alignItems = "center", gap = 6,
@@ -339,23 +407,51 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
                     },
                 },
                 UI.Panel {
-                    paddingLeft = 12, paddingRight = 12,
-                    paddingTop = 6, paddingBottom = 6,
-                    borderRadius = 6,
-                    backgroundColor = totalRemain > 0
-                        and { diffColor[1], diffColor[2], diffColor[3], 180 }
-                        or { 60, 50, 80, 180 },
-                    flexDirection = "row", alignItems = "center", gap = 4,
-                    children = (free <= 0 and ad > 0) and {
-                        UI.Label { text = "📺", fontSize = 14, pointerEvents = "none" },
-                        UI.Label { text = "挑战", fontSize = 13, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
-                    } or {
-                        UI.Label {
-                            text = totalRemain > 0 and "挑战" or "次数不足",
-                            fontSize = 13, fontWeight = "bold",
-                            fontColor = totalRemain > 0 and S.white or S.dim,
-                            pointerEvents = "none",
-                        },
+                    flexDirection = "row", alignItems = "center", gap = 6,
+                    children = pickerButtons,
+                },
+            },
+        }
+    end
+
+    -- 构建弹窗内容
+    local pickerContent = {
+        UI.Label {
+            text = "选择难度", fontSize = 18, fontWeight = "bold",
+            fontColor = S.white, pointerEvents = "none",
+            alignSelf = "center",
+        },
+        UI.Label {
+            text = "免费 " .. free .. "  🎫 挑战券 " .. ticketCount,
+            fontSize = 12, fontColor = canEnter and S.green or S.dim,
+            pointerEvents = "none", alignSelf = "center",
+        },
+    }
+    for _, card in ipairs(diffCards) do
+        pickerContent[#pickerContent + 1] = card
+    end
+    -- 底部领券按钮
+    if ad > 0 then
+        pickerContent[#pickerContent + 1] = UI.Panel {
+            width = "100%",
+            paddingTop = 4,
+            justifyContent = "center", alignItems = "center",
+            children = {
+                UI.Panel {
+                    paddingLeft = 16, paddingRight = 16,
+                    paddingTop = 8, paddingBottom = 8,
+                    borderRadius = 8,
+                    backgroundColor = { 120, 100, 60, 200 },
+                    flexDirection = "row", alignItems = "center", gap = 6,
+                    onClick = function()
+                        closePicker()
+                        AdHelper.ShowRewardAd(function()
+                            AbyssRiftData.ConsumeAdForTicket()
+                            ctx.Refresh()
+                        end)
+                    end,
+                    children = {
+                        UI.Label { text = "📺 领券(" .. ad .. "/" .. AbyssRiftData.DAILY_AD .. ")", fontSize = 13, fontWeight = "bold", fontColor = { 255, 220, 120 }, pointerEvents = "none" },
                     },
                 },
             },
@@ -383,19 +479,7 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
                 gap = 10,
                 pointerEvents = "auto",
                 onClick = function() end,
-                children = {
-                    UI.Label {
-                        text = "选择难度", fontSize = 18, fontWeight = "bold",
-                        fontColor = S.white, pointerEvents = "none",
-                        alignSelf = "center",
-                    },
-                    UI.Label {
-                        text = "剩余 " .. totalRemain .. " 次" .. (free > 0 and ("（免费 " .. free .. "）") or ("（广告 " .. ad .. "）")),
-                        fontSize = 12, fontColor = totalRemain > 0 and S.green or S.red,
-                        pointerEvents = "none", alignSelf = "center",
-                    },
-                    table.unpack(diffCards),
-                },
+                children = pickerContent,
             },
         },
     })

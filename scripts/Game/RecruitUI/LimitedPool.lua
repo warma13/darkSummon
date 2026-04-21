@@ -238,6 +238,7 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
         backgroundFit         = "contain",
         backgroundPosition    = "center center",
         opacity = isLocked and 0.45 or 1.0,
+        pointerEvents = "none",
     } or nil
 
     -- 锁定 / 结束遮罩
@@ -282,8 +283,8 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
         }
     end
 
-    -- 左侧：看广告领专属货币（锁定时无法使用，不显示）
-    local adFrostBtn = not isLocked and UI.Panel {
+    -- 左侧：看广告领专属货币（锁定期也可使用）
+    local adFrostBtn = UI.Panel {
         position = "absolute",
         left = 10, top = "40%",
         width = 52, height = 52,
@@ -308,7 +309,7 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
                         borderRadius = 4,
                         children = {
                             UI.Label {
-                                text = "免费",
+                                text = "广告",
                                 fontSize  = 9,
                                 fontColor = canClaimFrost and { 10, 20, 30, 255 } or { 100, 120, 140, 180 },
                                 fontWeight = "bold",
@@ -325,7 +326,7 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
                 backgroundColor = { 255, 60, 60, 255 },
             } or nil,
         },
-    } or nil
+    }
 
     -- ── 组装（普通流 → 全屏立绘 → 遮罩 → 货币按钮） ────────────────────────
     -- 绝对元素按 DOM 顺序叠放，无需 zIndex，与 NormalPool 完全一致
@@ -820,7 +821,7 @@ function LimitedPool.ShowAdFrostDialog(UI, pageRoot, bannerCfg, refreshFn)
                 pointerEvents = "auto",
                 onClick = function() end,
                 children = {
-                    UI.Label { text = "免费" .. currencyName, fontSize = 18, fontColor = { 100, 210, 255, 255 }, fontWeight = "bold" },
+                    UI.Label { text = "广告" .. currencyName, fontSize = 18, fontColor = { 100, 210, 255, 255 }, fontWeight = "bold" },
                     UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 180, 240, 60 } },
                     UI.Panel {
                         width = 72, height = 72, borderRadius = 12,
@@ -849,7 +850,7 @@ function LimitedPool.ShowAdFrostDialog(UI, pageRoot, bannerCfg, refreshFn)
                                 refreshFn()
                                 local def = Config.CURRENCY[bannerCfg.currency]
                                 RewardDisplay.Show(UI, pageRoot, {
-                                    title = "免费契约",
+                                    title = "广告契约",
                                     rewards = {
                                         { icon = def and def.image or "?", name = def and def.name or currencyName, amount = gained },
                                     },
@@ -927,7 +928,7 @@ function LimitedPool.ShowAdTicketDialog(UI, pageRoot, bannerCfg, refreshFn)
                 pointerEvents = "auto",
                 onClick = function() end,
                 children = {
-                    UI.Label { text = "免费招募券", fontSize = 18, fontColor = { 200, 150, 255, 255 }, fontWeight = "bold" },
+                    UI.Label { text = "广告招募券", fontSize = 18, fontColor = { 200, 150, 255, 255 }, fontWeight = "bold" },
                     UI.Panel { width = "100%", height = 1, backgroundColor = { 180, 120, 255, 60 } },
                     UI.Panel {
                         width = 72, height = 72, borderRadius = 12,
@@ -976,7 +977,7 @@ function LimitedPool.ShowAdTicketDialog(UI, pageRoot, bannerCfg, refreshFn)
                                 refreshFn()
                                 local def = Config.CURRENCY["recruit_ticket_select_box"]
                                 RewardDisplay.Show(UI, pageRoot, {
-                                    title = "免费招募券",
+                                    title = "广告招募券",
                                     rewards = {
                                         { icon = def and def.image or "image/icon_recruit_ticket_select_box.png", name = "招募券自选包", amount = gained },
                                     },

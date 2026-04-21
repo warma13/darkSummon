@@ -308,13 +308,23 @@ function DungeonUI.BuildDungeonCard(def)
         progressText = "第" .. towerNum .. "塔 · " .. (floorInTower - 1) .. "/10"
         progressColor = S.gold
     elseif def.key == "resource" and isAvailable then
-        local minRemain = RD.DAILY_ATTEMPTS
+        local totalFree, totalTicket, totalAdRemain = 0, 0, 0
         for _, rd in ipairs(RD.DUNGEON_DEFS) do
-            local r = RD.GetRemainingAttempts(rd.key)
-            if r < minRemain then minRemain = r end
+            totalFree = totalFree + RD.GetFreeRemaining(rd.key)
+            totalTicket = totalTicket + RD.GetTotalTicketCount(rd.key)
+            totalAdRemain = totalAdRemain + RD.GetAdRemaining(rd.key)
         end
-        progressText = "今日 " .. minRemain .. "/" .. RD.DAILY_ATTEMPTS
-        progressColor = minRemain > 0 and S.green or S.red
+        local totalRemain = totalFree + totalTicket
+        if totalTicket > 0 then
+            progressText = "免费" .. totalFree .. " 券" .. totalTicket
+        elseif totalFree > 0 then
+            progressText = "免费 " .. totalFree .. "/" .. (#RD.DUNGEON_DEFS * RD.FREE_ATTEMPTS)
+        elseif totalAdRemain > 0 then
+            progressText = "可领券" .. totalAdRemain
+        else
+            progressText = "已用完"
+        end
+        progressColor = totalRemain > 0 and S.green or (totalAdRemain > 0 and S.gold or S.red)
     elseif def.key == "world_boss" and isAvailable then
         local remaining = WB.GetRemainingAttempts()
         progressText = "今日 " .. remaining .. "/" .. WB.DAILY_ATTEMPTS

@@ -313,13 +313,64 @@ InventoryData.ITEM_DEFS = {
             return table.concat(parts, "  "), rewards
         end,
     },
-    -- 资源副本门票（不可手动使用，在副本入口自动消耗）
+    -- 资源副本门票（通用，不可手动使用，在副本入口自动消耗）
     dungeon_ticket = {
         id = "dungeon_ticket",
-        name = "资源副本门票",
-        desc = "每日免费次数用完后，消耗门票可额外挑战资源副本1次（在副本入口自动消耗）",
+        name = "资源副本挑战券",
+        desc = "免费次数用完后，可在任意资源副本消耗1张额外挑战（优先级低于专属券）",
         icon = "dungeon_ticket",
         rarity = "R",
+        stackable = true,
+    },
+    -- 专属副本挑战券（4种，只能在对应副本使用，优先于通用券消耗）
+    dungeon_ticket_crystal = {
+        id = "dungeon_ticket_crystal",
+        name = "冥晶矿洞挑战券",
+        desc = "可在冥晶矿洞消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "R",
+        stackable = true,
+    },
+    dungeon_ticket_stone = {
+        id = "dungeon_ticket_stone",
+        name = "噬魂深渊挑战券",
+        desc = "可在噬魂深渊消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "R",
+        stackable = true,
+    },
+    dungeon_ticket_iron = {
+        id = "dungeon_ticket_iron",
+        name = "锻魂熔炉挑战券",
+        desc = "可在锻魂熔炉消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "R",
+        stackable = true,
+    },
+    dungeon_ticket_chest = {
+        id = "dungeon_ticket_chest",
+        name = "宝箱秘境挑战券",
+        desc = "可在宝箱秘境消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "R",
+        stackable = true,
+    },
+    -- Boss 挑战券
+    boss_ticket = {
+        id = "boss_ticket",
+        name = "深渊主宰挑战券",
+        desc = "可在深渊主宰消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "SR",
+        stackable = true,
+    },
+    -- 深渊裂隙挑战券
+    abyss_ticket = {
+        id = "abyss_ticket",
+        name = "深渊裂隙挑战券",
+        desc = "可在深渊裂隙消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "SR",
         stackable = true,
     },
     -- 货币福袋
@@ -416,22 +467,15 @@ InventoryData.ITEM_DEFS = {
 -- ============================================================================
 -- inventory = { {id="shadow_essence_bag", count=3}, ... }
 
---- 初始化/加载
+--- 初始化/加载（兼容旧调用点，实际数据由 SaveRegistry.deserialize 设置）
 function InventoryData.Load()
-    local saved = HeroData.activityData and HeroData.activityData.inventory
-    if saved then
-        InventoryData.items = saved
-    else
+    if not InventoryData.items then
         InventoryData.items = {}
     end
 end
 
---- 保存
+--- 保存（不再写入 activityData，由 SaveRegistry.serialize 独立序列化）
 function InventoryData.Save()
-    if not HeroData.activityData then
-        HeroData.activityData = {}
-    end
-    HeroData.activityData.inventory = InventoryData.items
     HeroData.Save()
 end
 
@@ -536,5 +580,46 @@ function InventoryData.IsEmpty()
     end
     return true
 end
+
+-- ============================================================================
+-- SaveRegistry 自注册（独立存储，不再寄生于 activityData）
+-- ============================================================================
+local SaveRegistry = require("Game.SaveRegistry")
+
+SaveRegistry.Register("inventoryData", {
+    group = "meta_game",
+    order = 61,   -- 紧随 ActivityData(60) 之后，确保迁移时 activityData 已反序列化
+    initDefault = function()
+        InventoryData.items = {}
+    end,
+    serialize = function()
+        -- 双写：同时回写 activityData.inventory，保证旧版本代码仍能读到数据
+        if HeroData.activityData then
+            HeroData.activityData.inventory = InventoryData.items
+        end
+        return InventoryData.items
+    end,
+    deserialize = function(saved, _saveData)
+        local legacy = HeroData.activityData and HeroData.activityData.inventory
+        if saved then
+            -- 新格式优先
+            InventoryData.items = saved
+            print("[InventoryData] Deserialized OK: " .. #saved .. " item slots")
+            -- 如果旧位置也有数据且比新格式多，说明旧代码写入了增量，合并
+            if legacy and #legacy > 0 and #legacy > #saved then
+                print("[InventoryData] Legacy has more items (" .. #legacy .. " vs " .. #saved .. "), using legacy")
+                InventoryData.items = legacy
+            end
+        elseif legacy then
+            -- 仅旧格式存在（首次迁移或旧代码回写）
+            InventoryData.items = legacy
+            print("[InventoryData] Loaded from activityData.inventory (" .. #legacy .. " item slots)")
+        else
+            InventoryData.items = {}
+            print("[InventoryData] No saved data, initialized empty")
+        end
+        -- 不清理 activityData.inventory，保持旧代码兼容
+    end,
+})
 
 return InventoryData

@@ -7,6 +7,8 @@ local State = require("Game.State")
 local Config = require("Game.Config")
 local BattleManager = require("Game.BattleManager")
 
+local AudioManager = require("Game.AudioManager")
+
 local IdleScreen = {}
 
 ---@type any
@@ -19,12 +21,26 @@ local dotTimer = 0
 local dotCount = 0
 local active = false
 
+-- 进入待机前的静音状态（用于退出时恢复）
+local prevBGMMuted = false
+local prevSFXMuted = false
+
 --- 进入待机模式
 function IdleScreen.Show()
     if active then return end
     active = true
     dotTimer = 0
     dotCount = 0
+
+    -- 临时静音（记住原始状态，退出时恢复）
+    prevBGMMuted = AudioManager.IsBGMMuted()
+    prevSFXMuted = AudioManager.IsSFXMuted()
+    if not prevBGMMuted then
+        audio:SetMasterGain("Music", 0)
+    end
+    if not prevSFXMuted then
+        audio:SetMasterGain("Effect", 0)
+    end
 
     -- 若已存在 UI 则先移除
     if idleRoot then
@@ -139,9 +155,14 @@ function IdleScreen.Hide()
         statusLabel = nil
     end
     active = false
-    -- 不调用 UnsubscribeFromEvent("Update")！
-    -- 那会移除所有 Update 处理器（包括游戏核心循环）
-    -- 改用 active 标志控制，handler 内 early-return
+
+    -- 恢复音频（仅恢复进入前未静音的通道，MasterGain 恢复为 1）
+    if not prevBGMMuted then
+        audio:SetMasterGain("Music", 1)
+    end
+    if not prevSFXMuted then
+        audio:SetMasterGain("Effect", 1)
+    end
 end
 
 --- 是否正在待机
@@ -162,11 +183,15 @@ function IdleScreen.Update(dt)
         dotLabel:SetText("战斗中" .. dots)
     end
 
-    -- 更新怪物数 + 下一波倒计时
+    -- 更新关卡/波次 + 怪物数 + 下一波倒计时
     if statusLabel then
         local count = Enemy.GetAliveCount()
         local max = (BattleManager.IsActive() and BattleManager.config.overloadLimit) or Config.MAX_ENEMIES
-        local parts = { "怪物 " .. count .. "/" .. max }
+        local parts = {
+            "第" .. State.currentStage .. "关",
+            "波次 " .. State.currentWave .. "/" .. Config.WAVES_PER_STAGE,
+            "怪物 " .. count .. "/" .. max,
+        }
 
         -- 下一波倒计时（非最后一波时显示）
         if State.phase == State.PHASE_PLAYING

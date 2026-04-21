@@ -103,11 +103,11 @@ function WorldBoss.BuildDetailView(ctx)
                                 },
                             },
                             UI.Label {
-                                text = "HP: 无限  |  DEF: " .. ctx.FormatNum(cfg.bossDEF),
+                                text = "HP: 无限  |  DEF: " .. ctx.FormatNum(cfg.bossDEF) .. "（随时间增长）",
                                 fontSize = 11, fontColor = S.dim, pointerEvents = "none",
                             },
                             UI.Label {
-                                text = cfg.totalDuration .. "秒 · 不可击杀 · 每秒掉落" .. cfg.darkSoulDrain .. "暗魂",
+                                text = cfg.totalDuration .. "秒 · 越打越难 · 每秒掉落" .. cfg.darkSoulDrain .. "暗魂",
                                 fontSize = 11, fontColor = S.dim, pointerEvents = "none",
                             },
                         },
@@ -266,6 +266,7 @@ end
 function WorldBoss._BuildChallengeButton(UI, S, ctx, remaining)
     local freeRemaining = WB.GetFreeRemaining()
     local adRemaining = WB.GetAdRemaining()
+    local ticketCount = WB.GetTicketCount()
 
     local actionChildren = {
         UI.Button {
@@ -291,15 +292,15 @@ function WorldBoss._BuildChallengeButton(UI, S, ctx, remaining)
                 WorldBoss.OnChallenge(UI, S, ctx, false)
             end,
         }
-    elseif adRemaining > 0 then
+    elseif ticketCount > 0 then
         actionChildren[#actionChildren + 1] = UI.Button {
-            text = "📺 看广告挑战 (剩" .. adRemaining .. "次)",
+            text = "使用挑战券 (剩" .. ticketCount .. "张)",
             fontSize = 14,
             flex = 1, height = 46,
             borderRadius = 8,
             variant = "primary",
             onClick = function()
-                WorldBoss.OnAdChallenge(UI, S, ctx)
+                WorldBoss.OnTicketChallenge(UI, S, ctx)
             end,
         }
     else
@@ -309,6 +310,20 @@ function WorldBoss._BuildChallengeButton(UI, S, ctx, remaining)
             flex = 1, height = 46,
             borderRadius = 8,
             variant = "outline",
+        }
+    end
+
+    -- 看广告领券
+    if adRemaining > 0 then
+        actionChildren[#actionChildren + 1] = UI.Button {
+            text = "📺 领券(" .. adRemaining .. ")",
+            fontSize = 12,
+            width = 90, height = 46,
+            borderRadius = 8,
+            variant = "outline",
+            onClick = function()
+                WorldBoss.OnAdGetTicket(UI, S, ctx)
+            end,
         }
     end
 
@@ -340,16 +355,23 @@ end
 -- 挑战逻辑
 -- ============================================================================
 
-function WorldBoss.OnAdChallenge(UI, S, ctx)
+--- 看广告领挑战券
+function WorldBoss.OnAdGetTicket(UI, S, ctx)
     if WB.GetAdRemaining() <= 0 then
-        Toast.Show("今日广告次数已达上限", { 255, 200, 80 })
+        Toast.Show("今日广告领券次数已达上限", { 255, 200, 80 })
         return
     end
 
     AdHelper.ShowRewardAd(function()
-        if not WB.ConsumeAdAttempt() then return end
-        WorldBoss.OnChallenge(UI, S, ctx, true)
+        WB.ConsumeAdForTicket()
+        ctx.Refresh()
     end)
+end
+
+--- 使用挑战券挑战
+function WorldBoss.OnTicketChallenge(UI, S, ctx)
+    if not WB.ConsumeTicket() then return end
+    WorldBoss.OnChallenge(UI, S, ctx, true)
 end
 
 ---@param skipConsume boolean

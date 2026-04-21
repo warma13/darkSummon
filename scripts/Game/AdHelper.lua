@@ -8,6 +8,31 @@ local Toast     = require("Game.Toast")
 
 local AdHelper = {}
 
+-- ============================================================================
+-- 云端广告行为上报（供管理员排行榜统计）
+-- 永久 key: ad_total（累计总观看）
+-- 每日 key: ad_start_YYYYMMDD / ad_done_YYYYMMDD / ad_cancel_YYYYMMDD
+-- ============================================================================
+
+--- 上报广告行为到云端排行榜（永久 + 每日）
+---@param action string "ad_start" | "ad_done" | "ad_cancel"
+local function _reportAdEvent(action)
+    ---@diagnostic disable-next-line: undefined-global
+    if not clientCloud then return end
+    local dailyKey = action .. "_" .. os.date("%Y%m%d")
+    clientCloud:BatchSet()
+        :Add("ad_total", 1)     -- 永久累计
+        :Add(dailyKey, 1)       -- 每日分类
+        :Save("ad_event", {
+            ok = function()
+                print("[AdHelper] Reported " .. dailyKey .. " + ad_total")
+            end,
+            error = function(code, reason)
+                print("[AdHelper] Report failed: " .. tostring(reason))
+            end,
+        })
+end
+
 --- 内部：实际播放广告的逻辑
 ---@param onSuccess fun()
 ---@param onFail? fun(reason:string)
@@ -23,12 +48,19 @@ local function _doShowAd(onSuccess, onFail)
         return
     end
 
+    -- 上报：开始播放广告
+    _reportAdEvent("ad_start")
+
     ---@diagnostic disable-next-line: undefined-global
     sdk:ShowRewardVideoAd(function(result)
         if result and result.success then
+            -- 上报：广告完成
+            _reportAdEvent("ad_done")
             AdTracker.Record()
             if onSuccess then onSuccess() end
         else
+            -- 上报：广告取消/未完成
+            _reportAdEvent("ad_cancel")
             local msg = (result and result.msg) or "广告未完成"
             if msg == "embed manual close" then
                 msg = "需完整观看广告才能获得奖励"

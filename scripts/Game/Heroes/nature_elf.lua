@@ -35,6 +35,16 @@ local function NatForceFactor(nf, halfSat)
     return nf / (nf + halfSat)
 end
 
+--- 星级技能缩放系数：0星→10%，满星→100%，线性插值
+--- @param heroId string
+--- @return number factor 0.10 ~ 1.00
+local function StarScaleFactor(heroId)
+    local h = HeroData.Get(heroId)
+    local star = (h and h.star) or 0
+    local maxStar = Config.MAX_HERO_STAR or 30
+    return 0.10 + 0.90 * math.min(star, maxStar) / maxStar
+end
+
 --- 自然光环完整帧更新（替代 UpdateNatureAura）
 --- 必须在 UpdateAuras 之后调用（叠加到已有 auraAtkBuff 上）
 ---@param towers table
@@ -56,6 +66,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         local elfY = elf._sy
         local auraRangeSq      = (td.auraRange or 120) ^ 2
         local natForceDuration = td.natForceDuration or 8.0
+        local starScale        = StarScaleFactor(td.id)
 
         -- 技能等级解锁判断
         local heroInfo  = HeroData.Get(elf.typeDef.id)
@@ -69,18 +80,6 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         elf.natPulseTimer = (elf.natPulseTimer or 0) - dt
         elf.natActiveCd   = (elf.natActiveCd   or 0) - dt
 
-        -- 统计范围内英雄数（主动翻倍判定）
-        local heroesInRange = 0
-        for ti = 1, towerCount do
-            local t = towers[ti]
-            if t ~= elf then
-                local dx, dy = t._sx - elfX, t._sy - elfY
-                if dx * dx + dy * dy <= auraRangeSq then
-                    heroesInRange = heroesInRange + 1
-                end
-            end
-        end
-
         -- 主动：绿野之呼（技能3，Lv.1500 解锁）
         local activeFired = false
         if elf.natActiveCd <= 0 then
@@ -88,49 +87,73 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                 elf.natActiveCd = td.activeCooldown or 20.0
                 activeFired = true
             else
-                -- 未解锁时仍重置计时器，防止解锁后立即爆发
                 elf.natActiveCd = td.activeCooldown or 20.0
             end
         end
 
-        -- 向范围内英雄派发自然之力
-        local pulseHit = 0   -- 记录本次脉冲命中友军数（用于视觉反馈）
+        -- 向所有英雄派发自然之力（被动脉冲范围内，主动全场）
+        local pulseHit = 0
         for ti = 1, towerCount do
             local t = towers[ti]
             if t ~= elf then
                 local dx, dy = t._sx - elfX, t._sy - elfY
-                if dx * dx + dy * dy <= auraRangeSq then
-                    -- 被动①：定时脉冲（技能1，Lv.100 解锁）
-                    if elf.natPulseTimer <= 0 and skill1On then
-                        local forceGain = td.natForcePerPulse or 3
-                        t.naturalForce      = (t.naturalForce or 0) + forceGain
-                        t.naturalForceTimer = natForceDuration
-                        pulseHit = pulseHit + 1
-                        -- 粒子爆发替代飘字
-                        SpawnNatureParticles(t, 6)
-                    end
-                    -- 主动：绿野之呼爆发
-                    if activeFired then
-                        local bonus = td.activeForce or 50
-                        if heroesInRange >= (td.activeDoubleCount or 4) then
-                            bonus = bonus * 2
-                        end
-                        t.naturalForce      = (t.naturalForce or 0) + bonus
-                        t.naturalForceTimer = natForceDuration
-                        State.AddFloatingText({
-                            text     = "+" .. bonus .. " 自然之力",
-                            x        = t._sx + (math.random() - 0.5) * 20,
-                            y        = t._sy - 22,
-                            life     = 1.2,
-                            color    = { 80, 220, 120, 255 },
-                            fontSize = 12,
-                        })
-                    end
+                local inRange = dx * dx + dy * dy <= auraRangeSq
+                -- 被动①：定时脉冲（技能1，Lv.100 解锁，范围内）
+                if inRange and elf.natPulseTimer <= 0 and skill1On then
+                    local forceGain = td.natForcePerPulse or 3
+                    t.naturalForce      = (t.naturalForce or 0) + forceGain
+                    t.naturalForceTimer = natForceDuration
+                    pulseHit = pulseHit + 1
+                    SpawnNatureParticles(t, 6)
+                end
+                -- 主动：绿野之呼（全场所有英雄+自然之力，数值随星级缩放）
+                if activeFired then
+                    local bonus = math.floor((td.activeForce or 30) * starScale)
+                    t.naturalForce      = (t.naturalForce or 0) + bonus
+                    t.naturalForceTimer = natForceDuration
+                    State.AddFloatingText({
+                        text     = "+" .. bonus .. " 自然之力",
+                        x        = t._sx + (math.random() - 0.5) * 20,
+                        y        = t._sy - 22,
+                        life     = 1.2,
+                        color    = { 80, 220, 120, 255 },
+                        fontSize = 12,
+                    })
                 end
             end
         end
 
-        -- 脉冲触发后在翎嫣自身显示"自然馈赠"提示（让玩家看到被动激活）
+        -- 主动：鲜花环——给攻击力最高且无花环的英雄赠送
+        if activeFired then
+            local HeroSkills = require("Game.HeroSkills")
+            local bestT, bestAtk = nil, -1
+            for ti = 1, towerCount do
+                local t = towers[ti]
+                if t ~= elf and not t.wreathActive then
+                    local atk = HeroSkills.GetEffectiveAttack(t)
+                    if atk > bestAtk then
+                        bestAtk = atk
+                        bestT   = t
+                    end
+                end
+            end
+            if bestT then
+                bestT.wreathActive = true
+                bestT.wreathTimer  = td.wreathDuration or 10.0
+                bestT.wreathBonus  = (td.wreathAtkBonus or 0.40) * starScale
+                State.AddFloatingText({
+                    text     = "🌸 鲜花环",
+                    x        = bestT._sx,
+                    y        = bestT._sy - 32,
+                    life     = 1.5,
+                    color    = { 255, 180, 200, 255 },
+                    fontSize = 14,
+                })
+                SpawnNatureParticles(bestT, 12)
+            end
+        end
+
+        -- 脉冲触发后在翎嫣自身显示"自然馈赠"提示
         if elf.natPulseTimer <= 0 and skill1On and pulseHit > 0 then
             State.AddFloatingText({
                 text     = "自然馈赠",
@@ -144,7 +167,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
 
         -- 重置脉冲计时器
         if elf.natPulseTimer <= 0 then
-            elf.natPulseTimer = td.baseSpeed or 1.5
+            elf.natPulseTimer = td.baseSpeed or 3.0
         end
 
         ::nextElf::
@@ -152,6 +175,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
 
     -- =========================================================
     -- 收集翎嫣参数（首个有效翎嫣为准，支持多翎嫣取最强）
+    -- 数值类参数随星级缩放：0星→10%，满星→100%
     -- =========================================================
     local halfSat       = 20
     local maxAtkPct     = 0.60
@@ -167,10 +191,11 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         local elf = towers[si]
         if elf.typeDef.special == "nature_aura" then
             local td      = elf.typeDef
+            local ss      = StarScaleFactor(td.id)
             halfSat       = td.natForceHalfSat  or 20
-            maxAtkPct     = td.natForceMaxAtkPct or 0.60
-            maxSpdPct     = td.natForceMaxSpdPct or 0.40
-            atkRatio      = td.natForceAtkRatio  or 0.50
+            maxAtkPct     = (td.natForceMaxAtkPct or 0.60) * ss
+            maxSpdPct     = (td.natForceMaxSpdPct or 0.40) * ss
+            atkRatio      = (td.natForceAtkRatio  or 0.50) * ss
             verdantThresh = td.verdantThreshold  or 20
             verdantDur    = td.verdantDuration   or 5.0
             verdantCd     = td.verdantCooldown   or 3.0
@@ -208,6 +233,24 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             t.natureFlatAtk = elfAtk * atkRatio * factor
         else
             t.natureFlatAtk = 0
+        end
+
+        -- 鲜花环计时器衰减
+        if (t.wreathTimer or 0) > 0 then
+            t.wreathTimer = t.wreathTimer - dt
+            if t.wreathTimer <= 0 then
+                t.wreathTimer  = 0
+                t.wreathActive = false
+                t.wreathBonus  = 0
+                State.AddFloatingText({
+                    text     = "鲜花环消散",
+                    x        = t._sx,
+                    y        = t._sy - 26,
+                    life     = 1.0,
+                    color    = { 180, 140, 160, 200 },
+                    fontSize = 11,
+                })
+            end
         end
 
         -- 翠意计时器衰减

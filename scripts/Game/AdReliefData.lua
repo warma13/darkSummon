@@ -12,8 +12,28 @@ local ARD = {}
 -- ============================================================================
 -- 常量
 -- ============================================================================
-local MILESTONES = { 3, 6, 9 }       -- 每3次广告解锁1张券
-local TICKET_PER_MILESTONE = 1       -- 每个里程碑给1张券
+--- 里程碑配置：threshold = 解锁次数, rewards = 奖励列表
+local MILESTONES = {
+    { threshold = 3,  rewards = { { id = "ad_ticket", amount = 1 } } },
+    { threshold = 6,  rewards = { { id = "ad_ticket", amount = 1 } } },
+    { threshold = 9,  rewards = { { id = "ad_ticket", amount = 1 } } },
+    { threshold = 12, rewards = { { id = "ad_ticket", amount = 2 } } },
+    { threshold = 15, rewards = {
+        { id = "ad_ticket", amount = 3 },
+        { id = "dungeon_ticket", amount = 2 },
+    }},
+    { threshold = 17, rewards = {
+        { id = "ad_ticket", amount = 3 },
+        { id = "recruit_ticket_select_box", amount = 10 },
+    }},
+    { threshold = 20, rewards = {
+        { id = "ad_ticket", amount = 5 },
+        { id = "recruit_ticket_select_box", amount = 5 },
+        { id = "platinum_chest", amount = 5 },
+        { id = "trial_ticket", amount = 10 },
+        { id = "dungeon_ticket", amount = 3 },
+    }},
+}
 local STREAK_THRESHOLD = 3           -- 每日看广告>=3次才计入连续天数
 local MAX_BONUS_HOURS = 3            -- 最大加速时长
 
@@ -64,18 +84,19 @@ local function DayRollover()
 
     -- 1. 未领取的里程碑自动通过邮件发放
     local MailboxData = require("Game.MailboxData")
-    for i, threshold in ipairs(MILESTONES) do
+    for i, ms in ipairs(MILESTONES) do
         -- 昨日广告数达标 但 未领取
-        if oldTodayAds >= threshold and not d.milestonesClaimed[i] then
+        if oldTodayAds >= ms.threshold and not d.milestonesClaimed[i] then
+            local mailRewards = {}
+            for _, r in ipairs(ms.rewards) do
+                mailRewards[#mailRewards + 1] = { type = "currency", id = r.id, amount = r.amount }
+            end
             MailboxData.Add({
                 title = "减负奖励补发",
-                desc = "昨日看广告达" .. threshold .. "次里程碑奖励自动发放",
-                rewards = {
-                    { type = "currency", id = "ad_ticket", amount = TICKET_PER_MILESTONE },
-                },
+                desc = "昨日看广告达" .. ms.threshold .. "次里程碑奖励自动发放",
+                rewards = mailRewards,
             })
-            -- 直接加券（邮件领取时通过 Currency.GrantReward 发放，这里不加）
-            print("[AdRelief] Auto-mail milestone " .. threshold .. " from " .. oldDate)
+            print("[AdRelief] Auto-mail milestone " .. ms.threshold .. " from " .. oldDate)
         end
     end
 
@@ -134,16 +155,17 @@ function ARD.OnAdWatched()
 end
 
 --- 获取里程碑状态列表
----@return table[] { threshold, claimed, canClaim }
+---@return table[] { threshold, rewards, claimed, canClaim }
 function ARD.GetMilestones()
     local d = GetData()
     DayRollover()
     local result = {}
-    for i, threshold in ipairs(MILESTONES) do
+    for i, ms in ipairs(MILESTONES) do
         local claimed = d.milestonesClaimed[i] == true
-        local canClaim = (not claimed) and (d.todayAds >= threshold)
+        local canClaim = (not claimed) and (d.todayAds >= ms.threshold)
         result[#result + 1] = {
-            threshold = threshold,
+            threshold = ms.threshold,
+            rewards = ms.rewards,
             claimed = claimed,
             canClaim = canClaim,
         }
@@ -152,22 +174,29 @@ function ARD.GetMilestones()
 end
 
 --- 领取里程碑奖励
----@param index number 里程碑索引（1-3）
+---@param index number 里程碑索引
 ---@return boolean success
+---@return table|nil rewards 实际发放的奖励列表
 function ARD.ClaimMilestone(index)
     local d = GetData()
     DayRollover()
-    local threshold = MILESTONES[index]
-    if not threshold then return false end
+    local ms = MILESTONES[index]
+    if not ms then return false end
 
     if d.milestonesClaimed[index] then return false end  -- 已领取
-    if d.todayAds < threshold then return false end    -- 未达标
+    if d.todayAds < ms.threshold then return false end   -- 未达标
 
     d.milestonesClaimed[index] = true
-    d.tickets = (d.tickets or 0) + TICKET_PER_MILESTONE
+
+    -- 发放所有奖励
+    local Currency = require("Game.Currency")
+    for _, r in ipairs(ms.rewards) do
+        Currency.Add(r.id, r.amount)
+    end
+
     HeroData.Save()
-    print("[AdRelief] ClaimMilestone " .. threshold .. ": tickets=" .. d.tickets)
-    return true
+    print("[AdRelief] ClaimMilestone " .. ms.threshold .. ": rewards=" .. #ms.rewards)
+    return true, ms.rewards
 end
 
 --- 获取免广告券余额
@@ -212,6 +241,13 @@ end
 function ARD.GetBonusHours()
     local d = GetData()
     DayRollover()
+    -- 与 GetStreakDays 对齐：今天看满阈值时，用含今天的连续天数计算
+    local streak = ARD.GetStreakDays()
+    if streak >= 3 then
+        return 3
+    elseif streak >= 1 then
+        return 2
+    end
     return d.bonusHours or 1
 end
 
@@ -223,11 +259,16 @@ function ARD.GetTodayAds()
     return d.todayAds or 0
 end
 
---- 获取连续天数
+--- 获取连续天数（含今天：今天看满阈值次数则 +1）
 ---@return number
 function ARD.GetStreakDays()
     local d = GetData()
-    return d.streakDays or 0
+    local base = d.streakDays or 0
+    -- 今天已看满阈值，算入连续天数（跨天时才持久化，这里仅影响显示）
+    if (d.todayAds or 0) >= STREAK_THRESHOLD then
+        return base + 1
+    end
+    return base
 end
 
 --- 是否有可领取的里程碑

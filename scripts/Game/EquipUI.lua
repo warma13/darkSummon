@@ -347,10 +347,9 @@ function EquipUI.CreateEquipCard(slotDef, info)
     local tier = info.tierDef
     local needBreak, breakInfo = EquipData.CheckBreakthrough(selectedHero, slotDef.id)
     local upgradeCost = EquipData.GetUpgradeCost(info.level)
-    local hero = HeroData.heroes[selectedHero]
-    local heroLevel = (hero and hero.level) or 1
+    local leaderLevel = HeroData.GetLeaderLevel()
     local isMaxLevel = (info.level >= Config.EQUIP_MAX_LEVEL)
-    local isAtHeroCap = (info.level >= heroLevel)
+    local isAtHeroCap = (info.level >= leaderLevel)
     local isAtTierMax = needBreak
 
     -- 套装进度
@@ -536,7 +535,7 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         btnVariant = "ghost"
         btnClick = function(self)
             local Toast = require("Game.Toast")
-            Toast.Show("装备等级不能超过英雄等级", { 255, 200, 80 })
+            Toast.Show("装备等级不能超过暗影君主等级", { 255, 200, 80 })
         end
         costWidget = UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 2,

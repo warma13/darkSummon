@@ -3,6 +3,7 @@
 
 local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
+local LBD = require("Game.LimitedBannerData")
 
 local HeroCard = {}
 
@@ -17,9 +18,9 @@ function HeroCard.GetSortedHeroes(ctx)
         heroes[#heroes + 1] = td
     end
     table.sort(heroes, function(a, b)
-        -- 即将推出排最末
-        local aCs = a.comingSoon and 1 or 0
-        local bCs = b.comingSoon and 1 or 0
+        -- 即将推出 / 限定池未解锁排最末
+        local aCs = (a.comingSoon or LBD.IsHeroPoolLocked(a.id)) and 1 or 0
+        local bCs = (b.comingSoon or LBD.IsHeroPoolLocked(b.id)) and 1 or 0
         if aCs ~= bCs then return aCs < bCs end
 
         local aDeployed = HeroData.IsDeployed(a.id) and 1 or 0
@@ -48,7 +49,7 @@ function HeroCard.CreateHeroCard(ctx, heroDef, mode)
     local S = ctx.GetS()
 
     local heroId = heroDef.id
-    local isComingSoon = heroDef.comingSoon == true
+    local isComingSoon = heroDef.comingSoon == true or LBD.IsHeroPoolLocked(heroId)
     local h = HeroData.Get(heroId)
     local isUnlocked = (not isComingSoon) and (h and h.unlocked or false)
     local isDeployed = (not isComingSoon) and HeroData.IsDeployed(heroId)

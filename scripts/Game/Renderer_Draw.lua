@@ -262,6 +262,28 @@ function Renderer.DrawEnemies(vg)
                 nvgText(vg, drawX, barY - 2, e.typeDef.name, nil)
             end
 
+            -- 词缀名称标签（血条上方，拼接显示）
+            if e.affixes and #e.affixes > 0 and Renderer.fontId >= 0 then
+                local parts = {}
+                for _, a in ipairs(e.affixes) do
+                    parts[#parts + 1] = a.name or a.id
+                end
+                local affixStr = table.concat(parts, "·")
+                local affixY = barY - (e.isBoss and 14 or 2)
+                nvgFontFaceId(vg, Renderer.fontId)
+                nvgFontSize(vg, 8)
+                nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
+                -- 半透明黑底增加可读性
+                local tw = nvgTextBounds(vg, 0, 0, affixStr, nil, nil)
+                nvgBeginPath(vg)
+                nvgRoundedRect(vg, drawX - tw * 0.5 - 2, affixY - 9, tw + 4, 10, 2)
+                nvgFillColor(vg, nvgRGBA(0, 0, 0, 120))
+                nvgFill(vg)
+                -- 词缀文字（橙黄色，精英感）
+                nvgFillColor(vg, nvgRGBA(255, 200, 100, 220))
+                nvgText(vg, drawX, affixY, affixStr, nil)
+            end
+
             end  -- if not isDying
 
         end
@@ -526,7 +548,13 @@ function Renderer.DrawBossBar(vg, w)
         end
     end
 
-    local barY = 54          -- HUD(top8+h40) 下方留 6px
+    -- 安全区偏移（与顶部 HUD 保持一致）
+    local safeTop = 0
+    if GetSafeAreaInsets then
+        local rect = GetSafeAreaInsets(false)
+        safeTop = rect.min.y / graphics:GetDPR()
+    end
+    local barY = safeTop + 54  -- HUD(safeTop+8+h40) 下方留 6px
     local barH = 22
     local marginX = 12
     local barX = marginX

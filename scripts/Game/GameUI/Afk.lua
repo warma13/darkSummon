@@ -82,9 +82,10 @@ end
 ---@param seconds number 挂机秒数
 ---@return table rewards { seconds, nether_crystal, devour_stone, forge_iron, chestDrops }
 local function CalcAfkRewardsByTime(seconds)
-    -- 特权增益：挂机时长上限
+    -- 特权增益 + 神裔降临：挂机时长上限
     local PrivilegeData = require("Game.PrivilegeData")
-    local maxSeconds = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds()
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local maxSeconds = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds() + DivineBlessDB.GetBuffValue("idle_extra")
     local capped = math.min(seconds, maxSeconds)
     local hours = capped / 3600
 
@@ -126,14 +127,26 @@ local function CalcAfkRewardsByTime(seconds)
     -- 特权增益：冥晶+10%
     crystal = math.floor(crystal * PrivilegeData.GetCrystalBonusRate())
 
-    -- 神裔降临：周末（周六/周日）冥晶加成
-    -- os.date("*t").wday: 1=周日, 7=周六
-    local wday = os.date("*t").wday
-    if wday == 1 or wday == 7 then
-        crystal = math.floor(crystal * Config.WEEKEND_CRYSTAL_MULTI)
+    -- 神裔降临：冥晶加成（周末磐古自动 / 工作日可选）
+    local crystalMulti = DivineBlessDB.GetBuffValue("crystal_multi")
+    if crystalMulti > 1.0 then
+        crystal = math.floor(crystal * crystalMulti)
     end
 
     -- 特权增益：10%概率翻倍（预览不触发，仅实际领取时触发）
+
+    -- 随机碎片箱掉落（每小时判定一次，掉落碎片箱道具）
+    local fragmentBoxDrops = {}  -- { [itemId] = count }
+    if Config.IDLE_FRAGMENT_RANDOM then
+        local fullHours = math.floor(hours)
+        for _, rule in ipairs(Config.IDLE_FRAGMENT_RANDOM) do
+            for _ = 1, fullHours do
+                if math.random() < rule.chancePerHour then
+                    fragmentBoxDrops[rule.id] = (fragmentBoxDrops[rule.id] or 0) + 1
+                end
+            end
+        end
+    end
 
     return {
         seconds = capped,
@@ -141,6 +154,7 @@ local function CalcAfkRewardsByTime(seconds)
         devour_stone = stone,
         forge_iron = iron,
         chestDrops = chestDrops,
+        fragmentBoxDrops = fragmentBoxDrops,
     }
 end
 
@@ -539,7 +553,10 @@ end
 function GameUI.UpdateAfkTimer()
     if not ctx.uiRoot then return end
     local elapsed = time.elapsedTime - GameUI._afkStartTime
-    local capped = math.floor(math.min(elapsed, Config.IDLE_MAX_SECONDS))
+    local PrivilegeData = require("Game.PrivilegeData")
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local maxSecs = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds() + DivineBlessDB.GetBuffValue("idle_extra")
+    local capped = math.floor(math.min(elapsed, maxSecs))
     -- 仅秒数变化时才更新
     if capped == GameUI._afkLastDisplaySec then return end
     GameUI._afkLastDisplaySec = capped
@@ -557,6 +574,37 @@ function GameUI.UpdateAfkTimer()
                 kids[#kids]:SetFontColor({ 255, 220, 80, 255 })
             end
         end
+    end
+
+    -- 弹窗打开时实时刷新时间和奖励数值
+    local idlePanel = ctx.uiRoot:FindById("idleRewardPanel")
+    if idlePanel and idlePanel:IsVisible() and GameUI._pendingIdleRewards and not GameUI._pendingIdleRewards.isOffline then
+        -- 重新计算当前挂机收益
+        local rewards = CalcAfkRewardsNow()
+        GameUI._pendingIdleRewards = rewards
+
+        -- 刷新时间显示
+        local secs = rewards.seconds
+        local function fmtHMS(s)
+            s = math.floor(s)
+            local h = math.floor(s / 3600)
+            local m = math.floor((s % 3600) / 60)
+            local sec = s % 60
+            return string.format("%02d:%02d:%02d", h, m, sec)
+        end
+        local remainSecs = math.max(0, maxSecs - secs)
+        local timeStr = "挂机 " .. fmtHMS(secs) .. "  剩余 " .. fmtHMS(remainSecs)
+
+        local timeLabel = ctx.uiRoot:FindById("idleTimeLabel")
+        if timeLabel then timeLabel:SetText(timeStr) end
+
+        -- 刷新奖励数值
+        local crystalLabel = ctx.uiRoot:FindById("idleCrystalLabel")
+        if crystalLabel then crystalLabel:SetText("冥晶: +" .. rewards.nether_crystal) end
+        local stoneLabel = ctx.uiRoot:FindById("idleStoneLabel")
+        if stoneLabel then stoneLabel:SetText("噬魂石: +" .. rewards.devour_stone) end
+        local ironLabel = ctx.uiRoot:FindById("idleIronLabel")
+        if ironLabel then ironLabel:SetText("锻魂铁: +" .. rewards.forge_iron) end
     end
 end
 
@@ -600,6 +648,22 @@ local function BuildRewardItems(rewards)
             end
         end
     end
+    -- 碎片箱道具
+    if rewards.fragmentBoxDrops then
+        for itemId, count in pairs(rewards.fragmentBoxDrops) do
+            if count > 0 then
+                -- 从 Config.CURRENCY（包含道具定义）获取信息
+                local itemDef = Config.CURRENCY and Config.CURRENCY[itemId]
+                local itemName = (itemDef and itemDef.name) or itemId
+                local itemImage = itemDef and itemDef.image
+                items[#items + 1] = {
+                    icon = itemImage or "📦",
+                    name = itemName,
+                    amount = count,
+                }
+            end
+        end
+    end
     return items
 end
 
@@ -611,20 +675,36 @@ local function GrantAfkRewards(rewards)
     Currency.Add("forge_iron", rewards.forge_iron)
 
     if rewards.chestDrops then
+        local DivineBlessDB = require("Game.DivineBlessData")
+        local chestMulti = DivineBlessDB.GetBuffValue("chest_multi")
+        local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
         for id, count in pairs(rewards.chestDrops) do
             if count > 0 then
-                ChestData.Add(id, count)
+                ChestData.Add(id, count * mult)
             end
         end
         ChestData.Save()
     end
 
+    -- 发放碎片箱道具到背包
+    if rewards.fragmentBoxDrops then
+        local InventoryData = require("Game.InventoryData")
+        for itemId, count in pairs(rewards.fragmentBoxDrops) do
+            if count > 0 then
+                InventoryData.Add(itemId, count)
+            end
+        end
+    end
+
+    -- 记录领取时间（持久化，登录时用于恢复离线挂机时长）
+    HeroData.stats.afkLastClaimTime = os.time()
     HeroData.lastSaveTime = os.time()
     HeroData.Save()
 
     print("[GameUI] AFK rewards granted: crystal+" .. rewards.nether_crystal
         .. " stone+" .. rewards.devour_stone
         .. " iron+" .. rewards.forge_iron
+        .. " fragBoxes+" .. (rewards.fragmentBoxDrops and next(rewards.fragmentBoxDrops) and "yes" or "0")
         .. " (" .. math.floor(rewards.seconds / 60) .. " min)")
 
     -- 每日任务：领取挂机收益
@@ -658,7 +738,7 @@ end
 --- 点击挂机按钮：打开预览弹窗（不自动发放）
 function GameUI.ClaimAfkReward()
     local rewards = CalcAfkRewardsNow()
-    -- 显示预览弹窗（不发放奖励）
+    -- 显示预览弹窗（不发放奖励，领取时再判断最低时长）
     GameUI.ShowIdleRewards(rewards)
 end
 
@@ -829,6 +909,12 @@ function GameUI.CreateIdleRewardPanel()
                                                 })
                                             end
                                         else
+                                            -- 挂机领取：检查最低时长
+                                            local elapsed = time.elapsedTime - GameUI._afkStartTime
+                                            if elapsed < Config.IDLE_MIN_SECONDS then
+                                                Toast.Show("挂机不足" .. Config.IDLE_MIN_SECONDS .. "秒，无法领取")
+                                                return
+                                            end
                                             GrantAndShowRewards(pendingRewards, "挂机收益")
                                         end
                                     end
@@ -864,7 +950,17 @@ function GameUI.CreateIdleRewardPanel()
                                     AdHelper.ShowRewardAd(function()
                                         RecordAfkAdClaim()
                                         local maxRewards = CalcAfkRewardsMax()
-                                        GrantAndShowRewards(maxRewards, "满时长挂机收益")
+                                        -- 广告领取：只发放奖励，不重置挂机计时
+                                        GrantAfkRewards(maxRewards)
+                                        GameUI._pendingIdleRewards = nil
+                                        GameUI.ShowPanel("idleRewardPanel", false)
+                                        local rewardItems = BuildRewardItems(maxRewards)
+                                        if #rewardItems > 0 and ctx.uiRoot then
+                                            RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
+                                                title = "满时长挂机收益",
+                                                rewards = rewardItems,
+                                            })
+                                        end
                                     end)
                                 end,
                                 children = {
@@ -911,17 +1007,22 @@ function GameUI.ShowIdleRewards(rewards)
     -- 暂存待领取奖励
     GameUI._pendingIdleRewards = rewards
 
-    -- 格式化时长
+    -- 格式化时长（HH:MM:SS 格式）
     local secs = rewards.seconds
-    local prefix = rewards.isOffline and "离线" or "挂机"
-    local timeStr
-    if secs >= 3600 then
-        local h = math.floor(secs / 3600)
-        local m = math.floor((secs % 3600) / 60)
-        timeStr = string.format("%s %d小时%d分钟", prefix, h, m)
-    else
-        timeStr = string.format("%s %d分钟", prefix, math.floor(secs / 60))
+    local function fmtHMS(s)
+        s = math.floor(s)
+        local h = math.floor(s / 3600)
+        local m = math.floor((s % 3600) / 60)
+        local sec = s % 60
+        return string.format("%02d:%02d:%02d", h, m, sec)
     end
+
+    local PrivilegeData = require("Game.PrivilegeData")
+    local maxSecs = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds()
+    local remainSecs = math.max(0, maxSecs - secs)
+
+    local prefix = rewards.isOffline and "离线" or "挂机"
+    local timeStr = prefix .. " " .. fmtHMS(secs) .. "  剩余 " .. fmtHMS(remainSecs)
 
     -- 更新文本
     local titleLabel = ctx.uiRoot:FindById("idleTitleLabel")

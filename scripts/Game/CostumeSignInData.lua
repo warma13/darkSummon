@@ -179,6 +179,14 @@ function M.SignInToday()
     end
 
     M.Save()
+
+    -- 开服好礼任务追踪
+    local okL, LGD = pcall(require, "Game.LaunchGiftData")
+    if okL and LGD then LGD.AddProgress("signin", 1) end
+    -- 每日任务追踪
+    local okD, DTD = pcall(require, "Game.DailyTaskData")
+    if okD and DTD then DTD.AddProgress("signin", 1) end
+
     return true, "签到成功", reward
 end
 

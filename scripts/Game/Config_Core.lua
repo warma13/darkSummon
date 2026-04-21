@@ -7,7 +7,7 @@ local function apply(Config)
 -- 游戏基础设置
 -- ============================================================================
 Config.SERVER_START_DATE        = "2026-04-12"  -- 开服日期（YYYY-MM-DD）
-Config.WEEKLY_ACTIVITY_START    = "2026-04-06"  -- 宝箱周活动起始日期（测试用，正式改回 2026-04-13）
+Config.WEEKLY_ACTIVITY_START    = "2026-04-13"  -- 宝箱周活动起始日期
 Config.LIMITED_BANNER_START     = "2026-04-14"  -- 限定池起始日期
 Config.COSTUME_SIGN_IN_START    = "2026-04-18"  -- 暗影之翼时装签到活动起始日期（YYYY-MM-DD）
 Config.TITLE = "Dark Merge TD"
@@ -306,7 +306,7 @@ Config.TOWER_TYPES = {
         glowColor = { 0.31, 0.78, 0.47 },
         attackType = "support",          -- 不主动攻击
         baseRange  = 140,
-        baseSpeed  = 1.5,                -- 每1.5秒触发一次被动脉冲
+        baseSpeed  = 3.0,                -- 每3秒触发一次被动脉冲
         special    = "nature_aura",
         -- 被动①：自然馈赠 —— 渐近线公式
         -- factor = natForce / (natForce + natForceHalfSat)
@@ -317,20 +317,22 @@ Config.TOWER_TYPES = {
         natForceHalfSat   = 20,          -- 半饱和系数（20点时达50%上限效果）
         natForceMaxAtkPct = 0.60,        -- 攻击百分比加成渐近上限
         natForceMaxSpdPct = 0.40,        -- 攻速百分比加成渐近上限
-        natForceAtkRatio  = 0.50,        -- 固定攻击加成 = 翎嫣ATK × 此比例 × factor
+        natForceAtkRatio  = 0.10,        -- 固定攻击加成 = 翎嫣ATK × 此比例 × factor
         natForceDuration  = 8.0,         -- 自然之力持续时间（秒），不再获得则归零
         -- 被动②：翠意庇护
         verdantThreshold  = 20,          -- 触发翠意所需自然之力（≥20点）
         verdantDuration   = 5.0,         -- 翠意持续时间（秒），期间免疫所有负面效果
-        verdantCooldown   = 3.0,         -- 翠意内置冷却（秒）
+        verdantCooldown   = 20.0,        -- 翠意内置冷却（秒）
         -- 主动：绿野之呼
-        activeForce       = 50,          -- 主动给予自然之力基础值
-        activeDoubleCount = 4,           -- 范围内英雄≥此数时翻倍（50→100）
+        activeForce       = 30,          -- 主动给予自然之力基础值
         activeCooldown    = 20.0,        -- 主动冷却时间（秒）
+        -- 鲜花环
+        wreathAtkBonus    = 0.40,        -- 鲜花环攻击力加成比例
+        wreathDuration    = 10.0,        -- 鲜花环持续时间（秒）
         auraRange  = 120,
         faction    = "elemental",
         icon       = "nature_elf",
-        comingSoon = true,               -- 尚未开放，显示"即将推出"
+        -- comingSoon 已移除，跟随限定池 unlockDate 统一控制
     },
     -- 限定 UR: 凛冬君王（限定池专属，不进常驻池）
     {

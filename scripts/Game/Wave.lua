@@ -70,26 +70,11 @@ local function PickRandom(list, n)
     return result
 end
 
---- 根据全局波次获取可用词缀池
-local function GetAffixPool(globalWave)
-    local pool = {}
-    for _, affix in ipairs(Config.AFFIXES) do
-        if affix.tier == 1 and globalWave >= Config.AFFIX_WAVE_T1 then
-            pool[#pool + 1] = affix
-        elseif affix.tier == 2 and globalWave >= Config.AFFIX_WAVE_T2 then
-            pool[#pool + 1] = affix
-        elseif affix.tier == 3 and globalWave >= Config.AFFIX_WAVE_T3 then
-            pool[#pool + 1] = affix
-        end
-    end
-    return pool
-end
-
---- 随机选取词缀
-local function PickAffixes(globalWave)
-    local pool = GetAffixPool(globalWave)
-    if #pool == 0 then return {} end
-
+--- 随机选取并缩放词缀（使用新统一系统）
+---@param globalWave number 等效全局波次（用于解锁判定）
+---@param stageNum number 当前关卡号（用于缩放等级计算）
+---@return table[] 缩放后的词缀实例列表
+local function PickAffixes(globalWave, stageNum)
     local count = 1
     if globalWave >= 100 then
         count = 3
@@ -97,7 +82,8 @@ local function PickAffixes(globalWave)
         count = 2
     end
 
-    return PickRandom(pool, math.min(count, #pool))
+    local level = math.max(1, math.floor(stageNum / 10))
+    return Config.PickAffixes(globalWave, count, level)
 end
 
 -- ============================================================================
@@ -171,7 +157,7 @@ local function GenerateEliteWave(stageNum, waveInStage)
     local roleIds, roleDefs = GetUnlockedRoles(stageNum)
     local eliteRoleId = roleIds[math.random(1, #roleIds)]
     local eliteDef = roleDefs[eliteRoleId]
-    local affixes = PickAffixes(globalWave)
+    local affixes = PickAffixes(globalWave, stageNum)
 
     -- 精英数量随关卡增加
     local eliteCount = 1
@@ -222,13 +208,11 @@ local function GenerateBossWave(stageNum)
     local bossDef = Config.BuildBossDef(stageNum)
     local bossTier = GetBossTier(stageNum)
 
-    -- BOSS 词缀：阶数-1 个
+    -- BOSS 词缀：阶数-1 个（缩放）
     local bossAffixes = {}
     if bossTier > 1 then
-        bossAffixes = PickAffixes(globalWave)
-        while #bossAffixes > bossTier - 1 do
-            table.remove(bossAffixes)
-        end
+        local level = math.max(1, math.floor(stageNum / 10))
+        bossAffixes = Config.PickAffixes(globalWave, bossTier - 1, level)
     end
 
     queue[#queue + 1] = {
@@ -286,10 +270,10 @@ function Wave.BuildStageWaves(stageNum)
         local hpScale    = GetHPScale(stageNum, waveInStage)
         local speedScale = GetSpeedScale(stageNum)
         -- 将缩放系数嵌入 entry，供 BattleManager.SpawnEntry 使用
-        -- Boss entry 需额外乘 tierMult（3^(tier-1)），与 SpawnFromEntry 逻辑保持一致
+        -- Boss entry 需额外乘 tierMult（tier^2.25 幂函数曲线），与 SpawnFromEntry 逻辑保持一致
         for _, entry in ipairs(queue) do
             if entry.type == "__boss" then
-                local tierMult = 3.0 ^ ((entry.bossTier or 1) - 1)
+                local tierMult = (entry.bossTier or 1) ^ 2.25
                 entry.hpScale = hpScale * tierMult
             else
                 entry.hpScale = hpScale
@@ -365,7 +349,7 @@ local function SpawnFromEntry(entry, stageNum, waveInStage)
     if entry.type == "__boss" then
         local bossDef = entry.bossDef
         local tier = entry.bossTier
-        local tierMult = 3.0 ^ (tier - 1)
+        local tierMult = tier ^ 2.25
         Enemy.CreateBoss(bossDef, globalWave, hpScale * tierMult, speedScale, entry.affixes, tier)
     elseif entry.typeDef then
         -- 新系统：直接使用携带的完整定义

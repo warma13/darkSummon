@@ -257,28 +257,41 @@ end
 --- 奖励预览
 function TrialTower._BuildRewardPreview(UI, S, ctx, towerNum)
     local stones, gold = TrialTowerData.GetFloorReward(towerNum)
+    local floorPact = TrialTowerData.GetFloorVoidPact(towerNum)
+    local clearPact = TrialTowerData.GetTowerClearVoidPact(towerNum)
+    local ticketReward = TrialTowerData.GetTowerTicketReward()
+
+    -- 每层奖励行
+    local perFloorChildren = {
+        UI.Label { text = "每层:", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
+        Currency.IconWidget(UI, "devour_stone", 14),
+        UI.Label { text = ctx.FormatNum(stones), fontSize = 12, fontColor = { 60, 160, 80 }, pointerEvents = "none" },
+        UI.Label { text = "+", fontSize = 10, fontColor = S.dim, pointerEvents = "none" },
+        Currency.IconWidget(UI, "nether_crystal", 14),
+        UI.Label { text = ctx.FormatNum(gold), fontSize = 12, fontColor = { 140, 80, 200 }, pointerEvents = "none" },
+    }
+    -- 每层虚空契约（大于 0 时显示）
+    if floorPact > 0 then
+        perFloorChildren[#perFloorChildren + 1] = UI.Label { text = "+", fontSize = 10, fontColor = S.dim, pointerEvents = "none" }
+        perFloorChildren[#perFloorChildren + 1] = Currency.IconWidget(UI, "void_pact", 14)
+        perFloorChildren[#perFloorChildren + 1] = UI.Label { text = ctx.FormatNum(floorPact), fontSize = 12, fontColor = { 200, 40, 40 }, pointerEvents = "none" }
+    end
 
     local rewardItems = {
         UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 4,
-            children = {
-                UI.Label { text = "每层:", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
-                Currency.IconWidget(UI, "devour_stone", 14),
-                UI.Label { text = ctx.FormatNum(stones), fontSize = 12, fontColor = { 60, 160, 80 }, pointerEvents = "none" },
-                UI.Label { text = "+", fontSize = 10, fontColor = S.dim, pointerEvents = "none" },
-                Currency.IconWidget(UI, "nether_crystal", 14),
-                UI.Label { text = ctx.FormatNum(gold), fontSize = 12, fontColor = { 140, 80, 200 }, pointerEvents = "none" },
-            },
+            flexWrap = "wrap",
+            children = perFloorChildren,
         },
         UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 4,
             children = {
                 UI.Label { text = "通塔:", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
                 Currency.IconWidget(UI, "void_pact", 14),
-                UI.Label { text = "×10", fontSize = 12, fontColor = { 200, 40, 40 }, pointerEvents = "none" },
+                UI.Label { text = "×" .. ctx.FormatNum(clearPact), fontSize = 12, fontColor = { 200, 40, 40 }, pointerEvents = "none" },
                 UI.Label { text = "+", fontSize = 10, fontColor = S.dim, pointerEvents = "none" },
                 Currency.IconWidget(UI, "trial_ticket", 14),
-                UI.Label { text = "×10", fontSize = 12, fontColor = { 80, 200, 220 }, pointerEvents = "none" },
+                UI.Label { text = "×" .. ticketReward, fontSize = 12, fontColor = { 80, 200, 220 }, pointerEvents = "none" },
             },
         },
     }
@@ -598,8 +611,8 @@ local function BuildRewardItems(rewards)
     end
     if (rewards.devour_stone    or 0) > 0 then add("devour_stone",   "噬魂石") end
     if (rewards.nether_crystal  or 0) > 0 then add("nether_crystal", "冥晶") end
+    if (rewards.void_pact       or 0) > 0 then add("void_pact",    "虚空契约", { borderColor = { 255, 200, 50, 200 } }) end
     if rewards.isTowerClear then
-        if (rewards.void_pact    or 0) > 0 then add("void_pact",    "虚空契约", { borderColor = { 255, 200, 50, 200 } }) end
         if (rewards.trial_ticket or 0) > 0 then add("trial_ticket", "试练券",   { borderColor = { 80, 200, 220, 200 } }) end
     end
     return items

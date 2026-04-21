@@ -3,6 +3,7 @@
 -- v3: 链式攻击、光环系统、BOSS平衡、技能升级集成
 
 local Config     = require("Game.Config")
+local F          = require("Game.FormulaLib")
 local State      = require("Game.State")
 local Enemy      = require("Game.Enemy")
 local HeroSkills = require("Game.HeroSkills")
@@ -54,83 +55,100 @@ end
 ---@return number finalDamage
 ---@return boolean isCrit
 local function CalcFinalDamage(tower, enemy, damage)
-    -- 敌方有效 DEF = baseDEF - 穿甲削减 - 破甲叠层 - 剧毒瘴气
-    local enemyDEF = enemy.def or 0
-
-    -- 英雄穿甲：按比例削减敌方 DEF（armorPen 0.30 = 削减30% DEF）
-    local armorPen = tower.armorPen or 0
-    if armorPen > 0 then
-        enemyDEF = enemyDEF * (1 - armorPen)
-    end
-
-    -- 破甲叠层：每层削减固定比例 DEF
-    if enemy.armorBreakStacks and enemy.armorBreakStacks > 0 and enemy.armorBreakValue then
-        local breakPct = enemy.armorBreakStacks * enemy.armorBreakValue
-        enemyDEF = enemyDEF * (1 - breakPct)
-    end
-
-    -- 剧毒瘴气：额外削减 DEF
-    if enemy.armorReduceFromDot then
-        enemyDEF = enemyDEF * (1 - enemy.armorReduceFromDot)
-        enemy.armorReduceFromDot = nil  -- 单次使用
-    end
-
-    -- DEF 不低于 0
-    enemyDEF = math.max(0, enemyDEF)
-
-    -- 伤害公式: damage × ATK / (ATK + DEF)
-    -- 当 DEF=0 时满伤，DEF=ATK 时半伤
-    local atk = damage  -- damage 已经是有效攻击力
-    local defReduction = atk / (atk + enemyDEF)
-
-    -- 暴击判定（含光环加成）
-    local isCrit = false
-    local critMult = 1.0
-    local critRate = HeroSkills.GetEffectiveCritRate(tower)
-    if critRate > 0 and math.random() < critRate then
-        isCrit = true
-        critMult = Config.BASE_CRIT_MULT + (tower.critDmg or 0)
-    end
-
-    -- 元素抗性: finalDmg *= (1 - resistance)
-    local elemMult = 1.0
+    -- 英雄元素（多处乘区共用）
     local heroElement = Config.HERO_ELEMENT[tower.typeDef.id]
-    if heroElement and enemy.typeDef and enemy.typeDef.themeId then
-        local resists = Config.THEME_ELEMENT_RESIST[enemy.typeDef.themeId]
-        if resists and resists[heroElement] then
-            elemMult = 1.0 - resists[heroElement]
+
+    -- 暴击判定（需要返回 isCrit 标记）
+    local isCrit = false
+
+    -- ====================================================================
+    -- 命名乘区表：每个乘区独立计算，最终统一相乘
+    -- 新增乘区只需追加 zones.xxx = value，无需修改最终公式
+    -- ====================================================================
+    local zones = {}
+
+    -- [DEF减伤] ATK / (ATK + effectiveDEF)
+    do
+        local enemyDEF = enemy.def or 0
+        -- 英雄穿甲：按比例削减敌方 DEF（armorPen 0.30 = 削减30% DEF）
+        local armorPen = Tower.GetEffectiveArmorPen(tower)
+        if armorPen > 0 then
+            enemyDEF = enemyDEF * (1 - armorPen)
+        end
+        -- 破甲叠层：每层削减固定比例 DEF
+        if enemy.armorBreakStacks and enemy.armorBreakStacks > 0 and enemy.armorBreakValue then
+            enemyDEF = enemyDEF * (1 - enemy.armorBreakStacks * enemy.armorBreakValue)
+        end
+        -- 剧毒瘴气：额外削减 DEF
+        if enemy.armorReduceFromDot then
+            enemyDEF = enemyDEF * (1 - enemy.armorReduceFromDot)
+            enemy.armorReduceFromDot = nil  -- 单次使用
+        end
+        enemyDEF = math.max(0, enemyDEF)
+        zones.def = F.Diminishing(enemyDEF, damage)
+    end
+
+    -- [暴击] 概率触发，倍率 = baseCritMult + critDmg
+    do
+        local critRate = HeroSkills.GetEffectiveCritRate(tower)
+        if critRate > 0 and math.random() < critRate then
+            isCrit = true
+            zones.crit = Config.BASE_CRIT_MULT + Tower.GetEffectiveCritDmg(tower)
         end
     end
 
-    -- 寒意满层增伤: 5层寒意时受到的伤害增加50%
-    local chillAmp = 1.0
+    -- [元素抗性] 1 - resistance（由敌人主题×英雄元素查表）
+    do
+        local elemMult = 1.0
+        if heroElement and enemy.typeDef and enemy.typeDef.themeId then
+            local resists = Config.THEME_ELEMENT_RESIST[enemy.typeDef.themeId]
+            if resists and resists[heroElement] then
+                elemMult = 1.0 - resists[heroElement]
+            end
+        end
+        zones.elemResist = elemMult
+    end
+
+    -- [寒意增伤] 5层寒意时受到的伤害增加
     if enemy.chillStacks and enemy.chillStacks >= 5 then
-        chillAmp = 1.0 + (tower.typeDef.chillDmgAmpAtMax or 0.50)
+        zones.chill = 1.0 + (tower.typeDef.chillDmgAmpAtMax or 0.50)
     end
 
-    -- 伤害加成: 独立乘区 (1 + dmgBonus)
-    local dmgBonusMult = 1.0 + (tower.dmgBonus or 0)
-
-    -- 单元素伤害加成: 匹配英雄元素时，额外乘 (1 + bonus)
-    local elemDmgMult = 1.0
-    if heroElement and tower.elemDmgBonus then
-        elemDmgMult = 1.0 + (tower.elemDmgBonus[heroElement] or 0)
+    -- [伤害加成] 通用独立乘区 (1 + dmgBonus)
+    local dmgBonus = Tower.GetEffectiveDmgBonus(tower)
+    if dmgBonus > 0 then
+        zones.dmgBonus = 1.0 + dmgBonus
     end
 
-    -- 符文词条: 元素精通 elemMastery — 追加到元素伤害乘区
-    if tower.runeBonus and tower.runeBonus.elemMastery and tower.runeBonus.elemMastery > 0 then
-        if heroElement then
-            elemDmgMult = elemDmgMult + tower.runeBonus.elemMastery
+    -- [元素伤害] 匹配英雄元素时的专属乘区
+    do
+        local elemDmg = 0
+        if heroElement and tower.elemDmgBonus then
+            elemDmg = tower.elemDmgBonus[heroElement] or 0
+        end
+        -- 符文词条：元素精通追加到同一乘区
+        if heroElement and tower.runeBonus and tower.runeBonus.elemMastery and tower.runeBonus.elemMastery > 0 then
+            elemDmg = elemDmg + tower.runeBonus.elemMastery
+        end
+        if elemDmg > 0 then
+            zones.elemDmg = 1.0 + elemDmg
         end
     end
 
-    -- 符文词条: 易伤标记 vulnMark — 独立乘区（叠加在塔侧，与敌人 ampDamage 分开）
-    local vulnMult = 1.0
+    -- [易伤标记] 符文词条独立乘区
     if tower.runeBonus and tower.runeBonus.vulnMark and tower.runeBonus.vulnMark > 0 then
-        vulnMult = 1.0 + tower.runeBonus.vulnMark
+        zones.vuln = 1.0 + tower.runeBonus.vulnMark
     end
 
-    return damage * defReduction * critMult * elemMult * dmgBonusMult * elemDmgMult * chillAmp * vulnMult, isCrit, heroElement, elemMult
+    -- ====================================================================
+    -- 统一相乘：遍历所有乘区
+    -- ====================================================================
+    local final = damage
+    for _, mult in pairs(zones) do
+        final = final * mult
+    end
+
+    return final, isCrit, heroElement, zones.elemResist
 end
 Combat.CalcFinalDamage = CalcFinalDamage
 
@@ -183,11 +201,12 @@ end
 --- 塔发起攻击
 local function TowerAttack(tower, towerX, towerY, target)
     -- 应用攻速加成
-    local effectiveSpeed = HeroSkills.ModifyAttackSpeed(tower, tower.speed)
+    local baseSpeed = Tower.GetEffectiveSpeed(tower)  -- debuff 修正后的攻速
+    local effectiveSpeed = HeroSkills.ModifyAttackSpeed(tower, baseSpeed)
     tower.cooldown = effectiveSpeed
     tower.target = target
 
-    -- 获取有效攻击力（含光环buff）
+    -- 获取有效攻击力（含光环buff + debuff）
     local effectiveAtk = HeroSkills.GetEffectiveAttack(tower)
 
     -- 攻击动画（有精灵图的角色都播放）

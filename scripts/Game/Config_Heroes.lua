@@ -379,8 +379,8 @@ Config.LEVEL_RANGE_BONUS = 0.02
 -- ============================================================================
 -- 战斗公式常量
 -- ============================================================================
--- 敌人 DEF 成长: 每波 DEF = baseDEF * (1 + wave * ENEMY_DEF_GROWTH_RATE)
-Config.ENEMY_DEF_GROWTH_RATE = 0.05   -- 每波 +5%
+-- 敌人 DEF 成长: DEF = baseDEF × hpScale × ENEMY_DEF_HP_RATIO（与 HP 同源缩放，保证破甲全程有效）
+Config.ENEMY_DEF_HP_RATIO = 0.25     -- DEF 占 HP 缩放的 25%，约提供 25~30% 减伤
 
 Config.BASE_CRIT_MULT = 1.50
 
@@ -622,29 +622,33 @@ Config.DARK_SOUL_DROP = {
     boss   = 10,
 }
 
--- 击杀掉落局外货币（实时掉落，补充性收入）
--- 公式: amount = base × (1 + (stage-1) × stageScale + (stage-1)² × stageQuadratic)
--- 软二次缩放：比线性增长快（跟上升级消耗），但远慢于指数（不膨胀）
+-- 击杀掉落与挂机收益统一线性体系:
+--   挂机冥晶/hr = stage × 3500（每10关 +35000）
+--   实战 = 2× 挂机，即每关冥晶 ≈ stage × 2335
+--   dropScale = 1 + (stage-1) × stageScale，无二次项
+--   stage 10 约 177 怪(普通167+精英9+BOSS1)，dropScale=1.54
+--   验算: 167×floor(40×1.54)+9×floor(75×1.54)+floor(300×1.54)
+--        = 167×61+9×115+462 = 10187+1035+462 = 11684 ≈ 目标11675
 Config.KILL_DROP = {
-    stageScale = 0.12,        -- 线性项：每关 +12%
-    stageQuadratic = 0.004,   -- 二次项：后期加速追赶消耗曲线
-    -- 冥晶: 所有怪物都掉
+    stageScale = 0.06,        -- 线性项：每关 +6%
+    stageQuadratic = 0,       -- 无二次项，保持近似线性
+    -- 冥晶: 所有怪物都掉（×5）
     crystal = {
-        normal = 8,       -- 普通怪基础（提高基础值，前期体验更好）
-        elite  = 10,      -- 精英怪基础
-        boss   = 40,      -- BOSS 基础
+        normal = 40,      -- 普通怪基础
+        elite  = 75,      -- 精英怪基础
+        boss   = 300,     -- BOSS 基础
     },
     -- 噬魂石: 精英和 BOSS 才掉
     stone = {
         normal = 0,
         elite  = 2,
-        boss   = 8,
+        boss   = 6,
     },
     -- 锻魂铁: 仅 BOSS 掉
     iron = {
         normal = 0,
         elite  = 0,
-        boss   = 5,
+        boss   = 4,
     },
 }
 

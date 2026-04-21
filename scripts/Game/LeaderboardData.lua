@@ -11,7 +11,7 @@ local LB = {}
 -- 排行榜 key 定义（iscores 中的 key）
 -- ============================================================================
 
-LB.KEY_CAMPAIGN    = "lb_campaign"     -- 主线最高关卡（新版上传 globalWave）
+LB.KEY_CAMPAIGN    = "lb_campaign_v3"  -- 主线最高全局波次（直接存 globalWave，无编码）
 LB.KEY_TOWER       = "lb_tower"        -- 试练塔最高层
 LB.KEY_DUNGEON     = "lb_dungeon"      -- 资源副本当天最高波次（每日重置上传）
 LB.KEY_WORLD_BOSS  = "lb_world_boss_v2"   -- 世界BOSS最高伤害（历史，v2编码）
@@ -34,9 +34,7 @@ LB._cache = {
     world_boss = nil,
 }
 
--- v2 分数偏移量：新格式分数 = globalWave + SCORE_OFFSET
--- 旧格式分数（bestStage）不带偏移，天然 < SCORE_OFFSET
-LB.SCORE_OFFSET = 100000
+-- (v3: 直接存 globalWave，无偏移编码)
 
 -- ============================================================================
 -- BOSS 伤害编码（科学计数法 → 单个 32 位整数，保持排序正确）
@@ -77,15 +75,17 @@ end
 -- 分数上传
 -- ============================================================================
 
---- 上传主线最高全局波次到排行榜（自动加偏移量标记为 v2 格式）
+--- 上传主线最高全局波次到排行榜（v3：直接存 globalWave）
 ---@param bestGlobalWave number
 function LB.UploadCampaign(bestGlobalWave)
     if not bestGlobalWave or bestGlobalWave <= 0 then return end
     if not clientCloud then return end
-    local encoded = bestGlobalWave + LB.SCORE_OFFSET
-    clientCloud:SetInt(LB.KEY_CAMPAIGN, encoded, {
+    clientCloud:SetInt(LB.KEY_CAMPAIGN, bestGlobalWave, {
         ok = function()
-            print("[LB] Campaign score uploaded: globalWave=" .. bestGlobalWave .. " (encoded=" .. encoded .. ")")
+            print("[LB] Campaign score uploaded: globalWave=" .. bestGlobalWave)
+        end,
+        error = function(code, reason)
+            print("[LB] Campaign upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
         end,
     })
 end
@@ -99,6 +99,9 @@ function LB.UploadTower(floor)
         ok = function()
             print("[LB] Tower score uploaded: " .. floor)
         end,
+        error = function(code, reason)
+            print("[LB] Tower upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
+        end,
     })
 end
 
@@ -110,6 +113,9 @@ function LB.UploadDungeon(wave)
     clientCloud:SetInt(LB.KEY_DUNGEON, wave, {
         ok = function()
             print("[LB] Dungeon score uploaded: " .. wave)
+        end,
+        error = function(code, reason)
+            print("[LB] Dungeon upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
         end,
     })
 end
@@ -123,6 +129,9 @@ function LB.UploadWorldBoss(bestDamage)
     clientCloud:SetInt(LB.KEY_WORLD_BOSS, encoded, {
         ok = function()
             print("[LB] World Boss score uploaded: " .. bestDamage .. " (encoded=" .. encoded .. ")")
+        end,
+        error = function(code, reason)
+            print("[LB] World Boss upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
         end,
     })
 end
@@ -163,6 +172,9 @@ function LB.UploadAbyss(difficultyId, wave)
         ok = function()
             print("[LB] Abyss " .. difficultyId .. " score uploaded: wave " .. wave)
         end,
+        error = function(code, reason)
+            print("[LB] Abyss " .. difficultyId .. " upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
+        end,
     })
 end
 
@@ -174,6 +186,9 @@ function LB.UploadCostume(bonus)
     clientCloud:SetInt(LB.KEY_COSTUME, bonus, {
         ok = function()
             print("[LB] Costume score uploaded: " .. bonus)
+        end,
+        error = function(code, reason)
+            print("[LB] Costume upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
         end,
     })
 end
@@ -368,25 +383,14 @@ end
 -- 主线关卡号显示格式化（关卡号 → "大关-小关"）
 -- ============================================================================
 
---- 格式化排行榜分数为可读字符串
---- 通过 SCORE_OFFSET 区分新旧格式：
----   >= SCORE_OFFSET → v2 新格式（globalWave），显示 "第X关 第Y波"
----   < SCORE_OFFSET  → v1 旧格式（bestStage），显示 "第X关"
----@param score number 排行榜分数
+--- 格式化排行榜分数为可读字符串（v3：score 即 globalWave）
+---@param score number 全局波次
 ---@return string
 function LB.FormatStage(score)
     if not score or score <= 0 then return "—" end
-    if score >= LB.SCORE_OFFSET then
-        -- v2 新格式：解码 globalWave
-        local globalWave = score - LB.SCORE_OFFSET
-        if globalWave <= 0 then return "—" end
-        local stageNum = math.floor((globalWave - 1) / Config.WAVES_PER_STAGE) + 1
-        local waveInStage = globalWave - (stageNum - 1) * Config.WAVES_PER_STAGE
-        return "第" .. stageNum .. "关 第" .. waveInStage .. "波"
-    else
-        -- v1 旧格式：直接是 bestStage
-        return "第" .. score .. "关"
-    end
+    local stageNum = math.floor((score - 1) / Config.WAVES_PER_STAGE) + 1
+    local waveInStage = score - (stageNum - 1) * Config.WAVES_PER_STAGE
+    return "第" .. stageNum .. "关 第" .. waveInStage .. "波"
 end
 
 --- 格式化试练塔层数为 "第X层" 格式

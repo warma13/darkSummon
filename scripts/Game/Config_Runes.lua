@@ -151,9 +151,9 @@ RuneConfig._totalAffixWeight = RuneConfig._totalBaseWeight + RuneConfig._totalSp
 RuneConfig.MAX_SLOTS = 3
 
 RuneConfig.SLOT_DEFS = {
-    { id = 1, name = "源力核心", unlockStage = 20  },  -- 第1章
-    { id = 2, name = "意志铭刻", unlockStage = 200  },  -- 第10章
-    { id = 3, name = "深渊之印", unlockStage = 400  },  -- 第20章
+    { id = 1, name = "源力核心", unlockStage = 20  },  -- 主线第20关
+    { id = 2, name = "意志铭刻", unlockStage = 40  },  -- 主线第40关
+    { id = 3, name = "深渊之印", unlockStage = 60  },  -- 主线第60关
 }
 
 -- ============================================================================

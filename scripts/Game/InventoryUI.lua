@@ -55,6 +55,7 @@ local selectedItemId = nil
 local detailContainer = nil
 ---@type fun()|nil
 local onCloseCallback = nil
+local currentTab = "items"  -- "items" 道具 | "materials" 材料
 
 -- ============================================================================
 -- 内部：创建单个物品格子
@@ -1081,7 +1082,7 @@ function RefreshInventoryContent()
             },
         })
     else
-        -- 分类：可使用的礼包 vs 不可使用的材料
+        -- 分类：可使用的道具 vs 不可使用的材料
         local usableItems = {}
         local materialItems = {}
         for _, item in ipairs(allItems) do
@@ -1090,6 +1091,13 @@ function RefreshInventoryContent()
             else
                 materialItems[#materialItems + 1] = item
             end
+        end
+
+        -- 如果当前 tab 对应的列表为空，自动切到有内容的 tab
+        if currentTab == "items" and #usableItems == 0 and #materialItems > 0 then
+            currentTab = "materials"
+        elseif currentTab == "materials" and #materialItems == 0 and #usableItems > 0 then
+            currentTab = "items"
         end
 
         --- 构建一个分类的3列网格行列表
@@ -1120,60 +1128,73 @@ function RefreshInventoryContent()
             return rows, selItem
         end
 
-        --- 创建分区标题
-        ---@param text string
-        ---@param icon string|nil
-        ---@return any
-        local function SectionHeader(text, icon)
-            local headerChildren = {}
-            if icon then
-                headerChildren[#headerChildren + 1] = UI.Label {
-                    text = icon,
-                    fontSize = 13,
-                }
-            end
-            headerChildren[#headerChildren + 1] = UI.Label {
-                text = text,
-                fontSize = 13,
-                fontColor = S.gold,
-                fontWeight = "bold",
-            }
-            headerChildren[#headerChildren + 1] = UI.Panel {
-                flex = 1, height = 1,
-                backgroundColor = { 80, 60, 45, 80 },
-                marginLeft = 4,
-            }
+        -- Tab 栏
+        local function TabButton(label, count, tabKey)
+            local isActive = (currentTab == tabKey)
             return UI.Panel {
-                width = "100%",
-                flexDirection = "row",
+                flexGrow = 1,
+                flexBasis = 0,
+                height = 34,
+                justifyContent = "center",
                 alignItems = "center",
-                gap = 6,
-                paddingTop = 8, paddingBottom = 4,
-                children = headerChildren,
+                backgroundColor = isActive and { 80, 60, 45, 220 } or { 50, 38, 28, 140 },
+                borderRadius = 6,
+                borderWidth = isActive and 1.5 or 1,
+                borderColor = isActive and S.gold or { 80, 62, 44, 120 },
+                onClick = function()
+                    if currentTab ~= tabKey then
+                        currentTab = tabKey
+                        selectedItemId = nil
+                        RefreshInventoryContent()
+                    end
+                end,
+                children = {
+                    UI.Label {
+                        text = label .. (count > 0 and (" " .. count) or ""),
+                        fontSize = 13,
+                        fontColor = isActive and S.gold or S.dim,
+                        fontWeight = isActive and "bold" or "normal",
+                        pointerEvents = "none",
+                    },
+                },
             }
         end
 
+        contentContainer:AddChild(UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            gap = 6,
+            paddingLeft = 10, paddingRight = 10,
+            paddingTop = 2, paddingBottom = 6,
+            flexShrink = 0,
+            children = {
+                TabButton("道具", #usableItems, "items"),
+                TabButton("材料", #materialItems, "materials"),
+            },
+        })
+
+        -- 当前 tab 内容
+        local displayItems = currentTab == "items" and usableItems or materialItems
         local scrollChildren = {}
         local selectedItem = nil
 
-        -- 礼包区
-        if #usableItems > 0 then
-            scrollChildren[#scrollChildren + 1] = SectionHeader("道具")
-            local rows, selItem = BuildGrid(usableItems)
+        if #displayItems > 0 then
+            local rows, selItem = BuildGrid(displayItems)
             if selItem then selectedItem = selItem end
             for _, row in ipairs(rows) do
                 scrollChildren[#scrollChildren + 1] = row
             end
-        end
-
-        -- 材料区
-        if #materialItems > 0 then
-            scrollChildren[#scrollChildren + 1] = SectionHeader("材料", "🔮")
-            local rows, selItem = BuildGrid(materialItems)
-            if selItem then selectedItem = selItem end
-            for _, row in ipairs(rows) do
-                scrollChildren[#scrollChildren + 1] = row
-            end
+        else
+            scrollChildren[#scrollChildren + 1] = UI.Panel {
+                width = "100%", height = 120,
+                justifyContent = "center", alignItems = "center",
+                children = {
+                    UI.Label {
+                        text = currentTab == "items" and "暂无道具" or "暂无材料",
+                        fontSize = 13, fontColor = S.emptyText,
+                    },
+                },
+            }
         end
 
         -- 如果 selectedItemId 有值但物品已用完，清除选中

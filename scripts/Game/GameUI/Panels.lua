@@ -11,6 +11,7 @@ local Currency  = require("Game.Currency")
 local HeroData  = require("Game.HeroData")
 local Toast     = require("Game.Toast")
 local AdTracker = require("Game.AdTracker")
+local HeroSkills = require("Game.HeroSkills")
 local SpeedBoost = require("Game.SpeedBoostData")
 
 local FormatNum = ctx.FormatNum
@@ -63,13 +64,13 @@ function GameUI.BuildHeroInfoContent(tower)
     local tierInfo = HeroData.GetStarTierInfo(td.id)
 
     -- 属性行辅助函数
-    local function StatRow(label, value, color)
+    local function StatRow(label, value, color, valueId)
         return ctx.UI.Panel {
             flexDirection = "row", justifyContent = "space-between",
             width = "100%",
             children = {
                 ctx.UI.Label { text = label, fontSize = 11, fontColor = { 160, 150, 180, 200 } },
-                ctx.UI.Label { text = value, fontSize = 11, fontColor = color or { 255, 255, 255, 230 }, fontWeight = "bold" },
+                ctx.UI.Label { id = valueId, text = value, fontSize = 11, fontColor = color or { 255, 255, 255, 230 }, fontWeight = "bold" },
             },
         }
     end
@@ -206,8 +207,8 @@ function GameUI.BuildHeroInfoContent(tower)
                 ctx.UI.Panel {
                     flex = 1, gap = 3,
                     children = {
-                        StatRow("攻击", FormatStat(tower.attack), { 255, 120, 80, 255 }),
-                        StatRow("攻速", string.format("%.2f/s", 1.0 / tower.speed), { 255, 200, 80, 255 }),
+                        StatRow("攻击", FormatStat(HeroSkills.GetEffectiveAttack(tower)), { 255, 120, 80, 255 }, "heroPanel_atk"),
+                        StatRow("攻速", string.format("%.2f/s", 1.0 / HeroSkills.GetEffectiveSpeed(tower)), { 255, 200, 80, 255 }, "heroPanel_spd"),
                     },
                 },
                 -- 右列属性
@@ -379,7 +380,7 @@ function GameUI.CreateBottomBar()
                 pointerEvents = "auto",
                 alignItems = "center",
                 children = {
-                    -- 自动召唤开关（每日看一次广告解锁）
+                    -- 自动召唤开关
                     ctx.UI.Button {
                         id = "autoSummonBtn",
                         text = "自动召唤:关",
@@ -388,23 +389,12 @@ function GameUI.CreateBottomBar()
                         height = 28,
                         paddingLeft = 10, paddingRight = 10,
                         onClick = function(self)
-                            if not AutoPlay.IsUnlockedToday("autoSummon") then
-                                local AdHelper = require("Game.AdHelper")
-                                AdHelper.ShowRewardAd(function()
-                                    AutoPlay.RecordAdUnlock("autoSummon")
-                                    AutoPlay.autoSummon = true
-                                    AutoPlay.autoSummonTimer = 0.4
-                                    GameUI.UpdateHUD()
-                                    Toast.Show("自动召唤已解锁", { 100, 200, 100 })
-                                end)
-                                return
-                            end
                             AutoPlay.autoSummon = not AutoPlay.autoSummon
                             AutoPlay.autoSummonTimer = AutoPlay.autoSummon and 0.4 or 0
                             GameUI.UpdateHUD()
                         end,
                     },
-                    -- 自动合成开关（每日看一次广告解锁）
+                    -- 自动合成开关
                     ctx.UI.Button {
                         id = "autoMergeBtn",
                         text = "自动合成:关",
@@ -413,23 +403,12 @@ function GameUI.CreateBottomBar()
                         height = 28,
                         paddingLeft = 10, paddingRight = 10,
                         onClick = function(self)
-                            if not AutoPlay.IsUnlockedToday("autoMerge") then
-                                local AdHelper = require("Game.AdHelper")
-                                AdHelper.ShowRewardAd(function()
-                                    AutoPlay.RecordAdUnlock("autoMerge")
-                                    AutoPlay.autoMerge = true
-                                    AutoPlay.autoMergeTimer = 0.4
-                                    GameUI.UpdateHUD()
-                                    Toast.Show("自动合成已解锁", { 100, 200, 100 })
-                                end)
-                                return
-                            end
                             AutoPlay.autoMerge = not AutoPlay.autoMerge
                             AutoPlay.autoMergeTimer = AutoPlay.autoMerge and 0.4 or 0
                             GameUI.UpdateHUD()
                         end,
                     },
-                    -- 自动布阵开关（每日看一次广告解锁）
+                    -- 自动布阵开关
                     ctx.UI.Button {
                         id = "autoDeployBtn",
                         text = "自动布阵:关",
@@ -438,17 +417,6 @@ function GameUI.CreateBottomBar()
                         height = 28,
                         paddingLeft = 10, paddingRight = 10,
                         onClick = function(self)
-                            if not AutoPlay.IsUnlockedToday("autoDeploy") then
-                                local AdHelper = require("Game.AdHelper")
-                                AdHelper.ShowRewardAd(function()
-                                    AutoPlay.RecordAdUnlock("autoDeploy")
-                                    AutoPlay.autoDeploy = true
-                                    AutoPlay.autoDeployTimer = 3.0
-                                    GameUI.UpdateHUD()
-                                    Toast.Show("自动布阵已解锁", { 100, 200, 100 })
-                                end)
-                                return
-                            end
                             AutoPlay.autoDeploy = not AutoPlay.autoDeploy
                             AutoPlay.autoDeployTimer = AutoPlay.autoDeploy and 3.0 or 0
                             GameUI.UpdateHUD()

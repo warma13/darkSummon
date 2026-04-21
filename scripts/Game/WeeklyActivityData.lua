@@ -147,6 +147,11 @@ local function CheckWeekReset(data)
             data.score = 0
             data.round = 1
             data.claimed = {}
+            -- 同步重置限时福利的广告计数
+            local okWF, WelfareData = pcall(require, "Game.WelfareData")
+            if okWF and WelfareData.ResetAll then
+                WelfareData.ResetAll()
+            end
         end
     end
 end
@@ -226,6 +231,8 @@ end
 --- 自动检查里程碑，达标后发放奖励到邮件
 ---@param amount number
 function WAD.AddScore(amount)
+    -- 只在宝箱周计分（与招募周 RMD.AddCount 对称）
+    if WAD.GetCurrentWeekType() ~= "chest" then return end
     local data = WAD.EnsureData()
     CheckWeekReset(data)
     if data.round > WAD.MAX_ROUNDS then return end  -- 已完成全部轮数

@@ -1,6 +1,8 @@
 -- Game/Config_Enemies.lua
 -- 怪物系统：角色、主题、构建函数、词缀、关卡参数
 
+local F = require("Game.FormulaLib")
+
 local function apply(Config)
 
 -- ============================================================================
@@ -303,32 +305,285 @@ for i = 1, Config.THEME_COUNT do
 end
 
 -- ============================================================================
--- 精英词缀定义
+-- 精英词缀定义（分类 + 强度缩放）
 -- ============================================================================
-Config.AFFIXES = {
-    { id = "tough",     name = "坚韧", tier = 1, color = { 200, 160, 80 },
-      hpMult = 2.0 },
-    { id = "swift",     name = "迅捷", tier = 1, color = { 80, 200, 255 },
-      speedMult = 1.5 },
-    { id = "regen",     name = "再生", tier = 1, color = { 80, 220, 80 },
-      regenRate = 0.01 },
-    { id = "berserk",   name = "狂暴", tier = 1, color = { 255, 100, 60 },
-      enrageThreshold = 0.5, enrageSpeedMult = 1.8 },
-    { id = "shielded",  name = "护盾", tier = 2, color = { 200, 200, 255 },
-      shieldHP = 0.5 },
-    { id = "stealth",   name = "隐身", tier = 2, color = { 120, 120, 160 },
-      phaseInterval = 4.0, phaseDuration = 1.5 },
-    { id = "vampiric",  name = "吸血", tier = 2, color = { 180, 40, 60 },
-      vampRate = 0.03 },
-    { id = "undying",   name = "不朽", tier = 3, color = { 255, 220, 60 },
-      revive = true, reviveHPRate = 0.5 },
-    { id = "void_aura", name = "虚空", tier = 3, color = { 160, 80, 255 },
-      immuneCC = true },
+-- 词缀分两大类：
+--   "defense"  防御类 — 增强怪物生存能力
+--   "buff"     增益类 — 敌人自身增强（加速/隐身/免控）
+--   "debuff"   减益类 — 周期削弱英雄塔（降攻/降暴击/降星/毁灭）
+--     debuff 词缀额外字段: targeting = "single"|"group"|"area"
+-- 每个词缀有 tier (1/2/3) 和 category ("defense"/"buff"/"debuff")
+-- scale(level) 函数返回缩放后的词缀实例（level = 等效关卡号 / 10）
+-- level 大约对应：主线 stageNum/10，试练塔 floor（因为 1 floor = 10 stage）
+
+Config.AFFIX_DEFS = {
+    -- ==================== 防御类 (defense) ====================
+    -- T1: 坚韧 — HP 倍率，随等级增长
+    {
+        id = "tough", name = "坚韧", tier = 1, category = "defense",
+        color = { 200, 160, 80 },
+        scale = function(lvl)
+            return { hpMult = 1.5 + lvl * 0.03 }  -- 1.5x ~ 4.5x @lvl100
+        end,
+    },
+    -- T1: 再生 — 每秒恢复 maxHP 百分比
+    {
+        id = "regen", name = "再生", tier = 1, category = "defense",
+        color = { 80, 220, 80 },
+        scale = function(lvl)
+            return { regenRate = 0.008 + lvl * 0.0003 }  -- 0.8% ~ 3.8%/s
+        end,
+    },
+    -- T2: 护盾 — 按 maxHP 百分比生成护盾
+    {
+        id = "shielded", name = "护盾", tier = 2, category = "defense",
+        color = { 200, 200, 255 },
+        scale = function(lvl)
+            return { shieldHP = 0.3 + lvl * 0.005 }  -- 30% ~ 80% maxHP
+        end,
+    },
+    -- T2: 铁壁 — 每隔 N 秒增加防御值
+    {
+        id = "iron_wall", name = "铁壁", tier = 2, category = "defense",
+        color = { 160, 160, 180 },
+        scale = function(lvl)
+            return {
+                ironWallInterval = math.max(3.0, 6.0 - lvl * 0.02),  -- 6s → 3s
+                ironWallDefPct   = 0.10 + lvl * 0.003,               -- +10% ~ +40% baseDEF per tick
+            }
+        end,
+    },
+    -- T2: 回春 — 每隔 N 秒恢复已损失生命值百分比
+    {
+        id = "rejuvenate", name = "回春", tier = 2, category = "defense",
+        color = { 100, 220, 160 },
+        scale = function(lvl)
+            return {
+                rejuvInterval = math.max(2.0, 5.0 - lvl * 0.02),  -- 5s → 2s
+                rejuvPct      = 0.05 + lvl * 0.002,               -- 5% ~ 25% lost HP per tick
+            }
+        end,
+    },
+    -- T3: 不朽 — 首次死亡复活
+    {
+        id = "undying", name = "不朽", tier = 3, category = "defense",
+        color = { 255, 220, 60 },
+        scale = function(lvl)
+            return { revive = true, reviveHPRate = math.min(0.3 + lvl * 0.005, 0.8) }  -- 30% ~ 80%
+        end,
+    },
+
+    -- ==================== 增益类 buff（敌人自身增强） ====================
+    -- T1: 迅捷 — 移速倍率
+    {
+        id = "swift", name = "迅捷", tier = 1, category = "buff",
+        color = { 80, 200, 255 },
+        scale = function(lvl)
+            return { speedMult = math.min(1.8, 1.3 + lvl * 0.005) }  -- 1.3x → 1.8x 封顶
+        end,
+    },
+    -- T1: 狂暴 — 低血量时加速
+    {
+        id = "berserk", name = "狂暴", tier = 1, category = "buff",
+        color = { 255, 100, 60 },
+        scale = function(lvl)
+            return {
+                enrageThreshold = 0.5,
+                enrageSpeedMult = 1.5 + lvl * 0.008,  -- 1.5x ~ 2.3x
+            }
+        end,
+    },
+    -- T2: 隐身 — 周期性隐身无敌
+    {
+        id = "stealth", name = "隐身", tier = 2, category = "buff",
+        color = { 120, 120, 160 },
+        scale = function(lvl)
+            return {
+                phaseInterval = math.max(4.0, 6.0 - lvl * 0.02),  -- 6s → 4s 封底
+                phaseDuration = math.min(1.0 + lvl * 0.005, 2.0),  -- 1s → 2s 封顶（最高50%隐身率）
+            }
+        end,
+    },
+    -- T3: 虚空 — 免疫所有控制效果
+    {
+        id = "void_aura", name = "虚空", tier = 3, category = "buff",
+        color = { 160, 80, 255 },
+        scale = function(lvl)
+            return { immuneCC = true }
+        end,
+    },
+
+    -- ==================== 减益类 debuff（周期削弱英雄塔） ====================
+    -- targeting: "single"=随机1个, "group"=全体, "area"=敌人附近范围
+    -- debuffDuration: 减益持续秒数
+
+    -- T1: 降攻击 — 周期降低英雄攻击力
+    {
+        id = "atk_down", name = "降攻击", tier = 1, category = "debuff",
+        color = { 255, 140, 80 }, targeting = "single",
+        scale = function(lvl)
+            return {
+                debuffInterval = math.max(5.0, 10.0 - lvl * 0.03),  -- 10s → 5s
+                debuffDuration = 4.0,
+                debuffStat = "attack", debuffPct = math.min(0.35, 0.10 + lvl * 0.002),  -- -10% → -35%
+            }
+        end,
+    },
+    -- T1: 降攻速 — 周期降低英雄攻击速度
+    {
+        id = "spd_down", name = "降攻速", tier = 1, category = "debuff",
+        color = { 100, 180, 255 }, targeting = "single",
+        scale = function(lvl)
+            return {
+                debuffInterval = math.max(5.0, 10.0 - lvl * 0.03),
+                debuffDuration = 4.0,
+                debuffStat = "speed", debuffPct = math.min(0.35, 0.10 + lvl * 0.002),  -- +10% → +35% 攻击间隔
+            }
+        end,
+    },
+    -- T2: 降暴击 — 周期降低英雄暴击率（范围）
+    {
+        id = "crit_down", name = "降暴击", tier = 2, category = "debuff",
+        color = { 255, 100, 100 }, targeting = "area",
+        scale = function(lvl)
+            return {
+                debuffInterval = math.max(6.0, 12.0 - lvl * 0.04),
+                debuffDuration = 5.0, debuffRadius = 120,
+                debuffStat = "critRate", debuffFlat = math.min(0.30, 0.08 + lvl * 0.002),  -- -8% → -30%
+            }
+        end,
+    },
+    -- T2: 降爆伤 — 周期降低英雄暴击伤害（范围）
+    {
+        id = "critdmg_down", name = "降爆伤", tier = 2, category = "debuff",
+        color = { 220, 80, 120 }, targeting = "area",
+        scale = function(lvl)
+            return {
+                debuffInterval = math.max(6.0, 12.0 - lvl * 0.04),
+                debuffDuration = 5.0, debuffRadius = 120,
+                debuffStat = "critDmg", debuffFlat = math.min(0.50, 0.15 + lvl * 0.003),  -- -15% → -50%
+            }
+        end,
+    },
+    -- T2: 降星 — 每隔 N 秒随机降低一个英雄塔 1 星（单体直接效果）
+    {
+        id = "star_drain", name = "降星", tier = 2, category = "debuff",
+        color = { 200, 80, 200 }, targeting = "single",
+        scale = function(lvl)
+            return {
+                starDrainInterval = math.max(5.0, 12.0 - lvl * 0.05),  -- 12s → 5s
+            }
+        end,
+    },
+    -- T3: 降穿甲 — 周期降低英雄穿甲率（群体）
+    {
+        id = "pen_down", name = "降穿甲", tier = 3, category = "debuff",
+        color = { 200, 160, 80 }, targeting = "group",
+        scale = function(lvl)
+            return {
+                debuffInterval = math.max(8.0, 15.0 - lvl * 0.05),
+                debuffDuration = 5.0,
+                debuffStat = "armorPen", debuffFlat = math.min(0.25, 0.05 + lvl * 0.002),  -- -5% → -25%
+            }
+        end,
+    },
+    -- T3: 降元素 — 周期降低英雄元素伤害（群体）
+    {
+        id = "elem_down", name = "降元素", tier = 3, category = "debuff",
+        color = { 80, 200, 160 }, targeting = "group",
+        scale = function(lvl)
+            return {
+                debuffInterval = math.max(8.0, 15.0 - lvl * 0.05),
+                debuffDuration = 5.0,
+                debuffStat = "dmgBonus", debuffFlat = math.min(0.30, 0.08 + lvl * 0.002),  -- -8% → -30%
+            }
+        end,
+    },
+    -- T3: 毁灭 — 每隔 N 秒销毁一个随机英雄塔（单体直接效果）
+    {
+        id = "annihilate", name = "毁灭", tier = 3, category = "debuff",
+        color = { 255, 40, 40 }, targeting = "single",
+        scale = function(lvl)
+            return {
+                annihilateInterval = math.max(8.0, 20.0 - lvl * 0.08),  -- 20s → 8s
+            }
+        end,
+    },
 }
 
+-- 构建快速查找表
+Config.AFFIX_BY_ID = {}
+for _, def in ipairs(Config.AFFIX_DEFS) do
+    Config.AFFIX_BY_ID[def.id] = def
+end
+
+-- 向后兼容：旧 AFFIXES 表（不含 scale 结果，仅定义引用）
+Config.AFFIXES = Config.AFFIX_DEFS
+
+-- 词缀解锁阈值（等效全局波次）
 Config.AFFIX_WAVE_T1 = 15
 Config.AFFIX_WAVE_T2 = 35
 Config.AFFIX_WAVE_T3 = 60
+
+--- 缩放词缀：根据 level 生成带具体数值的词缀实例
+--- level 约等于 stageNum/10（主线）或 floor（试练塔）
+---@param affixDef table 词缀定义（来自 AFFIX_DEFS）
+---@param level number 难度等级
+---@return table 带具体数值字段的词缀实例
+function Config.ScaleAffix(affixDef, level)
+    local instance = {
+        id       = affixDef.id,
+        name     = affixDef.name,
+        tier     = affixDef.tier,
+        category = affixDef.category,
+        color    = affixDef.color,
+    }
+    if affixDef.scale then
+        local scaled = affixDef.scale(level)
+        for k, v in pairs(scaled) do
+            instance[k] = v
+        end
+    end
+    return instance
+end
+
+--- 获取指定等效全局波次可用的词缀池
+---@param globalWave number 等效全局波次
+---@return table[] 可用词缀定义列表
+function Config.GetAffixPool(globalWave)
+    local pool = {}
+    for _, def in ipairs(Config.AFFIX_DEFS) do
+        if def.tier == 1 and globalWave >= Config.AFFIX_WAVE_T1 then
+            pool[#pool + 1] = def
+        elseif def.tier == 2 and globalWave >= Config.AFFIX_WAVE_T2 then
+            pool[#pool + 1] = def
+        elseif def.tier == 3 and globalWave >= Config.AFFIX_WAVE_T3 then
+            pool[#pool + 1] = def
+        end
+    end
+    return pool
+end
+
+--- 从词缀池中随机选取并缩放
+---@param globalWave number 等效全局波次（用于解锁判定）
+---@param count number 选取数量
+---@param level number 缩放等级（stageNum/10 或 floor）
+---@return table[] 缩放后的词缀实例列表
+function Config.PickAffixes(globalWave, count, level)
+    local pool = Config.GetAffixPool(globalWave)
+    if #pool == 0 then return {} end
+    count = math.min(count, #pool)
+    -- Fisher-Yates 部分洗牌
+    local copy = {}
+    for i, v in ipairs(pool) do copy[i] = v end
+    local result = {}
+    for i = 1, count do
+        local j = math.random(i, #copy)
+        copy[i], copy[j] = copy[j], copy[i]
+        result[#result + 1] = Config.ScaleAffix(copy[i], level)
+    end
+    return result
+end
 
 -- ============================================================================
 -- 关卡 & 波次参数
@@ -357,18 +612,7 @@ Config.HP_SCALE_SEGMENTS = {
 ---@return number 缩放倍率
 function Config.GetStageHPScale(stage)
     if stage <= 1 then return 1.0 end
-    local segs = Config.HP_SCALE_SEGMENTS
-    for i = 1, #segs do
-        local seg = segs[i]
-        if stage <= seg[2] then
-            local t = (stage - seg[1]) / (seg[2] - seg[1])
-            return seg[3] + t * (seg[4] - seg[3])
-        end
-    end
-    -- 超出最大分段：按最后一段斜率线性外推
-    local last = segs[#segs]
-    local slope = (last[4] - last[3]) / (last[2] - last[1])
-    return last[4] + slope * (stage - last[2])
+    return F.Piecewise4(Config.HP_SCALE_SEGMENTS, stage)
 end
 
 Config.STAGE_SPEED_PER_STAGE = 0.02

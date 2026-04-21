@@ -71,6 +71,14 @@ for _, def in ipairs(RD.DUNGEON_DEFS) do
     RD.DUNGEON_MAP[def.key] = def
 end
 
+-- 副本 key → 专属挑战券物品 ID
+RD.DUNGEON_TICKET_MAP = {
+    crystal = "dungeon_ticket_crystal",
+    stone   = "dungeon_ticket_stone",
+    iron    = "dungeon_ticket_iron",
+    chest   = "dungeon_ticket_chest",
+}
+
 -- ============================================================================
 -- 波次参数
 -- ============================================================================
@@ -363,17 +371,16 @@ function RD.GetData()
 end
 
 --- 每日挑战次数上限
-RD.DAILY_ATTEMPTS    = 4   -- 每日每副本总上限（免费+广告）
 RD.FREE_ATTEMPTS     = 1   -- 每日免费次数
-RD.AD_EXTRA_ATTEMPTS = 3   -- 每日广告续次上限
+RD.AD_EXTRA_ATTEMPTS = 3   -- 每日广告领券上限
 
---- 获取剩余挑战次数（免费+广告合计）
+--- 获取剩余挑战次数（免费剩余 + 挑战券）
 ---@param dungeonKey string
 ---@return number
 function RD.GetRemainingAttempts(dungeonKey)
-    local data = RD.GetData()
-    local used = data.todayAttempts[dungeonKey] or 0
-    return math.max(0, RD.DAILY_ATTEMPTS - used)
+    local free = RD.GetFreeRemaining(dungeonKey)
+    local tickets = RD.GetTotalTicketCount(dungeonKey)
+    return free + tickets
 end
 
 --- 获取剩余免费次数
@@ -382,7 +389,9 @@ end
 function RD.GetFreeRemaining(dungeonKey)
     local data = RD.GetData()
     local used = data.todayAttempts[dungeonKey] or 0
-    return math.max(0, RD.FREE_ATTEMPTS - used)
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("dungeon_attempt")
+    return math.max(0, RD.FREE_ATTEMPTS + bonusAttempt - used)
 end
 
 --- 获取剩余广告续次次数
@@ -408,13 +417,11 @@ end
 function RD.ConsumeAttempt(dungeonKey)
     local data = RD.GetData()
     local used = data.todayAttempts[dungeonKey] or 0
-    if used >= RD.DAILY_ATTEMPTS then
-        Toast.Show("今日挑战次数已用完", { 255, 200, 80 })
-        return false
-    end
-    -- 检查是否还有免费次数
-    if used >= RD.FREE_ATTEMPTS then
-        Toast.Show("免费次数已用完，请观看广告继续", { 255, 200, 80 })
+    -- 免费次数 + 神裔降临加成（券挑战走 ConsumeDungeonTicket，不走这里）
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("dungeon_attempt")
+    if used >= RD.FREE_ATTEMPTS + bonusAttempt then
+        Toast.Show("免费次数已用完，可使用挑战券继续", { 255, 200, 80 })
         return false
     end
     data.todayAttempts[dungeonKey] = used + 1
@@ -422,28 +429,83 @@ function RD.ConsumeAttempt(dungeonKey)
     return true
 end
 
---- 消耗广告续次（观看广告后调用）
+--- 消耗广告领券次数（观看广告后调用，仅计广告次数，不影响免费挑战次数）
 ---@param dungeonKey string
 ---@return boolean success
 function RD.ConsumeAdAttempt(dungeonKey)
     local data = RD.GetData()
-    local used = data.todayAttempts[dungeonKey] or 0
-    if used >= RD.DAILY_ATTEMPTS then
-        Toast.Show("今日挑战次数已达上限", { 255, 200, 80 })
-        return false
-    end
     local adUsed = data.todayAdAttempts[dungeonKey] or 0
     if adUsed >= RD.AD_EXTRA_ATTEMPTS then
-        Toast.Show("今日广告次数已达上限", { 255, 200, 80 })
+        Toast.Show("今日广告领券次数已达上限", { 255, 200, 80 })
         return false
     end
-    data.todayAttempts[dungeonKey] = used + 1
     data.todayAdAttempts[dungeonKey] = adUsed + 1
     HeroData.Save()
     return true
 end
 
---- 消耗一张资源副本门票（进入副本时调用）
+--- 获取指定副本的专属挑战券数量
+---@param dungeonKey string
+---@return number
+function RD.GetDungeonTicketCount(dungeonKey)
+    local InventoryData = require("Game.InventoryData")
+    local ticketId = RD.DUNGEON_TICKET_MAP[dungeonKey]
+    if not ticketId then return 0 end
+    return InventoryData.GetCount(ticketId)
+end
+
+--- 获取指定副本可用的总挑战券数量（专属 + 通用）
+---@param dungeonKey string
+---@return number total, number specific, number generic
+function RD.GetTotalTicketCount(dungeonKey)
+    local InventoryData = require("Game.InventoryData")
+    local specific = RD.GetDungeonTicketCount(dungeonKey)
+    local generic = InventoryData.GetCount("dungeon_ticket")
+    return specific + generic, specific, generic
+end
+
+--- 消耗一张挑战券（优先专属券，不足则用通用券）
+---@param dungeonKey string
+---@return boolean success
+function RD.ConsumeDungeonTicket(dungeonKey)
+    local InventoryData = require("Game.InventoryData")
+    local ticketId = RD.DUNGEON_TICKET_MAP[dungeonKey]
+
+    -- 优先消耗专属券
+    if ticketId and InventoryData.GetCount(ticketId) > 0 then
+        for i, slot in ipairs(InventoryData.items) do
+            if slot.id == ticketId then
+                slot.count = slot.count - 1
+                if slot.count <= 0 then
+                    table.remove(InventoryData.items, i)
+                end
+                break
+            end
+        end
+        InventoryData.Save()
+        return true
+    end
+
+    -- 其次消耗通用券
+    if InventoryData.GetCount("dungeon_ticket") > 0 then
+        for i, slot in ipairs(InventoryData.items) do
+            if slot.id == "dungeon_ticket" then
+                slot.count = slot.count - 1
+                if slot.count <= 0 then
+                    table.remove(InventoryData.items, i)
+                end
+                break
+            end
+        end
+        InventoryData.Save()
+        return true
+    end
+
+    Toast.Show("挑战券不足", { 255, 200, 80 })
+    return false
+end
+
+--- 兼容旧接口：消耗通用门票
 ---@return boolean success
 function RD.ConsumeTicket()
     local InventoryData = require("Game.InventoryData")

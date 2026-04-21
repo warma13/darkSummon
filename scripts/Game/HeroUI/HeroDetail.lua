@@ -244,12 +244,49 @@ local function BuildInfoTab(ctx, heroId, heroDef)
 
         local skillAutoUnlock = (heroId == "glacial_sovereign")
 
+        -- 星级缩放系数：0星→10%，满星→100%
+        local heroStar = (h and h.star) or 0
+        local maxStar  = Config.MAX_HERO_STAR or 30
+        local starScale = 0.10 + 0.90 * math.min(heroStar, maxStar) / maxStar
+
+        -- 星级乘数文本，如 "×55%"
+        local starPct = math.floor(starScale * 100 + 0.5)
+        local starTag = "（★" .. heroStar .. " ×" .. starPct .. "%）"
+
+        --- 为带 starScale 标记的翎嫣技能生成动态描述，数值后附星级乘数
+        local function BuildNatureElfDesc(skillId)
+            if skillId == "nature_gift" then
+                local atkPct = math.floor(60 * starScale + 0.5)
+                local spdPct = math.floor(40 * starScale + 0.5)
+                local ratPct = math.floor(10 * starScale * 10 + 0.5) / 10
+                local ratStr = ratPct % 1 == 0 and string.format("%d", ratPct) or string.format("%.1f", ratPct)
+                return string.format(
+                    "每3秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+%d%%、攻速+%d%%，并额外获得翎嫣ATK×%s%%的固定攻击加成%s",
+                    atkPct, spdPct, ratStr, starTag
+                )
+            elseif skillId == "wilds_call" then
+                local force     = math.floor(30 * starScale)
+                local wreathPct = math.floor(40 * starScale + 0.5)
+                return string.format(
+                    "每20秒自动为所有英雄提供%d点自然之力，并为攻击力最高且未持有鲜花环的英雄赠送鲜花环（+%d%%攻击力，持续10秒，每个英雄最多1个）%s",
+                    force, wreathPct, starTag
+                )
+            end
+            return nil
+        end
+
         local function UpdateSkillDesc(idx)
             selectedIdx = idx
             local sd = skillDefs[idx]
             if not sd then return end
             local unlockLv = Config.SKILL_UNLOCK_LEVELS[idx] or 999
             local isLocked = (not skillAutoUnlock) and (level < unlockLv)
+
+            -- 动态描述：starScale 标记的技能显示当前星级对应的数值
+            local desc = sd.desc
+            if sd.starScale then
+                desc = BuildNatureElfDesc(sd.id) or desc
+            end
 
             skillDescContainer:ClearChildren()
             skillDescContainer:AddChild(UI.Panel {
@@ -280,7 +317,7 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                         },
                     },
                     UI.Label {
-                        text = sd.desc, fontSize = 11,
+                        text = desc, fontSize = 11,
                         fontColor = isLocked and { 180, 170, 155, 180 } or { 210, 200, 180, 220 },
                     },
                     isLocked and UI.Label {

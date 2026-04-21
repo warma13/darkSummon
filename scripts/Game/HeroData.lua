@@ -11,6 +11,7 @@ local SaveManager = require("Game.SaveManager")
 local SafeTable = require("Game.SafeTable")
 local SaveRegistry = require("Game.SaveRegistry")
 local EventBus = require("Game.EventBus")
+local F = require("Game.FormulaLib")
 
 local HeroData = {}
 
@@ -89,6 +90,19 @@ function HeroData._InitCoreDefaults()
     })
     HeroData.recruitData = { pityCounter = 0, totalPulls = 0, freeDaily = "", lrPityCount = 0 }
     HeroData.stats, statsSnapshot = SafeTable.Create({ bestStage = 0, bestGlobalWave = 0, totalGames = 0 })
+
+    -- 新玩家首日免费赠送自动召唤/合成/布阵/x2
+    local today = os.date("%Y-%m-%d")
+    HeroData.stats.autoSummonAdDate = today
+    HeroData.stats.autoMergeAdDate  = today
+    HeroData.stats.autoDeployAdDate = today
+    HeroData.stats.speedBoost = {
+        date     = today,
+        adsUsed  = 0,
+        remaining = 3600,  -- 赠送 1 小时 x2 加速
+        lastTs   = os.time(),
+    }
+
     HeroData.deployed = {}
     for _, heroId in ipairs(Config.DEFAULT_DEPLOYED) do
         HeroData.deployed[#HeroData.deployed + 1] = heroId
@@ -373,7 +387,7 @@ function HeroData._ValidateCore()
     end
 
     -- 版本更新奖励邮件
-    local CURRENT_VERSION = "1.0.4"
+    local CURRENT_VERSION = "1.0.27"
     local lastRewarded = HeroData.stats.lastRewardedVersion or "0"
     if lastRewarded ~= CURRENT_VERSION then
         local ok, Mailbox = pcall(require, "Game.MailboxData")
@@ -515,6 +529,90 @@ function HeroData._ValidateCore()
             print("[HeroData] Global compensation sent: shadow_essence 1000")
         end
         HeroData.stats.compensations[COMP_ID2] = true
+    end
+
+    local COMP_ID3 = "v1036_reward_20260420"
+    if not HeroData.stats.compensations[COMP_ID3] then
+        local ok4, Mailbox4 = pcall(require, "Game.MailboxData")
+        if ok4 then
+            Mailbox4.Add({
+                title = "版本更新奖励",
+                desc = "亲爱的召唤师，感谢您的持续支持！本次更新新增宝箱与招募成就系统，特此赠送暗影精粹 3000 和虚空契约 10，祝您游戏愉快！",
+                rewards = {
+                    { type = "currency", id = "shadow_essence", amount = 3000 },
+                    { type = "currency", id = "void_pact", amount = 10 },
+                },
+            })
+            print("[HeroData] v1.0.36 reward sent: shadow_essence 3000 + void_pact 10")
+        end
+        HeroData.stats.compensations[COMP_ID3] = true
+    end
+
+    -- ========================================================================
+    -- 虚空契约产出公式重平衡补偿（一次性）
+    -- 旧公式：主线 floor(1+s/10)，试练塔通塔 10，成就每5关 1
+    -- 新公式：主线 floor(2*ln(s+1))，试练塔每层 floor(2*ln(t*10+1))，
+    --         通塔 floor(2*ln(t*10+1))*10，成就改为暗影精粹
+    -- 差值为正则补发，为负则不扣
+    -- ========================================================================
+    local COMP_VOID_REBALANCE = "void_pact_rebalance_20260420"
+    if not HeroData.stats.compensations[COMP_VOID_REBALANCE] then
+        local bestStage = HeroData.stats.bestStage or 0
+        local towerData = HeroData.towerData
+        local clearedFloors = towerData and towerData.clearedFloors or 0
+        local claimedTowers = towerData and towerData.claimedTowers or 0
+
+        if bestStage > 0 or clearedFloors > 0 then
+            -- ---- 旧公式总产出 ----
+            local oldTotal = 0
+            -- 旧主线：floor(1 + s/10) per stage
+            for s = 1, bestStage do
+                oldTotal = oldTotal + math.floor(1 + s / 10)
+            end
+            -- 旧试练塔：每通塔 10
+            oldTotal = oldTotal + claimedTowers * 10
+            -- 旧成就：每5关 1 张虚空契约
+            oldTotal = oldTotal + math.floor(bestStage / 5)
+
+            -- ---- 新公式总产出 ----
+            local newTotal = 0
+            -- 新主线：floor(2 * ln(s + 1)) per stage
+            for s = 1, bestStage do
+                newTotal = newTotal + math.floor(2 * math.log(s + 1))
+            end
+            -- 新试练塔每层：floor(2 * ln(towerNum * 10 + 1))
+            for f = 1, clearedFloors do
+                local tNum = math.ceil(f / 10)
+                newTotal = newTotal + math.floor(2 * math.log(tNum * 10 + 1))
+            end
+            -- 新试练塔通塔：floor(2 * ln(t * 10 + 1)) * 10
+            for t = 1, claimedTowers do
+                newTotal = newTotal + math.floor(2 * math.log(t * 10 + 1)) * 10
+            end
+            -- 新成就：0（已改为暗影精粹，不再发虚空契约）
+
+            local diff = newTotal - oldTotal
+            if diff > 0 then
+                local ok5, Mailbox5 = pcall(require, "Game.MailboxData")
+                if ok5 then
+                    Mailbox5.Add({
+                        title = "虚空契约调整补偿",
+                        desc = "亲爱的召唤师，因虚空契约产出公式调整，根据您的游戏进度"
+                            .. "（主线第" .. bestStage .. "关，试练塔第" .. clearedFloors .. "层），"
+                            .. "系统已为您补发虚空契约 " .. diff .. " 张。",
+                        rewards = {
+                            { type = "currency", id = "void_pact", amount = diff },
+                        },
+                    })
+                end
+                print("[HeroData] Void pact rebalance comp: old=" .. oldTotal
+                    .. " new=" .. newTotal .. " diff=+" .. diff)
+            else
+                print("[HeroData] Void pact rebalance: old=" .. oldTotal
+                    .. " new=" .. newTotal .. " no comp needed (diff=" .. diff .. ")")
+            end
+        end
+        HeroData.stats.compensations[COMP_VOID_REBALANCE] = true
     end
 end
 
@@ -964,7 +1062,7 @@ end
 ---@return number  倍率（≥1.0）
 local function CalcLevelMultiplier(growthPct, level)
     if level <= 1 then return 1.0 end
-    return 1.0 + (level - 1) * growthPct
+    return F.Linear(1.0, growthPct, level - 1)
 end
 
 --- 计算进阶倍率（每阶 ×1.10，乘算，对齐咸鱼之王）
@@ -976,12 +1074,10 @@ local function CalcAdvanceMultiplier(heroId)
     if not h then return 1.0 end
     local advLv = h.advanceLevel or 0
     if advLv <= 0 then return 1.0 end
-    local mult = 1.0
-    for i = 1, advLv do
+    return F.CompoundMult(advLv, function(i)
         local gate = Config.ADVANCE_GATES[i]
-        if gate then mult = mult * (1.0 + gate.bonus) end
-    end
-    return mult
+        return gate and (1.0 + gate.bonus) or 1.0
+    end)
 end
 
 --- 获取英雄完整属性（二维 + 战斗子属性）
@@ -1015,20 +1111,7 @@ function HeroData.GetHeroStats(heroId)
 
     -- SPD: 分段线性增长，直接计算攻速加成比例（0 ~ SPD_BONUS_MAX）
     local totalMult = levelMult * advMult * starMult
-    local spdBonus = 0
-    local curve = Config.SPD_BONUS_CURVE
-    if totalMult >= curve[#curve][1] then
-        spdBonus = Config.SPD_BONUS_MAX
-    else
-        for i = 2, #curve do
-            if totalMult <= curve[i][1] then
-                local x0, y0 = curve[i - 1][1], curve[i - 1][2]
-                local x1, y1 = curve[i][1], curve[i][2]
-                spdBonus = y0 + (totalMult - x0) / (x1 - x0) * (y1 - y0)
-                break
-            end
-        end
-    end
+    local spdBonus = math.min(F.Piecewise(Config.SPD_BONUS_CURVE, totalMult), Config.SPD_BONUS_MAX)
 
     -- 战斗子属性: 基础 + 等级线性成长（不受星/阶乘算影响）
     -- 来源分离: 等级提供基础值，后续装备/宝石等系统加算叠加
@@ -1061,6 +1144,15 @@ function HeroData.GetLevelRangeBonus(heroId)
     return (h.level - 1) * Config.LEVEL_RANGE_BONUS
 end
 
+-- 升级费用分段多项式定义: { fromX, toX, a, b, c }
+-- 值 = a + b*(level - fromX) + c*(level - fromX)^2
+local LEVEL_COST_SEGMENTS = {
+    { 1,    101,  10,    0.5,   0     },  -- 1~100:    极便宜，快速冲级
+    { 101,  501,  60,    1.2,   0.003 },  -- 101~500:  平稳过渡
+    { 501,  1501, 1040,  20,    0.03  },  -- 501~1500: 中期成长
+    { 1501, 3601, 51000, 1200,  1.249 },  -- 1501~3600: 后期陡峭
+}
+
 --- 计算升级费用（分段公式，对齐咸鱼之王曲线）
 --- 阶段1(1~100):    前期极便宜，快速冲级    ~57/级
 --- 阶段2(101~500):  平稳过渡               ~60→1020/级
@@ -1070,24 +1162,7 @@ end
 ---@param level number 当前等级
 ---@return number
 function HeroData.GetLevelUpCost(level)
-    if level >= 3601 then
-        return Config.LEVEL_COST_CAP  -- 807.8万 固定
-    elseif level >= 1501 then
-        -- 1501~3600: 二次增长，从~5.1万 平滑过渡到 ~808万
-        local t = level - 1500
-        return math.floor(51000 + t * 1200 + t * t * 1.249)
-    elseif level >= 501 then
-        -- 501~1500: 从~1040 到 ~5.1万
-        local t = level - 500
-        return math.floor(1040 + t * 20 + t * t * 0.03)
-    elseif level >= 101 then
-        -- 101~500: 从~61 到 ~1020
-        local t = level - 100
-        return math.floor(60 + t * 1.2 + t * t * 0.003)
-    else
-        -- 1~100: 10 + level × 0.5，极便宜
-        return math.floor(10 + level * 0.5)
-    end
+    return math.floor(F.PiecewisePoly(LEVEL_COST_SEGMENTS, level, Config.LEVEL_COST_CAP))
 end
 
 --- 升级英雄（消耗金币，受进阶门槛限制）
@@ -1270,50 +1345,10 @@ end
 -- 结算奖励
 -- ============================================================================
 
---- 通关结算奖励（只有通关才调用，失败无奖励）
+--- 通关结算（更新统计、上传排行榜，不发放奖励）
 ---@param stageNum number 通关的关卡号
 ---@param score number 得分
----@return table  -- { gold, fragments = {heroId=n}, diamonds, totalFragments }
 function HeroData.SettleRewards(stageNum, score)
-    local rewards = {
-        nether_crystal = Config.SETTLE_BASE_GOLD + stageNum * Config.SETTLE_STAGE_GOLD,
-        shadow_essence = math.floor(stageNum / Config.SETTLE_DIAMOND_INTERVAL) * Config.SETTLE_DIAMOND_AMOUNT,
-        devour_stone = math.floor(stageNum / 5) * Config.SETTLE_STONE_PER_5,
-        forge_iron = math.floor(stageNum / 3) * 2,
-        void_pact = Config.SETTLE_TOKEN_BASE + math.floor(stageNum / 10) * Config.SETTLE_TOKEN_PER_10,
-        fragments = {},  -- heroId -> count
-        totalFragments = 0,
-    }
-
-    -- 碎片奖励: 基础 + 每5关额外
-    local fragCount = Config.SETTLE_FRAGMENT_BASE + math.floor(stageNum / 5) * Config.SETTLE_FRAGMENT_PER_5
-    local unlockedList = HeroData.GetUnlockedList()
-    if #unlockedList == 0 then
-        unlockedList = Config.DEFAULT_UNLOCKED
-    end
-    for i = 1, fragCount do
-        local heroId = unlockedList[math.random(1, #unlockedList)]
-        rewards.fragments[heroId] = (rewards.fragments[heroId] or 0) + 1
-        rewards.totalFragments = rewards.totalFragments + 1
-    end
-
-    -- 神裔降临：周末（周六/周日）冥晶加成
-    local _wd = os.date("*t").wday
-    if _wd == 1 or _wd == 7 then
-        rewards.nether_crystal = math.floor(rewards.nether_crystal * Config.WEEKEND_CRYSTAL_MULTI)
-    end
-
-    -- 发放奖励（新货币体系）
-    local Currency = require("Game.Currency")
-    Currency.Add("nether_crystal", rewards.nether_crystal)
-    Currency.Add("shadow_essence", rewards.shadow_essence)
-    Currency.Add("devour_stone", rewards.devour_stone)
-    Currency.Add("forge_iron", rewards.forge_iron)
-    Currency.Add("void_pact", rewards.void_pact)
-    for heroId, count in pairs(rewards.fragments) do
-        HeroData.AddFragments(heroId, count)
-    end
-
     -- 更新统计
     HeroData.stats.totalGames = HeroData.stats.totalGames + 1
     if stageNum > (HeroData.stats.bestStage or 0) then
@@ -1327,14 +1362,7 @@ function HeroData.SettleRewards(stageNum, score)
     end
 
     HeroData.Save()
-    print("[HeroData] Settlement: stage " .. stageNum ..
-          " crystal+" .. rewards.nether_crystal ..
-          " essence+" .. rewards.shadow_essence ..
-          " stone+" .. rewards.devour_stone ..
-          " iron+" .. rewards.forge_iron ..
-          " pact+" .. rewards.void_pact ..
-          " fragments+" .. rewards.totalFragments)
-    return rewards
+    print("[HeroData] Settlement: stage " .. stageNum .. " (no rewards)")
 end
 
 -- ============================================================================
@@ -1351,9 +1379,10 @@ function HeroData.CalcIdleRewards()
     local elapsed = now - lastTime
     if elapsed < Config.IDLE_MIN_SECONDS then return nil end
 
-    -- 特权增益：挂机时长上限
+    -- 特权增益 + 神裔降临：挂机时长上限
     local PrivilegeData = require("Game.PrivilegeData")
-    local maxSeconds = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds()
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local maxSeconds = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds() + DivineBlessDB.GetBuffValue("idle_extra")
     local capped = math.min(elapsed, maxSeconds)
     local hours = capped / 3600
 
@@ -1387,6 +1416,19 @@ function HeroData.CalcIdleRewards()
         end
     end
 
+    -- 随机碎片箱掉落（每小时判定一次，掉落碎片箱道具）
+    local fragmentBoxDrops = {}  -- { [itemId] = count }
+    if Config.IDLE_FRAGMENT_RANDOM then
+        local fullHours = math.floor(hours)
+        for _, rule in ipairs(Config.IDLE_FRAGMENT_RANDOM) do
+            for _ = 1, fullHours do
+                if math.random() < rule.chancePerHour then
+                    fragmentBoxDrops[rule.id] = (fragmentBoxDrops[rule.id] or 0) + 1
+                end
+            end
+        end
+    end
+
     -- 基础收益
     local crystal = math.floor(crystalPerStage * stagesCleared)
     local stone   = math.floor(stonePerStage * stagesCleared)
@@ -1411,6 +1453,7 @@ function HeroData.CalcIdleRewards()
         devour_stone = stone,
         forge_iron = iron,
         chestDrops = chestDrops,
+        fragmentBoxDrops = fragmentBoxDrops,  -- { [itemId] = count }
         isOffline = true,
         doubled = doubled,  -- 是否触发了翻倍
     }
@@ -1425,16 +1468,30 @@ function HeroData.ClaimIdleRewards(rewards)
     Currency.Add("devour_stone", rewards.devour_stone)
     Currency.Add("forge_iron", rewards.forge_iron)
 
-    -- 发放宝箱
+    -- 发放宝箱（神裔降临加成）
     if rewards.chestDrops then
         local ChestData = require("Game.ChestData")
+        local DivineBlessDB = require("Game.DivineBlessData")
+        local chestMulti = DivineBlessDB.GetBuffValue("chest_multi")
+        local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
         for id, count in pairs(rewards.chestDrops) do
             if count > 0 then
-                ChestData.Add(id, count)
-                print("[HeroData] Idle chest drop: " .. id .. " x" .. count)
+                ChestData.Add(id, count * mult)
+                print("[HeroData] Idle chest drop: " .. id .. " x" .. count * mult)
             end
         end
         ChestData.Save()
+    end
+
+    -- 发放碎片箱道具到背包
+    if rewards.fragmentBoxDrops then
+        local InventoryData = require("Game.InventoryData")
+        for itemId, count in pairs(rewards.fragmentBoxDrops) do
+            if count > 0 then
+                InventoryData.Add(itemId, count)
+                print("[HeroData] Idle fragment box drop: " .. itemId .. " x" .. count)
+            end
+        end
     end
 
     -- 重置时间戳
@@ -1443,6 +1500,7 @@ function HeroData.ClaimIdleRewards(rewards)
     print("[HeroData] Idle rewards claimed: crystal+" .. rewards.nether_crystal ..
           " stone+" .. rewards.devour_stone ..
           " iron+" .. rewards.forge_iron ..
+          " fragBoxes+" .. (rewards.fragmentBoxDrops and next(rewards.fragmentBoxDrops) and "yes" or "0") ..
           " (" .. math.floor(rewards.seconds / 60) .. " min)")
 end
 

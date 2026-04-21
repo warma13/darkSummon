@@ -177,7 +177,7 @@ SpriteSheet.Register("archfiend", {
     cols = 3,   -- 0=idle, 1=attack, 2=projectile
 })
 SpriteSheet.Register("nature_elf", {
-    path = "image/nature_elf_sprite.png",
+    path = "image/lingyan_spritesheet_3frames.png",
     cols = 3,   -- 0=idle, 1=attack, 2=projectile
 })
 -- 注册世界BOSS精灵图

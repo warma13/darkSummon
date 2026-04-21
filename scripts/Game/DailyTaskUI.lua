@@ -1,13 +1,15 @@
 -- Game/DailyTaskUI.lua
--- 每日任务 UI（独立全屏页面，参考 LaunchGiftUI 布局）
+-- 每日任务 + 成就 UI（标签栏切换，独立全屏页面）
 
-local DailyTaskData  = require("Game.DailyTaskData")
-local WPD            = require("Game.WeeklyPointsData")
-local Toast          = require("Game.Toast")
-local Tooltip        = require("Game.Tooltip")
-local RewardIconMod  = require("Game.RewardIcon")
-local TaskCard       = require("Game.TaskCard")
-local ChestData      = require("Game.ChestData")
+local DailyTaskData   = require("Game.DailyTaskData")
+local WPD             = require("Game.WeeklyPointsData")
+local AchievementData = require("Game.AchievementData")
+local HeroData        = require("Game.HeroData")
+local Toast           = require("Game.Toast")
+local Tooltip         = require("Game.Tooltip")
+local RewardIconMod   = require("Game.RewardIcon")
+local TaskCard        = require("Game.TaskCard")
+local ChestData       = require("Game.ChestData")
 
 local DailyTaskUI = {}
 
@@ -15,6 +17,9 @@ local DailyTaskUI = {}
 local UI = nil
 ---@type any
 local pageRoot = nil
+
+--- 当前选中标签  "daily" | "achieve"
+local activeTab = "daily"
 
 -- 样式常量（复用暗黑风格）
 local S = {
@@ -48,7 +53,7 @@ function DailyTaskUI.CreatePage(uiModule)
         width = "100%", height = "100%",
         backgroundColor = S.bgPage,
         children = {
-            -- 顶部标题栏
+            -- 顶部标题栏 + 标签栏
             DailyTaskUI._BuildHeader(),
             -- 可滚动内容区
             UI.ScrollView {
@@ -68,82 +73,458 @@ end
 --- 刷新内容
 function DailyTaskUI.Refresh()
     if not pageRoot then return end
+
+    -- 刷新标题栏（含标签状态）
+    local headerContainer = pageRoot:FindById("dtHeaderContainer")
+    if headerContainer then
+        headerContainer:ClearChildren()
+        headerContainer:AddChild(DailyTaskUI._BuildHeaderContent())
+    end
+
+    -- 刷新内容区
     local area = pageRoot:FindById("dtContentArea")
     if not area then return end
     area:ClearChildren()
 
-    DailyTaskData.EnsureData()
-
-    -- 1) 周积分里程碑区（在上）
-    area:AddChild(DailyTaskUI._BuildWeeklyMilestoneSection())
-    -- 2) 每日积分里程碑区
-    area:AddChild(DailyTaskUI._BuildMilestoneSection())
-    -- 3) 每日任务列表
-    area:AddChild(DailyTaskUI._BuildDailyTasks())
+    if activeTab == "daily" then
+        DailyTaskData.EnsureData()
+        -- 1) 周积分里程碑区（在上）
+        area:AddChild(DailyTaskUI._BuildWeeklyMilestoneSection())
+        -- 2) 每日积分里程碑区
+        area:AddChild(DailyTaskUI._BuildMilestoneSection())
+        -- 3) 每日任务列表
+        area:AddChild(DailyTaskUI._BuildDailyTasks())
+    elseif activeTab == "achieve" then
+        area:AddChild(DailyTaskUI._BuildAchievementSection())
+        -- 首次打开时异步获取排行榜排名，获取后刷新一次（不重复拉取）
+        if not DailyTaskUI._ranksFetched then
+            DailyTaskUI._ranksFetched = true
+            AchievementData.FetchRanks(function()
+                if activeTab == "achieve" and pageRoot then
+                    DailyTaskUI.Refresh()
+                end
+            end)
+        end
+    end
 end
 
 -- ============================================================================
--- 顶部标题栏
+-- 顶部标题栏 + 标签栏
 -- ============================================================================
 
 function DailyTaskUI._BuildHeader()
+    return UI.Panel {
+        id = "dtHeaderContainer",
+        width = "100%",
+        flexShrink = 0,
+        children = {
+            DailyTaskUI._BuildHeaderContent(),
+        },
+    }
+end
+
+function DailyTaskUI._BuildHeaderContent()
     local completed, total = DailyTaskData.GetCompletedCount()
+    local hasAchieveClaim = AchievementData.HasClaimable()
+
     return UI.Panel {
         width = "100%",
-        paddingTop = 14, paddingBottom = 10,
-        paddingLeft = 14, paddingRight = 14,
-        backgroundColor = { 30, 22, 50, 240 },
-        borderBottomWidth = 1,
-        borderColor = { 100, 80, 160, 80 },
-        flexDirection = "row",
-        justifyContent = "space-between",
-        alignItems = "center",
         children = {
-            -- 左侧标题
+            -- 标题行
             UI.Panel {
-                flexDirection = "row", alignItems = "center", gap = 8,
+                width = "100%",
+                paddingTop = 14, paddingBottom = 8,
+                paddingLeft = 14, paddingRight = 14,
+                backgroundColor = { 30, 22, 50, 240 },
+                flexDirection = "row",
+                justifyContent = "space-between",
+                alignItems = "center",
                 children = {
+                    -- 左侧标题
                     UI.Panel {
-                        width = 28, height = 28,
-                        backgroundImage = "image/icon_dailytask.png",
-                        backgroundFit = "contain",
-                    },
-                    UI.Panel {
-                        gap = 1,
+                        flexDirection = "row", alignItems = "center", gap = 8,
                         children = {
+                            UI.Panel {
+                                width = 28, height = 28,
+                                backgroundImage = "image/icon_dailytask.png",
+                                backgroundFit = "contain",
+                            },
                             UI.Label {
                                 text = "每日任务",
                                 fontSize = 18, fontColor = S.textTitle, fontWeight = "bold",
                             },
+                        },
+                    },
+                    -- 右侧完成度（仅每日任务 tab 显示）
+                    activeTab == "daily" and UI.Panel {
+                        paddingLeft = 10, paddingRight = 10,
+                        paddingTop = 4, paddingBottom = 4,
+                        backgroundColor = completed >= total
+                            and { 50, 90, 50, 200 }
+                            or  { 60, 40, 90, 200 },
+                        borderRadius = 10,
+                        children = {
                             UI.Label {
-                                text = "完成任务获取积分 兑换丰厚奖励",
-                                fontSize = 10, fontColor = S.textDim,
+                                text = "已完成 " .. completed .. "/" .. total,
+                                fontSize = 12,
+                                fontColor = completed >= total
+                                    and S.textGreen
+                                    or  S.accent,
+                                fontWeight = "bold",
                             },
                         },
+                    } or nil,
+                },
+            },
+            -- 标签栏
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                backgroundColor = { 20, 16, 38, 240 },
+                borderBottomWidth = 1,
+                borderColor = { 80, 65, 120, 80 },
+                children = {
+                    DailyTaskUI._BuildTab("daily", "每日任务", false),
+                    DailyTaskUI._BuildTab("achieve", "成就", hasAchieveClaim),
+                },
+            },
+        },
+    }
+end
+
+--- 构建单个标签
+---@param tabId string
+---@param label string
+---@param hasRedDot boolean
+function DailyTaskUI._BuildTab(tabId, label, hasRedDot)
+    local isActive = (activeTab == tabId)
+    return UI.Panel {
+        flexGrow = 1,
+        height = 40,
+        justifyContent = "center",
+        alignItems = "center",
+        backgroundColor = isActive and { 40, 30, 65, 255 } or { 20, 16, 38, 0 },
+        borderBottomWidth = isActive and 2 or 0,
+        borderColor = isActive and S.accent or { 0, 0, 0, 0 },
+        pointerEvents = "auto",
+        overflow = "visible",
+        onClick = function()
+            if activeTab ~= tabId then
+                activeTab = tabId
+                DailyTaskUI.Refresh()
+            end
+        end,
+        children = {
+            UI.Label {
+                text = label,
+                fontSize = 14,
+                fontColor = isActive and S.textWhite or S.textDim,
+                fontWeight = isActive and "bold" or "normal",
+            },
+            -- 红点
+            hasRedDot and UI.Panel {
+                position = "absolute", top = 6, right = "30%",
+                width = 8, height = 8, borderRadius = 4,
+                backgroundColor = S.red, zIndex = 3,
+                pointerEvents = "none",
+            } or nil,
+        },
+    }
+end
+
+-- ============================================================================
+-- 成就页：关卡里程碑 + 暗影君主升级（每行只显示当前一个，领完刷新下一个）
+-- ============================================================================
+
+--- 通用里程碑行构建
+---@param opts { badge:string, desc:string, current:number, target:number, rewardId:string, rewardAmt:number, canClaim:boolean, reached:boolean, onClaim:function, progress?:string }
+local function _BuildMilestoneRow(opts)
+    local pct = math.min(1, opts.current / math.max(1, opts.target))
+    local progressText = opts.progress or (math.min(opts.current, opts.target) .. "/" .. opts.target)
+    if opts.progress then pct = opts.reached and 1 or 0 end
+    local icon = RewardIconMod.Create(UI, 36, opts.rewardId, opts.rewardAmt, opts.iconOpts or {})
+
+    return UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        backgroundColor = S.bgCard,
+        borderRadius = 8,
+        borderWidth = 1,
+        borderColor = opts.canClaim and S.borderGold or S.border,
+        padding = 10,
+        gap = 10,
+        children = {
+            -- 左侧标识
+            UI.Panel {
+                width = 44, height = 44,
+                borderRadius = 22,
+                backgroundColor = opts.reached and { 60, 45, 100, 255 } or { 35, 28, 55, 255 },
+                borderWidth = 1,
+                borderColor = opts.reached and S.accent or { 60, 50, 80, 150 },
+                justifyContent = "center",
+                alignItems = "center",
+                flexShrink = 0,
+                children = {
+                    UI.Label {
+                        text = opts.badge,
+                        fontSize = #opts.badge >= 4 and 11 or (#opts.badge == 3 and 13 or 16),
+                        fontWeight = "bold",
+                        whiteSpace = "nowrap",
+                        fontColor = opts.reached and S.textGold or S.textDim,
                     },
                 },
             },
-            -- 右侧完成度
+            -- 中间描述 + 进度条
             UI.Panel {
-                paddingLeft = 10, paddingRight = 10,
-                paddingTop = 4, paddingBottom = 4,
-                backgroundColor = completed >= total
-                    and { 50, 90, 50, 200 }
-                    or  { 60, 40, 90, 200 },
-                borderRadius = 10,
+                flexGrow = 1, flexShrink = 1,
+                gap = 4,
                 children = {
                     UI.Label {
-                        id = "dtCompletionLabel",
-                        text = "已完成 " .. completed .. "/" .. total,
-                        fontSize = 12,
-                        fontColor = completed >= total
-                            and S.textGreen
-                            or  S.accent,
-                        fontWeight = "bold",
+                        text = opts.desc,
+                        fontSize = 13, fontColor = S.textNormal, fontWeight = "bold",
+                    },
+                    UI.Panel {
+                        width = "100%", height = 6,
+                        backgroundColor = S.bgBar,
+                        borderRadius = 3,
+                        overflow = "hidden",
+                        children = {
+                            UI.Panel {
+                                width = math.floor(pct * 100) .. "%",
+                                height = "100%",
+                                backgroundColor = S.barFill,
+                                borderRadius = 3,
+                            },
+                        },
+                    },
+                    UI.Label {
+                        text = progressText,
+                        fontSize = 10, fontColor = S.textDim,
+                    },
+                },
+            },
+            -- 右侧奖励图标
+            UI.Panel {
+                width = 36, height = 36,
+                flexShrink = 0,
+                children = { icon },
+            },
+            -- 领取按钮
+            UI.Panel {
+                width = 56, height = 32,
+                flexShrink = 0,
+                borderRadius = 6,
+                justifyContent = "center",
+                alignItems = "center",
+                pointerEvents = "auto",
+                backgroundColor = opts.canClaim and { 120, 60, 200, 220 } or { 40, 30, 60, 150 },
+                borderWidth = 1,
+                borderColor = opts.canClaim and S.accent or { 60, 50, 80, 100 },
+                opacity = opts.canClaim and 1.0 or 0.5,
+                onClick = opts.canClaim and opts.onClaim or nil,
+                children = {
+                    UI.Label {
+                        text = opts.canClaim and "领取" or "未达成",
+                        fontSize = 11,
+                        fontColor = opts.canClaim and S.textWhite or S.textDim,
                     },
                 },
             },
         },
+    }
+end
+
+--- 格式化大数字
+local function _FormatNum(n)
+    if n >= 10000000 then return math.floor(n / 10000000) .. "kw"
+    elseif n >= 10000 then return math.floor(n / 10000) .. "w"
+    else return tostring(n) end
+end
+
+function DailyTaskUI._BuildAchievementSection()
+    -- 1) 关卡成就行
+    local stageTarget, stageCanClaim, stageReached = AchievementData.GetCurrentStageMilestone()
+    local bestStage = HeroData.stats and HeroData.stats.bestStage or 0
+    local stageRow = _BuildMilestoneRow({
+        badge    = tostring(stageTarget),
+        desc     = "通关第" .. stageTarget .. "关",
+        current  = bestStage,
+        target   = stageTarget,
+        rewardId = "shadow_essence",
+        rewardAmt = 50,
+        canClaim = stageCanClaim,
+        reached  = stageReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimStage(stageTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 2) 暗影君主升级行
+    local lvTarget, lvCanClaim, lvReached, lvReward = AchievementData.GetCurrentLevelMilestone()
+    local curLevel = AchievementData.GetLeaderLevel()
+    local levelRow = _BuildMilestoneRow({
+        badge    = tostring(lvTarget),
+        desc     = "暗影君主达到" .. lvTarget .. "级",
+        current  = curLevel,
+        target   = lvTarget,
+        rewardId = "nether_crystal",
+        rewardAmt = lvReward,
+        canClaim = lvCanClaim,
+        reached  = lvReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimLevel(lvTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 3) 累积登录行
+    local loginDays, loginCanClaim, loginReached, loginReward = AchievementData.GetCurrentLoginMilestone()
+    local totalDays = AchievementData.GetTotalLoginDays()
+    local loginRow = _BuildMilestoneRow({
+        badge    = loginDays .. "天",
+        desc     = "累积登录" .. loginDays .. "天",
+        current  = totalDays,
+        target   = loginDays,
+        rewardId = "shadow_essence",
+        rewardAmt = loginReward,
+        canClaim = loginCanClaim,
+        reached  = loginReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimLogin(loginDays)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 4) 主线排行榜名次行
+    local crTarget, crCanClaim, crReached, crReward = AchievementData.GetCurrentCampaignRankMilestone()
+    local campaignRank, towerRank = AchievementData.GetCachedRanks()
+    local campaignRow = _BuildMilestoneRow({
+        badge    = "前" .. crTarget,
+        desc     = "主线排名前" .. crTarget,
+        current  = campaignRank and campaignRank or 0,
+        target   = crTarget,
+        progress = campaignRank and ("第" .. campaignRank .. "名") or "未上榜",
+        rewardId = "shadow_essence",
+        rewardAmt = crReward,
+        canClaim = crCanClaim,
+        reached  = crReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimCampaignRank(crTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 5) 试练塔排行榜名次行
+    local trTarget, trCanClaim, trReached, trReward = AchievementData.GetCurrentTowerRankMilestone()
+    local towerRow = _BuildMilestoneRow({
+        badge    = "前" .. trTarget,
+        desc     = "试练塔排名前" .. trTarget,
+        current  = towerRank and towerRank or 0,
+        target   = trTarget,
+        progress = towerRank and ("第" .. towerRank .. "名") or "未上榜",
+        rewardId = "shadow_essence",
+        rewardAmt = trReward,
+        canClaim = trCanClaim,
+        reached  = trReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimTowerRank(trTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 6) 开启宝箱次数行
+    local chTarget, chCanClaim, chReached, chRewardId, chRewardAmt = AchievementData.GetCurrentChestMilestone()
+    local totalChest = AchievementData.GetTotalChestOpened()
+    local chestDef = ChestData.GetChestDef(chRewardId)
+    local chestIconOpts = {}
+    if chestDef then
+        chestIconOpts.image = chestDef.image
+        chestIconOpts.label = chestDef.name
+    end
+    local chestRow = _BuildMilestoneRow({
+        badge    = _FormatNum(chTarget),
+        desc     = "累计开启" .. chTarget .. "次宝箱",
+        current  = totalChest,
+        target   = chTarget,
+        rewardId = chRewardId,
+        rewardAmt = chRewardAmt,
+        canClaim = chCanClaim,
+        reached  = chReached,
+        iconOpts = chestIconOpts,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimChest(chTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 7) 累积招募次数行
+    local rcTarget, rcCanClaim, rcReached, rcReward = AchievementData.GetCurrentRecruitMilestone()
+    local totalRecruit = AchievementData.GetTotalRecruitCount()
+    local recruitRow = _BuildMilestoneRow({
+        badge    = _FormatNum(rcTarget),
+        desc     = "累计招募" .. rcTarget .. "次",
+        current  = totalRecruit,
+        target   = rcTarget,
+        rewardId = "shadow_essence",
+        rewardAmt = rcReward,
+        canClaim = rcCanClaim,
+        reached  = rcReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimRecruit(rcTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+
+    -- 动态构建 children，避免 nil 空洞导致 ipairs 截断
+    local rows = {
+        -- 标题行
+        UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            marginBottom = 2,
+            gap = 6,
+            children = {
+                UI.Label {
+                    text = "| 成就",
+                    fontSize = 15, fontColor = S.textTitle, fontWeight = "bold",
+                },
+                UI.Label {
+                    text = "达成目标领取奖励",
+                    fontSize = 10, fontColor = S.textDim,
+                },
+            },
+        },
+        stageRow,
+        levelRow,
+        loginRow,
+    }
+    -- 排行榜名次成就 2026-04-21 起解锁
+    if os.date("%Y%m%d") >= "20260421" then
+        rows[#rows + 1] = campaignRow
+        rows[#rows + 1] = towerRow
+    end
+    rows[#rows + 1] = chestRow
+    rows[#rows + 1] = recruitRow
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = S.bgSection,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = S.border,
+        padding = 10,
+        gap = 8,
+        children = rows,
     }
 end
 
@@ -170,7 +551,6 @@ function DailyTaskUI._BuildMilestoneSection()
     for i, m in ipairs(milestones) do
         local canClaim, claimed, reached = DailyTaskData.GetMilestoneStatus(i)
         local reward = m.rewards[1]
-        local milestoneIdx = i
 
         local icon = RewardIconMod.Create(UI, CELL_SZ, reward.id, reward.amount, {
             muted = claimed,
@@ -183,14 +563,12 @@ function DailyTaskUI._BuildMilestoneSection()
             opacity = claimed and 0.35 or (reached and 1.0 or 0.5),
             children = {
                 icon,
-                -- 可领取红点
                 canClaim and UI.Panel {
                     position = "absolute", top = -3, right = -3,
                     width = 8, height = 8, borderRadius = 4,
                     backgroundColor = S.red, zIndex = 3,
                     pointerEvents = "none",
                 } or nil,
-                -- 已领取 ✓
                 claimed and UI.Panel {
                     position = "absolute", top = 0, left = 0, right = 0, bottom = 0,
                     justifyContent = "center", alignItems = "center",
@@ -251,7 +629,7 @@ function DailyTaskUI._BuildMilestoneSection()
                     },
                 },
             },
-            -- 中列：图标 + 进度条 + 阈值
+            -- 中列
             UI.Panel {
                 flexGrow = 1, flexShrink = 1,
                 width = "100%",
@@ -333,7 +711,7 @@ function DailyTaskUI._BuildMilestoneSection()
 end
 
 -- ============================================================================
--- 周积分里程碑区（累积每日积分，每周重置）
+-- 周积分里程碑区
 -- ============================================================================
 
 function DailyTaskUI._BuildWeeklyMilestoneSection()
@@ -343,7 +721,6 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
     local ICON_SZ    = 24
     local CELL_SZ    = ICON_SZ + 12  -- 36
 
-    -- 颜色系（金色/暗金调）
     local bgWeekly  = { 35, 30, 18, 230 }
     local borderW   = { 160, 130, 50, 150 }
     local barFillW  = { 200, 160, 40, 255 }
@@ -355,14 +732,12 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
 
     local anyCanClaim = WPD.HasClaimable()
 
-    -- 奖励图标行
     local iconRow = {}
     for i, m in ipairs(milestones) do
         local canClaim, claimed, reached = WPD.GetMilestoneStatus(i)
         local reward = m.rewards[1]
         local milestoneIdx = i
 
-        -- chest 类型从 ChestData 查图片，其他类型走 Config.CURRENCY
         local iconOpts = { muted = claimed }
         if reward.type == "chest" then
             local cdef = ChestData.GetChestDef(reward.id)
@@ -386,14 +761,12 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
             end,
             children = {
                 icon,
-                -- 可领取红点
                 canClaim and UI.Panel {
                     position = "absolute", top = -3, right = -3,
                     width = 8, height = 8, borderRadius = 4,
                     backgroundColor = S.red, zIndex = 3,
                     pointerEvents = "none",
                 } or nil,
-                -- 已领取 ✓
                 claimed and UI.Panel {
                     position = "absolute", top = 0, left = 0, right = 0, bottom = 0,
                     justifyContent = "center", alignItems = "center",
@@ -409,7 +782,6 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
         }
     end
 
-    -- 进度条
     local barH = 6
     local pct = maxThr > 0 and math.min(1, totalPts / maxThr) or 0
 
@@ -435,7 +807,6 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
         alignItems = "center",
         gap = 6,
         children = {
-            -- 左列：周积分
             UI.Panel {
                 width = 50,
                 flexShrink = 0,
@@ -443,21 +814,11 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
                 justifyContent = "center",
                 gap = 2,
                 children = {
-                    UI.Label {
-                        text = "本周",
-                        fontSize = 10, fontColor = textWeekD,
-                    },
-                    UI.Label {
-                        text = tostring(totalPts),
-                        fontSize = 22, fontColor = textWeekV, fontWeight = "bold",
-                    },
-                    UI.Label {
-                        text = "积分",
-                        fontSize = 10, fontColor = textWeekD,
-                    },
+                    UI.Label { text = "本周", fontSize = 10, fontColor = textWeekD },
+                    UI.Label { text = tostring(totalPts), fontSize = 22, fontColor = textWeekV, fontWeight = "bold" },
+                    UI.Label { text = "积分", fontSize = 10, fontColor = textWeekD },
                 },
             },
-            -- 中列：图标 + 进度条 + 阈值
             UI.Panel {
                 flexGrow = 1, flexShrink = 1,
                 width = "100%",
@@ -492,7 +853,6 @@ function DailyTaskUI._BuildWeeklyMilestoneSection()
                     },
                 },
             },
-            -- 右列：全部领取
             UI.Panel {
                 width = 50,
                 flexShrink = 0,
@@ -566,9 +926,7 @@ function DailyTaskUI._BuildDailyTasks()
         })
     end
 
-    -- 构建 children 列表
     local sectionChildren = {
-        -- 标题行
         UI.Panel {
             width = "100%",
             flexDirection = "row",

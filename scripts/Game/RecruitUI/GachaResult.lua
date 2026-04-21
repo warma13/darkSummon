@@ -269,6 +269,9 @@ function GachaResult.DoRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, p
         -- 招募周里程碑追踪
         local okRMD, RMD = pcall(require, "Game.RecruitMilestoneData")
         if okRMD and RMD then RMD.AddCount(pullCount) end
+        -- 成就：累计招募次数追踪
+        local okAch, AchData = pcall(require, "Game.AchievementData")
+        if okAch and AchData then AchData.AddRecruitCount(pullCount) end
         GachaResult.ShowResultPopup(UI, pageRoot, RARITY_COLORS, currentTab, result, "深渊祭坛", refreshFn)
     else
         print("[RecruitUI] Pull failed: " .. tostring(result))
@@ -293,6 +296,9 @@ function GachaResult.DoLimitedRecruitAndShow(UI, pageRoot, RARITY_COLORS, curren
         -- 招募周里程碑追踪
         local okRMD, RMD = pcall(require, "Game.RecruitMilestoneData")
         if okRMD and RMD then RMD.AddCount(pullCount) end
+        -- 成就：累计招募次数追踪
+        local okAch, AchData = pcall(require, "Game.AchievementData")
+        if okAch and AchData then AchData.AddRecruitCount(pullCount) end
         GachaResult.ShowResultPopup(UI, pageRoot, RARITY_COLORS, currentTab, result, "限定祭坛", refreshFn)
     else
         local Toast = require("Game.Toast")

@@ -80,26 +80,51 @@ function Abyss.GetTotalRemaining()
     return free + ad
 end
 
---- 消耗一次进入次数
+--- 消耗一次进入次数（仅免费次数）
 ---@return boolean success, string msg
 function Abyss.ConsumeEntry()
-    local free, ad = RuneData.GetAbyssRiftRemaining()
+    local free, _ = RuneData.GetAbyssRiftRemaining()
     if free > 0 then
         RuneData.UseAbyssRiftEntry(false)
         return true, ""
-    elseif ad > 0 then
-        -- 需要看广告，返回提示
-        return false, "ad_required"
     else
-        Toast.Show("今日挑战次数已用完", { 255, 200, 80 })
-        return false, "no_attempts"
+        return false, "no_free"
     end
 end
 
---- 消耗广告次数（看完广告后调用）
+--- 看广告领取深渊裂隙挑战券
 ---@return boolean
-function Abyss.ConsumeAdEntry()
-    return RuneData.UseAbyssRiftEntry(true)
+function Abyss.ConsumeAdForTicket()
+    local ok = RuneData.ConsumeAdForTicket()
+    if ok then
+        Toast.Show("获得 深渊裂隙挑战券 ×1", { 80, 220, 120 })
+    else
+        Toast.Show("今日广告领券次数已达上限", { 255, 200, 80 })
+    end
+    return ok
+end
+
+--- 获取背包中挑战券数量
+---@return number
+function Abyss.GetTicketCount()
+    return RuneData.GetAbyssTicketCount()
+end
+
+--- 消耗一张挑战券进入
+---@return boolean
+function Abyss.ConsumeTicket()
+    if not RuneData.ConsumeAbyssTicket() then
+        Toast.Show("挑战券不足", { 255, 200, 80 })
+        return false
+    end
+    return true
+end
+
+--- 获取今日广告领券剩余次数
+---@return number
+function Abyss.GetAdRemaining()
+    local _, ad = RuneData.GetAbyssRiftRemaining()
+    return ad
 end
 
 -- ============================================================================
@@ -516,11 +541,51 @@ function Abyss.CompleteWave(session)
     return drops
 end
 
---- 结束副本（正常通关或中途退出），发放累计奖励
+--- 结束副本（正常通关或中途退出），发放 session 中已记录的累计奖励
+--- 不再重新 roll，直接使用 CompleteWave 已确定的掉落结果
 ---@param session table
 ---@return table result
 function Abyss.EndSession(session)
-    return Abyss.ClaimReward(session.currentWave, session.difficultyId)
+    -- 发放裂隙之尘
+    if session.totalDust > 0 then
+        Currency.Add("rift_dust", session.totalDust)
+    end
+
+    -- 发放符文封印
+    if session.totalSeals > 0 then
+        Currency.Add("rune_seal", session.totalSeals)
+    end
+
+    -- 发放符文到背包
+    local addedRunes = {}
+    local overflowRunes = {}
+    for _, rune in ipairs(session.runes) do
+        local ok, msg = RuneData.AddToBag(rune)
+        if ok then
+            addedRunes[#addedRunes + 1] = rune
+        else
+            overflowRunes[#overflowRunes + 1] = rune
+        end
+    end
+
+    -- 保存
+    HeroData.Save(true)
+
+    local result = {
+        totalDust = session.totalDust,
+        totalSeals = session.totalSeals,
+        runes = addedRunes,
+        overflowRunes = overflowRunes,
+        waveDrops = session.waveDrops,
+        clearedWave = session.currentWave,
+        difficultyId = session.difficultyId,
+    }
+
+    print(string.format("[AbyssRift] EndSession wave %d/%d (diff=%s) dust=%d seals=%d runes=%d overflow=%d",
+        session.currentWave, TOTAL_WAVES, session.difficultyId,
+        session.totalDust, session.totalSeals, #addedRunes, #overflowRunes))
+
+    return result
 end
 
 -- ============================================================================

@@ -25,7 +25,7 @@ local cjson = cjson  -- 引擎内置全局变量
 -- 背景遮罩透明度（0~255，默认100）
 Renderer.bgOverlayAlpha = 230  -- 默认90%（0.9*255≈230）
 -- 翎嫣光环圈常显开关（默认开启）
-Renderer.showNatureAuraRing = true
+Renderer.showNatureAuraRing = false
 
 local BG_SETTINGS_FILE = "bg_settings.json"
 

@@ -443,22 +443,12 @@ function ServerSelectUI.ShowAnnouncementPopup()
                                 gap = 6,
                                 children = {
                                     UI.Label {
-                                        text = "🔧 修复了一些已知bug",
+                                        text = "招募周开启，达成招募目标获得奖励。",
                                         fontSize = 13,
                                         fontColor = { 200, 200, 220, 220 },
                                     },
                                     UI.Label {
-                                        text = "🎁 七天签到送时装",
-                                        fontSize = 13,
-                                        fontColor = { 200, 200, 220, 220 },
-                                    },
-                                    UI.Label {
-                                        text = "⚡ 减负系统上线",
-                                        fontSize = 13,
-                                        fontColor = { 200, 200, 220, 220 },
-                                    },
-                                    UI.Label {
-                                        text = "💰 深渊金库上线，钱生钱",
+                                        text = "限定池「苍华极脉」将于4月22日开放。",
                                         fontSize = 13,
                                         fontColor = { 200, 200, 220, 220 },
                                     },

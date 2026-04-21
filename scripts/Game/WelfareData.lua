@@ -37,17 +37,18 @@ WelfareData.MAX_DAILY_ADS = #WelfareData.DAILY_AD_REWARDS
 --- 每天重置，共 10 次/天
 WelfareData.RECRUIT_DAILY_REWARDS = {
     { ticketAmount = 6,  free = true },  -- 第 1 次：免费 6 包
-    { ticketAmount = 8  },               -- 第 2 次：8 包
-    { ticketAmount = 10 },               -- 第 3 次：10 包
+    { ticketAmount = 8  },               -- 第 2 次：8 包（广告）
+    { ticketAmount = 8  },               -- 第 3 次：8 包
     { ticketAmount = 10 },               -- 第 4 次：10 包
-    { ticketAmount = 12 },               -- 第 5 次：12 包
+    { ticketAmount = 10 },               -- 第 5 次：10 包
     { ticketAmount = 12 },               -- 第 6 次：12 包
     { ticketAmount = 12 },               -- 第 7 次：12 包
-    { ticketAmount = 14 },               -- 第 8 次：14 包
-    { ticketAmount = 16 },               -- 第 9 次：16 包
-    { ticketAmount = 20 },               -- 第 10 次：20 包
+    { ticketAmount = 12 },               -- 第 8 次：12 包
+    { ticketAmount = 14 },               -- 第 9 次：14 包
+    { ticketAmount = 16 },               -- 第 10 次：16 包
+    { ticketAmount = 20 },               -- 第 11 次：20 包
 }
--- 合计：6+8+10+10+12+12+12+14+16+20 = 120 包/天
+-- 合计：6+8+8+10+10+12+12+12+14+16+20 = 128 包/天
 
 WelfareData.MAX_RECRUIT_DAILY = #WelfareData.RECRUIT_DAILY_REWARDS
 
@@ -105,6 +106,37 @@ function WelfareData.EnsureData()
         data.dailyClaimed = shifted
         data.freeChestMigrated = true
         print("[WelfareData] Migrated dailyClaimed indices +1 for free chest")
+    end
+
+    -- 迁移：在位置2插入新自选包8后，旧存档的 dailyClaimed 索引 2~N 需要 +1
+    if not data.recruitPack8Migrated then
+        local old = data.dailyClaimed or {}
+        local shifted = {}
+        for k, v in pairs(old) do
+            local idx = tonumber(k)
+            if idx and idx >= 2 then
+                shifted[idx + 1] = v
+            elseif idx then
+                shifted[idx] = v
+            end
+        end
+        data.dailyClaimed = shifted
+        data.recruitPack8Migrated = true
+        print("[WelfareData] Migrated dailyClaimed indices +1 at pos 2 for new recruit pack 8")
+    end
+
+    -- 检查周期是否变更：cycleStartDate 与当前周期不一致时重置周计数
+    local currentCycleStart = WAD.GetCurrentWeekStart()
+    if data.cycleStartDate ~= currentCycleStart then
+        local oldCycle = data.cycleStartDate or "?"
+        data.weeklyAdTotal = 0
+        data.weeklyClaimed = {}
+        -- 周期切换时必须重置每日领取，否则宝箱周的领取记录会被误认为招募周已领
+        data.dailyAdCount = 0
+        data.dailyClaimed = {}
+        data.cycleStartDate = currentCycleStart
+        print("[WelfareData] Cycle reset: " .. oldCycle .. " -> " .. currentCycleStart
+            .. " (weekType=" .. WAD.GetCurrentWeekType() .. "), daily claims also reset")
     end
 
     return data

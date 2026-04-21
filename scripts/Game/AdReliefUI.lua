@@ -6,6 +6,7 @@ local Config       = require("Game.Config")
 local Currency     = require("Game.Currency")
 local Toast        = require("Game.Toast")
 local RC           = require("Game.RewardController")
+local RewardIconMod = require("Game.RewardIcon")
 
 local AdReliefUI = {}
 
@@ -18,8 +19,8 @@ local _onBack = nil
 
 -- 缓存的 UI 引用
 local _ticketLabel = nil
-local _progressBar = nil
-local _progressLabel = nil
+local _progressBar1 = nil   -- 第一行进度条 (0-9)
+local _progressBar2 = nil   -- 第二行进度条 (9-20)
 local _bonusLabel = nil
 local _streakLabel = nil
 local _milestoneNodes = {}  -- { btn, label }
@@ -37,15 +38,26 @@ local function RefreshUI()
         _ticketLabel:SetText(tostring(AdReliefData.GetTickets()))
     end
 
-    -- 今日广告进度
+    -- 今日广告进度（双进度条）
     local todayAds = AdReliefData.GetTodayAds()
-    local maxAds = 9  -- 3个里程碑 * 3次
-    if _progressLabel then
-        _progressLabel:SetText("今日看广告: " .. todayAds .. "/" .. maxAds)
+    -- 第一行：0 ~ 9
+    if _progressBar1 then
+        local pct1 = math.min(1, todayAds / 9)
+        _progressBar1:SetStyle({ width = math.floor(pct1 * 100) .. "%" })
     end
-    if _progressBar then
-        local pct = math.min(1, todayAds / maxAds)
-        _progressBar:SetStyle({ width = math.floor(pct * 100) .. "%" })
+    local label1 = pageRoot:FindById("progressLabel1")
+    if label1 then
+        label1:SetText("今日看广告: " .. math.min(todayAds, 9) .. "/9")
+    end
+    -- 第二行：9 ~ 20（起点为 9）
+    if _progressBar2 then
+        local pct2 = math.max(0, math.min(1, (todayAds - 9) / (20 - 9)))
+        _progressBar2:SetStyle({ width = math.floor(pct2 * 100) .. "%" })
+    end
+    local label2 = pageRoot:FindById("progressLabel2")
+    if label2 then
+        local cur2 = math.max(0, todayAds - 9)
+        label2:SetText("进阶奖励: " .. cur2 .. "/11")
     end
 
     -- 加速信息
@@ -62,7 +74,7 @@ local function RefreshUI()
         end
     end
 
-    -- 里程碑按钮状态
+    -- 里程碑按钮状态（7 个里程碑）
     local milestones = AdReliefData.GetMilestones()
     for i, m in ipairs(milestones) do
         local node = _milestoneNodes[i]
@@ -71,56 +83,82 @@ local function RefreshUI()
                 node.btn:SetStyle({
                     backgroundColor = { 40, 50, 40, 200 },
                     borderColor = { 60, 80, 60, 120 },
+                    opacity = 0.5,
                 })
                 node.label:SetText("已领取")
                 node.label:SetFontColor({ 100, 140, 100, 180 })
             elseif m.canClaim then
                 node.btn:SetStyle({
-                    backgroundColor = { 100, 220, 180, 255 },
-                    borderColor = { 140, 255, 200, 255 },
+                    backgroundColor = { 30, 60, 50, 240 },
+                    borderColor = { 100, 220, 180, 255 },
+                    opacity = 1,
                 })
-                node.label:SetText("领取")
-                node.label:SetFontColor({ 10, 40, 30, 255 })
+                node.label:SetText("可领取")
+                node.label:SetFontColor({ 100, 220, 180, 255 })
             else
                 node.btn:SetStyle({
                     backgroundColor = { 40, 40, 55, 200 },
                     borderColor = { 70, 70, 90, 150 },
+                    opacity = 1,
                 })
-                node.label:SetText(todayAds .. "/" .. m.threshold)
-                node.label:SetFontColor({ 140, 140, 160, 200 })
+                node.label:SetText("")
+                node.label:SetVisible(false)
+            end
+            -- 恢复可见性（从不可领变为可领取时）
+            if m.claimed or m.canClaim then
+                node.label:SetVisible(true)
             end
         end
     end
 end
 
---- 创建里程碑节点
+--- 创建里程碑节点（奖励图标 + 次数标签 + 领取状态）
 ---@param index number
----@param threshold number
+---@param milestone table { threshold, rewards }
 ---@return any
-local function CreateMilestoneNode(index, threshold)
-    local btnLabel = UI.Label {
-        text = "0/" .. threshold,
-        fontSize = 13,
+local function CreateMilestoneNode(index, milestone)
+    local threshold = milestone.threshold
+    local rewards = milestone.rewards
+
+    -- 状态标签（领取 / 已领）
+    local statusLabel = UI.Label {
+        text = "",
+        fontSize = 10,
         fontColor = { 140, 140, 160, 200 },
         fontWeight = "bold",
     }
 
+    -- 奖励图标行（单个奖励时放大铺满）
+    local singleReward = #rewards == 1
+    local iconSize = singleReward and 48 or 30
+    local iconRow = UI.Panel {
+        flexDirection = "row",
+        flexWrap = "wrap",
+        justifyContent = "center",
+        gap = 3,
+    }
+    for _, r in ipairs(rewards) do
+        iconRow:AddChild(RewardIconMod.Create(UI, iconSize, r.id, r.amount))
+    end
+
+    -- 整个里程碑容器（可点击领取）
     local btn = UI.Panel {
-        width = 64, height = 56,
+        minWidth = 56,
         backgroundColor = { 40, 40, 55, 200 },
-        borderRadius = 10,
+        borderRadius = 8,
         borderWidth = 1,
         borderColor = { 70, 70, 90, 150 },
-        justifyContent = "center",
         alignItems = "center",
-        gap = 2,
+        paddingTop = 6, paddingBottom = 6,
+        paddingLeft = 4, paddingRight = 4,
+        gap = 4,
         onClick = function(self)
             local milestones = AdReliefData.GetMilestones()
             local m = milestones[index]
             if m and m.canClaim then
-                local ok = AdReliefData.ClaimMilestone(index)
-                if ok then
-                    RC.ShowCurrency(UI, pageRoot, "ad_ticket", 1, "里程碑奖励", RefreshUI)
+                local ok, claimedRewards = AdReliefData.ClaimMilestone(index)
+                if ok and claimedRewards then
+                    RC.ShowCurrency(UI, pageRoot, claimedRewards[1].id, claimedRewards[1].amount, "里程碑奖励", RefreshUI)
                 end
             elseif m and m.claimed then
                 Toast.Show("已领取", { 160, 160, 160 })
@@ -129,24 +167,21 @@ local function CreateMilestoneNode(index, threshold)
             end
         end,
         children = {
-            -- 券图标（简化为文字）
-            UI.Label {
-                text = "x1",
-                fontSize = 11,
-                fontColor = { 100, 220, 180, 200 },
-            },
-            btnLabel,
+            iconRow,
+            statusLabel,
         },
     }
 
-    _milestoneNodes[index] = { btn = btn, label = btnLabel }
+    _milestoneNodes[index] = { btn = btn, label = statusLabel }
     return UI.Panel {
         alignItems = "center",
-        gap = 4,
+        gap = 3,
+        flexShrink = 1,
+        flex = 1,
         children = {
             UI.Label {
                 text = threshold .. "次",
-                fontSize = 11,
+                fontSize = 10,
                 fontColor = { 160, 150, 180, 180 },
             },
             btn,
@@ -168,17 +203,16 @@ function AdReliefUI.CreatePage(uiModule)
         fontWeight = "bold",
     }
 
-    -- 进度条
-    _progressBar = UI.Panel {
+    -- 双进度条
+    _progressBar1 = UI.Panel {
         width = "0%", height = "100%",
         backgroundColor = { 100, 220, 180, 200 },
         borderRadius = 4,
     }
-
-    _progressLabel = UI.Label {
-        text = "今日看广告: 0/9",
-        fontSize = 12,
-        fontColor = { 180, 170, 200, 200 },
+    _progressBar2 = UI.Panel {
+        width = "0%", height = "100%",
+        backgroundColor = { 100, 220, 180, 200 },
+        borderRadius = 4,
     }
 
     -- 加速信息
@@ -235,20 +269,21 @@ function AdReliefUI.CreatePage(uiModule)
                     },
                 },
             },
-            -- 内容区
-            UI.Panel {
+            -- 内容区（可滚动）
+            UI.ScrollView {
                 width = "100%",
-                flexGrow = 1,
-                flexDirection = "column",
-                alignItems = "center",
-                paddingTop = 20, paddingBottom = 20,
-                paddingLeft = 16, paddingRight = 16,
-                gap = 16,
+                flexGrow = 1, flexShrink = 1, flexBasis = 0,
+                contentContainerStyle = {
+                    flexDirection = "column",
+                    alignItems = "center",
+                    paddingTop = 16, paddingBottom = 16,
+                    paddingLeft = 16, paddingRight = 16,
+                    gap = 16,
+                },
                 children = {
                     -- 免广告券余额区
                     UI.Panel {
                         width = "100%",
-                        maxWidth = 320,
                         backgroundColor = { 25, 30, 50, 220 },
                         borderRadius = 12,
                         borderWidth = 1,
@@ -281,29 +316,31 @@ function AdReliefUI.CreatePage(uiModule)
                             },
                         },
                     },
-                    -- 进度条区
+                    -- 进度条区：第一行 (3, 6, 9)
                     UI.Panel {
                         width = "100%",
-                        maxWidth = 320,
                         backgroundColor = { 25, 30, 50, 220 },
                         borderRadius = 12,
                         borderWidth = 1,
                         borderColor = { 80, 60, 120, 100 },
                         paddingTop = 14, paddingBottom = 14,
-                        paddingLeft = 20, paddingRight = 20,
+                        paddingLeft = 16, paddingRight = 16,
                         flexDirection = "column",
-                        gap = 10,
+                        gap = 8,
                         children = {
-                            _progressLabel,
-                            -- 进度条底
+                            UI.Label {
+                                text = "今日看广告: 0~9 次",
+                                fontSize = 12,
+                                fontColor = { 180, 170, 200, 200 },
+                                id = "progressLabel1",
+                            },
+                            -- 进度条
                             UI.Panel {
-                                width = "100%", height = 10,
+                                width = "100%", height = 8,
                                 backgroundColor = { 40, 35, 60, 200 },
-                                borderRadius = 5,
+                                borderRadius = 4,
                                 overflow = "hidden",
-                                children = {
-                                    _progressBar,
-                                },
+                                children = { _progressBar1 },
                             },
                             -- 里程碑节点
                             UI.Panel {
@@ -312,9 +349,58 @@ function AdReliefUI.CreatePage(uiModule)
                                 justifyContent = "space-around",
                                 alignItems = "flex-start",
                                 children = {
-                                    CreateMilestoneNode(1, 3),
-                                    CreateMilestoneNode(2, 6),
-                                    CreateMilestoneNode(3, 9),
+                                    CreateMilestoneNode(1, { threshold = 3,  rewards = {{ id = "ad_ticket", amount = 1 }} }),
+                                    CreateMilestoneNode(2, { threshold = 6,  rewards = {{ id = "ad_ticket", amount = 1 }} }),
+                                    CreateMilestoneNode(3, { threshold = 9,  rewards = {{ id = "ad_ticket", amount = 1 }} }),
+                                },
+                            },
+                        },
+                    },
+                    -- 进度条区：第二行 (12, 15, 17, 20)
+                    UI.Panel {
+                        width = "100%",
+                        backgroundColor = { 25, 30, 50, 220 },
+                        borderRadius = 12,
+                        borderWidth = 1,
+                        borderColor = { 80, 60, 120, 100 },
+                        paddingTop = 14, paddingBottom = 14,
+                        paddingLeft = 16, paddingRight = 16,
+                        flexDirection = "column",
+                        gap = 8,
+                        children = {
+                            UI.Label {
+                                text = "看广告: 9~20 次",
+                                fontSize = 12,
+                                fontColor = { 180, 170, 200, 200 },
+                                id = "progressLabel2",
+                            },
+                            -- 进度条
+                            UI.Panel {
+                                width = "100%", height = 8,
+                                backgroundColor = { 40, 35, 60, 200 },
+                                borderRadius = 4,
+                                overflow = "hidden",
+                                children = { _progressBar2 },
+                            },
+                            -- 里程碑节点
+                            UI.Panel {
+                                width = "100%",
+                                flexDirection = "row",
+                                justifyContent = "space-around",
+                                alignItems = "flex-start",
+                                children = {
+                                    CreateMilestoneNode(4, { threshold = 12, rewards = {{ id = "ad_ticket", amount = 2 }} }),
+                                    CreateMilestoneNode(5, { threshold = 15, rewards = {
+                                        { id = "ad_ticket", amount = 3 }, { id = "dungeon_ticket", amount = 2 },
+                                    }}),
+                                    CreateMilestoneNode(6, { threshold = 17, rewards = {
+                                        { id = "ad_ticket", amount = 3 }, { id = "recruit_ticket_select_box", amount = 10 },
+                                    }}),
+                                    CreateMilestoneNode(7, { threshold = 20, rewards = {
+                                        { id = "ad_ticket", amount = 5 }, { id = "recruit_ticket_select_box", amount = 5 },
+                                        { id = "platinum_chest", amount = 5 }, { id = "trial_ticket", amount = 10 },
+                                        { id = "dungeon_ticket", amount = 3 },
+                                    }}),
                                 },
                             },
                         },
@@ -322,7 +408,6 @@ function AdReliefUI.CreatePage(uiModule)
                     -- 加速信息区
                     UI.Panel {
                         width = "100%",
-                        maxWidth = 320,
                         backgroundColor = { 25, 30, 50, 220 },
                         borderRadius = 12,
                         borderWidth = 1,
@@ -370,19 +455,45 @@ function AdReliefUI.CreatePage(uiModule)
                     },
                 },
             },
-            -- 底部返回按钮
+            -- 底部按钮栏：左返回 + 中一键领取
             UI.Panel {
                 width = "100%",
                 paddingTop = 10, paddingBottom = 16,
+                paddingLeft = 16, paddingRight = 16,
+                flexDirection = "row",
+                justifyContent = "center",
                 alignItems = "center",
+                gap = 12,
                 children = {
                     UI.Button {
                         text = "返回",
-                        width = 280, height = 44,
+                        width = 120, height = 44,
+                        fontSize = 16,
+                        variant = "outline",
+                        onClick = function(self)
+                            if _onBack then _onBack() end
+                        end,
+                    },
+                    UI.Button {
+                        text = "一键领取",
+                        width = 180, height = 44,
                         fontSize = 16,
                         variant = "primary",
                         onClick = function(self)
-                            if _onBack then _onBack() end
+                            local milestones = AdReliefData.GetMilestones()
+                            local claimed = 0
+                            for i, m in ipairs(milestones) do
+                                if m.canClaim then
+                                    local ok = AdReliefData.ClaimMilestone(i)
+                                    if ok then claimed = claimed + 1 end
+                                end
+                            end
+                            if claimed > 0 then
+                                Toast.Show("已领取 " .. claimed .. " 个里程碑奖励", { 100, 220, 180 })
+                                RefreshUI()
+                            else
+                                Toast.Show("暂无可领取的奖励", { 160, 160, 160 })
+                            end
                         end,
                     },
                 },

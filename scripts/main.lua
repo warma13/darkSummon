@@ -23,6 +23,7 @@ local SlotSaveSystem = require("Game.SlotSaveSystem")
 local SpeedBoost = require("Game.SpeedBoostData")
 local WorldBossSkills = require("Game.WorldBossSkills")
 local IdleScreen = require("Game.IdleScreen")
+local MiniGameUI = require("Game.MiniGameUI")
 
 -- NanoVG 独立上下文（用于游戏渲染，在 UI 层下面）
 local vg = nil
@@ -124,22 +125,48 @@ function StartGame(serverId)
 
         GameUI.UpdateHUD()
 
-        -- 离线时间合并到挂机计时器（不弹窗，玩家点挂机按钮时一起结算）
-        local lastTime = HeroData.lastSaveTime or 0
-        if lastTime > 0 then
-            local offlineSecs = os.time() - lastTime
-            if offlineSecs > 0 then
-                -- 把挂机起点往前推离线时长，这样挂机计时器自然包含离线部分
-                GameUI._afkStartTime = GameUI._afkStartTime - offlineSecs
-                GameUI._afkLastDisplaySec = -1  -- 强制刷新显示
-                print("[StartGame] Offline " .. math.floor(offlineSecs / 60) .. " min added to AFK timer")
+        -- 挂机时长恢复：用 afkLastClaimTime 计算（包含在线+离线全部时间）
+        local claimTime = HeroData.stats.afkLastClaimTime or 0
+        if claimTime > 0 then
+            local totalAfkSecs = os.time() - claimTime
+            if totalAfkSecs > 0 then
+                -- 把挂机起点往前推，使计时器包含上次领取以来的全部时长
+                GameUI._afkStartTime = time.elapsedTime - totalAfkSecs
+                GameUI._afkLastDisplaySec = -1
+                print("[StartGame] AFK restored " .. math.floor(totalAfkSecs / 60) .. " min since last claim")
             end
         end
         HeroData.lastSaveTime = os.time()
         HeroData.Save()
 
+        -- 同步所有排行榜分数（兜底：补传之前可能失败的上传）
+        local okLB, LBSync = pcall(require, "Game.LeaderboardData")
+        if okLB and LBSync.SyncAll then LBSync.SyncAll() end
+
         -- 初始化加速系统（从存档恢复剩余时长，扣除离线流逝）
         SpeedBoost.Init()
+
+        -- 低关卡玩家每日免费解锁自动功能 + x2 加速
+        local newbieStageLimit = 5
+        if State.currentStage <= newbieStageLimit then
+            local AutoPlayM = require("Game.AutoPlay")
+            if not AutoPlayM.IsUnlockedToday("autoSummon") then
+                AutoPlayM.RecordAdUnlock("autoSummon")
+            end
+            if not AutoPlayM.IsUnlockedToday("autoMerge") then
+                AutoPlayM.RecordAdUnlock("autoMerge")
+            end
+            if not AutoPlayM.IsUnlockedToday("autoDeploy") then
+                AutoPlayM.RecordAdUnlock("autoDeploy")
+            end
+            if SpeedBoost.remaining < 3600 then
+                SpeedBoost.remaining = 3600
+                SpeedBoost.enabled = true
+                SpeedBoost.Save()
+                HeroData.Save()
+            end
+            print("[StartGame] Newbie daily grant (stage=" .. State.currentStage .. "): auto features + 1h x2")
+        end
 
         -- 存档加载后刷新红点（UI 构建在存档加载之前，需要重新评估）
         GameUI.RefreshLaunchGiftRedDot()
@@ -249,10 +276,21 @@ end
 
 --- 调试快捷键
 function HandleKeyDown(eventType, eventData)
+    if MiniGameUI.isActive() then
+        _YangMG_KeyDown(eventType, eventData)
+        return
+    end
     local key = eventData["Key"]:GetInt()
 
-    -- F8：立即胜利当前试练塔战斗 + 获得10000暗魂（调试用）
-    if key == KEY_F8 then
+    local AdDashboardUI = require("Game.AdDashboardUI")
+
+    -- F：管理员广告数据面板
+    if key == KEY_F then
+        AdDashboardUI.Toggle()
+    end
+
+    -- F8：立即胜利当前试练塔战斗 + 获得10000暗魂（仅管理员）
+    if key == KEY_F8 and AdDashboardUI.IsAdmin() then
         Currency.CollectDarkSoul(10000)
         print("[Debug] F8 - +10000 暗魂，当前=" .. Currency.GetDarkSouls())
 
@@ -273,13 +311,17 @@ end
 ---@param eventType string
 ---@param eventData UpdateEventData
 function HandleUpdate(eventType, eventData)
+    if MiniGameUI.isActive() then
+        _YangMG_Update(eventType, eventData)
+        return
+    end
     local rawDt = eventData["TimeStep"]:GetFloat()
-
-    -- 每帧开头：压缩所有游戏数组，消除 nil 空洞
-    State.CompactArrays()
 
     -- 待机模式 UI 动画（用原始 dt）
     IdleScreen.Update(rawDt)
+
+    -- 每帧开头：压缩所有游戏数组，消除 nil 空洞
+    State.CompactArrays()
 
     -- 加速系统：时长始终用原始 dt 流逝
     SpeedBoost.Update(rawDt)
@@ -486,6 +528,10 @@ end
 
 -- 鼠标事件
 function HandleMouseDown(eventType, eventData)
+    if MiniGameUI.isActive() then
+        _YangMG_MouseDown(eventType, eventData)
+        return
+    end
     if InputDedup("mouse") then return end
     local button = eventData["Button"]:GetInt()
     if button ~= MOUSEB_LEFT then return end
@@ -494,6 +540,7 @@ function HandleMouseDown(eventType, eventData)
 end
 
 function HandleMouseMove(eventType, eventData)
+    if MiniGameUI.isActive() then return end
     if InputDedup("mouse") then return end
     if not State.dragging and not State.dragPending then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
@@ -501,6 +548,7 @@ function HandleMouseMove(eventType, eventData)
 end
 
 function HandleMouseUp(eventType, eventData)
+    if MiniGameUI.isActive() then return end
     if InputDedup("mouse") then return end
     local button = eventData["Button"]:GetInt()
     if button ~= MOUSEB_LEFT then return end
@@ -510,18 +558,21 @@ end
 
 -- 触摸事件
 function HandleTouchBegin(eventType, eventData)
+    if MiniGameUI.isActive() then return end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
     HandlePointerDown(x, y)
 end
 
 function HandleTouchMove(eventType, eventData)
+    if MiniGameUI.isActive() then return end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
     HandlePointerMove(x, y)
 end
 
 function HandleTouchEnd(eventType, eventData)
+    if MiniGameUI.isActive() then return end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
     HandlePointerUp(x, y)
@@ -533,6 +584,8 @@ end
 
 function HandleNanoVGRender(eventType, eventData)
     if not vg then return end
+    if MiniGameUI.isActive() then return end
+    if IdleScreen.IsActive() then return end
 
     local dpr = graphics:GetDPR()
     local physW = graphics:GetWidth()
@@ -552,6 +605,8 @@ end
 --- Toast 专用渲染（renderOrder 999995，在 UI 之上）
 function HandleToastRender(eventType, eventData)
     if not toastVg then return end
+    if MiniGameUI.isActive() then return end
+    if IdleScreen.IsActive() then return end
 
     local dpr = graphics:GetDPR()
     local logW = graphics:GetWidth() / dpr

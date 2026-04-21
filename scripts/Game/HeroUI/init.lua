@@ -125,9 +125,10 @@ function HeroUI.HideCollectionDetailPopup()
 end
 
 function HeroUI.ShowHeroDetail(heroId)
-    -- 即将推出的英雄不开放详情页
+    -- 即将推出 / 限定池未解锁的英雄不开放详情页
+    local LBD = require("Game.LimitedBannerData")
     for _, td in ipairs(Config.TOWER_TYPES) do
-        if td.id == heroId and td.comingSoon then return end
+        if td.id == heroId and (td.comingSoon or LBD.IsHeroPoolLocked(heroId)) then return end
     end
     HeroDetail.ShowHeroDetail(HeroUI, heroId)
 end

@@ -16,10 +16,10 @@ local WeeklyPointsData = {}
 WeeklyPointsData.MILESTONES = {
     { threshold = 100, desc = "锻魂铁x500",
       rewards = { { type = "currency", id = "forge_iron", amount = 500 } } },
-    { threshold = 200, desc = "免广券x1",
-      rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
-    { threshold = 300, desc = "万能SSR碎片箱x10",
+    { threshold = 200, desc = "万能SSR碎片箱x10",
       rewards = { { type = "item", id = "ssr_shard_select_box", amount = 10 } } },
+    { threshold = 300, desc = "免广券x3",
+      rewards = { { type = "currency", id = "ad_ticket", amount = 3 } } },
     { threshold = 450, desc = "万能UR碎片箱x10",
       rewards = { { type = "item", id = "ur_shard_box", amount = 10 } } },
     { threshold = 600, desc = "钻石宝箱x1",
@@ -77,6 +77,14 @@ local function CheckWeekReset(data)
         data.milestonesClaimed = {}
         HeroData.Save()
         print("[WeeklyPoints] 新的一周，积分重置（weekStart=" .. key .. "）")
+    end
+    -- 兼容：DeepNormalizeIntKeys 将 "1"→1，需还原为字符串键
+    if data.milestonesClaimed then
+        local fixed = {}
+        for k, v in pairs(data.milestonesClaimed) do
+            fixed[tostring(k)] = v
+        end
+        data.milestonesClaimed = fixed
     end
 end
 

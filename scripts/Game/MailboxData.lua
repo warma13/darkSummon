@@ -134,6 +134,14 @@ SaveRegistry.Register("mailboxData", {
                 { type = "currency", id = "shadow_essence", amount = 500 },
             },
         })
+        MailboxData.SendOnce("update_20260420_v1031", {
+            title = "v1.0.31 更新奖励",
+            desc = "感谢您的持续支持！本次更新带来了多项体验优化，请收下这份奖励。",
+            rewards = {
+                { type = "item", id = "shadow_essence_bag", amount = 3 },
+                { type = "item", id = "nether_crystal_pack", amount = 3 },
+            },
+        })
     end,
 })
 

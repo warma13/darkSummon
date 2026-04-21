@@ -629,26 +629,47 @@ end
 ---@param tower table
 ---@return number
 function HeroSkills.GetEffectiveAttack(tower)
-    local atk = tower.attack
+    -- 先应用 debuff 削弱，再叠加光环/时装等增益
+    local Tower = require("Game.Tower")
+    local baseAtk = Tower.GetEffectiveAttack(tower)
+
+    -- 加算桶：所有百分比加成先相加，再一次性乘算
+    local pctBucket = 0
     if tower.auraAtkBuff and tower.auraAtkBuff > 0 then
-        atk = atk * (1 + tower.auraAtkBuff)
+        pctBucket = pctBucket + tower.auraAtkBuff
     end
     if State.heroicAnthemBuff then
-        atk = atk * (1 + State.heroicAnthemBuff.atkMult)
+        pctBucket = pctBucket + State.heroicAnthemBuff.atkMult
     end
     local CD    = GetCostumeData()
     local bonus = CD.GetGlobalAtkBonus()
-    if bonus > 0 then atk = atk * (1 + bonus) end
+    if bonus > 0 then pctBucket = pctBucket + bonus end
+    if tower.wreathActive and tower.wreathBonus and tower.wreathBonus > 0 then
+        pctBucket = pctBucket + tower.wreathBonus
+    end
+
+    local atk = baseAtk * (1 + pctBucket)
+
+    -- 固定值加成（加法）
     if tower.natureFlatAtk and tower.natureFlatAtk > 0 then
         atk = atk + tower.natureFlatAtk
     end
+
     return atk
 end
 
 ---@param tower table
 ---@return number
+function HeroSkills.GetEffectiveSpeed(tower)
+    local Tower = require("Game.Tower")
+    return HeroSkills.ModifyAttackSpeed(tower, Tower.GetEffectiveSpeed(tower))
+end
+
+---@param tower table
+---@return number
 function HeroSkills.GetEffectiveCritRate(tower)
-    local rate = tower.critRate or 0
+    local Tower = require("Game.Tower")
+    local rate = Tower.GetEffectiveCritRate(tower)
     if tower.auraCritRateBuff and tower.auraCritRateBuff > 0 then
         rate = rate + tower.auraCritRateBuff
     end

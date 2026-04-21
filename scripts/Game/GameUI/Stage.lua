@@ -530,6 +530,93 @@ local REDEEM_CODES = {
             Currency.Add("void_pact", 1000)
         end,
     },
+    {
+        code = "VIP1779057459B",
+        desc = "专属奖励：冥晶 ×100000000",
+        color = { 255, 180, 60 },
+        allowedUser = 1779057459,
+        reward = function()
+            Currency.Add("nether_crystal", 100000000)
+        end,
+    },
+    {
+        code = "VIP1779057459C",
+        desc = "专属奖励：免广告券 ×100000000",
+        color = { 100, 220, 180 },
+        allowedUser = 1779057459,
+        reward = function()
+            Currency.Add("ad_ticket", 100000000)
+        end,
+    },
+    {
+        code = "VIP1779057459D",
+        desc = "专属奖励：招募券自选包 ×1000",
+        color = { 255, 160, 60 },
+        allowedUser = 1779057459,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 1000)
+        end,
+    },
+    {
+        code = "VIP1779057459E",
+        desc = "专属奖励：冥晶矿洞挑战券 ×1",
+        color = { 140, 80, 200 },
+        allowedUser = 1779057459,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("dungeon_ticket_crystal", 1)
+        end,
+    },
+    {
+        code = "VIP420284230B",
+        desc = "专属奖励：招募自选包 ×6 + 暗影精粹 ×2000",
+        color = { 255, 160, 60 },
+        allowedUser = 420284230,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 6)
+            Currency.Add("shadow_essence", 2000)
+        end,
+    },
+    {
+        code = "VIP502127674",
+        desc = "专属奖励：招募自选包 ×128 + 暗影精粹 ×1000",
+        color = { 255, 160, 60 },
+        allowedUser = 502127674,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 128)
+            Currency.Add("shadow_essence", 1000)
+        end,
+    },
+    {
+        code = "VIP1261081970",
+        desc = "专属奖励：暗影精粹 ×1000",
+        color = { 255, 215, 0 },
+        allowedUser = 1261081970,
+        reward = function()
+            Currency.Add("shadow_essence", 1000)
+        end,
+    },
+    {
+        code = "VIP346333596D",
+        desc = "专属奖励：暗影精粹 ×4000",
+        color = { 255, 215, 0 },
+        allowedUser = 346333596,
+        reward = function()
+            Currency.Add("shadow_essence", 4000)
+        end,
+    },
+    {
+        code = "VIP978257249",
+        desc = "专属奖励：暗影精粹 ×2000",
+        color = { 255, 215, 0 },
+        allowedUser = 978257249,
+        reward = function()
+            Currency.Add("shadow_essence", 2000)
+        end,
+    },
 }
 
 --- 显示设置弹窗
@@ -863,14 +950,19 @@ function GameUI.NextStage()
     StartStage(State.currentStage + 1)
 end
 
---- 通关结算：计算奖励并显示通关面板
+--- 通关结算：更新统计并进入下一关
 function GameUI.DoStageClear()
     local stageNum = State.currentStage
-    local rewards = HeroData.SettleRewards(stageNum, State.score)
-    State.settleRewards = rewards
+    HeroData.SettleRewards(stageNum, State.score)
 
     -- 通关产出宝箱
     ChestData.GrantStageDrop(stageNum)
+
+    -- 通关产出虚空契约（对数曲线：floor(2 * ln(stage + 1))）
+    local voidPact = math.floor(2 * math.log(stageNum + 1))
+    if voidPact > 0 then
+        Currency.Add("void_pact", voidPact)
+    end
 
     -- 开服好礼任务追踪
     local ok, LGD = pcall(require, "Game.LaunchGiftData")
@@ -882,54 +974,7 @@ function GameUI.DoStageClear()
         DTD.AddProgress("battle", 1)
     end
 
-    if ctx.uiRoot then
-        local tl = ctx.uiRoot:FindById("clearStageLabel")
-        if tl then tl:SetText("第" .. stageNum .. "关") end
-
-        local gl = ctx.uiRoot:FindById("clearGoldLabel")
-        if gl then gl:SetText("冥晶: +" .. rewards.nether_crystal) end
-
-        local dl = ctx.uiRoot:FindById("clearDiamondLabel")
-        if dl then
-            if rewards.shadow_essence > 0 then
-                dl:SetText("暗影精华: +" .. rewards.shadow_essence)
-                dl:SetVisible(true)
-            else
-                dl:SetVisible(false)
-            end
-        end
-
-        local tl2 = ctx.uiRoot:FindById("clearTokenLabel")
-        if tl2 then
-            if rewards.void_pact and rewards.void_pact > 0 then
-                tl2:SetText("虚空契约: +" .. rewards.void_pact)
-                tl2:SetVisible(true)
-            else
-                tl2:SetVisible(false)
-            end
-        end
-
-        local fl = ctx.uiRoot:FindById("clearFragLabel")
-        if fl then
-            if rewards.totalFragments > 0 then
-                local fragParts = {}
-                for heroId, count in pairs(rewards.fragments) do
-                    local heroName = heroId
-                    for _, td in ipairs(Config.TOWER_TYPES) do
-                        if td.id == heroId then heroName = td.name; break end
-                    end
-                    fragParts[#fragParts + 1] = heroName .. "x" .. count
-                end
-                fl:SetText("碎片: +" .. rewards.totalFragments .. " (" .. table.concat(fragParts, ", ") .. ")")
-                fl:SetVisible(true)
-            else
-                fl:SetVisible(false)
-            end
-        end
-    end
-
-    -- 不显示通关弹窗，直接进入下一关
-    print("[GameUI] Stage " .. stageNum .. " clear! nether_crystal+" .. rewards.nether_crystal .. " shadow_essence+" .. rewards.shadow_essence .. " frags+" .. rewards.totalFragments)
+    print("[GameUI] Stage " .. stageNum .. " clear! void_pact +" .. voidPact)
     GameUI.NextStage()
 end
 

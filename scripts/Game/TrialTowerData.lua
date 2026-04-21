@@ -25,8 +25,19 @@ local TOWER_REWARDS = {
     { stones = 25, gold = 1200 },  -- 第 10 塔
 }
 
--- 每座塔通关直发招募令数量
-local TOWER_CLEAR_TOKENS = 10
+--- 虚空契约：每层奖励（对数曲线，与主线等价 stage = towerNum * 10）
+---@param towerNum number 塔号
+---@return number perFloor 每层产出
+local function CalcFloorVoidPact(towerNum)
+    return math.floor(2 * math.log(towerNum * 10 + 1))
+end
+
+--- 虚空契约：通塔奖励 = 10 层的总和（使塔总收益 = 2 倍等价主线）
+---@param towerNum number 塔号
+---@return number clearBonus 通塔奖励
+local function CalcTowerClearVoidPact(towerNum)
+    return CalcFloorVoidPact(towerNum) * 10
+end
 
 -- 试练券：每日补充上限、通塔奖励数量
 local DAILY_TICKET_GRANT = 10
@@ -112,9 +123,12 @@ function TrialTowerData.EnsureTickets()
     local today = TodayStr()
     if data.ticketDate ~= today then
         data.ticketDate = today
-        data.tickets    = DAILY_TICKET_GRANT
+        -- 神裔降临：试练塔挑战次数加成
+        local DivineBlessDB = require("Game.DivineBlessData")
+        local bonusTicket = DivineBlessDB.GetBuffValue("trial_ticket")
+        data.tickets    = DAILY_TICKET_GRANT + bonusTicket
         HeroData.Save()
-        print("[TrialTower] New day, tickets reset to " .. DAILY_TICKET_GRANT)
+        print("[TrialTower] New day, tickets reset to " .. data.tickets .. " (bonus " .. bonusTicket .. ")")
     end
     if data.tickets == nil then
         data.tickets = DAILY_TICKET_GRANT
@@ -189,13 +203,19 @@ function TrialTowerData.ClearFloor(floor)
     Currency.Add("devour_stone", stones)
     Currency.Add("nether_crystal", gold)
 
+    -- 每层发放虚空契约（对数曲线）
+    local floorPact = CalcFloorVoidPact(towerNum)
+    if floorPact > 0 then
+        Currency.Add("void_pact", floorPact)
+    end
+
     local rewards = {
         floor = floor,
         towerNum = towerNum,
         floorInTower = floorInTower,
         devour_stone = stones,
         nether_crystal = gold,
-        void_pact = 0,
+        void_pact = floorPact,
         isTowerClear = false,
     }
 
@@ -205,13 +225,15 @@ function TrialTowerData.ClearFloor(floor)
 
     -- 检查是否通塔（第 10 层）
     if floorInTower == 10 then
+        local clearPact = CalcTowerClearVoidPact(towerNum)
         rewards.isTowerClear    = true
-        rewards.void_pact       = TOWER_CLEAR_TOKENS
+        rewards.void_pact       = rewards.void_pact + clearPact
+        rewards.tower_clear_pact = clearPact
         rewards.trial_ticket    = TOWER_TICKET_REWARD
-        Currency.Add("void_pact", TOWER_CLEAR_TOKENS)
+        Currency.Add("void_pact", clearPact)
         TrialTowerData.AddTickets(TOWER_TICKET_REWARD)
         data.claimedTowers = towerNum
-        print("[TrialTower] Tower " .. towerNum .. " cleared! Tokens +" .. TOWER_CLEAR_TOKENS .. " Tickets +" .. TOWER_TICKET_REWARD)
+        print("[TrialTower] Tower " .. towerNum .. " cleared! FloorPact +" .. floorPact .. " ClearPact +" .. clearPact .. " Tickets +" .. TOWER_TICKET_REWARD)
     end
 
     -- 上传试练塔排行榜
@@ -234,7 +256,7 @@ end
 -- 试练塔战斗参数
 TrialTowerData.WAVE_COUNT       = 5    -- 每层 5 波
 TrialTowerData.ENEMIES_PER_WAVE = 20   -- 每波 20 只
-TrialTowerData.OVERLOAD_LIMIT   = 20   -- 超限上限 20 只
+TrialTowerData.OVERLOAD_LIMIT   = 10   -- 超限上限 10 只（收紧，接近主线的 7）
 
 --- 试练塔层号 → 等效主线关卡号
 ---@param floor number 全局层号
@@ -257,42 +279,16 @@ local function CalcSpeedScale(stageEquiv)
     return math.min(1.0 + (stageEquiv - 1) * Config.STAGE_SPEED_PER_STAGE, Config.STAGE_SPEED_CAP)
 end
 
---- 根据层号获取可用词缀池（复用主线词缀规则，用等效全局波次）
----@param floor number
----@return table[]
-local function GetTowerAffixPool(floor)
+--- 试练塔词缀抽取（使用新的统一缩放系统）
+--- level = floor（试练塔1层 = 主线10关，与 Config.PickAffixes 的 level 语义一致）
+---@param floor number 全局层号
+---@param count number 词缀数量
+---@return table[] 缩放后的词缀实例列表
+local function PickTowerAffixes(floor, count)
     local stageEquiv = TrialTowerData.FloorToStage(floor)
     local equivWave = stageEquiv * Config.WAVES_PER_STAGE
-    local pool = {}
-    for _, affix in ipairs(Config.AFFIXES) do
-        if affix.tier == 1 and equivWave >= Config.AFFIX_WAVE_T1 then
-            pool[#pool + 1] = affix
-        elseif affix.tier == 2 and equivWave >= Config.AFFIX_WAVE_T2 then
-            pool[#pool + 1] = affix
-        elseif affix.tier == 3 and equivWave >= Config.AFFIX_WAVE_T3 then
-            pool[#pool + 1] = affix
-        end
-    end
-    return pool
-end
-
---- 从词缀池中随机选取
----@param pool table[]
----@param count number
----@return table[]
-local function PickFromPool(pool, count)
-    if #pool == 0 then return {} end
-    count = math.min(count, #pool)
-    -- Fisher-Yates 部分洗牌
-    local copy = {}
-    for i, v in ipairs(pool) do copy[i] = v end
-    local result = {}
-    for i = 1, count do
-        local j = math.random(i, #copy)
-        copy[i], copy[j] = copy[j], copy[i]
-        result[#result + 1] = copy[i]
-    end
-    return result
+    local level = floor  -- 试练塔 floor 直接作为缩放等级
+    return Config.PickAffixes(equivWave, count, level)
 end
 
 --- 生成试练塔指定层、指定波的敌人列表
@@ -302,7 +298,7 @@ end
 function TrialTowerData.GenerateWaveEnemies(floor, wave)
     local towerNum = TrialTowerData.GetTowerNum(floor)
     local floorInTower = TrialTowerData.GetFloorInTower(floor)
-    local isBossFloor = (floorInTower == 10)
+    local isBossFloor = true  -- 每层最后一波都出 BOSS
 
     -- 等效主线关卡缩放
     local stageEquiv = TrialTowerData.FloorToStage(floor)
@@ -328,9 +324,6 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
         availRoles = { "minion", "infantry" }
     end
 
-    -- 词缀池（精英用）
-    local affixPool = GetTowerAffixPool(floor)
-
     local enemies = {}
     local totalCount = TrialTowerData.ENEMIES_PER_WAVE
 
@@ -339,14 +332,18 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
     local normalCount = hasBoss and (totalCount - 1) or totalCount
 
     -- ======== 精英配置 ========
-    -- 普通层每波 2~4 只精英；Boss 层前 4 波也有精英，第 5 波(Boss波)有 1~2 只精英护卫
+    -- 精英基础属性倍率（在词缀之外额外叠加）
+    local eliteHPMult  = 2.5   -- 精英 HP ×2.5
+    local eliteSpdMult = 1.3   -- 精英速度 ×1.3
+
+    -- 精英数量：基础 3 只，每 3 塔 +1，上限 8
     local eliteCount = 0
-    if isBossFloor then
-        eliteCount = hasBoss and math.min(1 + math.floor(towerNum / 5), 3)
-                              or math.min(2 + math.floor(towerNum / 8), 3)
+    if hasBoss then
+        -- BOSS 波：2~4 只精英护卫
+        eliteCount = math.min(2 + math.floor(towerNum / 3), 4)
     else
-        -- 普通层：基础 2 只，每 5 塔 +1，上限 4
-        eliteCount = math.min(2 + math.floor(towerNum / 5), 4)
+        -- 普通波：基础 3 只，每 3 塔 +1，上限 8
+        eliteCount = math.min(3 + math.floor(towerNum / 3), 8)
     end
     local eliteAffixCount = 1
     if floor >= 30 then eliteAffixCount = 3
@@ -361,10 +358,12 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
             def.baseHP  = def.baseHP * hpScale * waveMult
             def.speed   = def.speed * spdScale
 
-            -- 标记精英（队列前段插入）
-            if i <= eliteCount and #affixPool > 0 then
+            -- 标记精英（队列前段插入），精英有基础属性加成 + 缩放词缀
+            if i <= eliteCount then
                 def.isElite = true
-                def.eliteAffixes = PickFromPool(affixPool, eliteAffixCount)
+                def.baseHP = def.baseHP * eliteHPMult
+                def.speed  = def.speed * eliteSpdMult
+                def.eliteAffixes = PickTowerAffixes(floor, eliteAffixCount)
             end
 
             def.isDungeonEnemy = true
@@ -372,16 +371,39 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
         end
     end
 
-    -- Boss 层第 5 波末尾追加 Boss
+    -- Boss 层第 5 波末尾追加 Boss（带词缀）
     if hasBoss then
         local bossDef = Config.BuildBossDef(stageNum)
         bossDef.baseHP  = bossDef.baseHP * hpScale * waveMult
         bossDef.speed   = bossDef.speed * spdScale * 0.7  -- Boss 略慢
         bossDef.isDungeonEnemy = true
+        -- BOSS 词缀：塔号决定数量（1~3），与缩放等级一致
+        local bossAffixCount = math.min(1 + math.floor(towerNum / 5), 3)
+        bossDef.bossAffixes = PickTowerAffixes(floor, bossAffixCount)
         enemies[#enemies + 1] = bossDef
     end
 
     return enemies
+end
+
+--- 获取每层虚空契约奖励（对数曲线）
+---@param towerNum number 塔号
+---@return number
+function TrialTowerData.GetFloorVoidPact(towerNum)
+    return CalcFloorVoidPact(towerNum)
+end
+
+--- 获取通塔虚空契约奖励
+---@param towerNum number 塔号
+---@return number
+function TrialTowerData.GetTowerClearVoidPact(towerNum)
+    return CalcTowerClearVoidPact(towerNum)
+end
+
+--- 获取通塔试练券奖励数量
+---@return number
+function TrialTowerData.GetTowerTicketReward()
+    return TOWER_TICKET_REWARD
 end
 
 --- 兼容旧接口：返回全部波次的扁平敌人列表

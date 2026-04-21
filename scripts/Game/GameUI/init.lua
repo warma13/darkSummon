@@ -34,6 +34,8 @@ local AdReliefData   = require("Game.AdReliefData")
 local AdHelper       = require("Game.AdHelper")
 local CostumeSignInUI   = require("Game.CostumeSignInUI")
 local CostumeSignInData = require("Game.CostumeSignInData")
+local AdDashboardUI  = require("Game.AdDashboardUI")
+local MiniGameUI     = require("Game.MiniGameUI")
 
 local GameUI = {}
 
@@ -200,14 +202,18 @@ function GameUI.UpdateHUD()
         end
     end
 
-    -- ======== 英雄信息面板（已有脏标记逻辑，仅换用缓存引用） ========
+    -- ======== 英雄信息面板（实时刷新：切换/升星立即重建，同一英雄每0.5秒刷新属性） ========
     if refs.heroInfoPanel then
         local sel = State.selectedTower
         if sel then
-            local needUpdate = (sel.id ~= ctx.lastInfoTowerId) or (sel.star ~= ctx.lastInfoTowerStar)
+            local now = os.clock()
+            local switched = (sel.id ~= ctx.lastInfoTowerId) or (sel.star ~= ctx.lastInfoTowerStar)
+            local elapsed = now - (ctx.heroInfoLastTime or 0)
+            local needUpdate = switched or (elapsed >= 0.2)
             if needUpdate then
                 ctx.lastInfoTowerId = sel.id
                 ctx.lastInfoTowerStar = sel.star
+                ctx.heroInfoLastTime = now
                 refs.heroInfoPanel:ClearChildren()
                 local content = GameUI.BuildHeroInfoContent(sel)
                 for _, child in ipairs(content) do
@@ -221,6 +227,7 @@ function GameUI.UpdateHUD()
             if ctx.lastInfoTowerId then
                 ctx.lastInfoTowerId = nil
                 ctx.lastInfoTowerStar = nil
+                ctx.heroInfoLastTime = nil
                 refs.heroInfoPanel:ClearChildren()
             end
             refs.heroInfoPanel:SetVisible(false)
@@ -235,14 +242,10 @@ function GameUI.UpdateHUD()
 
     -- ======== 自动按钮状态（仅状态变化时更新） ========
     if refs.autoSummonBtn then
-        local unlocked = AutoPlay.IsUnlockedToday("autoSummon")
-        local st = unlocked and (AutoPlay.autoSummon and "on" or "off") or "locked"
+        local st = AutoPlay.autoSummon and "on" or "off"
         if st ~= hudCache.autoSummonState then
             hudCache.autoSummonState = st
-            if st == "locked" then
-                refs.autoSummonBtn:SetText("自动召唤 ▶")
-                refs.autoSummonBtn:SetStyle({ backgroundColor = { 80, 60, 40, 200 }, fontColor = { 255, 200, 100, 255 } })
-            elseif st == "on" then
+            if st == "on" then
                 refs.autoSummonBtn:SetText("自动召唤:开")
                 refs.autoSummonBtn:SetStyle({ backgroundColor = { 100, 60, 200, 255 }, fontColor = { 255, 255, 255, 255 } })
             else
@@ -253,14 +256,10 @@ function GameUI.UpdateHUD()
     end
 
     if refs.autoMergeBtn then
-        local unlocked = AutoPlay.IsUnlockedToday("autoMerge")
-        local st = unlocked and (AutoPlay.autoMerge and "on" or "off") or "locked"
+        local st = AutoPlay.autoMerge and "on" or "off"
         if st ~= hudCache.autoMergeState then
             hudCache.autoMergeState = st
-            if st == "locked" then
-                refs.autoMergeBtn:SetText("自动合成 ▶")
-                refs.autoMergeBtn:SetStyle({ backgroundColor = { 80, 60, 40, 200 }, fontColor = { 255, 200, 100, 255 } })
-            elseif st == "on" then
+            if st == "on" then
                 refs.autoMergeBtn:SetText("自动合成:开")
                 refs.autoMergeBtn:SetStyle({ backgroundColor = { 100, 60, 200, 255 }, fontColor = { 255, 255, 255, 255 } })
             else
@@ -271,14 +270,10 @@ function GameUI.UpdateHUD()
     end
 
     if refs.autoDeployBtn then
-        local unlocked = AutoPlay.IsUnlockedToday("autoDeploy")
-        local st = unlocked and (AutoPlay.autoDeploy and "on" or "off") or "locked"
+        local st = AutoPlay.autoDeploy and "on" or "off"
         if st ~= hudCache.autoDeployState then
             hudCache.autoDeployState = st
-            if st == "locked" then
-                refs.autoDeployBtn:SetText("自动布阵 ▶")
-                refs.autoDeployBtn:SetStyle({ backgroundColor = { 80, 60, 40, 200 }, fontColor = { 255, 200, 100, 255 } })
-            elseif st == "on" then
+            if st == "on" then
                 refs.autoDeployBtn:SetText("自动布阵:开")
                 refs.autoDeployBtn:SetStyle({ backgroundColor = { 60, 160, 100, 255 }, fontColor = { 255, 255, 255, 255 } })
             else
@@ -449,6 +444,12 @@ function GameUI.CreateUI()
     GameUI._costumeSignInPage = GameUI.CreateCostumeSignInOverlay()
     uiRoot:AddChild(GameUI._costumeSignInPage)
 
+    GameUI._miniGamePage = GameUI.CreateMiniGameOverlay()
+    uiRoot:AddChild(GameUI._miniGamePage)
+
+    GameUI._adDashboardPage = AdDashboardUI.CreateOverlay(UI)
+    uiRoot:AddChild(GameUI._adDashboardPage)
+
     GameUI._speedBoostDialog = GameUI.CreateSpeedBoostDialog()
     uiRoot:AddChild(GameUI._speedBoostDialog)
 
@@ -479,7 +480,7 @@ function GameUI.CreateUI()
     -- 左下角固定显示版本号（放在 TabBar 上方，避免被遮挡）
     local versionLabel = UI.Label {
         id = "fixedVersion",
-        text = "v1.0.26",
+        text = "v1.0.39",
         fontSize = 10,
         fontColor = { 160, 160, 180, 130 },
     }
@@ -742,6 +743,45 @@ function GameUI.ShowCostumeSignInOverlay(show)
     if not show then GameUI.RefreshCostumeSignInRedDot() end
 end
 
+
+-- ============================================================================
+-- 小游戏 Overlay
+-- ============================================================================
+
+function GameUI.CreateMiniGameOverlay()
+    MiniGameUI.SetOnBack(function()
+        GameUI.ShowMiniGameOverlay(false)
+    end)
+    -- 小游戏启动时隐藏所有宿主 UI
+    MiniGameUI.SetOnGameStart(function()
+        if uiRoot then uiRoot:SetVisible(false) end
+    end)
+    -- 小游戏结束时恢复宿主 UI 并回到小游戏列表
+    MiniGameUI.SetOnGameEnd(function(result)
+        if uiRoot then uiRoot:SetVisible(true) end
+        -- 回到小游戏列表页（overlay 已经是打开状态）
+        MiniGameUI.Refresh()
+    end)
+    local content = MiniGameUI.CreatePage(UI)
+    local overlay = UI.Panel {
+        id = "miniGameOverlay",
+        position = "absolute",
+        top = 0, left = 0, right = 0, bottom = 0,
+        visible = false,
+        children = { content },
+    }
+    return overlay
+end
+
+function GameUI.ShowMiniGameOverlay(show)
+    if GameUI._miniGamePage then
+        GameUI._miniGamePage:SetVisible(show)
+        if show then
+            MiniGameUI.Refresh()
+        end
+    end
+    TabNav.SetBarVisible(not show)
+end
 
 function GameUI.RefreshCostumeSignInRedDot()
     if not uiRoot then return end
@@ -1060,56 +1100,28 @@ end
 
 function GameUI.CreateMailboxOverlay()
     local content = MailboxUI.CreatePage(UI)
+    -- 将关闭回调和 HUD 刷新传给 MailboxUI，由它统一管理底部按钮
+    MailboxUI.SetCallbacks({
+        onClose = function() GameUI.ShowMailboxOverlay(false) end,
+        onClaimAll = function()
+            local MailboxData2 = require("Game.MailboxData")
+            local count = MailboxData2.ClaimAll()
+            if count > 0 then
+                Toast.Show("已领取 " .. count .. " 封邮件")
+                MailboxUI.Refresh()
+                GameUI.UpdateHUD()
+            else
+                Toast.Show("没有可领取的邮件")
+            end
+        end,
+    })
+
     local overlay = UI.Panel {
         id = "mailboxOverlay",
         position = "absolute",
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
-        children = {
-            content,
-            UI.Panel {
-                position = "absolute",
-                left = 0, right = 0, bottom = 120,
-                flexDirection = "row",
-                justifyContent = "center",
-                alignItems = "center",
-                gap = 20,
-                pointerEvents = "auto",
-                children = {
-                    UI.Button {
-                        text = "返回",
-                        fontSize = 20,
-                        width = 90,
-                        height = 54,
-                        borderRadius = 8,
-                        variant = "outline",
-                        onClick = function()
-                            GameUI.ShowMailboxOverlay(false)
-                        end,
-                    },
-                    UI.Button {
-                        id = "mailClaimAllBtn",
-                        text = "一键领取",
-                        fontSize = 20,
-                        width = 120,
-                        height = 54,
-                        borderRadius = 8,
-                        variant = "primary",
-                        onClick = function()
-                            local MailboxData = require("Game.MailboxData")
-                            local count = MailboxData.ClaimAll()
-                            if count > 0 then
-                                Toast.Show("已领取 " .. count .. " 封邮件")
-                                MailboxUI.Refresh()
-                                GameUI.UpdateHUD()
-                            else
-                                Toast.Show("没有可领取的邮件")
-                            end
-                        end,
-                    },
-                },
-            },
-        },
+        children = { content },
     }
     return overlay
 end
@@ -1599,6 +1611,32 @@ function GameUI.Update(dt)
     end
 
     GameUI.UpdateHUD()
+    -- 英雄面板攻击力/攻速实时刷新（buff 加成随时变化）
+    local sel = State.selectedTower
+    if sel and ctx.uiRoot then
+        local HeroSkills = require("Game.HeroSkills")
+        local atkLabel = ctx.uiRoot:FindById("heroPanel_atk")
+        if atkLabel then
+            local v = HeroSkills.GetEffectiveAttack(sel)
+            local t
+            if v >= 100000000 then t = string.format("%.1f亿", v / 100000000)
+            elseif v >= 10000 then t = string.format("%.1f万", v / 10000)
+            else t = tostring(math.floor(v)) end
+            if t ~= ctx._heroPanelAtkCache then
+                ctx._heroPanelAtkCache = t
+                atkLabel:SetText(t)
+            end
+        end
+        local spdLabel = ctx.uiRoot:FindById("heroPanel_spd")
+        if spdLabel then
+            local spd = HeroSkills.GetEffectiveSpeed(sel)
+            local t = string.format("%.2f/s", 1.0 / spd)
+            if t ~= ctx._heroPanelSpdCache then
+                ctx._heroPanelSpdCache = t
+                spdLabel:SetText(t)
+            end
+        end
+    end
     GameUI.UpdateAfkTimer()
     EquipUI.Update(dt)
     -- 时装签到预览动画

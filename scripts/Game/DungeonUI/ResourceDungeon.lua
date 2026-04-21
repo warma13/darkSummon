@@ -91,12 +91,22 @@ end
 function ResourceDungeon._BuildCard(UI, S, ctx, def)
     local remaining = RD.GetRemainingAttempts(def.key)
     local canChallenge = remaining > 0
+    local adRemaining = RD.GetAdRemaining(def.key)
 
     local currDef = Config.CURRENCY[def.rewardCurrency]
     local freeRem = RD.GetFreeRemaining(def.key)
 
-    local badgeBg = canChallenge and { 80, 180, 80, 40 } or { 200, 60, 60, 40 }
-    local badgeColor = canChallenge and S.green or S.red
+    local badgeBg, badgeColor
+    if canChallenge then
+        badgeBg = { 80, 180, 80, 40 }
+        badgeColor = S.green
+    elseif adRemaining > 0 then
+        badgeBg = { 220, 180, 40, 40 }
+        badgeColor = S.gold
+    else
+        badgeBg = { 200, 60, 60, 40 }
+        badgeColor = S.red
+    end
 
     local rewardChildren = {}
     if def.rewardCurrency ~= "chest" and currDef then
@@ -176,7 +186,8 @@ function ResourceDungeon._BuildCard(UI, S, ctx, def)
                                     UI.Label {
                                         text = freeRem > 0
                                             and ("免费 " .. freeRem .. "/" .. RD.FREE_ATTEMPTS)
-                                            or  (remaining .. "/" .. RD.DAILY_ATTEMPTS),
+                                            or  (remaining > 0 and ("券" .. remaining)
+                                                or (adRemaining > 0 and ("可领券" .. adRemaining) or "已用完")),
                                         fontSize = 11, fontColor = badgeColor,
                                         pointerEvents = "none",
                                     },
@@ -215,7 +226,7 @@ function ResourceDungeon.BuildDetailView(ctx)
 
     local bestWave = RD.GetBestWave(def.key)
     local remaining = RD.GetRemainingAttempts(def.key)
-    local ticketCount = InventoryData.GetCount("dungeon_ticket")
+    local totalTickets, specificTickets, genericTickets = RD.GetTotalTicketCount(def.key)
 
     -- 标题栏
     pageRoot:AddChild(UI.Panel {
@@ -241,7 +252,7 @@ function ResourceDungeon.BuildDetailView(ctx)
                 fontColor = S.white, pointerEvents = "none",
             },
             UI.Panel { flex = 1 },
-            ticketCount > 0 and UI.Panel {
+            totalTickets > 0 and UI.Panel {
                 flexDirection = "row",
                 alignItems = "center",
                 paddingRight = 4,
@@ -254,8 +265,12 @@ function ResourceDungeon.BuildDetailView(ctx)
                         pointerEvents = "none",
                     },
                     UI.Label {
-                        text = "×" .. ticketCount,
-                        fontSize = 11,
+                        text = specificTickets > 0
+                            and (genericTickets > 0
+                                and ("专属" .. specificTickets .. " 通用" .. genericTickets)
+                                or  ("专属×" .. specificTickets))
+                            or  ("通用×" .. genericTickets),
+                        fontSize = 10,
                         fontColor = S.gold,
                         pointerEvents = "none",
                     },
@@ -604,7 +619,7 @@ end
 function ResourceDungeon._BuildChallengeButton(UI, S, ctx, def, remaining)
     local freeRemaining = RD.GetFreeRemaining(def.key)
     local adRemaining   = RD.GetAdRemaining(def.key)
-    local ticketCount   = InventoryData.GetCount("dungeon_ticket")
+    local totalTickets  = RD.GetTotalTicketCount(def.key)
 
     local actionChildren = {
         UI.Button {
@@ -619,6 +634,7 @@ function ResourceDungeon._BuildChallengeButton(UI, S, ctx, def, remaining)
         },
     }
 
+    -- 挑战按钮：免费 → 券 → 已用完
     if freeRemaining > 0 then
         actionChildren[#actionChildren + 1] = UI.Button {
             text = "免费挑战 " .. def.name,
@@ -630,20 +646,9 @@ function ResourceDungeon._BuildChallengeButton(UI, S, ctx, def, remaining)
                 ResourceDungeon.OnChallenge(UI, S, ctx, def.key, false)
             end,
         }
-    elseif adRemaining > 0 then
+    elseif totalTickets > 0 then
         actionChildren[#actionChildren + 1] = UI.Button {
-            text = "📺 看广告挑战 (剩" .. adRemaining .. "次)",
-            fontSize = 14,
-            flex = 1, height = 46,
-            borderRadius = 8,
-            variant = "primary",
-            onClick = function()
-                ResourceDungeon.OnAdChallenge(UI, S, ctx, def.key)
-            end,
-        }
-    elseif ticketCount > 0 then
-        actionChildren[#actionChildren + 1] = UI.Button {
-            text = "使用门票挑战 (余" .. ticketCount .. "张)",
+            text = "使用挑战券 (余" .. totalTickets .. "张)",
             fontSize = 14,
             flex = 1, height = 46,
             borderRadius = 8,
@@ -654,11 +659,34 @@ function ResourceDungeon._BuildChallengeButton(UI, S, ctx, def, remaining)
         }
     else
         actionChildren[#actionChildren + 1] = UI.Button {
-            text = "今日次数已用完",
+            text = "次数已用完",
             fontSize = 13,
             flex = 1, height = 46,
             borderRadius = 8,
             variant = "outline",
+        }
+    end
+
+    -- 看广告得券按钮（右侧）
+    if adRemaining > 0 then
+        actionChildren[#actionChildren + 1] = UI.Button {
+            text = "📺 得券(" .. adRemaining .. ")",
+            fontSize = 12,
+            width = 90, height = 46,
+            borderRadius = 8,
+            variant = "outline",
+            onClick = function()
+                ResourceDungeon.OnAdGetTicket(UI, S, ctx, def.key)
+            end,
+        }
+    else
+        actionChildren[#actionChildren + 1] = UI.Button {
+            text = "📺 已领完",
+            fontSize = 12,
+            width = 90, height = 46,
+            borderRadius = 8,
+            variant = "outline",
+            fontColor = S.dim,
         }
     end
 
@@ -678,18 +706,27 @@ end
 -- 挑战逻辑
 -- ============================================================================
 
-function ResourceDungeon.OnAdChallenge(UI, S, ctx, dungeonKey)
+--- 看广告获得专属副本挑战券
+function ResourceDungeon.OnAdGetTicket(UI, S, ctx, dungeonKey)
     local def = RD.DUNGEON_MAP[dungeonKey]
     if not def then return end
 
     if RD.GetAdRemaining(dungeonKey) <= 0 then
-        Toast.Show("今日广告次数已达上限", { 255, 200, 80 })
+        Toast.Show("今日广告领券次数已达上限", { 255, 200, 80 })
         return
     end
 
     AdHelper.ShowRewardAd(function()
         if not RD.ConsumeAdAttempt(dungeonKey) then return end
-        ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, false, true)
+        local ticketId = RD.DUNGEON_TICKET_MAP[dungeonKey]
+        if ticketId then
+            InventoryData.Add(ticketId, 1)
+            local ticketDef = InventoryData.ITEM_DEFS[ticketId]
+            local ticketName = ticketDef and ticketDef.name or "挑战券"
+            Toast.Show("获得 " .. ticketName .. " ×1", { 80, 220, 120 })
+        end
+        -- 刷新当前页面
+        ctx.SetView("resource_detail", dungeonKey)
     end)
 end
 
@@ -704,7 +741,7 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
 
     if not skipConsume then
         if useTicket then
-            if not RD.ConsumeTicket() then return end
+            if not RD.ConsumeDungeonTicket(dungeonKey) then return end
         else
             if not RD.ConsumeAttempt(dungeonKey) then return end
         end

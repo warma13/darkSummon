@@ -10,6 +10,7 @@ local HeroSkills = require("Game.HeroSkills")
 local Currency = require("Game.Currency")
 local EquipData = require("Game.EquipData")
 local HeroAnim = require("Game.HeroAnim")
+local DivineBlessDB = require("Game.DivineBlessData")
 
 local Tower = {}
 
@@ -50,6 +51,13 @@ function Tower.Create(typeIndex, star, col, row)
     -- 获取英雄完整战斗属性（含破甲/暴击/暴伤）
     local heroStats = HeroData.GetHeroStats(heroId)
 
+    -- 获取装备加成（含淬炼+符文）
+    local equipBonus = EquipData.GetTotalBonus(heroId)
+    local equipAtk = equipBonus.atk or 0
+    local atkPctBonus = equipBonus.atk_pct or 0
+    local spdPctBonus = equipBonus.spd_pct or 0
+    local rangeBonus = equipBonus.range or 0
+
     local tower = {
         id = nextTowerId,
         typeIndex = typeIndex,
@@ -57,10 +65,10 @@ function Tower.Create(typeIndex, star, col, row)
         star = star,
         col = col,
         row = row,
-        -- 最终攻击 = 英雄ATK（含等级/进阶/升星）× 场内星级
-        attack = heroStats.atk * starMult,
-        range = typeDef.baseRange + starRange + levelRange,
-        speed = typeDef.baseSpeed / starSpeed,
+        -- 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比)
+        attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus),
+        range = typeDef.baseRange + starRange + levelRange + rangeBonus,
+        speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus),
         cooldown = 0,
         target = nil,
         animTime = 0,
@@ -69,16 +77,36 @@ function Tower.Create(typeIndex, star, col, row)
         heroLevel = heroLevel,
         heroStar = heroStar,
         heroAwakening = heroAwakening,
-        -- 战斗子属性（来自英雄等级成长，后续装备/宝石等系统叠加）
-        armorPen = heroStats.armorPen or 0,
-        critRate = heroStats.critRate or 0,
-        critDmg = heroStats.critDmg or 0,
-        dmgBonus = 0,
+        -- 战斗子属性（来自英雄等级成长 + 装备/符文）
+        armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
+        critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
+        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0),
+        dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
         elemDmgBonus = heroStats.elemDmgBonus or {},
         -- 技能
         skills = {},
         skillTimers = {},
     }
+
+    -- 装备元素伤害加成
+    local heroElem = Config.HERO_ELEMENT[heroId]
+    if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
+        tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
+    end
+
+    -- 符文特殊词条
+    tower.runeBonus = {
+        chain      = equipBonus.chain or 0,
+        slow_amp   = equipBonus.slow_amp or 0,
+        dot_amp    = equipBonus.dot_amp or 0,
+        cdr        = equipBonus.cdr or 0,
+        killReset  = equipBonus.killReset or 0,
+        vulnMark   = equipBonus.vulnMark or 0,
+        elemMastery= equipBonus.elemMastery or 0,
+        luckyDrop  = equipBonus.luckyDrop or 0,
+    }
+    local rok, RuneData = pcall(require, "Game.RuneData")
+    tower.runeSetEffects = rok and RuneData.GetSetEffects(heroId) or {}
 
     -- 初始化技能
     HeroSkills.InitTowerSkills(tower)
@@ -109,6 +137,13 @@ function Tower.CreateLeader(col, row)
     local heroAwakening = heroInfo and heroInfo.awakening or 0
     local heroStats = HeroData.GetHeroStats(heroId)
 
+    -- 获取装备加成（含淬炼+符文）
+    local equipBonus = EquipData.GetTotalBonus(heroId)
+    local equipAtk = equipBonus.atk or 0
+    local atkPctBonus = equipBonus.atk_pct or 0
+    local spdPctBonus = equipBonus.spd_pct or 0
+    local rangeBonus = equipBonus.range or 0
+
     local tower = {
         id = nextTowerId,
         typeIndex = -1,          -- 非常规塔，用 -1 标记
@@ -117,9 +152,9 @@ function Tower.CreateLeader(col, row)
         col = col,
         row = row,
         isLeader = true,         -- 主角标记
-        attack = heroStats.atk,
-        range = typeDef.baseRange + levelRange,
-        speed = typeDef.baseSpeed,
+        attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus),
+        range = typeDef.baseRange + levelRange + rangeBonus,
+        speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus),
         cooldown = 0,
         target = nil,
         animTime = 0,
@@ -127,16 +162,36 @@ function Tower.CreateLeader(col, row)
         heroLevel = heroLevel,
         heroStar = heroStar,
         heroAwakening = heroAwakening,
-        armorPen = heroStats.armorPen or 0,
-        critRate = heroStats.critRate or 0,
-        critDmg = heroStats.critDmg or 0,
-        dmgBonus = 0,
+        armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
+        critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
+        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0),
+        dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
         elemDmgBonus = heroStats.elemDmgBonus or {},
         skills = {},
         skillTimers = {},
         -- 攻击动画状态
         attackAnimTimer = 0,
     }
+
+    -- 装备元素伤害加成
+    local heroElem = Config.HERO_ELEMENT[heroId]
+    if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
+        tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
+    end
+
+    -- 符文特殊词条
+    tower.runeBonus = {
+        chain      = equipBonus.chain or 0,
+        slow_amp   = equipBonus.slow_amp or 0,
+        dot_amp    = equipBonus.dot_amp or 0,
+        cdr        = equipBonus.cdr or 0,
+        killReset  = equipBonus.killReset or 0,
+        vulnMark   = equipBonus.vulnMark or 0,
+        elemMastery= equipBonus.elemMastery or 0,
+        luckyDrop  = equipBonus.luckyDrop or 0,
+    }
+    local rok, RuneData = pcall(require, "Game.RuneData")
+    tower.runeSetEffects = rok and RuneData.GetSetEffects(heroId) or {}
 
     HeroSkills.InitTowerSkills(tower)
 
@@ -242,6 +297,150 @@ function Tower.Summon()
     end
     print("[Tower] Summon #" .. State.summonCount .. " cost=" .. cost .. " next=" .. Tower.GetSummonCost())
     return tower
+end
+
+-- ============================================================================
+-- Debuff 系统：敌人词缀周期性削弱英雄塔属性
+-- ============================================================================
+
+--- 给塔施加一个减益效果
+---@param tower table 塔实例
+---@param debuffId string 词缀ID（如 "atk_down"）
+---@param stat string 目标属性名（"attack","speed","critRate"等）
+---@param value number 削弱幅度（百分比或固定值）
+---@param mode string "pct"=百分比乘算 | "flat"=固定值减算
+---@param duration number 持续秒数
+function Tower.ApplyDebuff(tower, debuffId, stat, value, mode, duration)
+    if not tower.debuffs then tower.debuffs = {} end
+    -- 同ID覆盖（刷新持续时间，取更强值）
+    for _, db in ipairs(tower.debuffs) do
+        if db.id == debuffId then
+            db.value = math.max(db.value, value)
+            db.remain = duration
+            return
+        end
+    end
+    tower.debuffs[#tower.debuffs + 1] = {
+        id = debuffId, stat = stat, value = value, mode = mode, remain = duration,
+    }
+end
+
+--- 更新塔身上所有 debuff 计时（在 Tower.Update 中每帧调用）
+local function TickDebuffs(tower, dt)
+    if not tower.debuffs then return end
+    local i = 1
+    while i <= #tower.debuffs do
+        tower.debuffs[i].remain = tower.debuffs[i].remain - dt
+        if tower.debuffs[i].remain <= 0 then
+            table.remove(tower.debuffs, i)
+        else
+            i = i + 1
+        end
+    end
+end
+
+--- 获取被 debuff 修正后的有效属性值
+--- 调用方：Combat 计算伤害时使用 Tower.GetEffective*(tower) 而非直接读 tower.attack
+---@param tower table
+---@param statName string  属性名
+---@param baseValue number 原始值
+---@return number 修正后的值
+function Tower.GetEffectiveStat(tower, statName, baseValue)
+    if not tower.debuffs then return baseValue end
+    local result = baseValue
+    for _, db in ipairs(tower.debuffs) do
+        if db.stat == statName then
+            if db.mode == "pct" then
+                result = result * (1 - db.value)   -- 百分比削弱
+            else
+                result = result - db.value          -- 固定值削弱
+            end
+        end
+    end
+    return math.max(0, result)
+end
+
+--- 便捷：获取有效攻击力（外部调用 Tower.GetEffectiveAttack(t) 代替 t.attack）
+function Tower.GetEffectiveAttack(tower)
+    return Tower.GetEffectiveStat(tower, "attack", tower.attack)
+end
+
+--- 便捷：获取有效攻速（值越大越慢，debuff 增加间隔）
+function Tower.GetEffectiveSpeed(tower)
+    if not tower.debuffs then return tower.speed end
+    local slowMult = 1.0
+    for _, db in ipairs(tower.debuffs) do
+        if db.stat == "speed" then
+            slowMult = slowMult + db.value  -- speed debuff 增加攻击间隔
+        end
+    end
+    return tower.speed * slowMult
+end
+
+--- 便捷：获取有效暴击率
+function Tower.GetEffectiveCritRate(tower)
+    return Tower.GetEffectiveStat(tower, "critRate", tower.critRate or 0)
+end
+
+--- 便捷：获取有效暴击伤害
+function Tower.GetEffectiveCritDmg(tower)
+    return Tower.GetEffectiveStat(tower, "critDmg", tower.critDmg or 0)
+end
+
+--- 便捷：获取有效穿甲
+function Tower.GetEffectiveArmorPen(tower)
+    return Tower.GetEffectiveStat(tower, "armorPen", tower.armorPen or 0)
+end
+
+--- 便捷：获取有效伤害加成
+function Tower.GetEffectiveDmgBonus(tower)
+    return Tower.GetEffectiveStat(tower, "dmgBonus", tower.dmgBonus or 0)
+end
+
+--- 检查塔是否有指定 debuff
+function Tower.HasDebuff(tower, debuffId)
+    if not tower.debuffs then return false end
+    for _, db in ipairs(tower.debuffs) do
+        if db.id == debuffId then return true end
+    end
+    return false
+end
+
+--- 清除塔身上所有 debuff（波次结束时调用）
+function Tower.ClearDebuffs(tower)
+    tower.debuffs = nil
+end
+
+--- 清除所有塔的 debuff
+function Tower.ClearAllDebuffs()
+    for _, tower in ipairs(State.towers) do
+        tower.debuffs = nil
+    end
+end
+
+--- 重新计算塔的战斗属性（星级变化后调用）
+function Tower.RecalcStats(tower)
+    local typeDef = tower.typeDef
+    local star = tower.star
+    local heroId = typeDef.id
+
+    local starMult = Config.STAR_MULTIPLIER[star] or 1.0
+    local starRange = Config.STAR_RANGE_BONUS[star] or 0
+    local starSpeed = Config.STAR_SPEED_MULT[star] or 1.0
+
+    local levelRange = HeroData.GetLevelRangeBonus(heroId)
+    local heroStats = HeroData.GetHeroStats(heroId)
+    local equipBonus = EquipData.GetTotalBonus(heroId)
+    local equipAtk = equipBonus.atk or 0
+    local atkPctBonus = equipBonus.atk_pct or 0
+    local spdPctBonus = equipBonus.spd_pct or 0
+    local rangeBonus = equipBonus.range or 0
+
+    tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus)
+    tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
+    tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus)
+
+    print("[Tower] RecalcStats " .. typeDef.name .. " ★" .. star .. " ATK=" .. math.floor(tower.attack))
 end
 
 --- 移除一个塔
@@ -406,14 +605,18 @@ function Tower.RefreshAllStats()
         local spdPctBonus = equipBonus.spd_pct or 0  -- 符文百分比攻速
         local rangeBonus = equipBonus.range or 0      -- 符文攻击范围
 
+        -- 神裔降临加成
+        local divineAtkPct = DivineBlessDB.GetBuffValue("atk_pct")
+        local divineSpdPct = DivineBlessDB.GetBuffValue("spd_pct")
+
         if tower.isLeader then
-            tower.attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus)
+            tower.attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus + divineAtkPct)
             tower.range = typeDef.baseRange + levelRange + rangeBonus
-            tower.speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus)
+            tower.speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct)
         else
-            tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus)
+            tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct)
             tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
-            tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus)
+            tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct)
         end
 
         -- 更新英雄信息
@@ -423,7 +626,7 @@ function Tower.RefreshAllStats()
         tower.heroAwakening = heroInfo and heroInfo.awakening or 0
 
         tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0)
-        tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0)
+        tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + DivineBlessDB.GetBuffValue("crit_pct")
         tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0)
         tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0)
         tower.elemDmgBonus = heroStats.elemDmgBonus or {}
@@ -478,6 +681,8 @@ function Tower.Update(dt)
         end
         -- 更新主动技能冷却
         HeroSkills.UpdateActive(tower, dt)
+        -- 更新 debuff 计时
+        TickDebuffs(tower, dt)
     end
     -- 更新英雄代码动画（呼吸/攻击压缩弹出）
     HeroAnim.Update(dt, State.towers)

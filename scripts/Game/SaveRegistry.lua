@@ -48,6 +48,7 @@ local DATA_MODULE_PATHS = {
     "Game.EquipData",
     "Game.RuneData",
     "Game.ActivityData",
+    "Game.InventoryData",
     "Game.DailyTaskData",
     "Game.LaunchGiftData",
     "Game.WeeklyActivityData",
@@ -60,6 +61,8 @@ local DATA_MODULE_PATHS = {
     "Game.ResourceDungeonData",
     "Game.AdReliefData",
     "Game.CostumeSignInData",
+    "Game.WeeklyPointsData",
+    "Game.AchievementData",
 }
 
 --- 确保所有数据模块已加载（触发它们底部的 SaveRegistry.Register 调用）

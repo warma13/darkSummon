@@ -21,21 +21,17 @@ function AutoPlay.ResetTimers()
     AutoPlay.autoDeployTimer = 0
 end
 
---- 检查今日是否已通过广告解锁指定自动功能
+--- 自动功能已直接开放，无需广告解锁
 ---@param key string "autoSummon" | "autoMerge" | "autoDeploy"
 ---@return boolean
 function AutoPlay.IsUnlockedToday(key)
-    local HeroData = require("Game.HeroData")
-    local today = os.date("%Y-%m-%d")
-    return HeroData.stats[key .. "AdDate"] == today
+    return true
 end
 
---- 记录今日已通过广告解锁指定自动功能
+--- 保留接口兼容，实际不再需要调用
 ---@param key string "autoSummon" | "autoMerge" | "autoDeploy"
 function AutoPlay.RecordAdUnlock(key)
-    local HeroData = require("Game.HeroData")
-    HeroData.stats[key .. "AdDate"] = os.date("%Y-%m-%d")
-    HeroData.Save()
+    -- no-op
 end
 
 return AutoPlay
