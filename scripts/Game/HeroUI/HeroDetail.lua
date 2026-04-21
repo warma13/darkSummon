@@ -878,12 +878,7 @@ local function BuildCostumeTab(ctx, heroId)
         }
     end
 
-    local RARITY_COLOR = {
-        N  = { 180, 180, 180, 255 },
-        R  = { 100, 180, 255, 255 },
-        SR = { 160, 100, 255, 255 },
-        SSR = { 255, 200, 60, 255 },
-    }
+    local RARITY_COLOR = Config.RARITY_COLORS
 
     -- ── 系统说明浮层 ──────────────────────────────────────────────────────────
     local _infoOverlay = nil

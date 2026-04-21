@@ -8,6 +8,7 @@ local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
 local InventoryData = require("Game.InventoryData")
+local TodayStr = require("Game.DateUtil").TodayStr
 
 local WB = {}
 
@@ -295,13 +296,13 @@ function WB.GetData()
             bestDamage = 0,
             todayAttempts = 0,
             todayAdAttempts = 0,
-            lastResetDate = os.date("%Y-%m-%d"),
+            lastResetDate = TodayStr(),
             totalAttempts = 0,
         }
     end
 
     -- 每日重置
-    local today = os.date("%Y-%m-%d")
+    local today = TodayStr()
     if HeroData.worldBossData.lastResetDate ~= today then
         HeroData.worldBossData.todayAttempts = 0
         HeroData.worldBossData.todayAdAttempts = 0

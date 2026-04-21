@@ -50,10 +50,7 @@ LaunchGiftData.MILESTONES = {
 -- ============================================================================
 
 --- 获取当前日期字符串（YYYY-MM-DD）
----@return string
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 --- 确保数据结构存在（懒初始化）
 ---@return table data

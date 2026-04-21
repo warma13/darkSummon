@@ -89,11 +89,7 @@ end
 --   }
 -- }
 
---- 获取今天的日期字符串
----@return string  "YYYY-MM-DD"
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 --- 将 "YYYY-MM-DD" 转为 os.time 时间戳（当天0点）
 ---@param dateStr string

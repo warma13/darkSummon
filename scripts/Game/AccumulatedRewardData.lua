@@ -46,10 +46,7 @@ AccumulatedRewardData.ADS_PER_DAY  = 3    -- 每天需要看的广告数
 --   claimed       = {},        -- 当轮已领取奖励索引表 { [1]=true, [2]=true, ... }
 -- }
 
----@return string
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 --- 创建默认数据
 ---@return table

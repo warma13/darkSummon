@@ -4,6 +4,8 @@
 --   昵称 | 累计 | 今日发起 | 今日完成 | 今日取消 | 成功率
 -- 无 UI 入口，仅管理员按 F 键可用
 
+local TodayKey = require("Game.DateUtil").TodayKey
+
 local AdDashboardUI = {}
 
 ---@type any
@@ -17,7 +19,7 @@ local MAX_PER_SECTION = 30
 
 -- 排行榜 key 定义
 local function GetKeys()
-    local today = os.date("%Y%m%d")
+    local today = TodayKey()
     return {
         total  = "ad_total",
         start  = "ad_start_"  .. today,

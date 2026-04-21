@@ -85,9 +85,7 @@ local function CalcLevelReward(level)
     return math.floor(LEVEL_REWARD_MIN + (LEVEL_REWARD_MAX - LEVEL_REWARD_MIN) * t)
 end
 
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 -- ============================================================================
 -- 数据访问

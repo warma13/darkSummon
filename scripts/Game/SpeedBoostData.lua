@@ -18,9 +18,7 @@ SB.enabled      = false           -- 当前是否开启加速
 
 -- ============ 辅助 ============
 
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 --- 获取存档数据（懒初始化）
 ---@return table { date:string, adsUsed:number, remaining:number, lastTs:number }

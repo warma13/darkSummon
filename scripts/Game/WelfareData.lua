@@ -75,9 +75,7 @@ WelfareData.WEEKLY_MILESTONES = {
 -- 数据访问
 -- ============================================================================
 
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 function WelfareData.EnsureData()
     if not HeroData.welfareData then

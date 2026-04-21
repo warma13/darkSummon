@@ -23,15 +23,8 @@ local limitedBannerIdx = 1
 -- 返回回调（由 GameUI 设置）
 local onBackCallback = nil
 
--- 稀有度颜色
-local RARITY_COLORS = {
-    N   = { 180, 180, 180 },
-    R   = { 120, 200, 120 },
-    SR  = { 140, 120, 220 },
-    SSR = { 255, 200, 50 },
-    UR  = { 255, 215, 60 },
-    LR  = { 255, 80, 80 },
-}
+-- 稀有度颜色（引用 Config 统一定义）
+local RARITY_COLORS = Config.RARITY_COLORS
 
 -- 稀有度背景颜色（暗色调）
 local RARITY_BG = {

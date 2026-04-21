@@ -38,10 +38,7 @@ local _data = nil
 -- 工具函数
 -- ============================================================================
 
----@return string "YYYY-MM-DD"
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 ---@param dateStr string
 ---@return number

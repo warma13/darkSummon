@@ -10,6 +10,7 @@ local Tooltip         = require("Game.Tooltip")
 local RewardIconMod   = require("Game.RewardIcon")
 local TaskCard        = require("Game.TaskCard")
 local ChestData       = require("Game.ChestData")
+local TodayKey        = require("Game.DateUtil").TodayKey
 
 local DailyTaskUI = {}
 
@@ -509,7 +510,7 @@ function DailyTaskUI._BuildAchievementSection()
         loginRow,
     }
     -- 排行榜名次成就 2026-04-21 起解锁
-    if os.date("%Y%m%d") >= "20260421" then
+    if TodayKey() >= "20260421" then
         rows[#rows + 1] = campaignRow
         rows[#rows + 1] = towerRow
     end

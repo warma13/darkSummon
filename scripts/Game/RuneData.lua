@@ -8,6 +8,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local SaveRegistry = require("Game.SaveRegistry")
 local InventoryData = require("Game.InventoryData")
+local TodayKey = require("Game.DateUtil").TodayKey
 
 local RuneData = {}
 
@@ -651,7 +652,7 @@ end
 --- 重置每日次数（按日期）
 function RuneData.ResetDailyIfNeeded()
     local d = EnsureData()
-    local today = os.date("%Y%m%d")
+    local today = TodayKey()
     if d.abyssRift.lastResetDay ~= today then
         d.abyssRift.dailyFreeUsed = 0
         d.abyssRift.dailyAdUsed = 0

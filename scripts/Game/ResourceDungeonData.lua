@@ -6,6 +6,7 @@ local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
+local TodayStr = require("Game.DateUtil").TodayStr
 
 local RD = {}
 
@@ -344,7 +345,7 @@ function RD.GetData()
                 iron    = 0,
                 chest   = 0,
             },
-            lastResetDate = os.date("%Y-%m-%d"),
+            lastResetDate = TodayStr(),
         }
     end
 
@@ -356,7 +357,7 @@ function RD.GetData()
     end
 
     -- 每日重置检查
-    local today = os.date("%Y-%m-%d")
+    local today = TodayStr()
     if HeroData.resourceDungeon.lastResetDate ~= today then
         for k, _ in pairs(HeroData.resourceDungeon.todayAttempts) do
             HeroData.resourceDungeon.todayAttempts[k] = 0
@@ -631,7 +632,7 @@ SaveRegistry.Register("resourceDungeon", {
                 bestWave        = saved.bestWave or {},
                 todayAttempts   = saved.todayAttempts or {},
                 todayAdAttempts = saved.todayAdAttempts or {},
-                lastResetDate   = saved.lastResetDate or os.date("%Y-%m-%d"),
+                lastResetDate   = saved.lastResetDate or TodayStr(),
             }
             -- 确保四种副本的 key 都存在
             for _, def in ipairs(RD.DUNGEON_DEFS) do

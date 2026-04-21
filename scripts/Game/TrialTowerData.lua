@@ -43,10 +43,7 @@ end
 local DAILY_TICKET_GRANT = 10
 local TOWER_TICKET_REWARD = 10
 
----@return string  当前日期字符串 "YYYY-MM-DD"
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 -- ============================================================================
 -- 辅助计算

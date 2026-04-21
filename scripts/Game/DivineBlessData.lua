@@ -138,10 +138,8 @@ function DB.EnsureData()
 end
 
 --- 今天的日期 key
----@return string
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
+local TodayKey = require("Game.DateUtil").TodayKey
 
 --- 是否为周末
 ---@return boolean
@@ -175,7 +173,7 @@ function DB.GetTodayOptions()
     end
 
     -- 工作日：从 11 位中选 3 位
-    local seed = tonumber(os.date("%Y%m%d"))
+    local seed = tonumber(TodayKey())
     local rng = lcgRandom(seed)
 
     local pool = {}

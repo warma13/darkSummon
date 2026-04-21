@@ -6,10 +6,7 @@ local HeroData = require("Game.HeroData")
 
 local AdTracker = {}
 
----@return string
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 --- 获取内部数据（懒加载）
 ---@return table { date: string, todayCount: number, totalCount: number }

@@ -10,6 +10,7 @@ local Currency = require("Game.Currency")
 local State    = require("Game.State")
 local Toast    = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
+local TodayKey = require("Game.DateUtil").TodayKey
 
 local Emerald = {}
 
@@ -181,7 +182,7 @@ end
 --- 获取今日日期字符串
 ---@return string
 local function getTodayKey()
-    return os.date("%Y%m%d")
+    return TodayKey()
 end
 
 --- 确保每日重置

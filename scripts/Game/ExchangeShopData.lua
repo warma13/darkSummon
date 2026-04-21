@@ -6,6 +6,7 @@ local Config   = require("Game.Config")
 local Currency = require("Game.Currency")
 local HeroData = require("Game.HeroData")
 local SaveRegistry = require("Game.SaveRegistry")
+local TodayKey = require("Game.DateUtil").TodayKey
 
 local ExchangeShopData = {}
 
@@ -152,7 +153,7 @@ ExchangeShopData.SHOP_ITEMS = {
 --- 获取今日日期字符串
 ---@return string
 local function getTodayKey()
-    return os.date("%Y%m%d")
+    return TodayKey()
 end
 
 --- 获取购买记录表（懒初始化）

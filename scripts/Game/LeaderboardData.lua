@@ -4,6 +4,7 @@
 
 local HeroData = require("Game.HeroData")
 local Config = require("Game.Config")
+local TodayKey = require("Game.DateUtil").TodayKey
 
 local LB = {}
 
@@ -23,7 +24,7 @@ LB.KEY_COSTUME         = "lb_costume"          -- 时装战力总加分
 --- 获取世界BOSS每日排行榜 key（每天一个，格式：lb_wb_daily_20260415）
 ---@return string
 function LB.GetWorldBossDailyKey()
-    return "lb_wbv2_" .. os.date("%Y%m%d")
+    return "lb_wbv2_" .. TodayKey()
 end
 
 -- 本地缓存

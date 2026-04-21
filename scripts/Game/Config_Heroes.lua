@@ -501,16 +501,29 @@ Config.RARITY = { N = 0, R = 1, SR = 2, SSR = 3, UR = 4, LR = 5 }
 Config.RARITY_SUMMON_WEIGHT = { N = 40, R = 30, SR = 17, SSR = 8, UR = 3, LR = 1 }
 Config.RARITY_SHARD_COST = { N = 5, R = 10, SR = 20, SSR = 30, UR = 50, LR = 80 }
 
--- 稀有度颜色
+-- 稀有度颜色（统一权威来源，RGBA 格式）
+-- 各 UI 模块应引用此表，不要自建重复定义
 Config.RARITY_COLORS = {
-    N   = { 180, 180, 180 },
-    R   = { 80, 200, 80 },
-    SR  = { 80, 140, 255 },
-    SSR = { 180, 80, 220 },
-    UR  = { 255, 215, 60 },
-    LR  = { 220, 40, 40 },
-    none = { 180, 120, 255 },  -- 主角专用
+    N    = { 180, 180, 180, 255 },
+    R    = { 100, 200, 100, 255 },
+    SR   = { 120, 130, 255, 255 },
+    SSR  = { 255, 200,  50, 255 },
+    UR   = { 255, 160,  40, 255 },
+    LR   = { 220,  40,  40, 255 },
+    none = { 180, 120, 255, 255 },  -- 主角专用
 }
+
+--- 获取指定稀有度颜色（可自定义 alpha）
+---@param rarity string  稀有度键 (N/R/SR/SSR/UR/LR)
+---@param alpha? number  alpha 值，默认 255
+---@return number[] {r, g, b, a}
+function Config.GetRarityColor(rarity, alpha)
+    local c = Config.RARITY_COLORS[rarity] or Config.RARITY_COLORS.N
+    if alpha and alpha ~= 255 then
+        return { c[1], c[2], c[3], alpha }
+    end
+    return c
+end
 
 -- 默认解锁英雄（新玩家初始拥有）
 Config.DEFAULT_UNLOCKED = {

@@ -4,6 +4,7 @@
 
 local HeroData = require("Game.HeroData")
 local Currency  = require("Game.Currency")
+local TodayKey  = require("Game.DateUtil").TodayKey
 
 local VaultData = {}
 
@@ -28,7 +29,7 @@ VaultData.TIERS = {
 
 local function TodayDay()
     -- 使用本地日期（与签到、免费抽等系统一致），午夜跨天，非 UTC 8:00
-    return os.date("%Y%m%d")  -- e.g. "20260419"
+    return TodayKey()  -- e.g. "20260419"
 end
 
 --- 将 "YYYYMMDD" 字符串转为 Unix 时间戳（午夜 00:00:00）

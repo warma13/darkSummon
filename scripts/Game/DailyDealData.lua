@@ -72,10 +72,7 @@ DailyDealData.AD_REWARDS = {
 --   adClaimed = { false, false, false },  -- 每个广告位是否已领
 -- }
 
----@return string
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
+local TodayStr = require("Game.DateUtil").TodayStr
 
 --- 创建默认数据
 ---@return table

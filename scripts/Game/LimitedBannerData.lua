@@ -169,9 +169,7 @@ end
 local AD_FROST_AMOUNT    = 5
 local AD_FROST_DAILY_MAX = 4
 
-local function GetTodayStr()
-    return os.date("%Y-%m-%d") or ""
-end
+local GetTodayStr = require("Game.DateUtil").TodayStr
 
 local function ResetAdFrostIfNeeded(bannerCfg)
     local d = LBD.GetData(bannerCfg)

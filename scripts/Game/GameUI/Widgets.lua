@@ -587,14 +587,11 @@ function GameUI.ShowResourceShop(focusCurrency)
 end
 
 --- 品质颜色（挂到 ctx 供其他子模块共享）
-local RARITY_COLORS = {
-    LR  = { 255, 80, 80, 200 },
-    UR  = { 255, 200, 50, 200 },
-    SSR = { 180, 100, 255, 200 },
-    SR  = { 80, 150, 255, 200 },
-    R   = { 100, 200, 100, 200 },
-    N   = { 160, 150, 140, 200 },
-}
+-- 使用半透明版本 (alpha=200) 用于卡片背景
+local RARITY_COLORS = {}
+for k, c in pairs(Config.RARITY_COLORS) do
+    RARITY_COLORS[k] = { c[1], c[2], c[3], 200 }
+end
 ctx.RARITY_COLORS = RARITY_COLORS
 
 --- 格式化数字

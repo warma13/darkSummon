@@ -5,6 +5,7 @@
 local Config = require("Game.Config")
 local Currency = require("Game.Currency")
 local HeroData = require("Game.HeroData")
+local TodayStr = require("Game.DateUtil").TodayStr
 
 local PrivilegeData = {}
 
@@ -134,11 +135,11 @@ local function CheckExpired(cardId)
     if not def or not def.duration then return end -- 无 duration = 永久
     if not cd.unlockDate then
         -- 兼容旧数据：没有 unlockDate 的已解锁卡，从今天开始算
-        cd.unlockDate = os.date("%Y-%m-%d")
+        cd.unlockDate = TodayStr()
         PrivilegeData.Save()
         return
     end
-    local elapsed = DaysBetween(os.date("%Y-%m-%d"), cd.unlockDate)
+    local elapsed = DaysBetween(TodayStr(), cd.unlockDate)
     if elapsed >= def.duration then
         -- 过期重置
         print("[Privilege] " .. cardId .. " expired after " .. elapsed .. " days, resetting")
@@ -197,7 +198,7 @@ end
 --- 重置每日广告计数（跨天时自动调用）
 local function ResetDailyAdIfNeeded(cardId)
     local cd = GetCardData(cardId)
-    local today = os.date("%Y-%m-%d")
+    local today = TodayStr()
     if cd.lastAdDate ~= today then
         cd.todayAdsWatched = 0
         cd.lastAdDate = today
@@ -240,7 +241,7 @@ function PrivilegeData.RecordAdWatch(cardId)
     cd.todayAdsWatched = (cd.todayAdsWatched or 0) + 1
     if cd.adsWatched >= def.adsRequired then
         cd.unlocked = true
-        cd.unlockDate = os.date("%Y-%m-%d")
+        cd.unlockDate = TodayStr()
     end
     PrivilegeData.Save()
     return true
@@ -255,7 +256,7 @@ function PrivilegeData.GetRemainingDays(cardId)
     local def = PrivilegeData.GetCardDef(cardId)
     if not def or not def.duration then return -1 end -- 永久
     if not cd.unlockDate then return def.duration end -- 兼容旧数据
-    local elapsed = DaysBetween(os.date("%Y-%m-%d"), cd.unlockDate)
+    local elapsed = DaysBetween(TodayStr(), cd.unlockDate)
     local remaining = def.duration - elapsed
     if remaining < 0 then remaining = 0 end
     return remaining
@@ -294,7 +295,7 @@ end
 --- 今日是否已领取每日奖励
 function PrivilegeData.IsDailyClaimed(cardId)
     local cd = GetCardData(cardId)
-    local today = os.date("%Y-%m-%d")
+    local today = TodayStr()
     return cd.lastClaimDate == today
 end
 
@@ -328,7 +329,7 @@ function PrivilegeData.ClaimDaily(cardId)
         }
     end
     local cd = GetCardData(cardId)
-    cd.lastClaimDate = os.date("%Y-%m-%d")
+    cd.lastClaimDate = TodayStr()
     PrivilegeData.Save()
     return true, table.concat(names, "、"), displayRewards
 end

@@ -16,6 +16,7 @@ local ActivityData         = require("Game.ActivityData")
 local AccumulatedRewardData = require("Game.AccumulatedRewardData")
 local DailyDealData        = require("Game.DailyDealData")
 local AdReliefData         = require("Game.AdReliefData")
+local TodayStr = require("Game.DateUtil").TodayStr
 
 local FormatNum = ctx.FormatNum
 
@@ -36,7 +37,7 @@ local AFK_AD_DAILY_MAX = 10
 --- 重置每日计数（跨天）
 local function ResetAfkAdIfNeeded()
     local stats = HeroData.stats
-    local today = os.date("%Y-%m-%d")
+    local today = TodayStr()
     if stats.afkAdDate ~= today then
         stats.afkAdCount = 0
         stats.afkAdDate = today

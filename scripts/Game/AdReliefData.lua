@@ -41,14 +41,8 @@ local MAX_BONUS_HOURS = 3            -- 最大加速时长
 -- 辅助
 -- ============================================================================
 
-local function TodayStr()
-    return os.date("%Y-%m-%d")
-end
-
---- 获取昨天的日期字符串
-local function YesterdayStr()
-    return os.date("%Y-%m-%d", os.time() - 86400)
-end
+local TodayStr = require("Game.DateUtil").TodayStr
+local YesterdayStr = require("Game.DateUtil").YesterdayStr
 
 --- 获取/初始化持久化数据
 ---@return table

@@ -5,6 +5,7 @@
 
 local AdTracker = require("Game.AdTracker")
 local Toast     = require("Game.Toast")
+local TodayKey  = require("Game.DateUtil").TodayKey
 
 local AdHelper = {}
 
@@ -19,7 +20,7 @@ local AdHelper = {}
 local function _reportAdEvent(action)
     ---@diagnostic disable-next-line: undefined-global
     if not clientCloud then return end
-    local dailyKey = action .. "_" .. os.date("%Y%m%d")
+    local dailyKey = action .. "_" .. TodayKey()
     clientCloud:BatchSet()
         :Add("ad_total", 1)     -- 永久累计
         :Add(dailyKey, 1)       -- 每日分类

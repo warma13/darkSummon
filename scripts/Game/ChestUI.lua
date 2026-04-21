@@ -18,15 +18,8 @@ local pageRoot = nil
 ---@type string
 local selectedChest = "wood"  -- 当前选中的宝箱类型
 
--- 稀有度颜色
-local RARITY_COLORS = {
-    N   = { 180, 180, 180 },
-    R   = { 120, 200, 120 },
-    SR  = { 140, 120, 220 },
-    SSR = { 255, 200, 50 },
-    UR  = { 255, 160, 40 },
-    LR  = { 220, 40, 40 },
-}
+-- 稀有度颜色（引用 Config 统一定义）
+local RARITY_COLORS = Config.RARITY_COLORS
 
 --- 获取货币显示名
 ---@param currType string

@@ -12,6 +12,7 @@ local SafeTable = require("Game.SafeTable")
 local SaveRegistry = require("Game.SaveRegistry")
 local EventBus = require("Game.EventBus")
 local F = require("Game.FormulaLib")
+local TodayStr = require("Game.DateUtil").TodayStr
 
 local HeroData = {}
 
@@ -96,7 +97,7 @@ function HeroData._InitCoreDefaults()
     HeroData.stats, statsSnapshot = SafeTable.Create({ bestStage = 0, bestGlobalWave = 0, totalGames = 0 })
 
     -- 新玩家首日免费赠送自动召唤/合成/布阵/x2
-    local today = os.date("%Y-%m-%d")
+    local today = TodayStr()
     HeroData.stats.autoSummonAdDate = today
     HeroData.stats.autoMergeAdDate  = today
     HeroData.stats.autoDeployAdDate = today

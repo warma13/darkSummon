@@ -7,11 +7,7 @@ local HeroData = require("Game.HeroData")
 
 local RecruitData = {}
 
---- 获取今日日期字符串 "YYYY-MM-DD"
----@return string
-local function GetTodayStr()
-    return os.date("%Y-%m-%d") or ""
-end
+local GetTodayStr = require("Game.DateUtil").TodayStr
 
 --- 是否可以免费单抽（每天一次）
 ---@return boolean

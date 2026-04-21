@@ -230,29 +230,18 @@ end
 -- 通用：稀有度颜色
 -- ============================================================================
 
---- 稀有度背景色
+--- 稀有度背景色（基于 Config.RARITY_COLORS，alpha=200）
 ---@param rarity string
 ---@return table
 function HeroUI.GetRarityColor(rarity)
-    if rarity == "LR" then return { 180, 30, 30, 220 } end
-    if rarity == "UR" then return { 200, 150, 30, 220 } end
-    if rarity == "SSR" then return { 150, 55, 190, 200 } end
-    if rarity == "SR" then return { 45, 115, 195, 200 } end
-    if rarity == "N" then return { 130, 120, 110, 200 } end
-    if rarity == "none" then return { 140, 90, 200, 220 } end
-    return { 75, 125, 55, 200 } -- R
+    return Config.GetRarityColor(rarity, 200)
 end
 
---- 稀有度边框色（更亮的版本）
+--- 稀有度边框色（基于 Config.RARITY_COLORS，alpha=255）
 ---@param rarity string
 ---@return table
 function HeroUI.GetRarityBorderColor(rarity)
-    if rarity == "LR" then return { 255, 60, 60, 255 } end
-    if rarity == "UR" then return { 255, 215, 60, 255 } end
-    if rarity == "SSR" then return { 200, 100, 255, 255 } end
-    if rarity == "SR" then return { 80, 160, 255, 255 } end
-    if rarity == "N" then return { 170, 160, 150, 180 } end
-    return { 100, 200, 80, 220 } -- R
+    return Config.GetRarityColor(rarity, 255)
 end
 
 -- ============================================================================
