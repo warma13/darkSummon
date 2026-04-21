@@ -47,6 +47,68 @@ local function GetElementDmgColor(heroElement, elemMult, towerColor)
     return towerColor, nil
 end
 
+--- 格式化大数字（万/亿/万亿）
+---@param n number
+---@return string
+local function FormatDamage(n)
+    if not n or n ~= n then return "0" end  -- nil / NaN 保护
+    n = math.floor(n)
+    if n >= 1e12 then
+        local v = n / 1e12
+        local s = v >= 100 and string.format("%.0f万亿", v)
+            or string.format("%.1f万亿", v)
+        return (s:gsub("%.0万亿", "万亿"))
+    elseif n >= 1e8 then
+        local v = n / 1e8
+        local s = v >= 100 and string.format("%.0f亿", v)
+            or string.format("%.1f亿", v)
+        return (s:gsub("%.0亿", "亿"))
+    elseif n >= 1e4 then
+        local v = n / 1e4
+        local s = v >= 100 and string.format("%.0f万", v)
+            or string.format("%.1f万", v)
+        return (s:gsub("%.0万", "万"))
+    end
+    return tostring(n)
+end
+
+--- 统一伤害飘字（暴击/普通自动格式化）
+---@param target table   被击中的敌人
+---@param finalDmg number 最终伤害值
+---@param isCrit boolean  是否暴击
+---@param elemColor table 普通伤害颜色（元素着色后）
+local function ShowDamageText(target, finalDmg, isCrit, elemColor)
+    local text = FormatDamage(finalDmg)
+    local size = target.typeDef.size or 8
+    -- 随机抛物线初速度
+    local vx = (math.random() - 0.5) * 80          -- 水平随机 ±40
+    local vy = -(55 + math.random() * 35)           -- 向上 55~90
+    if isCrit then
+        vy = -(80 + math.random() * 40)             -- 暴击弹得更高
+        AddFloatingText({
+            text = text .. "!",
+            x = target.x + (math.random() - 0.5) * 12,
+            y = target.y - size - 10,
+            vx = vx, vy = vy,
+            life = 0.9,
+            maxLife = 0.9,
+            color = { 255, 60, 60, 255 },
+            fontSize = 16,
+            isCrit = true,
+        })
+    else
+        AddFloatingText({
+            text = text,
+            x = target.x + (math.random() - 0.5) * 14,
+            y = target.y - size - 6,
+            vx = vx, vy = vy,
+            life = 0.7,
+            color = elemColor,
+            fontSize = 11,
+        })
+    end
+end
+
 --- 计算最终伤害（护甲系数 × 暴击倍率）
 --- 集成破甲叠加、光环暴击加成
 ---@param tower table
@@ -71,7 +133,12 @@ local function CalcFinalDamage(tower, enemy, damage)
     do
         local enemyDEF = enemy.def or 0
         -- 英雄穿甲：按比例削减敌方 DEF（armorPen 0.30 = 削减30% DEF）
+        -- 怪物穿甲抗性：降低穿甲有效率（armorPenResist 0.30 = 穿甲效果打7折）
         local armorPen = Tower.GetEffectiveArmorPen(tower)
+        local penResist = enemy.armorPenResist or 0
+        if penResist > 0 then
+            armorPen = armorPen * (1 - penResist)
+        end
         if armorPen > 0 then
             enemyDEF = enemyDEF * (1 - armorPen)
         end
@@ -89,11 +156,17 @@ local function CalcFinalDamage(tower, enemy, damage)
     end
 
     -- [暴击] 概率触发，倍率 = baseCritMult + critDmg
+    -- 怪物暴击伤害减免：critDmgReduce 削减暴击额外倍率部分
     do
         local critRate = HeroSkills.GetEffectiveCritRate(tower)
         if critRate > 0 and math.random() < critRate then
             isCrit = true
-            zones.crit = Config.BASE_CRIT_MULT + Tower.GetEffectiveCritDmg(tower)
+            local critDmg = Tower.GetEffectiveCritDmg(tower)
+            local critReduce = enemy.critDmgReduce or 0
+            if critReduce > 0 then
+                critDmg = critDmg * (1 - critReduce)
+            end
+            zones.crit = Config.BASE_CRIT_MULT + critDmg
         end
     end
 
@@ -115,12 +188,20 @@ local function CalcFinalDamage(tower, enemy, damage)
     end
 
     -- [伤害加成] 通用独立乘区 (1 + dmgBonus)
-    local dmgBonus = Tower.GetEffectiveDmgBonus(tower)
-    if dmgBonus > 0 then
-        zones.dmgBonus = 1.0 + dmgBonus
+    -- 怪物伤害加成减免：dmgBonusReduce 削减英雄 dmgBonus
+    do
+        local dmgBonus = Tower.GetEffectiveDmgBonus(tower)
+        local dmgReduce = enemy.dmgBonusReduce or 0
+        if dmgReduce > 0 then
+            dmgBonus = dmgBonus * (1 - dmgReduce)
+        end
+        if dmgBonus > 0 then
+            zones.dmgBonus = 1.0 + dmgBonus
+        end
     end
 
     -- [元素伤害] 匹配英雄元素时的专属乘区
+    -- 怪物元素伤害减免：elemDmgReduce 削减英雄 elemDmg
     do
         local elemDmg = 0
         if heroElement and tower.elemDmgBonus then
@@ -129,6 +210,10 @@ local function CalcFinalDamage(tower, enemy, damage)
         -- 符文词条：元素精通追加到同一乘区
         if heroElement and tower.runeBonus and tower.runeBonus.elemMastery and tower.runeBonus.elemMastery > 0 then
             elemDmg = elemDmg + tower.runeBonus.elemMastery
+        end
+        local elemReduce = enemy.elemDmgReduce or 0
+        if elemReduce > 0 then
+            elemDmg = elemDmg * (1 - elemReduce)
         end
         if elemDmg > 0 then
             zones.elemDmg = 1.0 + elemDmg
@@ -275,30 +360,10 @@ local function HandleChainAttack(tower, firstTarget, damage)
         local killed = Enemy.TakeDamage(nextTarget, finalDmg)
         DamageStats.Record(tower, finalDmg, isCrit, killed)
 
-        -- 伤害飘字（元素着色）
+        -- 伤害飘字
         local elemColor = GetElementDmgColor(heroElem, elemMult, tower.typeDef.color)
-        local chainDmgText = tostring(math.floor(finalDmg))
-        if isCrit then
-            AddFloatingText({
-                text = chainDmgText .. "!",
-                x = nextTarget.x + (math.random() - 0.5) * 12,
-                y = nextTarget.y - (nextTarget.typeDef.size or 8) - 10,
-                life = 0.8,
-                color = { 255, 60, 60, 255 },
-                fontSize = 16,
-                isCrit = true,
-            })
-            HeroSkills.CheckCritSplash(tower, nextTarget, finalDmg)
-        else
-            AddFloatingText({
-                text = chainDmgText,
-                x = nextTarget.x + (math.random() - 0.5) * 14,
-                y = nextTarget.y - (nextTarget.typeDef.size or 8) - 6,
-                life = 0.6,
-                color = elemColor,
-                fontSize = 11,
-            })
-        end
+        ShowDamageText(nextTarget, finalDmg, isCrit, elemColor)
+        if isCrit then HeroSkills.CheckCritSplash(tower, nextTarget, finalDmg) end
 
         HeroSkills.OnHit(tower, nextTarget, killed)
 
@@ -352,30 +417,9 @@ local function OnProjectileHit(proj)
         local killed = Enemy.TakeDamage(target, finalDmg)
         DamageStats.Record(tower, finalDmg, isCrit, killed)
 
-        -- 伤害飘字（元素着色）
         local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
-        local dmgText = tostring(math.floor(finalDmg))
-        if isCrit then
-            AddFloatingText({
-                text = dmgText .. "!",
-                x = target.x + (math.random() - 0.5) * 12,
-                y = target.y - (target.typeDef.size or 8) - 10,
-                life = 0.8,
-                color = { 255, 60, 60, 255 },
-                fontSize = 16,
-                isCrit = true,
-            })
-            HeroSkills.CheckCritSplash(tower, target, finalDmg)
-        else
-            AddFloatingText({
-                text = dmgText,
-                x = target.x + (math.random() - 0.5) * 14,
-                y = target.y - (target.typeDef.size or 8) - 6,
-                life = 0.6,
-                color = elemColor,
-                fontSize = 11,
-            })
-        end
+        ShowDamageText(target, finalDmg, isCrit, elemColor)
+        if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
         HeroSkills.OnHit(tower, target, killed)
 
         -- 链式弹跳
@@ -393,30 +437,9 @@ local function OnProjectileHit(proj)
                     local killed = Enemy.TakeDamage(e, finalDmg)
                     DamageStats.Record(tower, finalDmg, isCrit, killed)
 
-                    -- 伤害飘字（元素着色）
                     local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
-                    local dmgText = tostring(math.floor(finalDmg))
-                    if isCrit then
-                        AddFloatingText({
-                            text = dmgText .. "!",
-                            x = e.x + (math.random() - 0.5) * 12,
-                            y = e.y - (e.typeDef.size or 8) - 10,
-                            life = 0.8,
-                            color = { 255, 60, 60, 255 },
-                            fontSize = 16,
-                            isCrit = true,
-                        })
-                        HeroSkills.CheckCritSplash(tower, e, finalDmg)
-                    else
-                        AddFloatingText({
-                            text = dmgText,
-                            x = e.x + (math.random() - 0.5) * 14,
-                            y = e.y - (e.typeDef.size or 8) - 6,
-                            life = 0.6,
-                            color = elemColor,
-                            fontSize = 11,
-                        })
-                    end
+                    ShowDamageText(e, finalDmg, isCrit, elemColor)
+                    if isCrit then HeroSkills.CheckCritSplash(tower, e, finalDmg) end
                     HeroSkills.OnHit(tower, e, killed)
                 end
             end
@@ -428,30 +451,9 @@ local function OnProjectileHit(proj)
         local killed = Enemy.TakeDamage(target, finalDmg)
         DamageStats.Record(tower, finalDmg, isCrit, killed)
 
-        -- 伤害飘字（元素着色）
         local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
-        local dmgText = tostring(math.floor(finalDmg))
-        if isCrit then
-            AddFloatingText({
-                text = dmgText .. "!",
-                x = target.x + (math.random() - 0.5) * 12,
-                y = target.y - (target.typeDef.size or 8) - 10,
-                life = 0.8,
-                color = { 255, 60, 60, 255 },
-                fontSize = 16,
-                isCrit = true,
-            })
-            HeroSkills.CheckCritSplash(tower, target, finalDmg)
-        else
-            AddFloatingText({
-                text = dmgText,
-                x = target.x + (math.random() - 0.5) * 14,
-                y = target.y - (target.typeDef.size or 8) - 6,
-                life = 0.6,
-                color = elemColor,
-                fontSize = 11,
-            })
-        end
+        ShowDamageText(target, finalDmg, isCrit, elemColor)
+        if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
         HeroSkills.OnHit(tower, target, killed)
     end
 
@@ -678,13 +680,22 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
 
     -- 更新飘字（swap-and-pop）
     do
+        local GRAVITY = 140  -- 抛物线重力加速度 (px/s²)
         local fts = State.floatingTexts
         local n = #fts
         local i = 1
         while i <= n do
             local ft = fts[i]
             ft.life = ft.life - dt
-            ft.y = ft.y - 30 * dt
+            if ft.vx then
+                -- 抛物线运动（伤害飘字）
+                ft.x = ft.x + ft.vx * dt
+                ft.y = ft.y + ft.vy * dt
+                ft.vy = ft.vy + GRAVITY * dt
+            else
+                -- 直线上飘（状态飘字：减速/破甲/闪避等）
+                ft.y = ft.y - 30 * dt
+            end
             if ft.life <= 0 then
                 fts[i] = fts[n]
                 fts[n] = nil

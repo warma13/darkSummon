@@ -66,6 +66,7 @@ Currency.TYPES = {
     "rift_dust",        -- 裂隙之尘（符文洗练用）
     "rune_seal",        -- 符文封印（洗练锁定用）
     "abyss_crystal",    -- 深渊结晶（定向洗练用）
+    "emerald_token",    -- 翠影凭证（翠影秘境活动用）
 }
 
 --- 获取货币显示信息
@@ -313,6 +314,7 @@ function Currency.EnsureFields()
         rift_dust = 0,
         rune_seal = 0,
         abyss_crystal = 0,
+        emerald_token = 0,
     }
     for key, default in pairs(defaults) do
         if HeroData.currencies[key] == nil then

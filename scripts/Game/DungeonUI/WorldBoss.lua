@@ -436,13 +436,13 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
 
             local rewards = WB.ClaimReward(totalDamage)
             local rewardItems = {}
-            if rewards and rewards.frost_pact then
-                local currDef = Config.CURRENCY["frost_pact"]
+            if rewards and rewards.recruit_ticket_select_box then
+                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
                 rewardItems[#rewardItems + 1] = {
-                    icon = currDef and currDef.image or "?",
-                    name = currDef and currDef.name or "霜誓契约",
-                    amount = rewards.frost_pact,
-                    borderColor = { 130, 210, 255, 200 },
+                    icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
+                    name = itemDef and itemDef.name or "招募券自选包",
+                    amount = rewards.recruit_ticket_select_box,
+                    borderColor = { 200, 150, 255, 200 },
                 }
             end
 
@@ -473,13 +473,13 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
 
             local rewards = WB.ClaimReward(totalDamage)
             local rewardItems = {}
-            if rewards and rewards.frost_pact then
-                local currDef = Config.CURRENCY["frost_pact"]
+            if rewards and rewards.recruit_ticket_select_box then
+                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
                 rewardItems[#rewardItems + 1] = {
-                    icon = currDef and currDef.image or "?",
-                    name = currDef and currDef.name or "霜誓契约",
-                    amount = rewards.frost_pact,
-                    borderColor = { 130, 210, 255, 200 },
+                    icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
+                    name = itemDef and itemDef.name or "招募券自选包",
+                    amount = rewards.recruit_ticket_select_box,
+                    borderColor = { 200, 150, 255, 200 },
                 }
             end
 
@@ -511,13 +511,13 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
 
             local rewards = WB.ClaimReward(totalDamage)
             local rewardItems = {}
-            if rewards and rewards.frost_pact then
-                local currDef = Config.CURRENCY["frost_pact"]
+            if rewards and rewards.recruit_ticket_select_box then
+                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
                 rewardItems[#rewardItems + 1] = {
-                    icon = currDef and currDef.image or "?",
-                    name = currDef and currDef.name or "霜誓契约",
-                    amount = rewards.frost_pact,
-                    borderColor = { 130, 210, 255, 200 },
+                    icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
+                    name = itemDef and itemDef.name or "招募券自选包",
+                    amount = rewards.recruit_ticket_select_box,
+                    borderColor = { 200, 150, 255, 200 },
                 }
             end
 

@@ -290,6 +290,20 @@ function BattleManager.UpdateWaves(dt)
             local AudioManager = require("Game.AudioManager")
             AudioManager.PlayVictory()
             print("[BattleManager] === BATTLE WON! ===")
+        elseif State.waveType ~= "boss" then
+            -- 所有波次出完，仍有敌人存活：检查是否只剩 BOSS
+            -- 如果只剩 BOSS，激活 BOSS 计时器阶段（waveType → "boss"）
+            local onlyBoss = true
+            for _, e in ipairs(State.enemies) do
+                if e.alive and not e.isBoss then
+                    onlyBoss = false
+                    break
+                end
+            end
+            if onlyBoss then
+                State.waveType = "boss"
+                print("[BattleManager] All minions cleared, only BOSS remains → activating BOSS timer phase")
+            end
         end
     end
 end
@@ -346,9 +360,14 @@ function BattleManager.OnLose()
 
     LootDrop.CollectAll()
 
+    -- 计算实际通关波数：基于最早存活敌人的波次（而非定时器推进的 currentWave）
+    local firstAliveWave = Enemy.GetFirstAliveWaveNum()
+    local clearedWave = firstAliveWave and (firstAliveWave - 1) or State.currentWave
+
     local result = {
         mode = cfg.mode,
         wave = State.currentWave,
+        clearedWave = clearedWave,
         totalWaves = cfg.totalWaves,
         score = State.score,
         totalDamage = cfg.mode == "world_boss" and State.worldBossTotalDamage or nil,
@@ -358,7 +377,8 @@ function BattleManager.OnLose()
         cfg.onLose(result)
     end
 
-    print("[BattleManager] Lose callback fired: mode=" .. cfg.mode .. " wave=" .. State.currentWave)
+    print(string.format("[BattleManager] Lose callback fired: mode=%s currentWave=%d clearedWave=%d",
+        cfg.mode, State.currentWave, clearedWave))
 end
 
 --- 结束战斗，清理配置

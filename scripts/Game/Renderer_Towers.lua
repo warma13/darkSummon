@@ -10,6 +10,8 @@ local SpriteSheet = ctx.SpriteSheet
 local rgba        = ctx.rgba
 local HeroAnim         = require("Game.HeroAnim")
 local LeaderWingEffect = require("Game.LeaderWingEffect")
+local Debuff           = require("Game.Debuff")
+local Tower            = require("Game.Tower")
 
 -- 星级字符串缓存（避免每帧 string.rep）
 local starStrCache = {}
@@ -760,7 +762,44 @@ function Renderer.DrawTowers(vg, ox, oy)
         DrawTowerIcon(vg, tower.typeDef.icon, cx, cy, size, tower.typeDef.color, tower.star, towerAlpha, tower)
         nvgRestore(vg)
 
+        -- ─── Debuff 头顶文字标签 ───
+        if not isDragged and Renderer.fontId >= 0 then
+            local debuffLabels = {}  -- { text, r, g, b }
 
+            -- 荆棘禁锢
+            if Debuff.Has(tower, "shackle") then
+                debuffLabels[#debuffLabels + 1] = { "禁锢", 40, 160, 60 }
+            end
+            -- 沉寂领域
+            if Debuff.Has(tower, "silence") then
+                debuffLabels[#debuffLabels + 1] = { "沉默", 140, 50, 200 }
+            end
+            -- 自然衰竭
+            if Tower.HasDebuff(tower, "emerald_decay_atk") then
+                debuffLabels[#debuffLabels + 1] = { "衰竭", 100, 140, 40 }
+            end
+
+            if #debuffLabels > 0 then
+                nvgFontFaceId(vg, Renderer.fontId)
+                nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
+                local labelY = cy - size * 0.55 - 2
+                -- 多个 debuff 时从上往下排列
+                for idx = #debuffLabels, 1, -1 do
+                    local lb = debuffLabels[idx]
+                    local yPos = labelY - (idx - 1) * 13
+                    -- 呼吸闪烁（每个 debuff 用不同相位避免同步）
+                    local pulse = math.sin(State.time * 3.5 + idx * 1.2) * 0.2 + 0.8
+                    local a = math.floor(220 * pulse)
+                    -- 文字描边（黑底提高可读性）
+                    nvgFontSize(vg, 10)
+                    nvgFillColor(vg, nvgRGBA(0, 0, 0, a))
+                    nvgText(vg, cx + 1, yPos + 1, lb[1], nil)
+                    -- 正文
+                    nvgFillColor(vg, nvgRGBA(lb[2], lb[3], lb[4], a))
+                    nvgText(vg, cx, yPos, lb[1], nil)
+                end
+            end
+        end
 
         -- 等级小字（非拖拽时显示）
         if not isDragged and tower.heroLevel and tower.heroLevel > 1 and Renderer.fontId >= 0 then

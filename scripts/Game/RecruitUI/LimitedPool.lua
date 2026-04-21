@@ -244,7 +244,7 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
     -- 锁定 / 结束遮罩
     local lockOverlay = nil
     if isLocked then
-        local daysLeft = LBD.GetUnlockDaysRemaining(bannerCfg)
+        local remainText = LBD.FormatUnlockRemaining(bannerCfg)
         lockOverlay = UI.Panel {
             position = "absolute",
             top = 0, left = 0, right = 0, bottom = 0,
@@ -259,8 +259,8 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
                     fontColor  = { 220, 200, 80, 255 },
                     fontWeight = "bold",
                 },
-                daysLeft > 0 and UI.Label {
-                    text = "还有 " .. daysLeft .. " 天",
+                remainText ~= "" and UI.Label {
+                    text = remainText,
                     fontSize  = 15,
                     fontColor = { 200, 200, 200, 200 },
                 } or nil,
@@ -369,7 +369,7 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
 
     -- 锁定状态：只显示解锁倒计时，无招募按钮
     if isLocked then
-        local days = LBD.GetUnlockDaysRemaining(bannerCfg)
+        local remainText = LBD.FormatUnlockRemaining(bannerCfg)
         return UI.Panel {
             width = "100%",
             height = 56,
@@ -382,7 +382,7 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
             children = {
                 UI.Label {
                     text = FormatUnlockDate(bannerCfg.unlockDate) .. " 开放"
-                        .. (days > 0 and ("（还有 " .. days .. " 天）") or ""),
+                        .. (remainText ~= "" and ("（" .. remainText .. "）") or ""),
                     fontSize = 16,
                     fontColor = { 220, 200, 80, 220 },
                     fontWeight = "bold",

@@ -379,8 +379,7 @@ Config.LEVEL_RANGE_BONUS = 0.02
 -- ============================================================================
 -- 战斗公式常量
 -- ============================================================================
--- 敌人 DEF 成长: DEF = baseDEF × hpScale × ENEMY_DEF_HP_RATIO（与 HP 同源缩放，保证破甲全程有效）
-Config.ENEMY_DEF_HP_RATIO = 0.25     -- DEF 占 HP 缩放的 25%，约提供 25~30% 减伤
+-- 注: ENEMY_DEF_HP_RATIO / ENEMY_SCALING / THEME_ELEMENT_RESIST 已迁移至 Config_Enemies.lua
 
 Config.BASE_CRIT_MULT = 1.50
 
@@ -442,47 +441,6 @@ Config.HERO_ELEMENT = {
     -- 主角
     leader          = "shadow",
 }
-
--- 怪物主题元素抗性（themeId → { element = resistance }）
--- 正值 = 抗性（减伤），负值 = 弱点（增伤）
-Config.THEME_ELEMENT_RESIST = {
-    undead = {
-        fire = -0.25,       -- 亡灵怕火
-        ice = 0.10,
-        lightning = 0.0,
-        poison = 0.30,      -- 亡灵抗毒
-        shadow = 0.20,      -- 亡灵亲和暗
-    },
-    lava = {
-        fire = 0.50,        -- 熔岩极抗火
-        ice = -0.30,        -- 熔岩怕冰
-        lightning = 0.0,
-        poison = -0.10,
-        shadow = 0.0,
-    },
-    forest = {
-        fire = -0.30,       -- 森林怕火
-        ice = 0.0,
-        lightning = -0.10,
-        poison = 0.40,      -- 森林抗毒
-        shadow = -0.15,
-    },
-    frost = {
-        fire = -0.25,       -- 冰霜怕火
-        ice = 0.50,         -- 冰霜极抗冰
-        lightning = -0.20,  -- 冰霜怕雷
-        poison = 0.0,
-        shadow = 0.0,
-    },
-    void = {
-        fire = 0.0,
-        ice = 0.0,
-        lightning = -0.15,
-        poison = -0.20,
-        shadow = 0.40,      -- 虚空极抗暗
-    },
-}
-
 
 Config.LEVEL_COST_CAP = 8078000
 
@@ -611,6 +569,8 @@ Config.CURRENCY = {
     rift_dust            = { name = "裂隙之尘",   icon = "dust",    color = { 160, 120, 200 }, image = "image/currency_rift_dust.png",    usage = "符文洗练" },
     rune_seal            = { name = "符文封印",   icon = "seal",    color = { 40, 200, 160 },  image = "image/currency_rune_seal.png",    usage = "洗练锁定" },
     abyss_crystal        = { name = "深渊结晶",   icon = "acrystal", color = { 200, 60, 255 }, image = "image/currency_abyss_crystal.png", usage = "定向洗练" },
+    -- 翠影秘境活动货币
+    emerald_token        = { name = "翠影凭证",   icon = "emerald",  color = { 100, 220, 140 }, image = "image/emerald_certificate.png", usage = "翠影秘境兑换" },
     -- 减负系统
     ad_ticket            = { name = "免广告券", icon = "adticket", color = { 100, 220, 180 }, image = "image/currency_ad_ticket.png", usage = "跳过广告" },
 }

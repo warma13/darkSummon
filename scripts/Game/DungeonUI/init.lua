@@ -8,6 +8,7 @@ local TrialTowerData = require("Game.TrialTowerData")
 local RD = require("Game.ResourceDungeonData")
 local WB = require("Game.WorldBossData")
 local AbyssRift = require("Game.AbyssRiftDungeon")
+local EmeraldDungeonData = require("Game.EmeraldDungeonData")
 
 local LB = require("Game.LeaderboardData")
 
@@ -16,6 +17,7 @@ local TrialTower
 local ResourceDungeon
 local WorldBoss
 local AbyssRiftMod
+local EmeraldDungeonMod
 
 local DungeonUI = {}
 
@@ -25,7 +27,7 @@ local UI = nil
 local pageRoot = nil
 
 -- 当前视图状态
-local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "abyss_rift_detail"
+local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "abyss_rift_detail" | "emerald_dungeon_detail"
 local currentResourceKey = nil  -- 当前选中的资源副本 key
 
 -- 严格点击判定：拖动超过阈值不触发 onClick
@@ -90,6 +92,16 @@ local S = {
 -- 副本定义
 -- ============================================================================
 local DUNGEON_DEFS = {
+    {
+        key = "emerald_dungeon",
+        name = "翠影秘境",
+        nameIcon = "image/emerald_certificate.png",
+        desc = "限时活动：通关获取翠影凭证，兑换翎嫣招募券与稀有资源",
+        accentColor = { 60, 180, 100, 255 },
+        available = true,
+        cover = "image/emerald_dungeon_banner.png",
+        isEvent = true,
+    },
     {
         key = "tower",
         name = "试练塔",
@@ -166,6 +178,7 @@ function DungeonUI.CreatePage(uiModule)
         ResourceDungeon = require("Game.DungeonUI.ResourceDungeon")
         WorldBoss = require("Game.DungeonUI.WorldBoss")
         AbyssRiftMod = require("Game.DungeonUI.AbyssRift")
+        EmeraldDungeonMod = require("Game.DungeonUI.EmeraldDungeon")
     end
 
     pageRoot = UI.Panel {
@@ -198,6 +211,8 @@ function DungeonUI.Refresh()
         WorldBoss.BuildDetailView(DungeonUI)
     elseif currentView == "abyss_rift_detail" then
         AbyssRiftMod.BuildDetailView(DungeonUI)
+    elseif currentView == "emerald_dungeon_detail" then
+        EmeraldDungeonMod.BuildDetailView(DungeonUI)
     end
 end
 
@@ -298,6 +313,11 @@ function DungeonUI.BuildDungeonCard(def)
         end
     end
 
+    if def.key == "emerald_dungeon" then
+        -- 活动副本始终可用（内部检查活动时间）
+        isAvailable = EmeraldDungeonData.IsActive()
+    end
+
     -- 进度信息
     local progressText = ""
     local progressColor = S.dim
@@ -333,11 +353,26 @@ function DungeonUI.BuildDungeonCard(def)
         local remaining = AbyssRift.GetRemaining()
         progressText = "今日 " .. remaining .. "/" .. AbyssRift.DAILY_FREE
         progressColor = remaining > 0 and S.green or S.red
+    elseif def.key == "emerald_dungeon" and isAvailable then
+        local tickets = EmeraldDungeonData.GetTickets()
+        local adLeft = EmeraldDungeonData.GetAdRemaining()
+        local remainDays = EmeraldDungeonData.GetRemainingDays()
+        progressText = tickets .. "券 · 可领" .. adLeft .. " · 剩余" .. remainDays .. "天"
+        progressColor = tickets > 0 and S.green or (adLeft > 0 and S.gold or S.red)
     elseif not isAvailable then
         if def.key == "world_boss" then
             progressText = "主线第" .. (def.unlockFloor or 20) .. "关解锁"
         elseif def.key == "abyss_rift" then
             progressText = "主线第" .. (def.unlockStage or 100) .. "关解锁"
+        elseif def.key == "emerald_dungeon" then
+            if not EmeraldDungeonData.IsTimeUnlocked() then
+                local sec = EmeraldDungeonData.GetUnlockRemainingSec()
+                local h = math.floor(sec / 3600)
+                local m = math.floor((sec % 3600) / 60)
+                progressText = string.format("%s 开启 %d时%d分", EmeraldDungeonData.GetUnlockTimeStr(), h, m)
+            else
+                progressText = "活动已结束"
+            end
         else
             progressText = "即将开放"
         end
@@ -388,6 +423,19 @@ function DungeonUI.BuildDungeonCard(def)
             Currency.IconWidget(UI, "rune_seal", 13),
             UI.Label { text = "符文封印", fontSize = 11, fontColor = { 40, 200, 160 }, pointerEvents = "none" },
         }
+    elseif def.key == "emerald_dungeon" and isAvailable then
+        rewardChildren = {
+            UI.Panel {
+                width = 14, height = 14,
+                backgroundImage = "image/emerald_certificate.png",
+                backgroundFit = "contain",
+                pointerEvents = "none", flexShrink = 0,
+            },
+            UI.Label { text = "翠影凭证", fontSize = 11, fontColor = { 100, 220, 140 }, pointerEvents = "none" },
+            UI.Label { text = " → ", fontSize = 10, fontColor = S.dim, pointerEvents = "none" },
+            Currency.IconWidget(UI, "linyan_oath", 13),
+            UI.Label { text = "翎嫣之誓", fontSize = 11, fontColor = { 100, 220, 140 }, pointerEvents = "none" },
+        }
     end
 
     local bgImage = def.cover
@@ -423,6 +471,9 @@ function DungeonUI.BuildDungeonCard(def)
                 elseif def.key == "abyss_rift" then
                     currentView = "abyss_rift_detail"
                     DungeonUI.Refresh()
+                elseif def.key == "emerald_dungeon" then
+                    currentView = "emerald_dungeon_detail"
+                    DungeonUI.Refresh()
                 end
             end
         end or nil,
@@ -446,12 +497,23 @@ function DungeonUI.BuildDungeonCard(def)
                         alignItems = "center",
                         justifyContent = "space-between",
                         children = {
-                            UI.Label {
-                                text = def.name,
-                                fontSize = 17,
-                                fontWeight = "bold",
-                                fontColor = isAvailable and S.white or S.dim,
-                                pointerEvents = "none",
+                            UI.Panel {
+                                flexDirection = "row", alignItems = "center", gap = 4,
+                                children = {
+                                    def.nameIcon and UI.Panel {
+                                        width = 18, height = 18,
+                                        backgroundImage = def.nameIcon,
+                                        backgroundFit = "contain",
+                                        pointerEvents = "none", flexShrink = 0,
+                                    } or nil,
+                                    UI.Label {
+                                        text = def.name,
+                                        fontSize = 17,
+                                        fontWeight = "bold",
+                                        fontColor = isAvailable and S.white or S.dim,
+                                        pointerEvents = "none",
+                                    },
+                                },
                             },
                             UI.Panel {
                                 paddingLeft = 8, paddingRight = 8,

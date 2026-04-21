@@ -441,10 +441,10 @@ function WB.ClaimReward(totalDamage)
         data.bestDamage = totalDamage
     end
 
-    -- 计算奖励
+    -- 计算奖励（招募券自选包）
     local frostPact = WB.CalcRewards(totalDamage)
     if frostPact > 0 then
-        Currency.Add("frost_pact", frostPact)
+        InventoryData.Add("recruit_ticket_select_box", frostPact)
     end
 
     -- 更新当日最高伤害
@@ -467,10 +467,10 @@ function WB.ClaimReward(totalDamage)
     HeroData.Save(true)
 
     print("[WorldBoss] Claimed reward: damage=" .. totalDamage
-        .. " frost_pact=" .. frostPact
+        .. " recruit_ticket_select_box=" .. frostPact
         .. " bestDamage=" .. data.bestDamage)
 
-    return frostPact > 0 and { frost_pact = frostPact } or nil
+    return frostPact > 0 and { recruit_ticket_select_box = frostPact } or nil
 end
 
 -- ============================================================================
@@ -481,8 +481,10 @@ end
 ---@param damage number
 ---@return string
 function WB.FormatDamage(damage)
-    if damage >= 1000000000000 then
-        return string.format("%.1f万亿", damage / 1000000000000)
+    if damage >= 10000000000000000 then
+        return string.format("%.1f京", damage / 10000000000000000)
+    elseif damage >= 1000000000000 then
+        return string.format("%.1f兆", damage / 1000000000000)
     elseif damage >= 100000000 then
         return string.format("%.1f亿", damage / 100000000)
     elseif damage >= 10000 then

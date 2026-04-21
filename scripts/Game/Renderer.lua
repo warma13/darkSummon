@@ -73,8 +73,14 @@ function Renderer.Render(vg, width, height)
     -- 11. 技能闪光（最上层）
     Renderer.DrawSkillFlash(vg, width, height)
 
+    -- 11.5 翠影秘境 BOSS 技能特效（施法描边、沉默冲击环、护盾光环）
+    Renderer.DrawEmeraldBossSkillFX(vg, width, height)
+
     -- 12. BOSS 倒计时 + 血条（HUD 层）
     Renderer.DrawBossBar(vg, width)
+
+    -- 13. BOSS 出场动画（最上层覆盖）
+    Renderer.DrawBossIntro(vg, width, height)
 end
 
 return Renderer

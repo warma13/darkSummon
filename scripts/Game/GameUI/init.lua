@@ -480,7 +480,7 @@ function GameUI.CreateUI()
     -- 左下角固定显示版本号（放在 TabBar 上方，避免被遮挡）
     local versionLabel = UI.Label {
         id = "fixedVersion",
-        text = "v1.0.39",
+        text = "v1.0.40",
         fontSize = 10,
         fontColor = { 160, 160, 180, 130 },
     }
@@ -1469,6 +1469,9 @@ function GameUI.Update(dt)
                         State.bossActive = true
                         State.bossTimer = bossMaxTimer
                         State.bossTimerMax = bossMaxTimer
+                        -- BOSS 出场动画
+                        local bossName = e.typeDef and e.typeDef.name or "BOSS"
+                        State.bossIntro = { timer = 0, duration = 2.0, name = bossName }
                         print("[GameUI] BOSS fight started! Timer=" .. bossMaxTimer .. "s")
                         break
                     end

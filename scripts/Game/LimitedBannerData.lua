@@ -77,6 +77,30 @@ function LBD.GetUnlockDaysRemaining(bannerCfg)
     return math.max(0, math.ceil(diff / 86400))
 end
 
+--- 距解锁还剩多少秒（精确倒计时）
+---@param bannerCfg table
+---@return number 剩余秒数
+function LBD.GetUnlockSecondsRemaining(bannerCfg)
+    if not bannerCfg.unlockDate then return 0 end
+    return math.max(0, DateToTime(bannerCfg.unlockDate) - os.time())
+end
+
+--- 格式化剩余时间为可读字符串（X天/X时X分）
+---@param bannerCfg table
+---@return string
+function LBD.FormatUnlockRemaining(bannerCfg)
+    local sec = LBD.GetUnlockSecondsRemaining(bannerCfg)
+    if sec <= 0 then return "" end
+    local days = math.floor(sec / 86400)
+    local h = math.floor((sec % 86400) / 3600)
+    local m = math.floor((sec % 3600) / 60)
+    if days > 0 then
+        return string.format("还有 %d天%d时%d分", days, h, m)
+    else
+        return string.format("还有 %d时%d分", h, m)
+    end
+end
+
 -- ============================================================================
 -- 活动时间
 -- ============================================================================

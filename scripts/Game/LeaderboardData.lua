@@ -415,7 +415,11 @@ end
 function LB.FormatWorldBoss(encoded)
     if not encoded or encoded <= 0 then return "—" end
     local damage = LB.DecodeBossScore(encoded)
-    if damage >= 100000000 then
+    if damage >= 10000000000000000 then
+        return string.format("%.1f京", damage / 10000000000000000)
+    elseif damage >= 1000000000000 then
+        return string.format("%.1f兆", damage / 1000000000000)
+    elseif damage >= 100000000 then
         return string.format("%.1f亿", damage / 100000000)
     elseif damage >= 10000 then
         return string.format("%.0f万", damage / 10000)

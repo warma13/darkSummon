@@ -11,6 +11,8 @@ local Debuff    = require("Game.Debuff")
 local DivineBlessDB = require("Game.DivineBlessData")
 local Tower     = require("Game.Tower")
 
+local F = require("Game.FormulaLib")
+
 local Enemy = {}
 
 -- 粒子/飘字安全添加（带数量上限），共享定义在 State.lua
@@ -180,6 +182,18 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
         enemy.maxHP = enemy.maxHP * (1 + boost)
     end
 
+    -- 怪物防御属性（随关卡成长，对抗英雄各乘区）
+    do
+        local stageNum = math.floor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+        local es = Config.ENEMY_SCALING
+        if es then
+            enemy.critDmgReduce   = F.Piecewise4(es.critDmgReduce,   stageNum)
+            enemy.dmgBonusReduce  = F.Piecewise4(es.dmgBonusReduce,  stageNum)
+            enemy.elemDmgReduce   = F.Piecewise4(es.elemDmgReduce,   stageNum)
+            enemy.armorPenResist  = F.Piecewise4(es.armorPenResist,  stageNum)
+        end
+    end
+
     -- 初始化代码动画状态
     EnemyAnim.InitAnim(enemy)
 
@@ -261,6 +275,7 @@ function Enemy.CreateBoss(bossDef, waveNum, hpScale, speedScale, affixes, tier)
     local enemy = CreateBase(bossDef, waveNum, hpScale, speedScale)
     enemy.isBoss = true
     enemy.bossTier = tier or 1
+    enemy.isEmeraldDungeon = bossDef.isEmeraldDungeon or false
 
     -- BOSS 被动计时器初始化
     if bossDef.passive == "disable" then
@@ -1299,6 +1314,22 @@ function Enemy.GetAliveCount()
         if e.alive then count = count + 1 end
     end
     return count
+end
+
+--- 获取最早有存活敌人的波次号（用于结算时计算实际通关波数）
+--- 实际通关波数 = GetFirstAliveWaveNum() - 1
+---@return number|nil waveNum 最早存活敌人的波次号，nil 表示全部清除
+function Enemy.GetFirstAliveWaveNum()
+    local earliest = nil
+    for _, e in ipairs(State.enemies) do
+        if e.alive then
+            local w = e.waveNum or 1
+            if not earliest or w < earliest then
+                earliest = w
+            end
+        end
+    end
+    return earliest
 end
 
 return Enemy

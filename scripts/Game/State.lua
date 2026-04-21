@@ -66,6 +66,7 @@ function State.Reset()
     -- BOSS 战斗倒计时
     State.bossTimer = 0         -- >0 表示 BOSS 战斗中，倒计时剩余秒数
     State.bossActive = false    -- 是否正在 BOSS 战斗
+    State.bossIntro = nil       -- BOSS 出场动画 { timer, duration, name }
 
     -- 波次定时器（30秒自动出下一波）
     State.waveTimer = 0
@@ -81,6 +82,7 @@ function State.Reset()
     State.mergeFlash = 0        -- 合成闪光计时
     State.mergeFlashPos = nil   -- 合成闪光位置
     State.skillFlash = nil      -- 技能释放闪光 { timer, r, g, b }
+    State.emeraldBossSkill = nil -- 翠影BOSS技能演出 { type, phase, timer, bossId, ... }
 
     -- 结算状态
     State.settleRewards = nil   -- 结算奖励数据（非nil时显示结算面板）
@@ -126,14 +128,26 @@ function State.CompactArrays()
     compactArray(State.lootDrops)
 end
 
--- 粒子/飘字数量上限（超过时跳过新增，避免无限增长导致卡顿）
+-- 粒子/飘字数量上限（超过时淘汰最旧的，避免无限增长导致卡顿）
 State.MAX_PARTICLES = 300
-State.MAX_FLOATING_TEXTS = 80
+State.MAX_FLOATING_TEXTS = 150
 
---- 安全添加飘字（超过上限时跳过）
+--- 安全添加飘字（超过上限时淘汰剩余寿命最短的旧飘字）
 function State.AddFloatingText(ft)
-    if #State.floatingTexts < State.MAX_FLOATING_TEXTS then
-        State.floatingTexts[#State.floatingTexts + 1] = ft
+    local fts = State.floatingTexts
+    if #fts < State.MAX_FLOATING_TEXTS then
+        fts[#fts + 1] = ft
+    else
+        -- 找剩余 life 最小的槽位替换
+        local minLife = fts[1].life
+        local minIdx = 1
+        for i = 2, #fts do
+            if fts[i].life < minLife then
+                minLife = fts[i].life
+                minIdx = i
+            end
+        end
+        fts[minIdx] = ft
     end
 end
 

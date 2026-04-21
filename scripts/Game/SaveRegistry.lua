@@ -63,6 +63,8 @@ local DATA_MODULE_PATHS = {
     "Game.CostumeSignInData",
     "Game.WeeklyPointsData",
     "Game.AchievementData",
+    "Game.EmeraldDungeonData",
+    "Game.EmeraldShopData",
 }
 
 --- 确保所有数据模块已加载（触发它们底部的 SaveRegistry.Register 调用）

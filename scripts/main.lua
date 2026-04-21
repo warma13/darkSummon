@@ -22,6 +22,7 @@ local Toast = require("Game.Toast")
 local SlotSaveSystem = require("Game.SlotSaveSystem")
 local SpeedBoost = require("Game.SpeedBoostData")
 local WorldBossSkills = require("Game.WorldBossSkills")
+local EmeraldBossSkills = require("Game.EmeraldBossSkills")
 local IdleScreen = require("Game.IdleScreen")
 local MiniGameUI = require("Game.MiniGameUI")
 
@@ -344,6 +345,8 @@ function HandleUpdate(eventType, eventData)
             -- 世界BOSS技能更新
             if BattleManager.GetMode() == "world_boss" then
                 WorldBossSkills.Update(dt)
+            elseif BattleManager.GetMode() == "emerald_dungeon" then
+                EmeraldBossSkills.Update(dt)
             end
         else
             Wave.Update(dt)
@@ -354,6 +357,14 @@ function HandleUpdate(eventType, eventData)
 
         -- 更新战斗（攻击、弹道）
         Combat.Update(dt, Renderer.gridOffsetX, Renderer.gridOffsetY)
+
+        -- BOSS 出场动画计时
+        if State.bossIntro then
+            State.bossIntro.timer = State.bossIntro.timer + dt
+            if State.bossIntro.timer >= State.bossIntro.duration then
+                State.bossIntro = nil
+            end
+        end
 
         -- 合成闪光衰减
         if State.mergeFlash > 0 then
@@ -596,8 +607,11 @@ function HandleNanoVGRender(eventType, eventData)
     -- 模式 B: 系统逻辑分辨率 + DPR 修正
     nvgBeginFrame(vg, logW, logH, dpr)
 
-    -- 渲染游戏画面
-    Renderer.Render(vg, logW, logH)
+    -- 渲染游戏画面（pcall 保护确保 nvgEndFrame 始终执行）
+    local ok, err = pcall(Renderer.Render, vg, logW, logH)
+    if not ok then
+        print("[Render] ERROR: " .. tostring(err))
+    end
 
     nvgEndFrame(vg)
 end

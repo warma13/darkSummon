@@ -617,6 +617,81 @@ local REDEEM_CODES = {
             Currency.Add("shadow_essence", 2000)
         end,
     },
+    {
+        code = "VIP1779057459F",
+        desc = "专属奖励：翠影秘境券 ×1000",
+        color = { 60, 180, 100 },
+        allowedUser = 1779057459,
+        reward = function()
+            local ED = require("Game.EmeraldDungeonData")
+            ED.AddTickets(1000)
+        end,
+    },
+    {
+        code = "VIP502127674B",
+        desc = "专属奖励：深渊裂隙挑战券 ×3 + 暗影精粹 ×1000",
+        color = { 140, 80, 200 },
+        allowedUser = 502127674,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("abyss_ticket", 3)
+            Currency.Add("shadow_essence", 1000)
+        end,
+    },
+    {
+        code = "VIP978257249B",
+        desc = "专属奖励：暗影精粹 ×3000",
+        color = { 255, 215, 0 },
+        allowedUser = 978257249,
+        reward = function()
+            Currency.Add("shadow_essence", 3000)
+        end,
+    },
+    {
+        code = "VIP346333596E",
+        desc = "专属奖励：暗影精粹 ×2000",
+        color = { 255, 215, 0 },
+        allowedUser = 346333596,
+        reward = function()
+            Currency.Add("shadow_essence", 2000)
+        end,
+    },
+    {
+        code = "VIP1840951947",
+        desc = "专属奖励：暗影精粹 ×4000",
+        color = { 255, 215, 0 },
+        allowedUser = 1840951947,
+        reward = function()
+            Currency.Add("shadow_essence", 4000)
+        end,
+    },
+    {
+        code = "VIP1261081970B",
+        desc = "专属奖励：暗影精粹 ×1000",
+        color = { 255, 215, 0 },
+        allowedUser = 1261081970,
+        reward = function()
+            Currency.Add("shadow_essence", 1000)
+        end,
+    },
+    {
+        code = "VIP897945791C",
+        desc = "专属奖励：暗影精粹 ×2000",
+        color = { 255, 215, 0 },
+        allowedUser = 897945791,
+        reward = function()
+            Currency.Add("shadow_essence", 2000)
+        end,
+    },
+    {
+        code = "VIP2135680770",
+        desc = "专属奖励：暗影精粹 ×7000",
+        color = { 255, 215, 0 },
+        allowedUser = 2135680770,
+        reward = function()
+            Currency.Add("shadow_essence", 7000)
+        end,
+    },
 }
 
 --- 显示设置弹窗

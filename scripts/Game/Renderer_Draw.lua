@@ -114,8 +114,11 @@ function Renderer.DrawEnemies(vg)
             end
 
             if ssName and SpriteSheet.Has(ssName) then
-                -- 精灵图动画：帧0=站立
-                local frameIdx = 0
+                -- 精灵图动画：帧0=站立, 1=施法, 2=攻击
+                local frameIdx = e.castingFrame or 0
+                if frameIdx > 0 and not SpriteSheet.HasFrame(ssName, frameIdx) then
+                    frameIdx = 0
+                end
                 SpriteSheet.DrawEx(vg, ssName, frameIdx, drawX, spriteY, imgSize, bodyAlpha, flipX)
             elseif mobImg > 0 then
                 DrawMobImage(vg, mobImg, drawX, spriteY, imgSize, bodyAlpha, flipX)
@@ -330,12 +333,15 @@ function Renderer.DrawFloatingTexts(vg)
     nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
 
     for _, ft in ipairs(State.floatingTexts) do
+        local c = ft.color
+        if not c then goto continueFT end
         local alpha = math.floor(255 * math.min(ft.life * 2, 1.0))  -- 后半段淡出
+        if alpha <= 0 then goto continueFT end
         local baseFontSize = ft.fontSize or 14
 
         if ft.isCrit then
             -- 暴击飘字：弹出缩放效果（先放大再收回）
-            local maxLife = 0.8
+            local maxLife = ft.maxLife or 0.9
             local elapsed = maxLife - ft.life
             local scale = 1.0
             if elapsed < 0.1 then
@@ -347,14 +353,15 @@ function Renderer.DrawFloatingTexts(vg)
             -- 暴击描边（深色底边增加可读性）
             nvgFillColor(vg, nvgRGBA(40, 0, 0, alpha))
             nvgText(vg, ft.x + 1, ft.y + 1, ft.text, nil)
-            nvgFillColor(vg, nvgRGBA(ft.color[1], ft.color[2], ft.color[3], alpha))
+            nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], alpha))
             nvgText(vg, ft.x, ft.y, ft.text, nil)
         else
             -- 普通飘字
             nvgFontSize(vg, baseFontSize)
-            nvgFillColor(vg, nvgRGBA(ft.color[1], ft.color[2], ft.color[3], alpha))
+            nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], alpha))
             nvgText(vg, ft.x, ft.y, ft.text, nil)
         end
+        ::continueFT::
     end
 end
 
@@ -531,6 +538,24 @@ function Renderer.DrawSkillFlash(vg, w, h)
         nvgBeginPath(vg)
         nvgRect(vg, 0, 0, w, h)
         nvgFillColor(vg, nvgRGBAf(0.6, 0.1, 0.1, alpha * 0.1))
+        nvgFill(vg)
+    elseif sf.type == "emerald_shackle" then
+        -- 全屏深绿闪光（荆棘禁锢）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.15, 0.5, 0.2, alpha * 0.12))
+        nvgFill(vg)
+    elseif sf.type == "emerald_silence" then
+        -- 全屏紫色冲击（沉寂领域）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.45, 0.15, 0.6, alpha * 0.15))
+        nvgFill(vg)
+    elseif sf.type == "emerald_decay" then
+        -- 全屏暗黄绿闪光（自然衰竭）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.4, 0.45, 0.15, alpha * 0.1))
         nvgFill(vg)
     end
 end
@@ -716,6 +741,203 @@ function Renderer.DrawBossBar(vg, w)
             nvgRoundedRect(vg, timerBarX, timerBarY, timerBarW * timerRatio, timerBarH, 1)
             nvgFillColor(vg, nvgRGBA(tr2, tg2, tb2, 200))
             nvgFill(vg)
+        end
+    end
+end
+
+--- BOSS 出场动画（居中框+文字，从大缩到正常，停留后淡出）
+function Renderer.DrawBossIntro(vg, w, h)
+    local intro = State.bossIntro
+    if not intro then return end
+    if Renderer.fontId == -1 then return end
+
+    local t = intro.timer
+    local dur = intro.duration  -- 总时长 2.0s
+
+    -- 时间轴：
+    -- 0.0~0.4s  缩放进入（从 2.5x → 1.0x，ease-out）
+    -- 0.4~1.4s  停留展示
+    -- 1.4~2.0s  淡出
+    local scale = 1.0
+    local alpha = 1.0
+
+    if t < 0.4 then
+        -- 缩放进入：ease-out (1 - (1-p)^3)
+        local p = t / 0.4
+        local ease = 1.0 - (1.0 - p) ^ 3
+        scale = 2.5 - 1.5 * ease  -- 2.5 → 1.0
+    elseif t > 1.4 then
+        -- 淡出
+        alpha = 1.0 - (t - 1.4) / 0.6
+        if alpha <= 0 then
+            State.bossIntro = nil
+            return
+        end
+    end
+
+    local cx = w * 0.5
+    local cy = h * 0.4
+
+    -- 框尺寸（基准）
+    local boxW = 220
+    local boxH = 60
+    local sW = boxW * scale
+    local sH = boxH * scale
+    local a = math.floor(alpha * 255)
+
+    nvgSave(vg)
+
+    -- 暗色遮罩（轻微）
+    if alpha > 0.3 then
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBA(0, 0, 0, math.floor(alpha * 60)))
+        nvgFill(vg)
+    end
+
+    -- 外发光
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, cx - sW * 0.5 - 4, cy - sH * 0.5 - 4, sW + 8, sH + 8, 10 * scale)
+    nvgFillColor(vg, nvgRGBA(200, 40, 40, math.floor(alpha * 80)))
+    nvgFill(vg)
+
+    -- 框背景
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, cx - sW * 0.5, cy - sH * 0.5, sW, sH, 8 * scale)
+    nvgFillColor(vg, nvgRGBA(20, 8, 8, math.floor(alpha * 220)))
+    nvgFill(vg)
+
+    -- 框边框
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, cx - sW * 0.5, cy - sH * 0.5, sW, sH, 8 * scale)
+    nvgStrokeColor(vg, nvgRGBA(220, 50, 50, a))
+    nvgStrokeWidth(vg, 2 * scale)
+    nvgStroke(vg)
+
+    -- 装饰横线（框内上下）
+    local lineInset = 12 * scale
+    nvgBeginPath(vg)
+    nvgMoveTo(vg, cx - sW * 0.5 + lineInset, cy - sH * 0.5 + 6 * scale)
+    nvgLineTo(vg, cx + sW * 0.5 - lineInset, cy - sH * 0.5 + 6 * scale)
+    nvgStrokeColor(vg, nvgRGBA(180, 40, 40, math.floor(alpha * 120)))
+    nvgStrokeWidth(vg, 1)
+    nvgStroke(vg)
+    nvgBeginPath(vg)
+    nvgMoveTo(vg, cx - sW * 0.5 + lineInset, cy + sH * 0.5 - 6 * scale)
+    nvgLineTo(vg, cx + sW * 0.5 - lineInset, cy + sH * 0.5 - 6 * scale)
+    nvgStroke(vg)
+
+    -- BOSS 名称
+    nvgFontFaceId(vg, Renderer.fontId)
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFontSize(vg, 22 * scale)
+    -- 文字阴影
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, a))
+    nvgText(vg, cx + 1, cy - 3 * scale + 1, intro.name, nil)
+    -- 文字主体
+    nvgFillColor(vg, nvgRGBA(255, 220, 180, a))
+    nvgText(vg, cx, cy - 3 * scale, intro.name, nil)
+
+    -- 副标题 "BOSS"
+    nvgFontSize(vg, 11 * scale)
+    nvgFillColor(vg, nvgRGBA(220, 80, 80, math.floor(alpha * 200)))
+    nvgText(vg, cx, cy + 14 * scale, "- BOSS -", nil)
+
+    nvgRestore(vg)
+end
+
+--- 翠影秘境 BOSS 技能特效（施法描边+抖动、沉寂领域冲击环）
+function Renderer.DrawEmeraldBossSkillFX(vg, w, h)
+    local sk = State.emeraldBossSkill
+
+    -- ======== 施法阶段：屏幕边框描边 + 轻微抖动 ========
+    if sk and sk.phase == "casting" then
+        local c = sk.color or { 200, 50, 50 }
+        local t = sk.timer or 0
+        -- alpha 脉动：0.3 + 0.7 * |sin(t*6)|
+        local pulse = 0.3 + 0.7 * math.abs(math.sin(t * 6))
+        local a = math.floor(pulse * 180)
+        local borderW = 4
+
+        nvgSave(vg)
+
+        -- 轻微屏幕抖动（通过整体偏移模拟）
+        local shakeX = math.sin(t * 35) * 2
+        local shakeY = math.cos(t * 28) * 1.5
+        nvgTranslate(vg, shakeX, shakeY)
+
+        -- 四边描边
+        -- 上
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, borderW)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+        -- 下
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, h - borderW, w, borderW)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+        -- 左
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, borderW, borderW, h - borderW * 2)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+        -- 右
+        nvgBeginPath(vg)
+        nvgRect(vg, w - borderW, borderW, borderW, h - borderW * 2)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+
+        -- 角落加强发光（四角各一个小方块）
+        local cornerSize = 16
+        local ca = math.floor(pulse * 100)
+        -- 左上
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, cornerSize, cornerSize)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], ca))
+        nvgFill(vg)
+        -- 右上
+        nvgBeginPath(vg)
+        nvgRect(vg, w - cornerSize, 0, cornerSize, cornerSize)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], ca))
+        nvgFill(vg)
+        -- 左下
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, h - cornerSize, cornerSize, cornerSize)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], ca))
+        nvgFill(vg)
+        -- 右下
+        nvgBeginPath(vg)
+        nvgRect(vg, w - cornerSize, h - cornerSize, cornerSize, cornerSize)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], ca))
+        nvgFill(vg)
+
+        nvgRestore(vg)
+    end
+
+    -- ======== 沉默冲击环（execute 阶段） ========
+    if sk and sk.ringRadius and sk.ringDuration then
+        local rt = sk.ringTimer or 0
+        local progress = math.min(1.0, rt / sk.ringDuration)
+        local radius = sk.ringRadius or 0
+        if radius > 0 then
+            local ringAlpha = (1.0 - progress) * 200
+            local rx = sk.ringX or (w * 0.5)
+            local ry = sk.ringY or (h * 0.5)
+
+            -- 外环
+            nvgBeginPath(vg)
+            nvgCircle(vg, rx, ry, radius)
+            nvgStrokeColor(vg, nvgRGBA(140, 50, 200, math.floor(ringAlpha)))
+            nvgStrokeWidth(vg, 3)
+            nvgStroke(vg)
+
+            -- 内环（更亮，半径略小）
+            nvgBeginPath(vg)
+            nvgCircle(vg, rx, ry, radius * 0.85)
+            nvgStrokeColor(vg, nvgRGBA(180, 100, 255, math.floor(ringAlpha * 0.6)))
+            nvgStrokeWidth(vg, 1.5)
+            nvgStroke(vg)
         end
     end
 end

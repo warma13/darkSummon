@@ -185,6 +185,11 @@ SpriteSheet.Register("world_boss", {
     path = "image/world_boss_abyss_lord_20260414151439.png",
     cols = 3,   -- 0=idle, 1=walk, 2=attack
 })
+-- 注册翠影秘境BOSS精灵图
+SpriteSheet.Register("emerald_boss", {
+    path = "image/emerald_boss_spritesheet.png",
+    cols = 3,   -- 0=idle, 1=cast, 2=attack
+})
 
 -- ========== Debuff 粒子系统 ==========
 
