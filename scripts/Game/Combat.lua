@@ -692,7 +692,13 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
                     remove = true
                 else
                     local dist = math.sqrt(distSq)
-                    local move = p.speed * dt
+                    -- 动态追踪：弹体速度至少比目标快 150 px/s，防止高速怪永远追不上
+                    local effSpeed = p.speed
+                    local tgt = enemyById[p.targetId]
+                    if tgt and tgt.speed then
+                        effSpeed = math.max(effSpeed, tgt.speed + 150)
+                    end
+                    local move = effSpeed * dt
                     p.x = p.x + dx / dist * move
                     p.y = p.y + dy / dist * move
                 end

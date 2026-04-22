@@ -222,11 +222,10 @@ end
 function WelfareData._ApplyDailyReward(data, index, reward)
     if reward.ticketAmount then
         -- 招募周：发放招募券自选包（可在仓库选择招募池兑换对应票券）
-        InventoryData.Add("recruit_ticket_select_box", reward.ticketAmount)
+        Currency.GrantReward({ type = "item", id = "recruit_ticket_select_box", amount = reward.ticketAmount }, "WelfareDaily")
     else
         -- 宝箱周：发放宝箱
-        ChestData.Add(reward.chestId, reward.amount)
-        ChestData.Save()
+        Currency.GrantReward({ type = "chest", id = reward.chestId, amount = reward.amount }, "WelfareDaily")
     end
 
     -- 标记已领取
@@ -280,7 +279,7 @@ function WelfareData.ClaimWeeklyMilestone(index)
     if data.weeklyClaimed[index] then return false end
 
     -- 发放暗影精粹
-    Currency.Add("shadow_essence", m.rewardAmount)
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = m.rewardAmount }, "WelfareWeekly")
     data.weeklyClaimed[index] = true
 
     -- 立即保存

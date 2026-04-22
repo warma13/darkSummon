@@ -369,12 +369,12 @@ function Abyss.ClaimReward(clearedWave, difficultyId)
 
     -- 发放裂隙之尘
     if totalDust > 0 then
-        Currency.Add("rift_dust", totalDust)
+        Currency.GrantReward({ type = "currency", id = "rift_dust", amount = totalDust }, "AbyssRift")
     end
 
     -- 发放符文封印
     if totalSeals > 0 then
-        Currency.Add("rune_seal", totalSeals)
+        Currency.GrantReward({ type = "currency", id = "rune_seal", amount = totalSeals }, "AbyssRift")
     end
 
     -- 发放符文到背包
@@ -548,12 +548,12 @@ end
 function Abyss.EndSession(session)
     -- 发放裂隙之尘
     if session.totalDust > 0 then
-        Currency.Add("rift_dust", session.totalDust)
+        Currency.GrantReward({ type = "currency", id = "rift_dust", amount = session.totalDust }, "AbyssRiftSession")
     end
 
     -- 发放符文封印
     if session.totalSeals > 0 then
-        Currency.Add("rune_seal", session.totalSeals)
+        Currency.GrantReward({ type = "currency", id = "rune_seal", amount = session.totalSeals }, "AbyssRiftSession")
     end
 
     -- 发放符文到背包

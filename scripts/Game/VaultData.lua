@@ -294,7 +294,7 @@ function VaultData.CollectInterest()
         return 0, "暂无可领取利息"
     end
 
-    Currency.Add("shadow_essence", interest)
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = interest }, "VaultInterest")
     v.pendingInterest = 0
     v.lastCollectDay  = today
     VaultData.Save()
@@ -324,7 +324,7 @@ function VaultData.WithdrawAll()
         return 0, "金库为空"
     end
 
-    Currency.Add("shadow_essence", principal)
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = principal }, "VaultWithdraw")
     v.totalDeposit   = 0
     v.todayDeposited = 0
     v.lastDepositDay = "0"   -- 保持字符串类型，避免下次 EnsureData 触发整数迁移

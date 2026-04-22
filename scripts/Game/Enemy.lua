@@ -1275,12 +1275,24 @@ local function UpdateTimers(e, dt)
 
 end
 
+-- 速度软上限：超出 SOFT_CAP 部分按 DIMINISH 衰减，不超过 HARD_CAP
+local SPEED_SOFT_CAP  = 200
+local SPEED_DIMINISH  = 0.3
+local SPEED_HARD_CAP  = 350
+
+local function ClampSpeed(speed)
+    if speed <= SPEED_SOFT_CAP then return speed end
+    local clamped = SPEED_SOFT_CAP + (speed - SPEED_SOFT_CAP) * SPEED_DIMINISH
+    if clamped > SPEED_HARD_CAP then clamped = SPEED_HARD_CAP end
+    return clamped
+end
+
 local function UpdateMovement(e, dt, pathLen, gridOffsetX, gridOffsetY)
     -- ======== 移动（眩晕/冰冻时停止） ========
     local isImmobilized = (e.stunTimer and e.stunTimer > 0)
                        or (e.frozenTimer and e.frozenTimer > 0)
     if e.alive and pathLen > 0 and not isImmobilized then
-        local moveDist = e.speed * dt
+        local moveDist = ClampSpeed(e.speed) * dt
         e.progress = e.progress + moveDist / pathLen
 
         -- 到达终点后循环（环形路径直接绕圈，非环形也回起点继续）

@@ -178,7 +178,7 @@ function AchievementData.ClaimStage(stage)
     local bestStage = HeroData.stats and HeroData.stats.bestStage or 0
     if bestStage < stage then return false, "未达成（需通关第" .. stage .. "关）" end
     data.stageClaimed[key] = true
-    Currency.Add(STAGE_REWARD.id, STAGE_REWARD.amount)
+    Currency.GrantReward({ type = "currency", id = STAGE_REWARD.id, amount = STAGE_REWARD.amount }, "AchievementStage")
     HeroData.Save()
     print("[Achievement] Stage " .. stage .. " claimed: +" .. STAGE_REWARD.amount .. " " .. STAGE_REWARD.id)
     return true, "获得 暗影精粹x" .. STAGE_REWARD.amount
@@ -225,7 +225,7 @@ function AchievementData.ClaimLevel(level)
     if curLevel < level then return false, "未达成（需达到" .. level .. "级）" end
     data.levelClaimed[key] = true
     local reward = CalcLevelReward(level)
-    Currency.Add("nether_crystal", reward)
+    Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = reward }, "AchievementLevel")
     HeroData.Save()
     print("[Achievement] Level " .. level .. " claimed: +" .. reward .. " nether_crystal")
     return true, "获得 冥晶x" .. reward
@@ -272,7 +272,7 @@ function AchievementData.ClaimLogin(days)
     for _, m in ipairs(LOGIN_MILESTONES) do
         if m.days == days then reward = m.reward; break end
     end
-    Currency.Add("shadow_essence", reward)
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = reward }, "AchievementLogin")
     HeroData.Save()
     print("[Achievement] Login " .. days .. "d claimed: +" .. reward .. " shadow_essence")
     return true, "获得 暗影精粹x" .. reward
@@ -367,7 +367,7 @@ local function _ClaimRank(claimedTbl, myRank, targetRank, label)
     for _, m in ipairs(RANK_MILESTONES) do
         if m.rank == targetRank then reward = m.reward; break end
     end
-    Currency.Add("shadow_essence", reward)
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = reward }, "AchievementRank")
     HeroData.Save()
     print("[Achievement] " .. label .. " rank " .. targetRank .. " claimed: +" .. reward .. " shadow_essence")
     return true, "获得 暗影精粹x" .. reward
@@ -514,7 +514,7 @@ function AchievementData.ClaimRecruit(targetCount)
     for _, m in ipairs(RECRUIT_MILESTONES) do
         if m.count == targetCount then reward = m.reward; break end
     end
-    Currency.Add("shadow_essence", reward)
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = reward }, "AchievementRecruit")
     HeroData.Save()
     print("[Achievement] Recruit " .. targetCount .. " claimed: +" .. reward .. " shadow_essence")
     return true, "获得 暗影精粹x" .. reward

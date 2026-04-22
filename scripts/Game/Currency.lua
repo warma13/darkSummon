@@ -264,12 +264,10 @@ function Currency.ExchangeEssence(exchangeIndex)
     Currency.Spend("shadow_essence", cost)
 
     if exchange.type == "universal_shard" then
-        Currency.AddUniversalShards(exchange.rarity, exchange.amount)
-        local info = Config.RARITY_COLORS[exchange.rarity]
+        Currency.GrantReward({ type = "universal_shard", id = exchange.rarity, amount = exchange.amount }, "EssenceExchange")
         return true, "获得" .. exchange.rarity .. "万能碎片×" .. exchange.amount
     elseif exchange.type == "awakening_mat" then
-        -- 觉醒材料（后续扩展）
-        HeroData.currencies.awakening_mat = (HeroData.currencies.awakening_mat or 0) + exchange.amount
+        Currency.GrantReward({ type = "awakening_mat", amount = exchange.amount }, "EssenceExchange")
         return true, "获得觉醒材料×" .. exchange.amount
     end
 
@@ -366,43 +364,114 @@ function Currency.EnsureFields()
 end
 
 -- ============================================================================
+-- 分类查询与格式化
+-- ============================================================================
+
+--- 按分类获取货币 ID 列表
+---@param category string  如 "basic", "recruit", "premium" 等
+---@return string[]
+function Currency.GetByCategory(category)
+    local result = {}
+    for id, def in pairs(Config.CURRENCY) do
+        if def.category == category then
+            result[#result + 1] = id
+        end
+    end
+    return result
+end
+
+--- 格式化货币数量（万/亿后缀）
+---@param currencyId string|nil  保留扩展（暂不影响格式化逻辑）
+---@param amount number
+---@return string
+function Currency.FormatAmount(currencyId, amount)
+    if amount >= 1e8 then
+        return string.format("%.1f亿", amount / 1e8)
+    elseif amount >= 1e4 then
+        return string.format("%.1f万", amount / 1e4)
+    else
+        return tostring(math.floor(amount))
+    end
+end
+
+--- 获取货币显示名称
+---@param currencyId string
+---@return string
+function Currency.GetDisplayName(currencyId)
+    local def = Config.CURRENCY[currencyId]
+    return def and def.name or currencyId
+end
+
+-- ============================================================================
 -- 统一奖励发放
 -- ============================================================================
 
 --- 统一发放奖励，自动按类型路由
---- currency → Currency.Add（直接加）
---- chest   → ChestData.Add（直接加）
---- item    → InventoryData.Add（放仓库）
+--- currency       → Currency.Add
+--- chest          → ChestData.Add
+--- item           → InventoryData.Add
+--- fragment       → HeroData.AddFragments
+--- costume        → CostumeData.Unlock
+--- universal_shard → Currency.AddUniversalShards (id = 品质字符串)
+--- awakening_mat  → HeroData.currencies.awakening_mat 累加
 ---@param reward {type:string, id:string, amount:number}
+---@param source? string  发放来源标识，用于审计日志
 ---@return boolean success
-function Currency.GrantReward(reward)
-    if not reward or not reward.type or not reward.id then return false end
+function Currency.GrantReward(reward, source)
+    if not reward or not reward.type then return false end
     local amount = reward.amount or 1
+    local id = reward.id
 
     if reward.type == "currency" then
-        Currency.Add(reward.id, amount)
+        if not id then return false end
+        Currency.Add(id, amount)
     elseif reward.type == "chest" then
+        if not id then return false end
         local ChestData = require("Game.ChestData")
-        ChestData.Add(reward.id, amount)
+        ChestData.Add(id, amount)
         ChestData.Save()
     elseif reward.type == "item" then
+        if not id then return false end
         local InventoryData = require("Game.InventoryData")
-        InventoryData.Add(reward.id, amount)
+        InventoryData.Add(id, amount)
     elseif reward.type == "fragment" then
-        HeroData.AddFragments(reward.id, amount)
+        if not id then return false end
+        HeroData.AddFragments(id, amount)
+    elseif reward.type == "costume" then
+        if not id then return false end
+        local ok, CostumeData = pcall(require, "Game.CostumeData")
+        if ok and CostumeData.Unlock then
+            CostumeData.Unlock(id)
+        end
+    elseif reward.type == "universal_shard" then
+        if not id then return false end
+        Currency.AddUniversalShards(id, amount)
+    elseif reward.type == "awakening_mat" then
+        local delta = math.floor(amount)
+        HeroData.currencies.awakening_mat = (HeroData.currencies.awakening_mat or 0) + delta
+        EventBus.emit(EventBus.EVENT.CURRENCY_CHANGED, {
+            type = "awakening_mat", delta = delta,
+            balance = HeroData.currencies.awakening_mat,
+        })
     else
         print("[Currency.GrantReward] Unknown reward type: " .. tostring(reward.type))
         return false
+    end
+
+    if source then
+        print(string.format("[GrantReward] %s | type=%s id=%s amt=%d",
+            source, reward.type, tostring(id), math.floor(amount)))
     end
     return true
 end
 
 --- 批量发放奖励列表
 ---@param rewards {type:string, id:string, amount:number}[]
-function Currency.GrantRewards(rewards)
+---@param source? string  发放来源标识
+function Currency.GrantRewards(rewards, source)
     if not rewards then return end
     for _, r in ipairs(rewards) do
-        Currency.GrantReward(r)
+        Currency.GrantReward(r, source)
     end
 end
 

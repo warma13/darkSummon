@@ -162,16 +162,9 @@ function M.SignInToday()
     local day    = _data.loginDays
     local reward = M.REWARDS[day]
 
-    -- 发放奖励
+    -- 发放奖励（统一走 GrantReward）
     if reward then
-        if reward.type == "currency" then
-            Currency.Add(reward.id, reward.amount)
-        elseif reward.type == "costume" then
-            local ok2, CD = pcall(require, "Game.CostumeData")
-            if ok2 and CD.Unlock then
-                CD.Unlock(reward.id)
-            end
-        end
+        Currency.GrantReward(reward, "CostumeSignIn")
         _data.claimedDays[#_data.claimedDays + 1] = day
     end
 

@@ -547,18 +547,16 @@ function RD.ClaimReward(dungeonKey, clearedWave)
 
     if def.rewardCurrency == "chest" then
         -- 宝箱副本：按类型发放宝箱
-        local ChestData = require("Game.ChestData")
         local chests = rewards.chests or {}
         for chestId, count in pairs(chests) do
             if count > 0 then
-                ChestData.Add(chestId, count)
+                Currency.GrantReward({ type = "chest", id = chestId, amount = count }, "ResourceDungeon")
             end
         end
-        ChestData.Save()
     else
         -- 货币副本：发放对应货币
         for currId, amount in pairs(rewards) do
-            Currency.Add(currId, amount)
+            Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "ResourceDungeon")
         end
     end
 

@@ -668,12 +668,12 @@ local function BuildRewardItems(rewards)
     return items
 end
 
---- 实际发放挂机奖励（货币+宝箱）
+--- 实际发放挂机奖励（货币+宝箱，统一走 GrantReward）
 ---@param rewards table
 local function GrantAfkRewards(rewards)
-    Currency.Add("nether_crystal", rewards.nether_crystal)
-    Currency.Add("devour_stone", rewards.devour_stone)
-    Currency.Add("forge_iron", rewards.forge_iron)
+    Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = rewards.nether_crystal }, "Afk")
+    Currency.GrantReward({ type = "currency", id = "devour_stone", amount = rewards.devour_stone }, "Afk")
+    Currency.GrantReward({ type = "currency", id = "forge_iron", amount = rewards.forge_iron }, "Afk")
 
     if rewards.chestDrops then
         local DivineBlessDB = require("Game.DivineBlessData")
@@ -681,18 +681,16 @@ local function GrantAfkRewards(rewards)
         local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
         for id, count in pairs(rewards.chestDrops) do
             if count > 0 then
-                ChestData.Add(id, count * mult)
+                Currency.GrantReward({ type = "chest", id = id, amount = count * mult }, "Afk")
             end
         end
-        ChestData.Save()
     end
 
     -- 发放碎片箱道具到背包
     if rewards.fragmentBoxDrops then
-        local InventoryData = require("Game.InventoryData")
         for itemId, count in pairs(rewards.fragmentBoxDrops) do
             if count > 0 then
-                InventoryData.Add(itemId, count)
+                Currency.GrantReward({ type = "item", id = itemId, amount = count }, "Afk")
             end
         end
     end

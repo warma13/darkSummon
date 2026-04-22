@@ -142,7 +142,7 @@ function LaunchGiftData.ClaimDailyPulls()
         return false, "今日已领取"
     end
     data.dailyClaimed = TodayStr()
-    Currency.Add("void_pact", LaunchGiftData.DAILY_FREE_PULLS)
+    Currency.GrantReward({ type = "currency", id = "void_pact", amount = LaunchGiftData.DAILY_FREE_PULLS }, "LaunchGiftDaily")
     HeroData.Save()
     print("[LaunchGift] Claimed daily " .. LaunchGiftData.DAILY_FREE_PULLS .. " pulls")
     local rewardDef = { type = "currency", id = "void_pact", amount = LaunchGiftData.DAILY_FREE_PULLS }

@@ -202,14 +202,14 @@ function TrialTowerData.ClearFloor(floor)
     local floorInTower = TrialTowerData.GetFloorInTower(floor)
     local stones, gold = TrialTowerData.GetFloorReward(towerNum)
 
-    -- 发放每层奖励
-    Currency.Add("devour_stone", stones)
-    Currency.Add("nether_crystal", gold)
+    -- 发放每层奖励（统一走 GrantReward）
+    Currency.GrantReward({ type = "currency", id = "devour_stone", amount = stones }, "TrialTower")
+    Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = gold }, "TrialTower")
 
     -- 每层发放虚空契约（对数曲线）
     local floorPact = CalcFloorVoidPact(towerNum)
     if floorPact > 0 then
-        Currency.Add("void_pact", floorPact)
+        Currency.GrantReward({ type = "currency", id = "void_pact", amount = floorPact }, "TrialTower")
     end
 
     local rewards = {
@@ -233,7 +233,7 @@ function TrialTowerData.ClearFloor(floor)
         rewards.void_pact       = rewards.void_pact + clearPact
         rewards.tower_clear_pact = clearPact
         rewards.trial_ticket    = TOWER_TICKET_REWARD
-        Currency.Add("void_pact", clearPact)
+        Currency.GrantReward({ type = "currency", id = "void_pact", amount = clearPact }, "TrialTowerClear")
         TrialTowerData.AddTickets(TOWER_TICKET_REWARD)
         data.claimedTowers = towerNum
         print("[TrialTower] Tower " .. towerNum .. " cleared! FloorPact +" .. floorPact .. " ClearPact +" .. clearPact .. " Tickets +" .. TOWER_TICKET_REWARD)

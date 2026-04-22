@@ -542,50 +542,53 @@ Config.DEFAULT_DEPLOYED = {
 -- 货币体系
 -- ============================================================================
 Config.CURRENCY = {
-    dark_soul       = { name = "暗魂币",   icon = "soul",     color = { 80, 150, 220 },  image = "image/currency_dark_soul.png" },
-    nether_crystal  = { name = "冥晶",     icon = "crystal",  color = { 140, 80, 200 },  image = "image/currency_nether_crystal.png",  usage = "升级" },
-    devour_stone    = { name = "噬魂石",   icon = "stone",    color = { 60, 160, 80 },   image = "image/currency_devour_stone.png",    usage = "进阶" },
-    forge_iron      = { name = "锻魂铁",   icon = "iron",     color = { 130, 160, 200 }, image = "image/currency_forge_iron.png",      usage = "装备" },
-    void_pact       = { name = "虚空契约", icon = "pact",     color = { 200, 40, 40 },   image = "image/currency_void_pact.png",      usage = "招募" },
-    trial_ticket    = { name = "试练券",   icon = "ticket",   color = { 80, 200, 220 },  image = "image/trial_ticket.png",            usage = "试练塔" },
-    shadow_essence  = { name = "暗影精粹", icon = "essence",  color = { 180, 140, 255 }, image = "image/currency_shadow_essence.png",  usage = "兑换" },
-    shadow_orb      = { name = "幽影珠",   icon = "orb",      color = { 160, 80, 200 },  image = "image/currency_shadow_orb.png",     usage = "高级" },
-    wood_chest      = { name = "朽木宝箱", icon = "chest",    color = { 160, 130, 80 },  image = "image/chest_wood.png",              usage = "开启" },
-    bronze_chest    = { name = "青铜宝箱", icon = "chest",    color = { 180, 140, 80 },  image = "image/chest_bronze.png",            usage = "开启" },
-    gold_chest      = { name = "黄金宝箱", icon = "chest",    color = { 255, 215, 0 },   image = "image/chest_gold.png",              usage = "开启" },
-    platinum_chest  = { name = "铂金宝箱", icon = "chest",    color = { 180, 220, 255 }, image = "image/chest_platinum.png",          usage = "开启" },
-    diamond_chest   = { name = "钻石宝箱", icon = "chest",    color = { 255, 100, 255 }, image = "image/chest_diamond.png",           usage = "开启" },
-    ur_shard_box    = { name = "万能UR碎片箱", icon = "box",  color = { 255, 200, 50 },  image = "image/icon_universal_ur_shard_box.png", usage = "选择UR碎片" },
-    random_ur_shard_box = { name = "随机UR碎片箱", icon = "box", color = { 180, 100, 255 }, image = "image/icon_random_ur_shard_box.png", usage = "随机UR碎片" },
-    -- R/SR/SSR 自选 & 随机碎片礼包
-    r_shard_select_box   = { name = "R自选碎片礼包",   icon = "box", color = { 80, 200, 80 },   image = "image/icon_r_shard_select_box.png",   usage = "选择R碎片" },
-    r_shard_random_box   = { name = "R随机碎片礼包",   icon = "box", color = { 60, 160, 60 },   image = "image/icon_r_shard_random_box.png",   usage = "随机R碎片" },
-    sr_shard_select_box  = { name = "SR自选碎片礼包",  icon = "box", color = { 80, 140, 255 },  image = "image/icon_sr_shard_select_box.png",  usage = "选择SR碎片" },
-    sr_shard_random_box  = { name = "SR随机碎片礼包",  icon = "box", color = { 50, 100, 200 },  image = "image/icon_sr_shard_random_box.png",  usage = "随机SR碎片" },
-    ssr_shard_select_box = { name = "SSR自选碎片礼包", icon = "box", color = { 180, 80, 220 },  image = "image/icon_ssr_shard_select_box.png", usage = "选择SSR碎片" },
-    ssr_shard_random_box = { name = "SSR随机碎片礼包", icon = "box", color = { 140, 50, 180 },  image = "image/icon_ssr_shard_random_box.png", usage = "随机SSR碎片" },
-    -- 货币福袋/礼包
-    nether_crystal_pack  = { name = "冥晶礼包",     icon = "pack",    color = { 140, 80, 200 },  image = "image/icon_nether_crystal_pack.png",  usage = "获取冥晶" },
-    shadow_essence_bag   = { name = "暗影精粹福袋", icon = "bag",     color = { 180, 140, 255 }, image = "image/icon_shadow_essence_bag.png",   usage = "获取暗影精粹" },
-    devour_stone_bag     = { name = "噬魂石福袋",   icon = "bag",     color = { 60, 160, 80 },   image = "image/icon_devour_stone_bag.png",    usage = "获取噬魂石" },
-    forge_iron_bag       = { name = "锻魂铁福袋",   icon = "bag",     color = { 130, 160, 200 }, image = "image/icon_forge_iron_bag.png",      usage = "获取锻魂铁" },
-    -- 限定招募
-    frost_pact           = { name = "霜誓契约", icon = "fpact",  color = { 130, 210, 255 }, image = "image/currency_frost_pact.png",          usage = "限定招募" },
-    linyan_oath          = { name = "翎嫣之誓", icon = "oath",   color = { 100, 220, 140 }, image = "image/currency_linyan_oath_20260419133529.png", usage = "苍华极脉招募" },
-    -- 道具
-    dungeon_ticket           = { name = "资源副本门票", icon = "ticket", color = { 255, 180, 60 }, image = "image/item_dungeon_ticket.png",     usage = "进入副本" },
-    recruit_ticket_select_box = { name = "招募券自选包", icon = "ticket", color = { 200, 150, 255 }, image = "image/icon_recruit_ticket_select_box.png", usage = "选择招募池" },
+    -- 战斗货币
+    dark_soul       = { name = "暗魂币",   icon = "soul",     color = { 80, 150, 220 },  image = "image/currency_dark_soul.png", category = "battle" },
+    -- 基础升级货币
+    nether_crystal  = { name = "冥晶",     icon = "crystal",  color = { 140, 80, 200 },  image = "image/currency_nether_crystal.png",  usage = "升级", category = "basic" },
+    devour_stone    = { name = "噬魂石",   icon = "stone",    color = { 60, 160, 80 },   image = "image/currency_devour_stone.png",    usage = "进阶", category = "basic" },
+    forge_iron      = { name = "锻魂铁",   icon = "iron",     color = { 130, 160, 200 }, image = "image/currency_forge_iron.png",      usage = "装备", category = "basic" },
+    -- 招募货币
+    void_pact       = { name = "虚空契约", icon = "pact",     color = { 200, 40, 40 },   image = "image/currency_void_pact.png",      usage = "招募", category = "recruit" },
+    frost_pact      = { name = "霜誓契约", icon = "fpact",    color = { 130, 210, 255 }, image = "image/currency_frost_pact.png",     usage = "限定招募", category = "recruit" },
+    linyan_oath     = { name = "翎嫣之誓", icon = "oath",     color = { 100, 220, 140 }, image = "image/currency_linyan_oath_20260419133529.png", usage = "苍华极脉招募", category = "recruit" },
+    -- 高级兑换货币
+    shadow_essence  = { name = "暗影精粹", icon = "essence",  color = { 180, 140, 255 }, image = "image/currency_shadow_essence.png",  usage = "兑换", category = "premium" },
+    shadow_orb      = { name = "幽影珠",   icon = "orb",      color = { 160, 80, 200 },  image = "image/currency_shadow_orb.png",     usage = "高级", category = "premium" },
     -- 淬炼货币
-    pale_jade            = { name = "粹玉",   icon = "jade",    color = { 220, 240, 255 }, image = "image/currency_pale_jade.png", usage = "淬炼" },
-    rainbow_jade         = { name = "封魂玉", icon = "rjade",   color = { 255, 120, 220 }, image = "image/currency_rainbow_jade.png", usage = "锁定淬炼孔位" },
+    pale_jade       = { name = "粹玉",     icon = "jade",     color = { 220, 240, 255 }, image = "image/currency_pale_jade.png", usage = "淬炼", category = "refine" },
+    rainbow_jade    = { name = "封魂玉",   icon = "rjade",    color = { 255, 120, 220 }, image = "image/currency_rainbow_jade.png", usage = "锁定淬炼孔位", category = "refine" },
     -- 符文系统货币
-    rift_dust            = { name = "裂隙之尘",   icon = "dust",    color = { 160, 120, 200 }, image = "image/currency_rift_dust.png",    usage = "符文洗练" },
-    rune_seal            = { name = "符文封印",   icon = "seal",    color = { 40, 200, 160 },  image = "image/currency_rune_seal.png",    usage = "洗练锁定" },
-    abyss_crystal        = { name = "深渊结晶",   icon = "acrystal", color = { 200, 60, 255 }, image = "image/currency_abyss_crystal.png", usage = "定向洗练" },
-    -- 翠影秘境活动货币
-    emerald_token        = { name = "翠影凭证",   icon = "emerald",  color = { 100, 220, 140 }, image = "image/emerald_certificate.png", usage = "翠影秘境兑换" },
-    -- 减负系统
-    ad_ticket            = { name = "免广告券", icon = "adticket", color = { 100, 220, 180 }, image = "image/currency_ad_ticket.png", usage = "跳过广告" },
+    rift_dust       = { name = "裂隙之尘", icon = "dust",     color = { 160, 120, 200 }, image = "image/currency_rift_dust.png",    usage = "符文洗练", category = "rune" },
+    rune_seal       = { name = "符文封印", icon = "seal",     color = { 40, 200, 160 },  image = "image/currency_rune_seal.png",    usage = "洗练锁定", category = "rune" },
+    abyss_crystal   = { name = "深渊结晶", icon = "acrystal", color = { 200, 60, 255 },  image = "image/currency_abyss_crystal.png", usage = "定向洗练", category = "rune" },
+    -- 活动货币
+    emerald_token   = { name = "翠影凭证", icon = "emerald",  color = { 100, 220, 140 }, image = "image/emerald_certificate.png", usage = "翠影秘境兑换", category = "event" },
+    -- 门票/券
+    trial_ticket    = { name = "试练券",   icon = "ticket",   color = { 80, 200, 220 },  image = "image/trial_ticket.png",            usage = "试练塔", category = "ticket" },
+    dungeon_ticket  = { name = "资源副本门票", icon = "ticket", color = { 255, 180, 60 }, image = "image/item_dungeon_ticket.png",     usage = "进入副本", category = "ticket" },
+    ad_ticket       = { name = "免广告券", icon = "adticket", color = { 100, 220, 180 }, image = "image/currency_ad_ticket.png", usage = "跳过广告", category = "ticket" },
+    -- 宝箱
+    wood_chest      = { name = "朽木宝箱", icon = "chest",    color = { 160, 130, 80 },  image = "image/chest_wood.png",              usage = "开启", category = "chest" },
+    bronze_chest    = { name = "青铜宝箱", icon = "chest",    color = { 180, 140, 80 },  image = "image/chest_bronze.png",            usage = "开启", category = "chest" },
+    gold_chest      = { name = "黄金宝箱", icon = "chest",    color = { 255, 215, 0 },   image = "image/chest_gold.png",              usage = "开启", category = "chest" },
+    platinum_chest  = { name = "铂金宝箱", icon = "chest",    color = { 180, 220, 255 }, image = "image/chest_platinum.png",          usage = "开启", category = "chest" },
+    diamond_chest   = { name = "钻石宝箱", icon = "chest",    color = { 255, 100, 255 }, image = "image/chest_diamond.png",           usage = "开启", category = "chest" },
+    -- 碎片箱
+    ur_shard_box    = { name = "万能UR碎片箱", icon = "box",  color = { 255, 200, 50 },  image = "image/icon_universal_ur_shard_box.png", usage = "选择UR碎片", category = "box" },
+    random_ur_shard_box = { name = "随机UR碎片箱", icon = "box", color = { 180, 100, 255 }, image = "image/icon_random_ur_shard_box.png", usage = "随机UR碎片", category = "box" },
+    r_shard_select_box   = { name = "R自选碎片礼包",   icon = "box", color = { 80, 200, 80 },   image = "image/icon_r_shard_select_box.png",   usage = "选择R碎片", category = "box" },
+    r_shard_random_box   = { name = "R随机碎片礼包",   icon = "box", color = { 60, 160, 60 },   image = "image/icon_r_shard_random_box.png",   usage = "随机R碎片", category = "box" },
+    sr_shard_select_box  = { name = "SR自选碎片礼包",  icon = "box", color = { 80, 140, 255 },  image = "image/icon_sr_shard_select_box.png",  usage = "选择SR碎片", category = "box" },
+    sr_shard_random_box  = { name = "SR随机碎片礼包",  icon = "box", color = { 50, 100, 200 },  image = "image/icon_sr_shard_random_box.png",  usage = "随机SR碎片", category = "box" },
+    ssr_shard_select_box = { name = "SSR自选碎片礼包", icon = "box", color = { 180, 80, 220 },  image = "image/icon_ssr_shard_select_box.png", usage = "选择SSR碎片", category = "box" },
+    ssr_shard_random_box = { name = "SSR随机碎片礼包", icon = "box", color = { 140, 50, 180 },  image = "image/icon_ssr_shard_random_box.png", usage = "随机SSR碎片", category = "box" },
+    -- 福袋/礼包
+    nether_crystal_pack  = { name = "冥晶礼包",     icon = "pack",    color = { 140, 80, 200 },  image = "image/icon_nether_crystal_pack.png",  usage = "获取冥晶", category = "bag" },
+    shadow_essence_bag   = { name = "暗影精粹福袋", icon = "bag",     color = { 180, 140, 255 }, image = "image/icon_shadow_essence_bag.png",   usage = "获取暗影精粹", category = "bag" },
+    devour_stone_bag     = { name = "噬魂石福袋",   icon = "bag",     color = { 60, 160, 80 },   image = "image/icon_devour_stone_bag.png",    usage = "获取噬魂石", category = "bag" },
+    forge_iron_bag       = { name = "锻魂铁福袋",   icon = "bag",     color = { 130, 160, 200 }, image = "image/icon_forge_iron_bag.png",      usage = "获取锻魂铁", category = "bag" },
+    recruit_ticket_select_box = { name = "招募券自选包", icon = "ticket", color = { 200, 150, 255 }, image = "image/icon_recruit_ticket_select_box.png", usage = "选择招募池", category = "bag" },
 }
 
 -- 战斗内暗魂掉落（不可被技能修改）

@@ -627,7 +627,7 @@ function Emerald.EndSession(session)
 
     -- 发放翠影凭证
     if tokens > 0 then
-        Currency.Add(CURRENCY_ID, tokens)
+        Currency.GrantReward({ type = "currency", id = CURRENCY_ID, amount = tokens }, "EmeraldDungeon")
     end
 
     -- 更新统计

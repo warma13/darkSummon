@@ -63,8 +63,38 @@ function RC.BuildEntry(def)
             icon = "📦"
         end
 
+    elseif def.type == "fragment" then
+        local heroName = id
+        for _, td in ipairs(Config.TOWER_TYPES) do
+            if td.id == id then heroName = td.name; break end
+        end
+        name = heroName .. "碎片"
+        if not icon then icon = "image/icon_fragment.png" end
+
+    elseif def.type == "costume" then
+        local ok2, CD = pcall(require, "Game.CostumeData")
+        if ok2 and CD.SLOTS then
+            for _, slot in ipairs(CD.SLOTS) do
+                for _, cDef in ipairs(slot.costumes or {}) do
+                    if cDef.id == id then
+                        name = cDef.name or id
+                        icon = cDef.preview or icon
+                        break
+                    end
+                end
+                if name ~= "" then break end
+            end
+        end
+        if name == "" then name = id or "时装" end
+
+    elseif def.type == "universal_shard" then
+        name = (id or "?") .. "万能碎片"
+
+    elseif def.type == "awakening_mat" then
+        name = "觉醒材料"
+
     else
-        name = id
+        name = id or ""
     end
 
     return { icon = icon, name = name, amount = amount }
