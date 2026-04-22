@@ -177,7 +177,10 @@ function EmeraldDungeon._BuildDungeonView(ctx)
         local bestWaves = EmeraldData.GetBestWaves(diff.id)
         local canEnter = isActive and unlocked and tickets > 0
 
-        -- 奖励描述
+        -- 词缀选项
+        local affixOpt = EmeraldData.GetAffixOption(diff.id)
+
+        -- 奖励描述（带词缀加成）
         local rewardTiers = EmeraldData.GetRewardTiers(diff.id)
 
         -- 构建按钮
@@ -296,11 +299,60 @@ function EmeraldDungeon._BuildDungeonView(ctx)
                                     pointerEvents = "none", flexShrink = 0,
                                 },
                                 UI.Label {
-                                    text = tostring(diff.tokenReward),
-                                    fontSize = 11, fontColor = { 100, 220, 140 }, pointerEvents = "none",
+                                    text = affixOpt.bonusPct > 0
+                                        and tostring(math.floor(diff.tokenReward * (1 + affixOpt.bonusPct / 100)))
+                                        or tostring(diff.tokenReward),
+                                    fontSize = 11,
+                                    fontColor = affixOpt.bonusPct > 0 and { 255, 200, 80 } or { 100, 220, 140 },
+                                    pointerEvents = "none",
                                 },
+                                affixOpt.bonusPct > 0 and UI.Label {
+                                    text = " (+" .. affixOpt.bonusPct .. "%)",
+                                    fontSize = 10, fontColor = { 255, 180, 60 }, pointerEvents = "none",
+                                } or nil,
                             },
                         },
+                        -- 词缀难度选择行（首次通关后才显示，档位逐级解锁）
+                        (unlocked and EmeraldData.IsAffixRowVisible(diff.id)) and (function()
+                            local maxIdx = EmeraldData.GetMaxUnlockedAffix(diff.id)
+                            local affixBtns = {}
+                            for oi = 1, maxIdx do
+                                local opt = EmeraldData.AFFIX_OPTIONS[oi]
+                                local chosen = (oi == EmeraldData.GetAffixChoice(diff.id))
+                                affixBtns[#affixBtns + 1] = UI.Panel {
+                                    paddingLeft = 6, paddingRight = 6,
+                                    paddingTop = 2, paddingBottom = 2,
+                                    borderRadius = 4,
+                                    borderWidth = chosen and 1 or 0,
+                                    borderColor = chosen and { 255, 200, 80, 200 } or nil,
+                                    backgroundColor = chosen
+                                        and { 80, 60, 20, 200 }
+                                        or { 40, 35, 55, 160 },
+                                    onClick = function()
+                                        EmeraldData.SetAffixChoice(diff.id, oi)
+                                        ctx.Refresh()
+                                    end,
+                                    children = {
+                                        UI.Label {
+                                            text = opt.affixCount == 0 and "0 无加成" or (opt.affixCount .. "  +" .. opt.bonusPct .. "%"),
+                                            fontSize = 9,
+                                            fontColor = chosen
+                                                and { 255, 220, 100 }
+                                                or (opt.affixCount == 0 and { 160, 160, 160 } or { 180, 160, 120 }),
+                                            pointerEvents = "none",
+                                        },
+                                    },
+                                }
+                            end
+                            -- 在头部插入 "词缀:" 标签
+                            table.insert(affixBtns, 1, UI.Label {
+                                text = "词缀:", fontSize = 10, fontColor = S.dim, pointerEvents = "none",
+                            })
+                            return UI.Panel {
+                                flexDirection = "row", alignItems = "center", gap = 4, marginTop = 1,
+                                children = affixBtns,
+                            }
+                        end)() or nil,
                         UI.Label {
                             text = "50%→" .. rewardTiers[2].tokens .. "  75%→" .. rewardTiers[3].tokens .. "  100%→" .. rewardTiers[4].tokens,
                             fontSize = 10, fontColor = { 130, 180, 130 }, pointerEvents = "none",
@@ -798,8 +850,8 @@ function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
     local diff = session.difficulty
     local totalWaves = diff.waves
 
-    -- 生成驻场 BOSS（开局出场）
-    local bossDef = EmeraldData.GenerateBoss(difficultyId)
+    -- 生成驻场 BOSS（开局出场，附加词缀难度）
+    local bossDef = EmeraldData.GenerateBoss(difficultyId, session.affixCount)
     local bossQueue = bossDef and BM.BuildSpawnQueue({ bossDef }, 0.5) or {}
 
     -- 预构建所有小怪波次

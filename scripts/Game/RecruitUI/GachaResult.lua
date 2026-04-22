@@ -376,7 +376,7 @@ function GachaResult.ShowBuyPopup(UI, pageRoot, defaultQty, currencyType, refres
             return
         end
         Currency.Spend(BUY_CURRENCY, totalCost)
-        Currency.Add(currencyType, qty)
+        Currency.GrantReward({ type = "currency", id = currencyType, amount = qty }, "GachaBuyPact")
         local Toast = require("Game.Toast")
         Toast.Show("获得" .. PACT_NAME .. " ×" .. qty, isLimited and { 130, 210, 255 } or { 180, 140, 255 })
         local p = pageRoot:FindById("buyPactPopup")

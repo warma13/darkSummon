@@ -354,7 +354,7 @@ function HeroSkills.OnHit(tower, target, killed)
                 if math.random() < (eff.chance or 0.15) then
                     local soulReward = Config.GetKillSoul and Config.GetKillSoul(target) or 1
                     local Currency   = require("Game.Currency")
-                    Currency.Add("dark_soul", soulReward)
+                    Currency.GrantReward({ type = "currency", id = "dark_soul", amount = soulReward }, "HeroSkillDoubleSoul")
                     AddFloatingText({
                         text     = "暗魂×2",
                         x        = target.x,

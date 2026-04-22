@@ -43,6 +43,21 @@ local EVENT_UNLOCK_TIME = calcUnlockTime()
 --- BOSS HP 倍率
 local BOSS_HP_MULT = 6.0
 
+-- ============================================================================
+-- 词缀难度选项（BOSS 额外词缀 → 奖励加成）
+-- ============================================================================
+
+--- 4 档词缀难度：词缀数 → 奖励加成百分比
+Emerald.AFFIX_OPTIONS = {
+    { affixCount = 0, bonusPct = 0,  label = "无词缀" },
+    { affixCount = 1, bonusPct = 10, label = "1词缀" },
+    { affixCount = 3, bonusPct = 20, label = "3词缀" },
+    { affixCount = 7, bonusPct = 30, label = "7词缀" },
+}
+
+--- 每个 tier 的当前词缀选择索引（1-based，运行时状态不存档）
+local _affixChoice = {}
+
 --- 翠影凭证货币 ID
 local CURRENCY_ID = "emerald_token"
 
@@ -82,6 +97,49 @@ local function CalcRewardRatio(clearedWaves, totalWaves)
     if pct >= 0.75 then return 0.6 end
     if pct >= 0.50 then return 0.3 end
     return 0.0
+end
+
+-- ============================================================================
+-- 词缀难度选择接口
+-- ============================================================================
+
+--- 获取指定 tier 当前选择的词缀档位索引（1-based，自动钳位到已解锁范围）
+---@param tierId string e.g. "tier1"
+---@return number index 1-4
+function Emerald.GetAffixChoice(tierId)
+    local choice = _affixChoice[tierId] or 1
+    -- 钳位：不能选超过已解锁范围的档位
+    local maxIdx = Emerald.GetMaxUnlockedAffix(tierId)
+    if maxIdx > 0 and choice > maxIdx then
+        choice = maxIdx
+        _affixChoice[tierId] = choice
+    end
+    return choice
+end
+
+--- 设置指定 tier 的词缀档位
+---@param tierId string
+---@param index number 1-4
+function Emerald.SetAffixChoice(tierId, index)
+    _affixChoice[tierId] = math.max(1, math.min(#Emerald.AFFIX_OPTIONS, index))
+end
+
+--- 切换到下一个词缀档位（循环）
+---@param tierId string
+---@return number newIndex
+function Emerald.CycleAffixChoice(tierId)
+    local cur = Emerald.GetAffixChoice(tierId)
+    local next = (cur % #Emerald.AFFIX_OPTIONS) + 1
+    Emerald.SetAffixChoice(tierId, next)
+    return next
+end
+
+--- 获取指定 tier 当前词缀选项数据
+---@param tierId string
+---@return table { affixCount, bonusPct, label }
+function Emerald.GetAffixOption(tierId)
+    local idx = Emerald.GetAffixChoice(tierId)
+    return Emerald.AFFIX_OPTIONS[idx]
 end
 
 -- ============================================================================
@@ -173,10 +231,53 @@ local function getData()
             adWatched = 0,    -- 今日已看广告次数
             totalRuns = 0,    -- 活动期间总挑战次数
             bestWaves = {},   -- 各难度最佳通关波数 { tier1=15, tier2=10, ... }
+            affixCleared = {},-- 各难度已通关的最高词缀档位索引 { tier1=1, tier2=2, ... }
             tokenEarned = 0,  -- 累计获取凭证数
         }
     end
     return HeroData.emeraldDungeon
+end
+
+--- 检查词缀选择行是否应显示（该 tier 已首次通关）
+---@param tierId string
+---@return boolean
+function Emerald.IsAffixRowVisible(tierId)
+    local diff = Emerald.DIFFICULTY_MAP[tierId]
+    if not diff then return false end
+    local data = getData()
+    local best = (data.bestWaves and data.bestWaves[tierId]) or 0
+    return best >= diff.waves  -- 全波通关才显示词缀行
+end
+
+--- 检查指定词缀档位是否已解锁
+--- 档位 1（0词缀）：首次通关即解锁
+--- 档位 N（N>1）：需通关档位 N-1 才解锁
+---@param tierId string
+---@param affixIndex number 1-based
+---@return boolean
+function Emerald.IsAffixOptionUnlocked(tierId, affixIndex)
+    if affixIndex <= 1 then
+        -- 档位1（无词缀）：只要该行可见即已解锁
+        return Emerald.IsAffixRowVisible(tierId)
+    end
+    -- 档位 N：需要已通关档位 N-1
+    local data = getData()
+    if not data.affixCleared then return false end
+    local cleared = data.affixCleared[tierId] or 0
+    return cleared >= (affixIndex - 1)
+end
+
+--- 获取该 tier 已解锁的最高词缀档位索引
+---@param tierId string
+---@return number maxIndex
+function Emerald.GetMaxUnlockedAffix(tierId)
+    if not Emerald.IsAffixRowVisible(tierId) then return 0 end
+    local data = getData()
+    local cleared = (data.affixCleared and data.affixCleared[tierId]) or 0
+    -- 行可见说明已用0词缀通关过，基线至少为1（兼容旧存档）
+    if cleared < 1 then cleared = 1 end
+    -- cleared=1 → 档位1,2可用; cleared=2 → 档位1,2,3可用; ...
+    return math.min(cleared + 1, #Emerald.AFFIX_OPTIONS)
 end
 
 --- 获取今日日期字符串
@@ -496,8 +597,9 @@ end
 
 --- 生成驻场 BOSS 定义（开局出场，全程驻场，携带三技能）
 ---@param difficultyId string
+---@param extraAffixCount? number 额外词缀数量（来自词缀难度选择），默认 0
 ---@return table bossDef
-function Emerald.GenerateBoss(difficultyId)
+function Emerald.GenerateBoss(difficultyId, extraAffixCount)
     local diff = Emerald.DIFFICULTY_MAP[difficultyId]
     if not diff then return nil end
 
@@ -530,6 +632,15 @@ function Emerald.GenerateBoss(difficultyId)
         decay   = decay,
     }
 
+    -- 额外词缀（来自词缀难度选择）
+    extraAffixCount = extraAffixCount or 0
+    if extraAffixCount > 0 then
+        local level = math.max(1, math.floor(stageNum / 10))
+        local globalWave = stageNum * Config.WAVES_PER_STAGE
+        local affixes = Config.PickAffixes(globalWave, extraAffixCount, level)
+        bossDef.affixes = affixes
+    end
+
     return bossDef
 end
 
@@ -540,13 +651,15 @@ end
 --- 计算通关奖励（翠影凭证）
 ---@param clearedWaves number 实际通过波数
 ---@param difficultyId string
+---@param affixBonusPct? number 词缀加成百分比（0/10/20/30），默认 0
 ---@return number tokens 获得的翠影凭证
-function Emerald.CalcTokenReward(clearedWaves, difficultyId)
+function Emerald.CalcTokenReward(clearedWaves, difficultyId, affixBonusPct)
     local diff = Emerald.DIFFICULTY_MAP[difficultyId]
     if not diff then return 0 end
 
     local ratio = CalcRewardRatio(clearedWaves, diff.waves)
-    return math.floor(diff.tokenReward * ratio)
+    local bonus = 1 + (affixBonusPct or 0) / 100
+    return math.floor(diff.tokenReward * ratio * bonus)
 end
 
 --- 获取部分通关奖励描述
@@ -587,6 +700,9 @@ function Emerald.CreateSession(difficultyId)
         return nil
     end
 
+    -- 记录当前词缀选择
+    local affixOpt = Emerald.GetAffixOption(difficultyId)
+
     return {
         difficultyId = difficultyId,
         difficulty = diff,
@@ -595,6 +711,8 @@ function Emerald.CreateSession(difficultyId)
         enemiesPerWave = diff.enemiesPerWave,
         cleared = false,
         tokenReward = 0,
+        affixCount = affixOpt.affixCount,
+        affixBonusPct = affixOpt.bonusPct,
     }
 end
 
@@ -622,7 +740,7 @@ end
 ---@param session table
 ---@return table result
 function Emerald.EndSession(session)
-    local tokens = Emerald.CalcTokenReward(session.currentWave, session.difficultyId)
+    local tokens = Emerald.CalcTokenReward(session.currentWave, session.difficultyId, session.affixBonusPct)
     session.tokenReward = tokens
 
     -- 发放翠影凭证
@@ -641,6 +759,23 @@ function Emerald.EndSession(session)
     local isFirstClear = session.cleared and prevBest < session.totalWaves
     if session.currentWave > prevBest then
         data.bestWaves[bestKey] = session.currentWave
+    end
+
+    -- 记录词缀通关进度（全波通关时，更新该 tier 已通关的最高词缀档位）
+    if session.cleared then
+        if not data.affixCleared then data.affixCleared = {} end
+        -- 找出本次使用的词缀档位索引
+        local usedAffixIdx = 1
+        for i, opt in ipairs(Emerald.AFFIX_OPTIONS) do
+            if opt.affixCount == (session.affixCount or 0) then
+                usedAffixIdx = i
+                break
+            end
+        end
+        local prev = data.affixCleared[session.difficultyId] or 0
+        if usedAffixIdx > prev then
+            data.affixCleared[session.difficultyId] = usedAffixIdx
+        end
     end
 
     -- 首次通关奖励：赠送1张秘境券

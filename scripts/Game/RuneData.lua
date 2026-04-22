@@ -345,7 +345,7 @@ function RuneData.Decompose(runeId)
     -- 发放材料
     local gained = {}
     for currId, amount in pairs(rewards) do
-        Currency.Add(currId, amount)
+        Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "RuneDecompose")
         gained[currId] = amount
     end
 
@@ -369,7 +369,7 @@ function RuneData.DecomposeByQuality(maxQualityIndex)
             -- 分解
             local rewards = RuneConfig.DECOMPOSE[rune.qualityId] or {}
             for currId, amount in pairs(rewards) do
-                Currency.Add(currId, amount)
+                Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "RuneBatchDecompose")
                 totalGained[currId] = (totalGained[currId] or 0) + amount
             end
             count = count + 1

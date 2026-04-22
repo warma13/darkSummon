@@ -602,12 +602,8 @@ ctx.RARITY_COLORS = RARITY_COLORS
 
 local DamageStats = require("Game.DamageStats")
 
---- 格式化大数字（k/m）
-local function FmtDmg(n)
-    if n >= 1000000 then return string.format("%.1fM", n / 1000000)
-    elseif n >= 1000 then return string.format("%.1fK", n / 1000)
-    else return tostring(math.floor(n)) end
-end
+-- 伤害战报当前显示模式: false=全局, true=Boss
+GameUI._dmgBossOnly = false
 
 --- 打开/关闭伤害战报浮层（每次打开重新读取最新数据）
 function GameUI.ShowDamageStatsPanel(show)
@@ -621,8 +617,10 @@ function GameUI.ShowDamageStatsPanel(show)
     end
     if not show then return end
 
+    local bossOnly = GameUI._dmgBossOnly
+
     -- 读取统计数据
-    local list, totalDmg = DamageStats.GetSorted()
+    local list, totalDmg = DamageStats.GetSorted(bossOnly)
 
     -- 构建每行英雄条目
     local rows = {}
@@ -631,7 +629,7 @@ function GameUI.ShowDamageStatsPanel(show)
 
         local pct = (totalDmg > 0) and (s.totalDmg / totalDmg) or 0
         local pctStr = string.format("%.1f%%", pct * 100)
-        local dmgStr = FmtDmg(s.totalDmg)
+        local dmgStr = FormatNum(s.totalDmg)
         local c = s.color or { 180, 140, 255 }
 
         -- 星级文字
@@ -743,8 +741,9 @@ function GameUI.ShowDamageStatsPanel(show)
     end
 
     -- 总伤害摘要行
+    local summaryLabel = bossOnly and "Boss伤害：" or "总伤害："
     local summaryText = totalDmg > 0
-        and ("总伤害：" .. FmtDmg(totalDmg))
+        and (summaryLabel .. FormatNum(totalDmg))
         or ""
 
     -- 刷新时直接还原到位，首次打开才触发滑入动画
@@ -767,59 +766,121 @@ function GameUI.ShowDamageStatsPanel(show)
                 backgroundColor = { 18, 14, 35, 180 },
                 borderWidth = 1,
                 borderColor = { 80, 55, 130, 180 },
-                paddingTop = 12, paddingBottom = 14,
-                paddingLeft = 12, paddingRight = 12,
-                gap = 8,
-                overflow = "scroll",
                 onClick = function() end,  -- 阻止冒泡关闭
                 children = {
-                    -- 标题行
+                    -- 顶部：标题 + 总伤害 + 英雄列表（可滚动）
+                    ctx.UI.Panel {
+                        flexGrow = 1, flexShrink = 1,
+                        overflow = "scroll",
+                        paddingTop = 12,
+                        paddingLeft = 12, paddingRight = 12,
+                        gap = 8,
+                        children = {
+                            -- 标题行
+                            ctx.UI.Panel {
+                                flexDirection = "row",
+                                alignItems = "center",
+                                justifyContent = "space-between",
+                                marginBottom = 2,
+                                children = {
+                                    ctx.UI.Label {
+                                        text = "伤害战报",
+                                        fontSize = 16,
+                                        fontColor = { 220, 200, 255, 255 },
+                                        fontWeight = "bold",
+                                    },
+                                    ctx.UI.Panel {
+                                        width = 26, height = 26,
+                                        borderRadius = 13,
+                                        backgroundColor = { 50, 38, 75, 220 },
+                                        justifyContent = "center",
+                                        alignItems = "center",
+                                        pointerEvents = "auto",
+                                        onClick = function()
+                                            local ov = ctx.uiRoot and ctx.uiRoot:FindById("damageStatsOverlay")
+                                            if ov then ov:Remove() end
+                                        end,
+                                        children = {
+                                            ctx.UI.Label {
+                                                text = "×",
+                                                fontSize = 14,
+                                                fontColor = { 200, 180, 230, 255 },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            -- 总伤害摘要
+                            summaryText ~= "" and ctx.UI.Label {
+                                text = summaryText,
+                                fontSize = 11,
+                                fontColor = { 160, 145, 200, 200 },
+                                textAlign = "right",
+                                alignSelf = "flex-end",
+                            } or nil,
+                            -- 英雄列表
+                            ctx.UI.Panel {
+                                flexDirection = "column",
+                                gap = 4,
+                                children = rows,
+                            },
+                        },
+                    },
+                    -- 底部固定：Boss / 全局 切换按钮
                     ctx.UI.Panel {
                         flexDirection = "row",
-                        alignItems = "center",
-                        justifyContent = "space-between",
-                        marginBottom = 2,
+                        justifyContent = "center",
+                        gap = 8,
+                        paddingTop = 8, paddingBottom = 10,
+                        paddingLeft = 12, paddingRight = 12,
+                        borderTopWidth = 1,
+                        borderColor = { 60, 45, 100, 120 },
                         children = {
-                            ctx.UI.Label {
-                                text = "伤害战报",
-                                fontSize = 16,
-                                fontColor = { 220, 200, 255, 255 },
-                                fontWeight = "bold",
-                            },
                             ctx.UI.Panel {
-                                width = 26, height = 26,
-                                borderRadius = 13,
-                                backgroundColor = { 50, 38, 75, 220 },
+                                flexGrow = 1,
+                                paddingTop = 6, paddingBottom = 6,
+                                borderRadius = 4,
                                 justifyContent = "center",
                                 alignItems = "center",
+                                backgroundColor = (not bossOnly) and { 100, 70, 180, 220 } or { 40, 35, 60, 180 },
                                 pointerEvents = "auto",
                                 onClick = function()
-                                    local ov = ctx.uiRoot and ctx.uiRoot:FindById("damageStatsOverlay")
-                                    if ov then ov:Remove() end
+                                    GameUI._dmgBossOnly = false
+                                    GameUI._dmgIsRefresh = true
+                                    GameUI.ShowDamageStatsPanel(true)
                                 end,
                                 children = {
                                     ctx.UI.Label {
-                                        text = "×",
-                                        fontSize = 14,
-                                        fontColor = { 200, 180, 230, 255 },
+                                        text = "全局",
+                                        fontSize = 12,
+                                        fontColor = (not bossOnly) and { 255, 255, 255, 255 } or { 150, 140, 170, 200 },
+                                        fontWeight = (not bossOnly) and "bold" or "normal",
+                                    },
+                                },
+                            },
+                            ctx.UI.Panel {
+                                flexGrow = 1,
+                                paddingTop = 6, paddingBottom = 6,
+                                borderRadius = 4,
+                                justifyContent = "center",
+                                alignItems = "center",
+                                backgroundColor = bossOnly and { 180, 60, 60, 220 } or { 40, 35, 60, 180 },
+                                pointerEvents = "auto",
+                                onClick = function()
+                                    GameUI._dmgBossOnly = true
+                                    GameUI._dmgIsRefresh = true
+                                    GameUI.ShowDamageStatsPanel(true)
+                                end,
+                                children = {
+                                    ctx.UI.Label {
+                                        text = "Boss",
+                                        fontSize = 12,
+                                        fontColor = bossOnly and { 255, 255, 255, 255 } or { 150, 140, 170, 200 },
+                                        fontWeight = bossOnly and "bold" or "normal",
                                     },
                                 },
                             },
                         },
-                    },
-                    -- 总伤害摘要
-                    summaryText ~= "" and ctx.UI.Label {
-                        text = summaryText,
-                        fontSize = 11,
-                        fontColor = { 160, 145, 200, 200 },
-                        textAlign = "right",
-                        alignSelf = "flex-end",
-                    } or nil,
-                    -- 英雄列表
-                    ctx.UI.Panel {
-                        flexDirection = "column",
-                        gap = 4,
-                        children = rows,
                     },
                 },
             },

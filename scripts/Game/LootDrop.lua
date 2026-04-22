@@ -121,7 +121,7 @@ function LootDrop.Update(dt)
                 if d.type == "dark_soul" then
                     Currency.CollectDarkSoul(d.amount)
                 else
-                    Currency.Add(d.type, d.amount)
+                    Currency.GrantReward({ type = "currency", id = d.type, amount = d.amount }, "LootDrop")
                 end
                 d.collected = true
             end
@@ -247,7 +247,7 @@ function LootDrop.CollectAll()
     for i = #State.lootDrops, 1, -1 do
         local d = State.lootDrops[i]
         if not d.collected then
-            Currency.Add(d.type, d.amount)
+            Currency.GrantReward({ type = "currency", id = d.type, amount = d.amount }, "LootDropCollectAll")
             d.collected = true
         end
     end

@@ -72,7 +72,7 @@ InventoryData.ITEM_DEFS = {
             for _ = 1, amount do
                 total = total + RollBagAmount()
             end
-            Currency.Add("shadow_essence", total)
+            Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = total }, "InventoryUse")
             return "获得暗影精粹 ×" .. total, {
                 { icon = Currency.GetImage("shadow_essence"), name = "暗影精粹", amount = total },
             }
@@ -386,7 +386,7 @@ InventoryData.ITEM_DEFS = {
             for _ = 1, amount do
                 total = total + CalcCrystalReward()
             end
-            Currency.Add("nether_crystal", total)
+            Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = total }, "InventoryUse")
             return "获得冥晶 ×" .. total, {
                 { icon = Currency.GetImage("nether_crystal"), name = "冥晶", amount = total },
             }
@@ -404,7 +404,7 @@ InventoryData.ITEM_DEFS = {
             for _ = 1, amount do
                 total = total + math.random(50, 500)
             end
-            Currency.Add("devour_stone", total)
+            Currency.GrantReward({ type = "currency", id = "devour_stone", amount = total }, "InventoryUse")
             return "获得噬魂石 ×" .. total, {
                 { icon = Currency.GetImage("devour_stone"), name = "噬魂石", amount = total },
             }
@@ -422,7 +422,7 @@ InventoryData.ITEM_DEFS = {
             for _ = 1, amount do
                 total = total + math.random(30, 300)
             end
-            Currency.Add("forge_iron", total)
+            Currency.GrantReward({ type = "currency", id = "forge_iron", amount = total }, "InventoryUse")
             return "获得锻魂铁 ×" .. total, {
                 { icon = Currency.GetImage("forge_iron"), name = "锻魂铁", amount = total },
             }
@@ -452,7 +452,7 @@ InventoryData.ITEM_DEFS = {
                 end
             end
             if not curr then return nil, nil end
-            Currency.Add(curr, amount)
+            Currency.GrantReward({ type = "currency", id = curr, amount = amount }, "InventoryUse")
             local cdef = Config.CURRENCY[curr]
             local cname = cdef and cdef.name or curr
             return "获得" .. cname .. " ×" .. amount, {

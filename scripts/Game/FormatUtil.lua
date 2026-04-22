@@ -7,7 +7,11 @@ local M = {}
 ---@param n number
 ---@return string
 function M.FormatNumber(n)
-    if n >= 100000000 then
+    if n >= 10000000000000000 then
+        return string.format("%.1f京", n / 10000000000000000)
+    elseif n >= 1000000000000 then
+        return string.format("%.1f兆", n / 1000000000000)
+    elseif n >= 100000000 then
         return string.format("%.2f亿", n / 100000000)
     elseif n >= 10000 then
         return string.format("%.1f万", n / 10000)
@@ -19,6 +23,8 @@ end
 ---@param n number
 ---@return string
 function M.FormatNum(n)
+    if n >= 10000000000000000 then return string.format("%.1f京", n / 10000000000000000) end
+    if n >= 1000000000000 then return string.format("%.1f兆", n / 1000000000000) end
     if n >= 100000000 then return string.format("%.1f亿", n / 100000000) end
     if n >= 10000 then return string.format("%.1f万", n / 10000) end
     return tostring(math.floor(n))
