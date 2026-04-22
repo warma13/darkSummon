@@ -121,6 +121,7 @@ function BattleManager.Enter(mode, params)
         onWin      = params.onWin,
         onLose     = params.onLose,
         onExit     = params.onExit,
+        initialDarkSoul = params.initialDarkSoul,
     })
 end
 

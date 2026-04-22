@@ -94,13 +94,6 @@ function Tower.Create(typeIndex, star, col, row)
         tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
     end
 
-    -- 软上限：对 dmgBonus/critDmg/elemDmg 应用对数衰减
-    local Balance = Config.Balance
-    tower.dmgBonus, tower.critDmg, _ = Balance.ApplySoftCaps(tower.dmgBonus, tower.critDmg, 0)
-    for elem, val in pairs(tower.elemDmgBonus) do
-        tower.elemDmgBonus[elem] = Balance.SoftCapStat(val, Balance.SOFT_CAPS.elemDmg)
-    end
-
     -- 符文特殊词条
     tower.runeBonus = {
         chain      = equipBonus.chain or 0,
@@ -184,13 +177,6 @@ function Tower.CreateLeader(col, row)
     local heroElem = Config.HERO_ELEMENT[heroId]
     if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
         tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
-    end
-
-    -- 软上限：对 dmgBonus/critDmg/elemDmg 应用对数衰减
-    local Balance = Config.Balance
-    tower.dmgBonus, tower.critDmg, _ = Balance.ApplySoftCaps(tower.dmgBonus, tower.critDmg, 0)
-    for elem, val in pairs(tower.elemDmgBonus) do
-        tower.elemDmgBonus[elem] = Balance.SoftCapStat(val, Balance.SOFT_CAPS.elemDmg)
     end
 
     -- 符文特殊词条
@@ -666,13 +652,6 @@ function Tower.RefreshAllStats()
         local heroElem = Config.HERO_ELEMENT[heroId]
         if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
             tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
-        end
-
-        -- 软上限：对 dmgBonus/critDmg/elemDmg 应用对数衰减
-        local Balance = Config.Balance
-        tower.dmgBonus, tower.critDmg, _ = Balance.ApplySoftCaps(tower.dmgBonus, tower.critDmg, 0)
-        for elem, val in pairs(tower.elemDmgBonus) do
-            tower.elemDmgBonus[elem] = Balance.SoftCapStat(val, Balance.SOFT_CAPS.elemDmg)
         end
 
         -- 符文特殊词条（供 Combat/HeroSkills 读取）

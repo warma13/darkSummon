@@ -692,6 +692,34 @@ local REDEEM_CODES = {
             Currency.Add("shadow_essence", 7000)
         end,
     },
+    {
+        code = "VIP978257249C",
+        desc = "专属奖励：暗影精粹 ×1000",
+        color = { 255, 215, 0 },
+        allowedUser = 978257249,
+        reward = function() Currency.Add("shadow_essence", 1000) end,
+    },
+    {
+        code = "VIP502127674C",
+        desc = "专属奖励：暗影精粹 ×2000",
+        color = { 255, 215, 0 },
+        allowedUser = 502127674,
+        reward = function() Currency.Add("shadow_essence", 2000) end,
+    },
+    {
+        code = "VIP2135680770B",
+        desc = "专属奖励：暗影精粹 ×1000",
+        color = { 255, 215, 0 },
+        allowedUser = 2135680770,
+        reward = function() Currency.Add("shadow_essence", 1000) end,
+    },
+    {
+        code = "VIP1840951947B",
+        desc = "专属奖励：暗影精粹 ×1000",
+        color = { 255, 215, 0 },
+        allowedUser = 1840951947,
+        reward = function() Currency.Add("shadow_essence", 1000) end,
+    },
 }
 
 --- 显示设置弹窗
@@ -1006,6 +1034,7 @@ local function StartStage(stageNum)
         stageNum = stageNum,
         onWin    = function() GameUI.DoStageClear() end,
         onLose   = function() GameUI.DoGameOver() end,
+        initialDarkSoul = Config.INITIAL_DARK_SOUL,
     })
     print("[GameUI] Starting stage " .. stageNum)
 end

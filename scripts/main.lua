@@ -114,7 +114,7 @@ function StartGame(serverId)
             stageNum = savedStage,
             onWin  = function() GameUI.DoStageClear() end,
             onLose = function() GameUI.DoGameOver() end,
-            initialDarkSoul = isNewSlot and Config.INITIAL_DARK_SOUL or nil,
+            initialDarkSoul = Config.INITIAL_DARK_SOUL,
         })
 
         GameUI.UpdateHUD()
