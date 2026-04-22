@@ -81,7 +81,7 @@ function BattleManager.BuildSpawnQueue(enemyDefs, interval)
             typeDef = def,
             delay = isBoss and 1.5 or (def.isElite and 1.2 or interval),
             isElite = def.isElite or false,
-            affixes = def.bossAffixes or def.eliteAffixes or {},
+            affixes = def.affixes or def.bossAffixes or def.eliteAffixes or {},
             -- 标记：这是预缩放的敌人定义（HP/DEF/Speed 已由副本模块计算好）
             prescaled = true,
         }

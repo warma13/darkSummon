@@ -597,6 +597,17 @@ function LimitedPool.ShowDetailPopup(UI, pageRoot, bannerCfg, RARITY_COLORS, RAR
     -- 技能说明
     local skills = Config.HERO_SKILLS and Config.HERO_SKILLS[bannerCfg.heroId]
     if skills then
+        -- 满星属性标注
+        listChildren[#listChildren + 1] = UI.Panel {
+            width = "100%", flexDirection = "row", justifyContent = "flex-end",
+            paddingRight = 12, marginBottom = 2,
+            children = {
+                UI.Label {
+                    text = "* 以下为满星属性",
+                    fontSize = 10, fontColor = { 200, 180, 120, 180 },
+                },
+            },
+        }
         for _, skill in ipairs(skills) do
             listChildren[#listChildren + 1] = UI.Panel {
                 width = "100%",
