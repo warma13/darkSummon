@@ -316,6 +316,7 @@ function HandleUpdate(eventType, eventData)
         _YangMG_Update(eventType, eventData)
         return
     end
+
     local rawDt = eventData["TimeStep"]:GetFloat()
 
     -- 待机模式 UI 动画（用原始 dt）

@@ -101,6 +101,10 @@ end
 -- 标签页状态（不在 Reset 中重置，保持用户当前页签）
 State.activeTab = "battle"   -- "hero" / "battle" / "recruit" / "activity"
 
+-- 跳过Boss模式（不在 Reset 中重置，跨关卡持久）
+-- true = 只刷小怪，小怪清完自动失败重开；false = 正常挑战Boss
+State.skipBoss = false
+
 --- 压缩数组：移除所有 nil 空洞，保证 ipairs 安全
 ---@param arr table
 local function compactArray(arr)

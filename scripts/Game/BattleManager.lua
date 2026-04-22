@@ -306,8 +306,17 @@ function BattleManager.UpdateWaves(dt)
                 end
             end
             if onlyBoss then
-                State.waveType = "boss"
-                print("[BattleManager] All minions cleared, only BOSS remains → activating BOSS timer phase")
+                -- 跳过Boss模式：只刷小怪，小怪清完直接判定失败
+                if cfg.mode == "campaign" and State.skipBoss then
+                    print("[BattleManager] skipBoss ON → minions cleared, auto-fail (skip BOSS)")
+                    State.phase = State.PHASE_GAME_OVER
+                    local AudioManager = require("Game.AudioManager")
+                    AudioManager.PlayDefeat()
+                    if cfg.onLose then cfg.onLose() end
+                else
+                    State.waveType = "boss"
+                    print("[BattleManager] All minions cleared, only BOSS remains → activating BOSS timer phase")
+                end
             end
         end
     end

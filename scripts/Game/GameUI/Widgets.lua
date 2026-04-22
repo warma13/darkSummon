@@ -261,6 +261,7 @@ function GameUI.CreateCurrencyDisplay()
         flexDirection = "column",
         alignItems = "flex-end",
         gap = 4,
+        pointerEvents = "box-none",
         children = {
             -- 退出副本按钮（仅副本模式显示）
             ctx.UI.Button {
@@ -274,6 +275,31 @@ function GameUI.CreateCurrencyDisplay()
                 onClick = function(self)
                     GameUI.ExitDungeonBattle()
                 end,
+            },
+            -- 挑战Boss切换按钮（冥晶上方）
+            ctx.UI.Panel {
+                id = "skipBossBtn",
+                paddingLeft = 8, paddingRight = 8,
+                paddingTop = 4, paddingBottom = 4,
+                borderRadius = 6,
+                borderWidth = 1,
+                borderColor = State.skipBoss and { 120, 120, 120, 160 } or { 220, 60, 60, 200 },
+                backgroundColor = State.skipBoss and { 50, 50, 50, 200 } or { 160, 30, 30, 220 },
+                pointerEvents = "auto",
+                alignItems = "center",
+                onClick = function(self)
+                    State.skipBoss = not State.skipBoss
+                    print("[GameUI] skipBoss toggled → " .. tostring(State.skipBoss))
+                end,
+                children = {
+                    ctx.UI.Label {
+                        id = "skipBossLabel",
+                        text = State.skipBoss and "挑战Boss:关" or "挑战Boss:开",
+                        fontSize = 10,
+                        fontColor = State.skipBoss and { 160, 160, 160, 255 } or { 255, 200, 200, 255 },
+                        fontWeight = "bold",
+                    },
+                },
             },
             GameUI.CurrencyPill("nether_crystal", "hudCrystalLabel", { 160, 100, 230 }),
             GameUI.CurrencyPill("shadow_essence", "hudEssenceLabel", { 180, 140, 255 }),

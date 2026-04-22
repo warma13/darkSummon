@@ -9,6 +9,9 @@ local Toast = require("Game.Toast")
 
 local TrialTower = {}
 
+-- DoChallenge 前置声明（实际定义在下方）
+local DoChallenge
+
 -- ============================================================================
 -- 试练塔详情页
 -- ============================================================================
@@ -618,22 +621,26 @@ local function BuildRewardItems(rewards)
     return items
 end
 
---- 核心挑战函数
-local function DoChallenge(UI, S, ctx, floor)
+--- 构建试练塔战斗配置
+---@param UI any
+---@param S any
+---@param ctx any
+---@param floor number  当前全局层数
+---@return table config  BattleManager 所需的配置
+local function BuildTrialConfig(UI, S, ctx, floor)
     local towerNum     = TrialTowerData.GetTowerNum(floor)
     local floorInTower = TrialTowerData.GetFloorInTower(floor)
     local isBoss       = (floorInTower == 10)
     local label        = "试练塔 " .. towerNum .. "-" .. floorInTower
 
-    local BM     = require("Game.BattleManager")
-    local GameUI = require("Game.GameUI")
+    local BM = require("Game.BattleManager")
 
     local waves = {}
     for w = 1, TrialTowerData.WAVE_COUNT do
         waves[w] = BM.BuildSpawnQueue(TrialTowerData.GenerateWaveEnemies(floor, w), 0.5)
     end
 
-    GameUI.EnterDungeonBattle({
+    return {
         mode             = "trial_tower",
         waves            = waves,
         totalWaves       = TrialTowerData.WAVE_COUNT,
@@ -649,9 +656,10 @@ local function DoChallenge(UI, S, ctx, floor)
         onWin = function(result)
             local rewards     = TrialTowerData.ClearFloor(floor)
             local rewardItems = rewards and BuildRewardItems(rewards) or {}
-            GameUI.ExitDungeonBattle()
+
+            require("Game.GameUI").ExitDungeonBattle()
             if #rewardItems > 0 then
-                local root = GameUI.GetUIRoot()
+                local root = require("Game.GameUI").GetUIRoot()
                 if root then
                     ShowTowerReward(UI, root, {
                         title = label .. " 通关",
@@ -663,9 +671,16 @@ local function DoChallenge(UI, S, ctx, floor)
 
         onLose = function(result)
             Toast.Show(label .. " 挑战失败 (第" .. result.wave .. "/" .. TrialTowerData.WAVE_COUNT .. "波)", S.red)
-            GameUI.ExitDungeonBattle()
+            require("Game.GameUI").ExitDungeonBattle()
         end,
-    })
+    }
+end
+
+--- 核心挑战函数（进入副本，走 EnterDungeonBattle 完整流程）
+DoChallenge = function(UI, S, ctx, floor)
+    local GameUI = require("Game.GameUI")
+    local config = BuildTrialConfig(UI, S, ctx, floor)
+    GameUI.EnterDungeonBattle(config)
 end
 
 function TrialTower.OnChallenge(UI, S, ctx)

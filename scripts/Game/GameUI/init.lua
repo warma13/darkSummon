@@ -90,6 +90,8 @@ local function GetHudRefs()
         speedBoostBtn    = uiRoot:FindById("speedBoostBtn"),
         speedBoostLabel  = uiRoot:FindById("speedBoostLabel"),
         exitDungeonBtn   = uiRoot:FindById("exitDungeonBtn"),
+        skipBossBtn      = uiRoot:FindById("skipBossBtn"),
+        skipBossLabel    = uiRoot:FindById("skipBossLabel"),
     }
     return hudCache.refs
 end
@@ -230,10 +232,11 @@ function GameUI.UpdateHUD()
         end
     end
 
-    -- ======== 退出副本按钮 ========
+    -- ======== 退出副本按钮（仅副本模式显示，主线不显示） ========
     if refs.exitDungeonBtn then
         local BM = require("Game.BattleManager")
-        refs.exitDungeonBtn:SetVisible(BM.IsActive())
+        local showExit = BM.IsActive() and BM.GetMode() ~= "campaign"
+        refs.exitDungeonBtn:SetVisible(showExit)
     end
 
     -- ======== 自动按钮状态（仅状态变化时更新） ========
@@ -296,6 +299,30 @@ function GameUI.UpdateHUD()
             if spdText ~= hudCache.speedText then
                 hudCache.speedText = spdText
                 refs.speedBoostLabel:SetText(spdText)
+            end
+        end
+    end
+
+    -- ======== 挑战Boss按钮（仅主线模式显示） ========
+    if refs.skipBossBtn then
+        local BM2 = require("Game.BattleManager")
+        local isCampaign = (not BM2.IsActive()) or BM2.GetMode() == "campaign"
+        refs.skipBossBtn:SetVisible(isCampaign)
+        local st = State.skipBoss and "off" or "on"
+        if st ~= hudCache.skipBossState then
+            hudCache.skipBossState = st
+            if State.skipBoss then
+                -- 跳过Boss（关闭挑战）
+                refs.skipBossBtn:SetStyle({ backgroundColor = { 50, 50, 50, 200 }, borderColor = { 120, 120, 120, 160 } })
+            else
+                -- 挑战Boss（开启）
+                refs.skipBossBtn:SetStyle({ backgroundColor = { 160, 30, 30, 220 }, borderColor = { 220, 60, 60, 200 } })
+            end
+            if refs.skipBossLabel then
+                refs.skipBossLabel:SetText(State.skipBoss and "挑战Boss:关" or "挑战Boss:开")
+                refs.skipBossLabel:SetStyle({
+                    fontColor = State.skipBoss and { 160, 160, 160, 255 } or { 255, 200, 200, 255 },
+                })
             end
         end
     end
@@ -1710,9 +1737,8 @@ function GameUI.EnterDungeonBattle(config)
     if ok2 and DTD and DTD.AddProgress then DTD.AddProgress("dungeon", 1) end
 end
 
---- 退出副本战斗：清理 BattleManager，由 afterExit 决定下一步进哪个战斗
---- @param afterExit function|nil  function(restoreStage) 由调用方控制下一步；nil 时默认恢复主线
-function GameUI.ExitDungeonBattle(afterExit)
+--- 退出副本战斗：清理 BattleManager，恢复主线 campaign，切回副本页
+function GameUI.ExitDungeonBattle()
     local BM = require("Game.BattleManager")
 
     -- 如果有 onExit 回调，先触发提前结算（回调内部会再次调用本函数完成真正退出）
@@ -1733,26 +1759,20 @@ function GameUI.ExitDungeonBattle(afterExit)
 
     BM.End()
 
-    -- 计算恢复关卡号（供 afterExit 或默认路径使用）
+    -- 恢复主线 campaign
     local restoreStage = savedCampaignStage or ((HeroData.stats.bestStage or 0) + 1)
     if restoreStage < 1 then restoreStage = 1 end
     savedCampaignStage = nil
 
-    if afterExit then
-        -- 由调用方决定下一步进哪个战斗
-        afterExit(restoreStage)
-    else
-        -- 默认：恢复主线战斗，切回副本页
-        BM.Enter("campaign", {
-            stageNum = restoreStage,
-            onWin    = function() GameUI.DoStageClear() end,
-            onLose   = function() GameUI.DoGameOver() end,
-        })
-        TabNav.SwitchTo("dungeon")
-        DungeonUI.Refresh()
-        GameUI.UpdateHUD()
-        print("[GameUI] Exited dungeon battle, restored campaign stage " .. restoreStage)
-    end
+    BM.Enter("campaign", {
+        stageNum = restoreStage,
+        onWin    = function() GameUI.DoStageClear() end,
+        onLose   = function() GameUI.DoGameOver() end,
+    })
+    TabNav.SwitchTo("dungeon")
+    DungeonUI.Refresh()
+    GameUI.UpdateHUD()
+    print("[GameUI] Exited dungeon battle, restored campaign stage " .. restoreStage)
 end
 
 return GameUI
