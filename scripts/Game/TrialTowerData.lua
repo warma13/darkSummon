@@ -366,7 +366,7 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
                 def.isElite = true
                 def.baseHP = def.baseHP * eliteHPMult
                 def.speed  = def.speed * eliteSpdMult
-                def.eliteAffixes = PickTowerAffixes(floor, eliteAffixCount)
+                -- def.eliteAffixes = PickTowerAffixes(floor, eliteAffixCount)
             end
 
             def.isDungeonEnemy = true
@@ -380,9 +380,9 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
         bossDef.baseHP  = bossDef.baseHP * hpScale * waveMult
         bossDef.speed   = bossDef.speed * spdScale * 0.7  -- Boss 略慢
         bossDef.isDungeonEnemy = true
-        -- BOSS 词缀：塔号决定数量（1~3），与缩放等级一致
-        local bossAffixCount = math.min(1 + math.floor(towerNum / 5), 3)
-        bossDef.bossAffixes = PickTowerAffixes(floor, bossAffixCount)
+        -- BOSS 词缀：已移除
+        -- local bossAffixCount = math.min(1 + math.floor(towerNum / 5), 3)
+        -- bossDef.bossAffixes = PickTowerAffixes(floor, bossAffixCount)
         enemies[#enemies + 1] = bossDef
     end
 

@@ -157,7 +157,7 @@ local function GenerateEliteWave(stageNum, waveInStage)
     local roleIds, roleDefs = GetUnlockedRoles(stageNum)
     local eliteRoleId = roleIds[math.random(1, #roleIds)]
     local eliteDef = roleDefs[eliteRoleId]
-    local affixes = PickAffixes(globalWave, stageNum)
+    -- local affixes = PickAffixes(globalWave, stageNum)
 
     -- 精英数量随关卡增加
     local eliteCount = 1
@@ -171,7 +171,7 @@ local function GenerateEliteWave(stageNum, waveInStage)
             typeDef = eliteDef,
             delay = 1.5,
             isElite = true,
-            affixes = affixes,
+            affixes = {},
         })
     end
 
@@ -208,13 +208,8 @@ local function GenerateBossWave(stageNum)
     local bossDef = Config.BuildBossDef(stageNum)
     local bossTier = GetBossTier(stageNum)
 
-    -- BOSS 词缀：阶数-1 个（缩放），上限 5
+    -- BOSS 词缀：已移除
     local bossAffixes = {}
-    if bossTier > 1 then
-        local level = math.max(1, math.floor(stageNum / 10))
-        local affixCount = math.min(bossTier - 1, 3)
-        bossAffixes = Config.PickAffixes(globalWave, affixCount, level)
-    end
 
     queue[#queue + 1] = {
         type = "__boss",
