@@ -3,6 +3,7 @@
 
 local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
+local SpriteSheet = require("Game.SpriteSheet")
 
 local HeroAvatar = {}
 
@@ -61,22 +62,29 @@ end
 -- 工具函数
 -- ============================================================================
 
+--- 获取英雄的 icon key（用于 SpriteSheet 查找）
+---@param heroId string
+---@return string
+local function GetIconKey(heroId)
+    if heroId == "leader" or (Config.LEADER_HERO and Config.LEADER_HERO.id == heroId) then
+        return Config.LEADER_HERO and Config.LEADER_HERO.icon or "leader"
+    end
+    for _, td in ipairs(Config.TOWER_TYPES) do
+        if td.id == heroId then
+            return td.icon or heroId
+        end
+    end
+    return heroId
+end
+
 --- 解析英雄头像图片路径
+--- 头像图来自 spritesheet 第一帧的裁切，存放在 image/avatars/avatar_{icon}.png
+--- 新增英雄时，生成 spritesheet 后须同步裁切第一帧作为头像
 ---@param heroId string
 ---@return string
 function HeroAvatar.GetPath(heroId)
-    -- 主角特殊处理
-    if heroId == "leader" or (Config.LEADER_HERO and Config.LEADER_HERO.id == heroId) then
-        local icon = Config.LEADER_HERO and Config.LEADER_HERO.icon or "leader"
-        return "image/avatars/avatar_" .. icon .. ".png"
-    end
-    -- 普通英雄：查 TOWER_TYPES 获取 icon
-    for _, td in ipairs(Config.TOWER_TYPES) do
-        if td.id == heroId then
-            return "image/avatars/avatar_" .. (td.icon or heroId) .. ".png"
-        end
-    end
-    return "image/avatars/avatar_" .. heroId .. ".png"
+    local icon = GetIconKey(heroId)
+    return "image/avatars/avatar_" .. icon .. ".png"
 end
 
 --- 获取英雄定义

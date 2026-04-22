@@ -128,4 +128,11 @@ function SpriteSheet.HasFrame(name, frameIdx)
     return frameIdx < s.cols
 end
 
+--- 获取精灵图定义（供 HeroAvatar 等外部模块读取 path/cols）
+---@param name string
+---@return { path: string, cols: number }|nil
+function SpriteSheet.GetDef(name)
+    return sheets[name]
+end
+
 return SpriteSheet
