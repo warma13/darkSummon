@@ -21,8 +21,8 @@ local AudioManager = require("Game.AudioManager")
 local Toast = require("Game.Toast")
 local SlotSaveSystem = require("Game.SlotSaveSystem")
 local SpeedBoost = require("Game.SpeedBoostData")
-local WorldBossSkills = require("Game.WorldBossSkills")
-local EmeraldBossSkills = require("Game.EmeraldBossSkills")
+-- WorldBossSkills / EmeraldBossSkills 不再在 main 中直接调用，
+-- 已通过 BattleConfig.onUpdate 回调由各副本自行管理
 local IdleScreen = require("Game.IdleScreen")
 local MiniGameUI = require("Game.MiniGameUI")
 
@@ -107,22 +107,15 @@ function StartGame(serverId)
         -- 从存档恢复关卡进度（bestStage + 1 = 下一关）
         local savedStage = (HeroData.stats.bestStage or 0) + 1
         if savedStage < 1 then savedStage = 1 end
-        State.currentStage = savedStage
 
-        State.phase = State.PHASE_PLAYING
-
-        -- 放置暗影君主到网格中心 (8x7网格，内部6x5，中心col=5,row=4)
-        local leader = Tower.CreateLeader(5, 4)
-        if leader then
-            leader.spawnTime = 0.6
-        end
-
-        -- 先设初始暗魂，再启动波次（StartNext 会在此基础上叠加波次奖励）
-        if isNewSlot then
-            HeroData.currencies.dark_soul = Config.INITIAL_DARK_SOUL
-        end
-
-        Wave.StartNext()
+        -- 统一通过 BattleManager 启动 campaign（消除双路径）
+        local BM = require("Game.BattleManager")
+        BM.Enter("campaign", {
+            stageNum = savedStage,
+            onWin  = function() GameUI.DoStageClear() end,
+            onLose = function() GameUI.DoGameOver() end,
+            initialDarkSoul = isNewSlot and Config.INITIAL_DARK_SOUL or nil,
+        })
 
         GameUI.UpdateHUD()
 
@@ -340,17 +333,9 @@ function HandleUpdate(eventType, eventData)
         -- 更新塔
         Tower.Update(dt)
 
-        -- 更新波次（生成敌人）
+        -- 更新波次（生成敌人）— campaign 现在也通过 BM 运行
         if BattleManager.IsActive() then
             BattleManager.UpdateWaves(dt)
-            -- 世界BOSS技能更新
-            if BattleManager.GetMode() == "world_boss" then
-                WorldBossSkills.Update(dt)
-            elseif BattleManager.GetMode() == "emerald_dungeon" then
-                EmeraldBossSkills.Update(dt)
-            end
-        else
-            Wave.Update(dt)
         end
 
         -- 更新敌人（移动）

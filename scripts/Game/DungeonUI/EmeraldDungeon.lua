@@ -892,6 +892,9 @@ function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
                 EmeraldBossSkills.Init(mechanics)
             end
         end,
+        onUpdate = function(dt)
+            EmeraldBossSkills.Update(dt)
+        end,
         onWin = function(result)
             EmeraldBossSkills.Cleanup()
             -- 所有波次通关

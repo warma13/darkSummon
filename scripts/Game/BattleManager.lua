@@ -31,7 +31,8 @@ local BattleManager = {}
 ---@field bossTimerEnabled boolean 是否启用 BOSS 倒计时
 ---@field overloadEnabled boolean  是否启用超限判定
 ---@field overloadLimit number|nil 超限敌人上限（nil 则使用 Config.MAX_ENEMIES）
----@field initialDarkSoul number|nil 开局初始暗魂（nil 则使用 Config.INITIAL_DARK_SOUL）
+---@field onUpdate function|nil     每帧更新回调 function(dt)，用于副本特有逻辑（如世界BOSS技能）
+---@field initialDarkSoul number|nil 开局初始暗魂（nil 则保持当前暗魂不覆盖）
 
 ---@type BattleConfig|nil
 BattleManager.config = nil
@@ -136,6 +137,7 @@ function BattleManager.Start(config)
     -- 重置状态
     State.Reset()
     Combat.Reset()
+    BattleManager._settled = false
 
     -- 保存配置
     BattleManager.config = {
@@ -151,14 +153,15 @@ function BattleManager.Start(config)
         bossTimerEnabled = config.bossTimerEnabled ~= false,  -- 默认 true
         overloadEnabled  = config.overloadEnabled ~= false,   -- 默认 true
         overloadLimit    = config.overloadLimit,                  -- nil = 使用 Config.MAX_ENEMIES
-        initialDarkSoul  = config.initialDarkSoul,                 -- nil = 使用 Config.INITIAL_DARK_SOUL
+        onUpdate         = config.onUpdate,                        -- 副本特有每帧回调
+        initialDarkSoul  = config.initialDarkSoul,                 -- nil = 保持当前暗魂不覆盖
         worldBossDuration     = config.worldBossDuration,          -- 世界BOSS专用时长（秒）
         worldBossDarkSoulDrain = config.worldBossDarkSoulDrain,    -- 世界BOSS每秒扣暗魂
     }
 
     -- 设置关卡号（用于 Combat 内部的一些逻辑）
     State.currentStage = config.stageNum or 1
-    State.phase = State.PHASE_PLAYING
+    State.SetPhase(State.PHASE_PLAYING, "BM.Start")
 
     -- 放置暗影君主到网格中心
     local leader = Tower.CreateLeader(5, 4)
@@ -170,7 +173,10 @@ function BattleManager.Start(config)
     BattleManager.StartNextWave()
 
     -- 设置开局初始暗魂（必须在 StartNextWave 之后，因为 StartNextWave 会加波次奖励）
-    HeroData.currencies.dark_soul = BattleManager.config.initialDarkSoul or Config.INITIAL_DARK_SOUL
+    -- nil 表示不覆盖（如 campaign 从存档恢复时保留当前暗魂）
+    if BattleManager.config.initialDarkSoul ~= nil then
+        HeroData.currencies.dark_soul = BattleManager.config.initialDarkSoul
+    end
 
     print("[BattleManager] Battle started: mode=" .. config.mode
         .. " waves=" .. config.totalWaves .. " label=" .. config.label)
@@ -187,6 +193,12 @@ function BattleManager.StartNextWave()
     if not cfg then return end
 
     State.currentWave = State.currentWave + 1
+
+    -- 新战斗第一波：重置伤害统计
+    if State.currentWave == 1 then
+        local DamageStats = require("Game.DamageStats")
+        DamageStats.Reset()
+    end
 
     -- 超过总波数不应该到这里
     if State.currentWave > cfg.totalWaves then return end
@@ -229,6 +241,14 @@ function BattleManager.StartNextWave()
     local enemyCount = 0
     for _, s in ipairs(queue) do
         if s.type ~= "__pause" then enemyCount = enemyCount + 1 end
+    end
+
+    -- campaign 模式下更新最高全局波次
+    if cfg.mode == "campaign" then
+        local globalWave = Wave.GlobalWave(State.currentStage, State.currentWave)
+        if globalWave > (HeroData.stats.bestGlobalWave or 0) then
+            HeroData.stats.bestGlobalWave = globalWave
+        end
     end
 
     print(string.format("[BattleManager] Wave %d/%d (%s) started, enemies=%d",
@@ -288,43 +308,209 @@ function BattleManager.UpdateWaves(dt)
     if cfg.mode ~= "world_boss"
        and currentWave >= cfg.totalWaves
        and spawnDone then
-        local aliveCount = Enemy.GetAliveCount()
-        if aliveCount == 0 then
-            State.waveActive = false
-            State.phase = State.PHASE_STAGE_CLEAR
-            local AudioManager = require("Game.AudioManager")
-            AudioManager.PlayVictory()
-            print("[BattleManager] === BATTLE WON! ===")
-        elseif State.waveType ~= "boss" then
-            -- 所有波次出完，仍有敌人存活：检查是否只剩 BOSS
-            -- 如果只剩 BOSS，激活 BOSS 计时器阶段（waveType → "boss"）
-            local onlyBoss = true
-            for _, e in ipairs(State.enemies) do
-                if e.alive and not e.isBoss then
-                    onlyBoss = false
-                    break
+
+        -- skipBoss 模式：小怪全清后重刷同一关（不打BOSS、不进入下一关）
+        if cfg.mode == "campaign" and State.skipBoss then
+            -- 检查是否只剩 BOSS 或全部清完
+            local aliveCount = Enemy.GetAliveCount()
+            local onlyBossLeft = false
+            if aliveCount > 0 then
+                onlyBossLeft = true
+                for _, e in ipairs(State.enemies) do
+                    if e.alive and not e.isBoss then
+                        onlyBossLeft = false
+                        break
+                    end
                 end
             end
-            if onlyBoss then
-                -- 跳过Boss模式：只刷小怪，小怪清完直接判定失败
-                if cfg.mode == "campaign" and State.skipBoss then
-                    print("[BattleManager] skipBoss ON → minions cleared, auto-fail (skip BOSS)")
-                    State.phase = State.PHASE_GAME_OVER
-                    local AudioManager = require("Game.AudioManager")
-                    AudioManager.PlayDefeat()
-                    if cfg.onLose then cfg.onLose() end
-                else
+            if aliveCount == 0 or onlyBossLeft then
+                -- 清除残留BOSS
+                if onlyBossLeft then
+                    for _, e in ipairs(State.enemies) do
+                        if e.alive and e.isBoss then
+                            e.alive = false
+                            e.hp = 0
+                        end
+                    end
+                end
+                -- 重置波次，从第一波重新开始同一关
+                print("[BattleManager] skipBoss ON → restarting stage from wave 1")
+                State.currentWave = 0
+                BattleManager._settled = false
+                BattleManager.StartNextWave()
+                return
+            end
+        else
+            -- 正常模式：通关判定
+            local aliveCount = Enemy.GetAliveCount()
+            if aliveCount == 0 then
+                State.waveActive = false
+                State.SetPhase(State.PHASE_STAGE_CLEAR, "BM.lastWaveClear")
+                local AudioManager = require("Game.AudioManager")
+                AudioManager.PlayVictory()
+                print("[BattleManager] === BATTLE WON! ===")
+            elseif State.waveType ~= "boss" then
+                -- 所有波次出完，仍有敌人存活：检查是否只剩 BOSS
+                -- 如果只剩 BOSS，激活 BOSS 计时器阶段（waveType → "boss"）
+                local onlyBoss = true
+                for _, e in ipairs(State.enemies) do
+                    if e.alive and not e.isBoss then
+                        onlyBoss = false
+                        break
+                    end
+                end
+                if onlyBoss then
                     State.waveType = "boss"
                     print("[BattleManager] All minions cleared, only BOSS remains → activating BOSS timer phase")
                 end
             end
         end
     end
+
+    -- ========================================================================
+    -- 以下逻辑从 GameUI.Update 迁移，统一由 BM 管理
+    -- ========================================================================
+
+    -- ── 超限判定 ──
+    if State.phase == State.PHASE_PLAYING and cfg.overloadEnabled then
+        local aliveCount = Enemy.GetAliveCount()
+        local maxEnemies = cfg.overloadLimit or Config.MAX_ENEMIES
+        if aliveCount > maxEnemies then
+            if not State.overloading then
+                State.overloading = true
+                State.overloadTimer = 0
+                print("[BattleManager] Overload started! enemies=" .. aliveCount)
+            end
+            State.overloadTimer = State.overloadTimer + dt
+            if State.overloadTimer >= Config.OVERLOAD_COUNTDOWN then
+                State.SetPhase(State.PHASE_GAME_OVER, "BM.overload")
+                State.overloading = false
+                local AudioManager = require("Game.AudioManager")
+                AudioManager.PlayDefeat()
+                print("[BattleManager] Overload timeout! Game over.")
+                BattleManager.OnLose()
+                return
+            end
+        else
+            if State.overloading then
+                print("[BattleManager] Overload cleared, enemies=" .. aliveCount)
+            end
+            State.overloading = false
+            State.overloadTimer = 0
+        end
+    end
+
+    -- ── BOSS 倒计时 ──
+    if State.phase == State.PHASE_PLAYING and cfg.bossTimerEnabled then
+        local isWorldBoss = cfg.mode == "world_boss"
+        local bossMaxTimer = (isWorldBoss and cfg.worldBossDuration) or Config.BOSS_TIMER_MAX
+
+        -- BOSS 激活检测
+        if State.waveType == "boss" and not State.bossActive then
+            for _, e in ipairs(State.enemies) do
+                if e.alive and e.isBoss then
+                    State.bossActive = true
+                    State.bossTimer = bossMaxTimer
+                    State.bossTimerMax = bossMaxTimer
+                    local bossName = e.typeDef and e.typeDef.name or "BOSS"
+                    State.bossIntro = { timer = 0, duration = 2.0, name = bossName }
+                    print("[BattleManager] BOSS fight started! Timer=" .. bossMaxTimer .. "s")
+                    break
+                end
+            end
+        end
+
+        if State.bossActive then
+            local bossAlive = false
+            for _, e in ipairs(State.enemies) do
+                if e.alive and e.isBoss then
+                    bossAlive = true
+                    break
+                end
+            end
+
+            if not bossAlive then
+                State.bossActive = false
+                State.bossTimer = 0
+                print("[BattleManager] BOSS defeated! Timer stopped.")
+            else
+                -- 世界BOSS每秒掉落暗魂
+                if isWorldBoss and cfg.worldBossDarkSoulDrain then
+                    local bossX, bossY = nil, nil
+                    for _, e in ipairs(State.enemies) do
+                        if e.alive and e.isBoss then
+                            bossX, bossY = e.x, e.y
+                            break
+                        end
+                    end
+                    if bossX then
+                        State.worldBossDrainAcc = (State.worldBossDrainAcc or 0) + dt
+                        while State.worldBossDrainAcc >= 1.0 do
+                            State.worldBossDrainAcc = State.worldBossDrainAcc - 1.0
+                            LootDrop.Spawn("dark_soul", cfg.worldBossDarkSoulDrain, bossX, bossY)
+                        end
+                    end
+                end
+
+                State.bossTimer = State.bossTimer - dt
+                if State.bossTimer <= 0 then
+                    State.bossTimer = 0
+                    State.bossActive = false
+
+                    if isWorldBoss then
+                        -- 世界BOSS到时 → 结算（算通关）
+                        State.SetPhase(State.PHASE_STAGE_CLEAR, "BM.worldBossTimeout")
+                        local AudioManager = require("Game.AudioManager")
+                        AudioManager.PlayVictory()
+                        print("[BattleManager] World BOSS timer up! Settling damage.")
+                        BattleManager.OnWin()
+                    else
+                        -- 普通BOSS超时 → 失败
+                        State.SetPhase(State.PHASE_GAME_OVER, "BM.bossTimeout")
+                        local AudioManager = require("Game.AudioManager")
+                        AudioManager.PlayDefeat()
+                        print("[BattleManager] BOSS timer expired! Game over.")
+                        BattleManager.OnLose()
+                    end
+                    return
+                end
+            end
+        end
+    else
+        -- 非 PLAYING 阶段或 bossTimer 未启用：清理 boss 状态
+        if State.bossActive then
+            State.bossActive = false
+            State.bossTimer = 0
+        end
+    end
+
+    -- ── 通关桥接（STAGE_CLEAR → OnWin） ──
+    if State.phase == State.PHASE_STAGE_CLEAR and not State.settleRewards then
+        State.settleRewards = true
+        BattleManager.OnWin()
+        return
+    end
+
+    -- ── 副本特有每帧逻辑（如世界BOSS技能、翡翠BOSS技能） ──
+    if cfg.onUpdate then
+        cfg.onUpdate(dt)
+    end
 end
 
 --- 生成单个敌人（支持预缩放的副本敌人）
 function BattleManager.SpawnEntry(entry)
     if entry.type == "__pause" then return end
+
+    -- skipBoss：跳过BOSS生成（campaign 模式下关闭挑战Boss时，不刷BOSS）
+    local cfg = BattleManager.config
+    if cfg and cfg.mode == "campaign" and State.skipBoss then
+        local isBoss = entry.type == "__boss"
+            or (entry.typeDef and (entry.typeDef.isBoss or entry.typeDef.isDungeonBoss))
+        if isBoss then
+            print("[BattleManager] skipBoss ON → skipping BOSS spawn")
+            return
+        end
+    end
 
     if entry.prescaled then
         -- 副本敌人：HP/DEF/Speed 已由副本模块预计算，hpScale=1, speedScale=1
@@ -345,10 +531,11 @@ function BattleManager.SpawnEntry(entry)
     end
 end
 
---- 战斗胜利处理
+--- 战斗胜利处理（_settled 防重入，一场战斗只结算一次）
 function BattleManager.OnWin()
     local cfg = BattleManager.config
-    if not cfg then return end
+    if not cfg or BattleManager._settled then return end
+    BattleManager._settled = true
 
     LootDrop.CollectAll()
 
@@ -367,10 +554,11 @@ function BattleManager.OnWin()
     print("[BattleManager] Win callback fired: mode=" .. cfg.mode)
 end
 
---- 战斗失败处理
+--- 战斗失败处理（_settled 防重入，一场战斗只结算一次）
 function BattleManager.OnLose()
     local cfg = BattleManager.config
-    if not cfg then return end
+    if not cfg or BattleManager._settled then return end
+    BattleManager._settled = true
 
     LootDrop.CollectAll()
 

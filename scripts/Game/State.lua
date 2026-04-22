@@ -13,8 +13,19 @@ State.PHASE_WAVE_READY = "wave_ready"
 State.PHASE_GAME_OVER = "game_over"      -- 失败（无奖励）
 State.PHASE_STAGE_CLEAR = "stage_clear"   -- 通关（有奖励）
 
+--- 统一阶段切换入口（带日志，便于调试流程跳转）
+---@param newPhase string  目标阶段常量
+---@param source string|nil 调用来源标识（可选，用于日志追踪）
+function State.SetPhase(newPhase, source)
+    local old = State.phase
+    if old == newPhase then return end
+    State.phase = newPhase
+    print(string.format("[State] phase: %s → %s%s", tostring(old), newPhase,
+        source and (" (" .. source .. ")") or ""))
+end
+
 function State.Reset()
-    State.phase = State.PHASE_MENU
+    State.SetPhase(State.PHASE_MENU, "State.Reset")
     State.score = 0
     State.currentStage = 1       -- 当前关卡号（局外持久化）
     State.currentWave = 0        -- 关内波次号 (1~20)

@@ -126,6 +126,16 @@ function GameUI.Init(uiModule)
         if data and not HUD_CURRENCIES[data.type] then return end
         GameUI.UpdateHUD()
     end)
+
+    -- 注册 BattleFlow UI 回调
+    local BattleFlow = require("Game.BattleFlow")
+    BattleFlow.RegisterHooks({
+        switchTab      = function(tab) TabNav.SwitchTo(tab) end,
+        updateHUD      = function() GameUI.UpdateHUD() end,
+        refreshDungeon = function() DungeonUI.Refresh() end,
+        doStageClear   = function() GameUI.DoStageClear() end,
+        doGameOver     = function() GameUI.DoGameOver() end,
+    })
 end
 
 -- 加载子模块
@@ -1431,147 +1441,7 @@ end
 
 --- 主更新循环
 function GameUI.Update(dt)
-    local Enemy = require("Game.Enemy")
-    local BM = require("Game.BattleManager")
-    local isBMActive = BM.IsActive()
-
-    if State.phase == State.PHASE_PLAYING then
-        -- 超限判定（BattleManager 模式下根据配置决定是否启用）
-        local overloadEnabled = true
-        if isBMActive and not BM.config.overloadEnabled then
-            overloadEnabled = false
-        end
-
-        if overloadEnabled then
-            local aliveCount = Enemy.GetAliveCount()
-            local maxEnemies = (isBMActive and BM.config.overloadLimit) or Config.MAX_ENEMIES
-            if aliveCount > maxEnemies then
-                if not State.overloading then
-                    State.overloading = true
-                    State.overloadTimer = 0
-                    print("[GameUI] Overload started! enemies=" .. aliveCount)
-                end
-                State.overloadTimer = State.overloadTimer + dt
-                if State.overloadTimer >= Config.OVERLOAD_COUNTDOWN then
-                    State.phase = State.PHASE_GAME_OVER
-                    State.overloading = false
-                    local AudioManager = require("Game.AudioManager")
-                    AudioManager.PlayDefeat()
-                    print("[GameUI] Overload timeout! Game over.")
-                    if isBMActive then
-                        BM.OnLose()
-                    else
-                        GameUI.DoGameOver()
-                    end
-                    return
-                end
-            else
-                if State.overloading then
-                    print("[GameUI] Overload cleared, enemies=" .. aliveCount)
-                end
-                State.overloading = false
-                State.overloadTimer = 0
-            end
-        end
-    end
-
-    if State.phase == State.PHASE_PLAYING then
-        -- BOSS 倒计时
-        local bossTimerEnabled = true
-        if isBMActive and not BM.config.bossTimerEnabled then
-            bossTimerEnabled = false
-        end
-
-        if bossTimerEnabled then
-            local isWorldBoss = isBMActive and BM.config.mode == "world_boss"
-            local bossMaxTimer = (isWorldBoss and BM.config.worldBossDuration) or Config.BOSS_TIMER_MAX
-
-            if State.waveType == "boss" and not State.bossActive then
-                for _, e in ipairs(State.enemies) do
-                    if e.alive and e.isBoss then
-                        State.bossActive = true
-                        State.bossTimer = bossMaxTimer
-                        State.bossTimerMax = bossMaxTimer
-                        -- BOSS 出场动画
-                        local bossName = e.typeDef and e.typeDef.name or "BOSS"
-                        State.bossIntro = { timer = 0, duration = 2.0, name = bossName }
-                        print("[GameUI] BOSS fight started! Timer=" .. bossMaxTimer .. "s")
-                        break
-                    end
-                end
-            end
-
-            if State.bossActive then
-                local bossAlive = false
-                for _, e in ipairs(State.enemies) do
-                    if e.alive and e.isBoss then
-                        bossAlive = true
-                        break
-                    end
-                end
-
-                if not bossAlive then
-                    State.bossActive = false
-                    State.bossTimer = 0
-                    print("[GameUI] BOSS defeated! Timer stopped.")
-                else
-                    -- 世界BOSS每秒掉落暗魂（可视掉落物 + 磁吸飞行）
-                    if isWorldBoss and BM.config.worldBossDarkSoulDrain then
-                        -- 找到 boss 屏幕坐标
-                        local bossX, bossY = nil, nil
-                        for _, e in ipairs(State.enemies) do
-                            if e.alive and e.isBoss then
-                                bossX, bossY = e.x, e.y
-                                break
-                            end
-                        end
-                        if bossX then
-                            State.worldBossDrainAcc = (State.worldBossDrainAcc or 0) + dt
-                            while State.worldBossDrainAcc >= 1.0 do
-                                State.worldBossDrainAcc = State.worldBossDrainAcc - 1.0
-                                local LootDrop = require("Game.LootDrop")
-                                LootDrop.Spawn("dark_soul", BM.config.worldBossDarkSoulDrain, bossX, bossY)
-                            end
-                        end
-                    end
-
-                    State.bossTimer = State.bossTimer - dt
-                    if State.bossTimer <= 0 then
-                        State.bossTimer = 0
-                        State.bossActive = false
-
-                        if isWorldBoss then
-                            -- 世界BOSS到时 → 结算（算通关）
-                            State.phase = State.PHASE_STAGE_CLEAR
-                            local AudioManager = require("Game.AudioManager")
-                            AudioManager.PlayVictory()
-                            print("[GameUI] World BOSS timer up! Settling damage.")
-                            if isBMActive then
-                                BM.OnWin()
-                            end
-                        else
-                            -- 普通BOSS超时 → 失败
-                            State.phase = State.PHASE_GAME_OVER
-                            local AudioManager = require("Game.AudioManager")
-                            AudioManager.PlayDefeat()
-                            print("[GameUI] BOSS timer expired! Game over.")
-                            if isBMActive then
-                                BM.OnLose()
-                            else
-                                GameUI.DoGameOver()
-                            end
-                        end
-                        return
-                    end
-                end
-            end
-        end
-    else
-        if State.bossActive then
-            State.bossActive = false
-            State.bossTimer = 0
-        end
-    end
+    -- 注：超限判定 + BOSS 倒计时 + 通关桥接已迁移到 BattleManager.UpdateWaves
 
     -- 自动召唤/合成定时触发
     if State.phase == State.PHASE_PLAYING or State.phase == State.PHASE_WAVE_READY then
@@ -1622,17 +1492,6 @@ function GameUI.Update(dt)
                     print("[GameUI] Auto-deploy repositioned towers")
                 end
             end
-        end
-    end
-
-    -- 通关判定
-    if State.phase == State.PHASE_STAGE_CLEAR and not State.settleRewards then
-        if isBMActive then
-            State.settleRewards = true  -- 防止下一帧重复调用 OnWin（重复结算奖励）
-            BM.OnWin()
-            return
-        else
-            GameUI.DoStageClear()
         end
     end
 
@@ -1708,71 +1567,17 @@ end
 -- 副本战斗入口/出口
 -- ============================================================================
 
---- 保存主线战斗状态（进副本前备份，出来后恢复）
-local savedCampaignStage = nil
-
---- 进入副本战斗：切换到战斗页面，启动 BattleManager
+--- 进入副本战斗（代理到 BattleFlow）
 ---@param config table BattleManager.Start 所需的配置
 function GameUI.EnterDungeonBattle(config)
-    local BM = require("Game.BattleManager")
-
-    -- 备份主线当前关卡
-    savedCampaignStage = (HeroData.stats.bestStage or 0) + 1
-    if savedCampaignStage < 1 then savedCampaignStage = 1 end
-
-    -- 切到战斗页
-    TabNav.SwitchTo("battle")
-
-    -- 启动战斗
-    BM.Start(config)
-
-    GameUI.UpdateHUD()
-    print("[GameUI] Entered dungeon battle: " .. (config.label or config.mode))
-
-    -- hook 开服好礼 dungeon 任务进度
-    local ok1, LGD = pcall(require, "Game.LaunchGiftData")
-    if ok1 and LGD then LGD.AddProgress("dungeon", 1) end
-    -- hook 每日任务 dungeon 进度
-    local ok2, DTD = pcall(require, "Game.DailyTaskData")
-    if ok2 and DTD and DTD.AddProgress then DTD.AddProgress("dungeon", 1) end
+    local BattleFlow = require("Game.BattleFlow")
+    BattleFlow.EnterDungeon(config)
 end
 
---- 退出副本战斗：清理 BattleManager，恢复主线 campaign，切回副本页
+--- 退出副本战斗（代理到 BattleFlow）
 function GameUI.ExitDungeonBattle()
-    local BM = require("Game.BattleManager")
-
-    -- 如果有 onExit 回调，先触发提前结算（回调内部会再次调用本函数完成真正退出）
-    if BM.config and BM.config.onExit then
-        local onExit = BM.config.onExit
-        BM.config.onExit = nil  -- 清除防止递归
-        local LootDrop = require("Game.LootDrop")
-        LootDrop.CollectAll()
-        local result = {
-            mode = BM.config.mode,
-            wave = State.currentWave,
-            totalWaves = BM.config.totalWaves,
-            score = State.score,
-        }
-        onExit(result)
-        return
-    end
-
-    BM.End()
-
-    -- 恢复主线 campaign
-    local restoreStage = savedCampaignStage or ((HeroData.stats.bestStage or 0) + 1)
-    if restoreStage < 1 then restoreStage = 1 end
-    savedCampaignStage = nil
-
-    BM.Enter("campaign", {
-        stageNum = restoreStage,
-        onWin    = function() GameUI.DoStageClear() end,
-        onLose   = function() GameUI.DoGameOver() end,
-    })
-    TabNav.SwitchTo("dungeon")
-    DungeonUI.Refresh()
-    GameUI.UpdateHUD()
-    print("[GameUI] Exited dungeon battle, restored campaign stage " .. restoreStage)
+    local BattleFlow = require("Game.BattleFlow")
+    BattleFlow.ExitDungeon()
 end
 
 return GameUI

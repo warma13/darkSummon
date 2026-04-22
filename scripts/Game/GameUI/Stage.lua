@@ -79,7 +79,7 @@ function GameUI.CreateWaveReadyPanel()
                         fontSize = 16,
                         onClick = function(self)
                             Wave.StartNext()
-                            State.phase = State.PHASE_PLAYING
+                            State.SetPhase(State.PHASE_PLAYING, "UI.waveReadyBtn")
                             GameUI.ShowPanel("waveReadyPanel", false)
                             GameUI.UpdateHUD()
                         end,

@@ -428,6 +428,9 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
         onStart = function()
             WorldBossSkills.Init()
         end,
+        onUpdate = function(dt)
+            WorldBossSkills.Update(dt)
+        end,
 
         onWin = function(result)
             WorldBossSkills.Cleanup()

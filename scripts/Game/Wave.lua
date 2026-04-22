@@ -410,7 +410,7 @@ function Wave.Update(dt)
        and spawnDone
        and Enemy.GetAliveCount() == 0 then
         State.waveActive = false
-        State.phase = State.PHASE_STAGE_CLEAR
+        State.SetPhase(State.PHASE_STAGE_CLEAR, "Wave.lastWaveClear")
         local AudioManager = require("Game.AudioManager")
         AudioManager.PlayVictory()
         print("[Wave] === STAGE " .. stageNum .. " CLEAR! ===")
