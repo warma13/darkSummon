@@ -42,7 +42,7 @@ local function StarScaleFactor(heroId)
     local h = HeroData.Get(heroId)
     local star = (h and h.star) or 0
     local maxStar = Config.MAX_HERO_STAR or 30
-    return 0.10 + 0.90 * math.min(star, maxStar) / maxStar
+    return 0.10 + 0.90 * math.sqrt(math.min(star, maxStar) / maxStar)
 end
 
 --- 自然光环完整帧更新（替代 UpdateNatureAura）
@@ -68,27 +68,15 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         local natForceDuration = td.natForceDuration or 8.0
         local starScale        = StarScaleFactor(td.id)
 
-        -- 技能等级解锁判断
-        local heroInfo  = HeroData.Get(elf.typeDef.id)
-        local elfLevel  = heroInfo and heroInfo.level or 1
-        local unlocks   = Config.SKILL_UNLOCK_LEVELS
-        local skill1On  = elfLevel >= (unlocks[1] or 100)    -- 自然馈赠（脉冲）
-        local skill2On  = elfLevel >= (unlocks[2] or 500)    -- 翠意庇护
-        local skill3On  = elfLevel >= (unlocks[3] or 1500)   -- 绿野之呼
-
         -- 计时器递减
         elf.natPulseTimer = (elf.natPulseTimer or 0) - dt
         elf.natActiveCd   = (elf.natActiveCd   or 0) - dt
 
-        -- 主动：绿野之呼（技能3，Lv.1500 解锁）
+        -- 主动：绿野之呼
         local activeFired = false
         if elf.natActiveCd <= 0 then
-            if skill3On then
-                elf.natActiveCd = td.activeCooldown or 20.0
-                activeFired = true
-            else
-                elf.natActiveCd = td.activeCooldown or 20.0
-            end
+            elf.natActiveCd = td.activeCooldown or 20.0
+            activeFired = true
         end
 
         -- 向所有英雄派发自然之力（被动脉冲范围内，主动全场）
@@ -98,8 +86,8 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             if t ~= elf then
                 local dx, dy = t._sx - elfX, t._sy - elfY
                 local inRange = dx * dx + dy * dy <= auraRangeSq
-                -- 被动①：定时脉冲（技能1，Lv.100 解锁，范围内）
-                if inRange and elf.natPulseTimer <= 0 and skill1On then
+                -- 被动①：定时脉冲（范围内）
+                if inRange and elf.natPulseTimer <= 0 then
                     local forceGain = td.natForcePerPulse or 3
                     t.naturalForce      = (t.naturalForce or 0) + forceGain
                     t.naturalForceTimer = natForceDuration
@@ -154,7 +142,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         end
 
         -- 脉冲触发后在翎嫣自身显示"自然馈赠"提示
-        if elf.natPulseTimer <= 0 and skill1On and pulseHit > 0 then
+        if elf.natPulseTimer <= 0 and pulseHit > 0 then
             State.AddFloatingText({
                 text     = "自然馈赠",
                 x        = elfX + (math.random() - 0.5) * 10,
@@ -200,12 +188,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             verdantDur    = td.verdantDuration   or 5.0
             verdantCd     = td.verdantCooldown   or 3.0
             elfAtk        = elf.attack or 0
-            -- 检查该翎嫣的技能2解锁状态
-            local heroInfo = HeroData.Get(elf.typeDef.id)
-            local elfLevel = heroInfo and heroInfo.level or 1
-            if elfLevel >= (Config.SKILL_UNLOCK_LEVELS[2] or 500) then
-                skill2On_global = true
-            end
+            skill2On_global = true  -- 翠意庇护始终生效
             break
         end
     end

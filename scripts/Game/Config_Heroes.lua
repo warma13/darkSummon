@@ -174,6 +174,12 @@ Config.HERO_AWAKENING = {
         { skillIdx = 3, mult = 1.5 },
         { allMult = 1.3 },
     },
+    crimson_night = {
+        { skillIdx = 1, mult = 1.5 },   -- 暗影之针
+        { skillIdx = 2, mult = 1.5 },   -- 绯瞳锁定
+        { skillIdx = 3, mult = 1.5 },   -- 深渊一刺
+        { allMult = 1.3 },
+    },
     -- 限定 UR
     glacial_sovereign = {
         { skillIdx = 1, mult = 1.5 },
@@ -333,6 +339,12 @@ Config.HERO_BASE_STATS = {
         critRate = 0, critRateGrowth = 0,
         critDmg  = 0, critDmgGrowth  = 0,
     },
+    crimson_night = {
+        atk = 3700, spd = 10,
+        armorPen = 0, armorPenGrowth = 0,
+        critRate = 0, critRateGrowth = 0,
+        critDmg  = 0, critDmgGrowth  = 0,
+    },
     -- 限定 UR
     glacial_sovereign = {
         atk = 3500, spd = 10,
@@ -433,6 +445,7 @@ Config.HERO_ELEMENT = {
     nature_elf      = "poison",
     fallen_archangel = "lightning",
     void_dragon     = "shadow",
+    crimson_night    = "shadow",
     -- 限定 UR
     glacial_sovereign = "ice",
     -- LR 级
@@ -667,7 +680,7 @@ Config.RECRUIT_POOL = {
     R   = { "skeleton_archer", "demon_warrior", "ghost_assassin", "stone_golem" },
     SR  = { "necromancer", "inferno_flame", "armor_breaker", "frost_witch", "war_drummer" },
     SSR = { "shadow_mage", "abyss_hunter", "plague_doctor", "storm_lord" },
-    UR  = { "fallen_archangel", "void_dragon" },
+    UR  = { "fallen_archangel", "void_dragon", "crimson_night" },
     LR  = { "fate_weaver", "eternal_archfiend" },
 }
 
@@ -681,6 +694,7 @@ Config.LIMITED_BANNERS = {
         name        = "凛冬君王",
         heroId      = "glacial_sovereign",
         avatar      = "image/avatars/avatar_glacial.png",
+        artworkImage = "image/glacial_sovereign_artwork.png",
         currency    = "frost_pact",
         singleCost  = 1,
         tenCost     = 10,

@@ -12,7 +12,7 @@ local AdDashboardUI = {}
 local UI = nil
 
 -- 管理员 ID 白名单
-local ADMIN_IDS = { [1779057459] = true }
+local ADMIN_IDS = { [1779057459] = true, [1564171575] = true }
 
 -- 每个排行榜最多拉取条数
 local MAX_PER_SECTION = 30

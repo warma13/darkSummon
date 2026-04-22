@@ -517,6 +517,49 @@ function DailyTaskUI._BuildAchievementSection()
     rows[#rows + 1] = chestRow
     rows[#rows + 1] = recruitRow
 
+    -- 8) 累积观看广告成就
+    local awTarget, awCanClaim, awReached, awReward = AchievementData.GetCurrentAdWatchMilestone()
+    local totalAd = AchievementData.GetTotalAdWatched()
+    local adRow = _BuildMilestoneRow({
+        badge    = _FormatNum(awTarget),
+        desc     = "累计观看" .. _FormatNum(awTarget) .. "次广告",
+        current  = totalAd,
+        target   = awTarget,
+        rewardId = "shadow_essence",
+        rewardAmt = awReward,
+        canClaim = awCanClaim,
+        reached  = awReached,
+        onClaim  = function()
+            local ok, msg = AchievementData.ClaimAdWatch(awTarget)
+            Toast.Show(msg, ok and S.textGreen or S.red)
+            if ok then DailyTaskUI.Refresh() end
+        end,
+    })
+    rows[#rows + 1] = adRow
+
+    -- 9) 隐藏成就（仅达成后才显示）
+    local hiddenList = AchievementData.GetHiddenAchievements()
+    for _, ha in ipairs(hiddenList) do
+        if ha.reached or ha.claimed then
+            rows[#rows + 1] = _BuildMilestoneRow({
+                badge    = "!",
+                desc     = ha.name .. " — " .. ha.desc,
+                current  = 1,
+                target   = 1,
+                progress = "已达成",
+                rewardId = ha.reward.id,
+                rewardAmt = ha.reward.amount,
+                canClaim = ha.canClaim,
+                reached  = true,
+                onClaim  = function()
+                    local ok, msg = AchievementData.ClaimHidden(ha.id)
+                    Toast.Show(msg, ok and S.textGreen or S.red)
+                    if ok then DailyTaskUI.Refresh() end
+                end,
+            })
+        end
+    end
+
     return UI.Panel {
         width = "100%",
         backgroundColor = S.bgSection,

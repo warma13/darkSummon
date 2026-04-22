@@ -81,6 +81,23 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn)
                 marginTop = 16,
                 zIndex = 1,
             },
+            -- 绯夜名称标签
+            UI.Panel {
+                paddingLeft = 16, paddingRight = 16,
+                paddingTop = 4, paddingBottom = 4,
+                backgroundColor = { 60, 20, 40, 200 },
+                borderRadius = 8,
+                borderWidth = 1,
+                borderColor = { 200, 50, 80, 150 },
+                children = {
+                    UI.Label {
+                        text = "绯夜",
+                        fontSize = 18,
+                        fontColor = { 200, 50, 80, 255 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
             -- 左侧广告领契约入口
             UI.Panel {
                 position = "absolute",
@@ -135,6 +152,15 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn)
                         backgroundColor = { 255, 60, 60, 255 },
                     } or nil,
                 },
+            },
+            -- 绯夜立绘
+            UI.Panel {
+                position = "absolute",
+                top = 0, left = 0, right = 0, bottom = 0,
+                backgroundImage = "image/绯夜_立绘_v5_20260422131608.png",
+                backgroundFit = "contain",
+                backgroundPosition = "center center",
+                pointerEvents = "none",
             },
             -- 详情入口按钮
             UI.Panel {
@@ -288,6 +314,97 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
     if old then pageRoot:RemoveChild(old) end
 
     local listChildren = {}
+
+    -- 绯夜英雄卡片
+    local cnHeroId = "crimson_night"
+    local cnName = "绯夜"
+    local cnColor = { 200, 50, 80 }
+    for _, td in ipairs(Config.TOWER_TYPES) do
+        if td.id == cnHeroId then
+            cnName = td.name
+            cnColor = td.color
+            break
+        end
+    end
+    listChildren[#listChildren + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        paddingTop = 10, paddingBottom = 10,
+        paddingLeft = 12, paddingRight = 12,
+        marginBottom = 6,
+        backgroundColor = { 50, 15, 30, 220 },
+        borderRadius = 8,
+        borderWidth = 2,
+        borderColor = { cnColor[1], cnColor[2], cnColor[3], 200 },
+        children = {
+            UI.Panel {
+                width = 36, height = 20,
+                justifyContent = "center", alignItems = "center",
+                backgroundColor = RARITY_COLORS["UR"],
+                borderRadius = 4, marginRight = 8,
+                children = {
+                    UI.Label { text = "UR", fontSize = 10, fontColor = { 20, 16, 32, 255 } },
+                },
+            },
+            UI.Label { text = cnName, fontSize = 15, fontColor = { cnColor[1], cnColor[2], cnColor[3], 255 }, fontWeight = "bold", flex = 1 },
+            UI.Label { text = "常驻精选", fontSize = 11, fontColor = { cnColor[1], cnColor[2], cnColor[3], 200 } },
+        },
+    }
+
+    -- 绯夜技能说明
+    local cnSkills = Config.HERO_SKILLS and Config.HERO_SKILLS[cnHeroId]
+    if cnSkills then
+        listChildren[#listChildren + 1] = UI.Panel {
+            width = "100%", flexDirection = "row", justifyContent = "flex-end",
+            paddingRight = 12, marginBottom = 2,
+            children = {
+                UI.Label {
+                    text = "* 以下为满星属性",
+                    fontSize = 10, fontColor = { 200, 160, 120, 180 },
+                },
+            },
+        }
+        for _, skill in ipairs(cnSkills) do
+            listChildren[#listChildren + 1] = UI.Panel {
+                width = "100%",
+                paddingTop = 6, paddingBottom = 6,
+                paddingLeft = 12, paddingRight = 12,
+                marginBottom = 3,
+                backgroundColor = { 40, 15, 25, 180 },
+                borderRadius = 6,
+                children = {
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 6, marginBottom = 3,
+                        children = {
+                            UI.Panel {
+                                paddingLeft = 5, paddingRight = 5, paddingTop = 1, paddingBottom = 1,
+                                backgroundColor = skill.type == "active"
+                                    and { 200, 120, 40, 200 } or { 60, 120, 180, 200 },
+                                borderRadius = 3,
+                                children = {
+                                    UI.Label {
+                                        text = skill.type == "active" and "主动" or "被动",
+                                        fontSize = 9, fontColor = { 255, 255, 255, 255 },
+                                    },
+                                },
+                            },
+                            UI.Label { text = skill.name, fontSize = 13, fontColor = { 220, 180, 200, 255 }, fontWeight = "bold" },
+                        },
+                    },
+                    UI.Label { text = skill.buildDesc and skill.buildDesc(1.0) or skill.desc, fontSize = 11, fontColor = { 180, 150, 170, 200 } },
+                },
+            }
+        end
+    end
+
+    -- 分割线
+    listChildren[#listChildren + 1] = UI.Panel {
+        width = "90%", height = 1,
+        backgroundColor = { 120, 40, 60, 100 },
+        alignSelf = "center",
+        marginBottom = 10,
+    }
 
     local rates = Config.RECRUIT_RATES
     local rateOrder = { "LR", "UR", "SSR", "SR", "R", "N" }

@@ -28,6 +28,8 @@ local cjson = cjson  -- 引擎内置全局变量
 Renderer.bgOverlayAlpha = 230  -- 默认90%（0.9*255≈230）
 -- 翎嫣光环圈常显开关（默认开启）
 Renderer.showNatureAuraRing = false
+-- 增减益标签显示开关（默认开启）
+Renderer.showBuffDebuffLabels = true
 
 local BG_SETTINGS_FILE = "bg_settings.json"
 
@@ -45,6 +47,9 @@ function Renderer.LoadBgSettings()
             if data.showNatureAuraRing ~= nil then
                 Renderer.showNatureAuraRing = data.showNatureAuraRing
             end
+            if data.showBuffDebuffLabels ~= nil then
+                Renderer.showBuffDebuffLabels = data.showBuffDebuffLabels
+            end
         end
     end
 end
@@ -53,8 +58,9 @@ function Renderer.SaveBgSettings()
     local f = File:new(BG_SETTINGS_FILE, FILE_WRITE)
     if f then
         f:WriteString(cjson.encode({
-            overlayAlpha       = Renderer.bgOverlayAlpha,
-            showNatureAuraRing = Renderer.showNatureAuraRing,
+            overlayAlpha         = Renderer.bgOverlayAlpha,
+            showNatureAuraRing   = Renderer.showNatureAuraRing,
+            showBuffDebuffLabels = Renderer.showBuffDebuffLabels,
         }))
         f:Close()
     end
@@ -67,6 +73,11 @@ end
 
 function Renderer.SetShowNatureAuraRing(show)
     Renderer.showNatureAuraRing = show
+    Renderer.SaveBgSettings()
+end
+
+function Renderer.SetShowBuffDebuffLabels(show)
+    Renderer.showBuffDebuffLabels = show
     Renderer.SaveBgSettings()
 end
 
@@ -771,39 +782,59 @@ function Renderer.DrawTowers(vg, ox, oy)
         DrawTowerIcon(vg, tower.typeDef.icon, cx, cy, size, tower.typeDef.color, tower.star, towerAlpha, tower)
         nvgRestore(vg)
 
-        -- ─── Debuff 头顶文字标签 ───
-        if not isDragged and Renderer.fontId >= 0 then
-            local debuffLabels = {}  -- { text, r, g, b }
+        -- ─── 头顶文字标签（减益 + 增益） ───
+        if not isDragged and Renderer.fontId >= 0 and Renderer.showBuffDebuffLabels then
+            local labels = {}  -- { text, r, g, b }
 
-            -- 荆棘禁锢
+            -- ── 减益 ──
             if Debuff.Has(tower, "shackle") then
-                debuffLabels[#debuffLabels + 1] = { "禁锢", 40, 160, 60 }
+                labels[#labels + 1] = { "禁锢", 40, 160, 60 }
             end
-            -- 沉寂领域
             if Debuff.Has(tower, "silence") then
-                debuffLabels[#debuffLabels + 1] = { "沉默", 140, 50, 200 }
+                labels[#labels + 1] = { "沉默", 140, 50, 200 }
             end
-            -- 自然衰竭
             if Tower.HasDebuff(tower, "emerald_decay_atk") then
-                debuffLabels[#debuffLabels + 1] = { "衰竭", 100, 140, 40 }
+                labels[#labels + 1] = { "衰竭", 100, 140, 40 }
             end
 
-            if #debuffLabels > 0 then
+            -- ── 增益（仅显示重要状态：免控、层数、临时增益） ──
+            -- 翠意庇护 → 显示"免控"（翎嫣免疫沉默+禁锢）
+            if tower.verdantActive then
+                labels[#labels + 1] = { "免控", 255, 220, 80 }
+            end
+            -- 翎嫣鲜花环（+攻击力临时增益）
+            if tower.wreathActive then
+                labels[#labels + 1] = { "鲜花环", 255, 150, 200 }
+            end
+            -- 绯夜缚瞳锁定层数（代码内部名 bloodEye，技能名"缚瞳锁定"）
+            if (tower.bloodEyeStacks or 0) > 0 then
+                labels[#labels + 1] = { "缚瞳x" .. tower.bloodEyeStacks, 220, 40, 60 }
+            end
+            -- 影法师灵魂收割层数
+            if (tower.soulReapStacks or 0) > 0 then
+                labels[#labels + 1] = { "收割x" .. tower.soulReapStacks, 180, 60, 220 }
+            end
+            -- 永恒大魔击杀层数
+            if (tower.killAtkStacks or 0) > 0 then
+                labels[#labels + 1] = { "杀意x" .. tower.killAtkStacks, 200, 50, 50 }
+            end
+            -- 英勇战歌（战鼓祭司全体主动技，临时增益）
+            if State.heroicAnthemBuff then
+                labels[#labels + 1] = { "战歌", 255, 220, 100 }
+            end
+
+            if #labels > 0 then
                 nvgFontFaceId(vg, Renderer.fontId)
                 nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
                 local labelY = cy - size * 0.55 - 2
-                -- 多个 debuff 时从上往下排列
-                for idx = #debuffLabels, 1, -1 do
-                    local lb = debuffLabels[idx]
+                for idx = #labels, 1, -1 do
+                    local lb = labels[idx]
                     local yPos = labelY - (idx - 1) * 13
-                    -- 呼吸闪烁（每个 debuff 用不同相位避免同步）
                     local pulse = math.sin(State.time * 3.5 + idx * 1.2) * 0.2 + 0.8
                     local a = math.floor(220 * pulse)
-                    -- 文字描边（黑底提高可读性）
                     nvgFontSize(vg, 10)
                     nvgFillColor(vg, nvgRGBA(0, 0, 0, a))
                     nvgText(vg, cx + 1, yPos + 1, lb[1], nil)
-                    -- 正文
                     nvgFillColor(vg, nvgRGBA(lb[2], lb[3], lb[4], a))
                     nvgText(vg, cx, yPos, lb[1], nil)
                 end

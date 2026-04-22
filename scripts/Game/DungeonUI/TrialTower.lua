@@ -9,8 +9,9 @@ local Toast = require("Game.Toast")
 
 local TrialTower = {}
 
--- DoChallenge 前置声明（实际定义在下方）
+-- 前置声明（实际定义在下方）
 local DoChallenge
+local BuildTrialConfig
 
 -- ============================================================================
 -- 试练塔详情页
@@ -330,13 +331,13 @@ function TrialTower._BuildChallengeButton(UI, S, ctx, currentFloor)
     local ticketDef = Config.CURRENCY["trial_ticket"]
     local ticketImg = ticketDef and ticketDef.image or "image/trial_ticket.png"
 
-    return UI.Panel {
+    -- 按钮行
+    local buttonRow = UI.Panel {
         width = "100%",
         flexDirection = "row",
         alignItems = "center",
         paddingLeft = 12, paddingRight = 12,
-        paddingTop = 10, paddingBottom = 10,
-        flexShrink = 0,
+        paddingTop = 6, paddingBottom = 10,
         gap = 8,
         children = {
             UI.Button {
@@ -399,6 +400,14 @@ function TrialTower._BuildChallengeButton(UI, S, ctx, currentFloor)
             },
         },
     }
+
+    return UI.Panel {
+        width = "100%",
+        flexShrink = 0,
+        children = {
+            buttonRow,
+        },
+    }
 end
 
 -- ============================================================================
@@ -407,37 +416,6 @@ end
 
 -- 试练塔专用奖励弹窗 ID
 local TOWER_REWARD_ID = "towerRewardPopup"
-
--- ---- 奖励弹窗倒计时（Update 事件驱动） ----
-local _cd = nil
-local _cdRegistered = false
-
-_G["_TrialTowerCdUpdate"] = function(eventType, eventData)
-    if not _cd then return end
-    _cd.elapsed = (_cd.elapsed or 0) + eventData:GetFloat("TimeStep")
-    local remain = math.max(0, math.ceil(_cd.total - _cd.elapsed))
-    if remain ~= _cd.lastRemain then
-        _cd.lastRemain = remain
-        if _cd.onTick then _cd.onTick(remain) end
-    end
-    if _cd.elapsed >= _cd.total then
-        local done = _cd.onDone
-        _cd = nil
-        if done then done() end
-    end
-end
-
-local function StartCountdown(seconds, onTick, onDone)
-    _cd = { total = seconds, elapsed = 0, lastRemain = math.ceil(seconds), onTick = onTick, onDone = onDone }
-    if not _cdRegistered then
-        _cdRegistered = true
-        SubscribeToEvent("Update", "_TrialTowerCdUpdate")
-    end
-end
-
-local function StopCountdown()
-    _cd = nil
-end
 
 --- 隐藏试练塔奖励弹窗
 local function HideTowerReward(root)
@@ -448,20 +426,18 @@ end
 --- 显示试练塔通关奖励弹窗
 --- @param UI any
 --- @param root any       UI 根节点
---- @param opts table     { title, items, onClose, countdown }
+--- @param opts table     { title, items, onClose }
 local function ShowTowerReward(UI, root, opts)
-    local title     = opts.title or "通关奖励"
-    local items     = opts.items or {}
-    local onClose   = opts.onClose
-    local countdown = opts.countdown  -- 秒数，nil 表示不自动关闭
+    local title   = opts.title or "通关奖励"
+    local items   = opts.items or {}
+    local onClose = opts.onClose
 
     HideTowerReward(root)
 
     local closed = false
-    local function dismiss()
+    local function doClose()
         if closed then return end
         closed = true
-        StopCountdown()
         HideTowerReward(root)
         if onClose then onClose() end
     end
@@ -540,23 +516,11 @@ local function ShowTowerReward(UI, root, opts)
         variant = "primary",
         width = 130,
         height = 44,
-        marginBottom = countdown and 4 or 18,
+        marginBottom = 18,
         marginTop = 6,
         flexShrink = 0,
-        onClick = function() dismiss() end,
+        onClick = function() doClose() end,
     }
-
-    -- 倒计时标签（连续挑战时显示）
-    if countdown and countdown > 0 then
-        inner[#inner + 1] = UI.Label {
-            id = "towerRewardCdLabel",
-            text = countdown .. "s 后自动继续",
-            fontSize = 12,
-            fontColor = { 120, 200, 255, 180 },
-            marginBottom = 14,
-            flexShrink = 0,
-        }
-    end
 
     local popup = UI.Panel {
         id = TOWER_REWARD_ID,
@@ -585,18 +549,6 @@ local function ShowTowerReward(UI, root, opts)
     }
 
     root:AddChild(popup)
-
-    -- 启动倒计时（连续挑战时自动关闭弹窗）
-    if countdown and countdown > 0 then
-        StartCountdown(
-            countdown,
-            function(remain)
-                local lbl = root:FindById("towerRewardCdLabel")
-                if lbl then lbl:SetText(remain .. "s 后自动继续") end
-            end,
-            dismiss
-        )
-    end
 end
 
 --- 构建奖励列表
@@ -627,7 +579,7 @@ end
 ---@param ctx any
 ---@param floor number  当前全局层数
 ---@return table config  BattleManager 所需的配置
-local function BuildTrialConfig(UI, S, ctx, floor)
+BuildTrialConfig = function(UI, S, ctx, floor)
     local towerNum     = TrialTowerData.GetTowerNum(floor)
     local floorInTower = TrialTowerData.GetFloorInTower(floor)
     local isBoss       = (floorInTower == 10)
@@ -670,7 +622,8 @@ local function BuildTrialConfig(UI, S, ctx, floor)
         end,
 
         onLose = function(result)
-            Toast.Show(label .. " 挑战失败 (第" .. result.wave .. "/" .. TrialTowerData.WAVE_COUNT .. "波)", S.red)
+            local msg = label .. " 挑战失败 (第" .. result.wave .. "/" .. TrialTowerData.WAVE_COUNT .. "波)"
+            Toast.Show(msg, { 255, 100, 100 })
             require("Game.GameUI").ExitDungeonBattle()
         end,
     }

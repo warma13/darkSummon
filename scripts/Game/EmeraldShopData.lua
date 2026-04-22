@@ -48,6 +48,7 @@ EmeraldShop.SHOP_ITEMS = {
         category = "core",
         name = "翎嫣碎片×10",
         icon = "linyan_oath",
+        image = "image/avatars/avatar_nature_elf.png",
         cost = 500,
         amount = 10,
         reward = { type = "fragment", id = "nature_elf", amount = 10 },
@@ -242,7 +243,7 @@ function EmeraldShop.Purchase(itemId)
     HeroData.Save(true)
 
     -- 构建奖励展示
-    local iconImg = Currency.GetImage(item.icon)
+    local iconImg = item.image or Currency.GetImage(item.icon)
     local rewards = {
         { icon = iconImg, name = item.name, amount = item.amount },
     }

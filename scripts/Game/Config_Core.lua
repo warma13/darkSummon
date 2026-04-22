@@ -334,6 +334,34 @@ Config.TOWER_TYPES = {
         icon       = "nature_elf",
         -- comingSoon 已移除，跟随限定池 unlockDate 统一控制
     },
+    {
+        id = "crimson_night",
+        name = "绯夜",
+        rarity = "UR",
+        color = { 200, 50, 80 },
+        glowColor = { 0.78, 0.20, 0.31 },
+        attackType = "single",
+        baseRange = 110,
+        baseSpeed = 0.9,
+        special = "high_damage",
+        -- 技能1：暗影之针
+        needleMaxStacks = 5,
+        needleStackDuration = 4.0,
+        needleBurstAtkPct = 2.0,
+        needleArmorIgnore = 0.20,
+        -- 技能2：绯瞳锁定
+        critRatePerHit = 0.03,
+        maxCritStacks = 10,
+        critDmgBonus = 0.50,
+        echoRatio = 0.50,
+        echoDuration = 2.0,
+        -- 技能3：深渊一刺
+        abyssBaseAtkPct = 8.0,
+        abyssStackBonusPct = 1.0,
+        abyssCooldown = 14,
+        faction = "undead",
+        icon = "crimson_night",
+    },
     -- 限定 UR: 凛冬君王（限定池专属，不进常驻池）
     {
         id = "glacial_sovereign",

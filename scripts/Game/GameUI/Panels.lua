@@ -19,17 +19,67 @@ local FormatNum = ctx.FormatNum
 local FormatStat = FormatNum  -- FormatStat 与 FormatNum 逻辑一致，统一使用
 local RARITY_COLORS = ctx.RARITY_COLORS
 
---- 攻击类型中文名
-local ATTACK_TYPE_NAMES = {
-    single = "单体", aoe = "范围", chain = "连锁",
+--- 攻击范围前缀
+local SCOPE_PREFIX = {
+    single = "单体", aoe = "群体", chain = "连锁", support = "",
 }
 
---- 特殊效果中文名
-local SPECIAL_NAMES = {
-    none = "无", slow = "减速", dot = "持续伤害",
-    amp_damage = "增伤标记", aura_buff = "攻击光环",
-    armor_break = "破甲",
+--- 战斗特性后缀 + 标签色
+local SPECIAL_SUFFIX = {
+    none        = { suffix = "",       color = { 150, 150, 180 } },
+    high_damage = { suffix = "爆发",   color = { 255, 80, 80 } },
+    fast_attack = { suffix = "速攻",   color = { 255, 180, 60 } },
+    boss_killer = { suffix = "斩杀",   color = { 255, 60, 120 } },
+    dot         = { suffix = "持伤",   color = { 200, 100, 60 } },
+    aoe_damage  = { suffix = "轰炸",   color = { 255, 140, 60 } },
+    slow        = { suffix = "减速",   color = { 100, 180, 255 } },
+    chill       = { suffix = "冰冻",   color = { 120, 210, 255 } },
+    armor_break = { suffix = "破甲",   color = { 255, 160, 80 } },
+    amp_damage  = { suffix = "增伤",   color = { 220, 160, 255 } },
+    aoe_control = { suffix = "控制",   color = { 160, 120, 255 } },
+    support     = { suffix = "增益",   color = { 100, 220, 140 } },
+    aura_buff   = { suffix = "光环",   color = { 120, 220, 100 } },
+    nature_aura = { suffix = "光环",   color = { 80, 200, 120 } },
+    leader      = { suffix = "统帅",   color = { 180, 120, 255 } },
 }
+
+--- 每个英雄的额外标签（技能衍生的能力描述）
+local HERO_EXTRA_TAGS = {
+    nature_elf        = { { name = "免控",   color = { 255, 220, 80 } } },   -- 翎嫣：自然之力满层禁锢负面效果
+    glacial_sovereign = { { name = "冻结",   color = { 120, 210, 255 } } },  -- 凛冬：满层寒意冻结
+    crimson_night     = { { name = "穿刺",   color = { 255, 80, 100 } } },   -- 绯夜：暗影之针无视护甲
+}
+
+--- 根据 typeDef 生成英雄定位标签列表
+local function getHeroRoleTags(td)
+    local tags = {}
+    local prefix = SCOPE_PREFIX[td.attackType] or ""
+    local info = SPECIAL_SUFFIX[td.special] or SPECIAL_SUFFIX.none
+
+    -- 主标签：攻击范围 + 特性
+    local mainName
+    if td.attackType == "support" then
+        -- 辅助型：不加前缀，直接用特性名
+        mainName = info.suffix ~= "" and info.suffix or "辅助"
+    elseif info.suffix == "" then
+        -- 无特殊：只显示攻击范围
+        mainName = prefix
+    else
+        -- 组合：如 "群体增伤"、"单体爆发"、"连锁减速"
+        mainName = prefix .. info.suffix
+    end
+    tags[#tags + 1] = { name = mainName, color = info.color }
+
+    -- 英雄额外标签
+    local extras = HERO_EXTRA_TAGS[td.id]
+    if extras then
+        for _, et in ipairs(extras) do
+            tags[#tags + 1] = et
+        end
+    end
+
+    return tags
+end
 
 --- 英雄信息面板（点击塔时顶栏下方显示）
 function GameUI.CreateHeroInfoPanel()
@@ -37,6 +87,7 @@ function GameUI.CreateHeroInfoPanel()
         id = "heroInfoPanel",
         position = "absolute",
         top = 52, left = 8, right = 8,
+        zIndex = 100,
         backgroundColor = { 15, 12, 28, 230 },
         borderRadius = 10,
         borderWidth = 1,
@@ -58,6 +109,16 @@ function GameUI.BuildHeroInfoContent(tower)
     local skills = Config.HERO_SKILLS[td.id] or {}
     local tierInfo = HeroData.GetStarTierInfo(td.id)
 
+    -- 元素信息
+    local heroElem = Config.HERO_ELEMENT and Config.HERO_ELEMENT[td.id]
+    local elemInfo = heroElem and Config.ELEMENTS and Config.ELEMENTS[heroElem]
+
+    -- 有效属性（含光环/技能加成）
+    local effCritRate = HeroSkills.GetEffectiveCritRate(tower)
+    local effCritDmg = Tower.GetEffectiveCritDmg(tower)
+    local effArmorPen = Tower.GetEffectiveArmorPen(tower)
+    local effDmgBonus = Tower.GetEffectiveDmgBonus and Tower.GetEffectiveDmgBonus(tower) or (tower.dmgBonus or 0)
+
     -- 属性行辅助函数
     local function StatRow(label, value, color, valueId)
         return ctx.UI.Panel {
@@ -70,199 +131,277 @@ function GameUI.BuildHeroInfoContent(tower)
         }
     end
 
-    -- 技能列表
-    local skillItems = {}
-    for i, sk in ipairs(skills) do
-        local typeTag = sk.type == "active" and "[主动]" or "[被动]"
-        skillItems[#skillItems + 1] = ctx.UI.Panel {
-            width = "100%",
-            flexDirection = "row",
-            gap = 6,
-            alignItems = "flex-start",
+    -- 使用显式 table.insert 构建返回数组，避免中间 nil 导致 ipairs 断裂
+    local result = {}
+
+    -- ① 第一行：头像 + 名称/品质/星级/元素
+    local nameRowChildren = {
+        ctx.UI.Label {
+            text = td.name,
+            fontSize = 15,
+            fontColor = rarityColor,
+            fontWeight = "bold",
+        },
+    }
+    if rarity ~= "none" then
+        nameRowChildren[#nameRowChildren + 1] = ctx.UI.Panel {
+            paddingLeft = 4, paddingRight = 4,
+            paddingTop = 1, paddingBottom = 1,
+            backgroundColor = rarityColor,
+            borderRadius = 3,
             children = {
-                -- 技能序号圆点
-                ctx.UI.Panel {
-                    width = 18, height = 18,
-                    borderRadius = 9,
-                    backgroundColor = rarityColor,
-                    justifyContent = "center", alignItems = "center",
-                    flexShrink = 0,
-                    children = {
-                        ctx.UI.Label { text = tostring(i), fontSize = 10, fontColor = { 255, 255, 255, 255 }, fontWeight = "bold" },
+                ctx.UI.Label { text = rarity, fontSize = 9, fontColor = { 20, 16, 32, 255 }, fontWeight = "bold" },
+            },
+        }
+    end
+    if elemInfo then
+        nameRowChildren[#nameRowChildren + 1] = ctx.UI.Panel {
+            paddingLeft = 4, paddingRight = 4,
+            paddingTop = 1, paddingBottom = 1,
+            backgroundColor = { elemInfo.color[1], elemInfo.color[2], elemInfo.color[3], 180 },
+            borderRadius = 3,
+            children = {
+                ctx.UI.Label { text = elemInfo.name, fontSize = 9, fontColor = { 255, 255, 255, 255 }, fontWeight = "bold" },
+            },
+        }
+    end
+
+    -- 详情行：等级/星级/觉醒
+    local detailText = "Lv." .. tower.heroLevel
+        .. "  ★" .. tower.star
+        .. "  " .. (tierInfo and tierInfo.name or "") .. (tower.heroStar or 0) .. "星"
+    if (tower.heroAwakening or 0) > 0 then
+        detailText = detailText .. "  觉醒" .. tower.heroAwakening
+    end
+
+    result[#result + 1] = ctx.UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        gap = 8,
+        alignItems = "center",
+        children = {
+            -- 头像
+            ctx.UI.Panel {
+                width = 48, height = 48,
+                children = {
+                    HeroAvatar.Create(td.id, {
+                        preset = "icon",
+                        borderRadius = 8,
+                        borderWidth = 1,
+                    }),
+                },
+            },
+            -- 名称信息
+            ctx.UI.Panel {
+                flex = 1, gap = 2,
+                children = {
+                    ctx.UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 6,
+                        flexWrap = "wrap",
+                        children = nameRowChildren,
+                    },
+                    ctx.UI.Label {
+                        text = detailText,
+                        fontSize = 11,
+                        fontColor = { 180, 170, 200, 200 },
                     },
                 },
-                ctx.UI.Panel {
-                    flex = 1, gap = 1,
-                    children = {
-                        ctx.UI.Label {
-                            text = typeTag .. " " .. sk.name,
-                            fontSize = 11,
-                            fontColor = { 220, 210, 240, 255 },
-                            fontWeight = "bold",
-                        },
-                        ctx.UI.Label {
-                            text = sk.desc or "",
-                            fontSize = 10,
-                            fontColor = { 150, 140, 170, 200 },
-                        },
-                    },
+            },
+            -- 关闭按钮
+            ctx.UI.Panel {
+                width = 28, height = 28,
+                borderRadius = 14,
+                backgroundColor = { 60, 50, 80, 150 },
+                justifyContent = "center", alignItems = "center",
+                pointerEvents = "auto",
+                onClick = function(self)
+                    State.selectedTower = nil
+                end,
+                children = {
+                    ctx.UI.Label { text = "✕", fontSize = 12, fontColor = { 180, 170, 200, 200 } },
+                },
+            },
+        },
+    }
+
+    -- ② 分隔线
+    result[#result + 1] = ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 60, 140, 80 } }
+
+    -- ③ 主属性区域（攻击/攻速/射程 — 始终显示）
+    result[#result + 1] = ctx.UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        gap = 12,
+        children = {
+            ctx.UI.Panel {
+                flex = 1, gap = 3,
+                children = {
+                    StatRow("攻击", FormatStat(HeroSkills.GetEffectiveAttack(tower)), { 255, 120, 80, 255 }, "heroPanel_atk"),
+                    StatRow("攻速", string.format("%.2f/s", 1.0 / HeroSkills.GetEffectiveSpeed(tower)), { 255, 200, 80, 255 }, "heroPanel_spd"),
+                },
+            },
+            ctx.UI.Panel {
+                flex = 1, gap = 3,
+                children = {
+                    StatRow("射程", tostring(math.floor(tower.range)), { 200, 180, 255, 255 }),
+                },
+            },
+        },
+    }
+
+    -- ④ 副属性区域（暴击/暴伤/破甲/伤害加成 — 始终显示）
+    local subStatLeft = {}
+    local subStatRight = {}
+
+    -- 暴击率
+    local critColor = effCritRate > 0 and { 255, 80, 80, 230 } or { 120, 110, 140, 180 }
+    subStatLeft[#subStatLeft + 1] = StatRow("暴击率", string.format("%.1f%%", effCritRate * 100), critColor)
+
+    -- 暴击伤害
+    local critDmgColor = effCritDmg > 0 and { 255, 100, 100, 230 } or { 120, 110, 140, 180 }
+    subStatLeft[#subStatLeft + 1] = StatRow("暴伤", string.format("%.0f%%", effCritDmg * 100), critDmgColor)
+
+    -- 破甲
+    local apColor = effArmorPen > 0 and { 255, 160, 80, 230 } or { 120, 110, 140, 180 }
+    subStatRight[#subStatRight + 1] = StatRow("破甲", string.format("%.1f%%", effArmorPen * 100), apColor)
+
+    -- 伤害加成
+    local dmgBonusColor = effDmgBonus > 0 and { 180, 220, 120, 230 } or { 120, 110, 140, 180 }
+    subStatRight[#subStatRight + 1] = StatRow("伤害加成", string.format("%.1f%%", effDmgBonus * 100), dmgBonusColor)
+
+    result[#result + 1] = ctx.UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        gap = 12,
+        children = {
+            ctx.UI.Panel { flex = 1, gap = 3, children = subStatLeft },
+            ctx.UI.Panel { flex = 1, gap = 3, children = subStatRight },
+        },
+    }
+
+    -- ⑤ 标签行：攻击方式 + 战斗特性 + 元素伤害加成
+    local tagChildren = {}
+
+    --- 创建单个彩色标签
+    local function addTag(text, color)
+        tagChildren[#tagChildren + 1] = ctx.UI.Panel {
+            paddingLeft = 5, paddingRight = 5,
+            paddingTop = 2, paddingBottom = 2,
+            backgroundColor = { color[1], color[2], color[3], 50 },
+            borderRadius = 4,
+            borderWidth = 1,
+            borderColor = { color[1], color[2], color[3], 120 },
+            children = {
+                ctx.UI.Label {
+                    text = text,
+                    fontSize = 10,
+                    fontColor = { color[1], color[2], color[3], 255 },
+                    fontWeight = "bold",
                 },
             },
         }
     end
 
-    return {
-        -- 第一行：头像 + 名称/品质/星级
-        ctx.UI.Panel {
+    -- 英雄定位标签（组合：群体增伤、单体爆发、免控 等）
+    local roleTags = getHeroRoleTags(td)
+    for _, tag in ipairs(roleTags) do
+        addTag(tag.name, tag.color)
+    end
+
+    -- 元素伤害加成标签
+    if tower.elemDmgBonus then
+        for elem, val in pairs(tower.elemDmgBonus) do
+            if val > 0 then
+                local ei = Config.ELEMENTS and Config.ELEMENTS[elem]
+                local eName = ei and ei.name or elem
+                local eColor = ei and ei.color or { 200, 200, 200 }
+                addTag(eName .. "伤+" .. string.format("%.0f%%", val * 100), eColor)
+            end
+        end
+    end
+
+    if #tagChildren > 0 then
+        result[#result + 1] = ctx.UI.Panel {
             width = "100%",
             flexDirection = "row",
-            gap = 8,
+            flexWrap = "wrap",
+            gap = 5,
             alignItems = "center",
-            children = {
-                -- 头像（统一组件）
-                ctx.UI.Panel {
-                    width = 48, height = 48,
-                    children = {
-                        HeroAvatar.Create(td.id, {
-                            preset = "icon",
-                            borderRadius = 8,
-                            borderWidth = 1,
-                        }),
+            children = tagChildren,
+        }
+    end
+
+    -- ⑥ 技能区域（始终显示，不再使用条件 nil）
+    if #skills > 0 then
+        result[#result + 1] = ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 60, 140, 80 } }
+        result[#result + 1] = ctx.UI.Label { text = "技能", fontSize = 11, fontColor = { 180, 170, 200, 220 }, fontWeight = "bold" }
+
+        for i, sk in ipairs(skills) do
+            local typeTag = sk.type == "active" and "[主动]" or "[被动]"
+            local typeColor = sk.type == "active" and { 255, 180, 80, 255 } or { 120, 200, 255, 255 }
+
+            -- 技能描述：主动技能补充冷却信息
+            local descText = sk.desc or ""
+            if sk.type == "active" and sk.interval then
+                descText = descText .. " (CD:" .. sk.interval .. "s)"
+            end
+
+            result[#result + 1] = ctx.UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                gap = 6,
+                alignItems = "flex-start",
+                children = {
+                    -- 技能序号圆点
+                    ctx.UI.Panel {
+                        width = 18, height = 18,
+                        borderRadius = 9,
+                        backgroundColor = rarityColor,
+                        justifyContent = "center", alignItems = "center",
+                        flexShrink = 0,
+                        children = {
+                            ctx.UI.Label { text = tostring(i), fontSize = 10, fontColor = { 255, 255, 255, 255 }, fontWeight = "bold" },
+                        },
                     },
-                },
-                -- 名称信息
-                ctx.UI.Panel {
-                    flex = 1, gap = 2,
-                    children = {
-                        ctx.UI.Panel {
-                            flexDirection = "row", alignItems = "center", gap = 6,
-                            children = {
-                                ctx.UI.Label {
-                                    text = td.name,
-                                    fontSize = 15,
-                                    fontColor = rarityColor,
-                                    fontWeight = "bold",
-                                },
-                                rarity ~= "none" and ctx.UI.Panel {
-                                    paddingLeft = 4, paddingRight = 4,
-                                    paddingTop = 1, paddingBottom = 1,
-                                    backgroundColor = rarityColor,
-                                    borderRadius = 3,
-                                    children = {
-                                        ctx.UI.Label { text = rarity, fontSize = 9, fontColor = { 20, 16, 32, 255 }, fontWeight = "bold" },
+                    ctx.UI.Panel {
+                        flex = 1, gap = 1,
+                        children = {
+                            ctx.UI.Panel {
+                                flexDirection = "row", alignItems = "center", gap = 4,
+                                children = {
+                                    ctx.UI.Panel {
+                                        paddingLeft = 3, paddingRight = 3,
+                                        backgroundColor = { typeColor[1], typeColor[2], typeColor[3], 60 },
+                                        borderRadius = 2,
+                                        children = {
+                                            ctx.UI.Label {
+                                                text = typeTag,
+                                                fontSize = 9,
+                                                fontColor = typeColor,
+                                            },
+                                        },
                                     },
-                                } or nil,
+                                    ctx.UI.Label {
+                                        text = sk.name,
+                                        fontSize = 11,
+                                        fontColor = { 220, 210, 240, 255 },
+                                        fontWeight = "bold",
+                                    },
+                                },
+                            },
+                            ctx.UI.Label {
+                                text = descText,
+                                fontSize = 10,
+                                fontColor = { 150, 140, 170, 200 },
                             },
                         },
-                        ctx.UI.Label {
-                            text = "Lv." .. tower.heroLevel
-                                .. "  ★" .. tower.star
-                                .. "  " .. (tierInfo and tierInfo.name or "") .. (tower.heroStar or 0) .. "星",
-                            fontSize = 11,
-                            fontColor = { 180, 170, 200, 200 },
-                        },
                     },
                 },
-                -- 关闭按钮
-                ctx.UI.Panel {
-                    width = 28, height = 28,
-                    borderRadius = 14,
-                    backgroundColor = { 60, 50, 80, 150 },
-                    justifyContent = "center", alignItems = "center",
-                    pointerEvents = "auto",
-                    onClick = function(self)
-                        State.selectedTower = nil
-                    end,
-                    children = {
-                        ctx.UI.Label { text = "✕", fontSize = 12, fontColor = { 180, 170, 200, 200 } },
-                    },
-                },
-            },
-        },
+            }
+        end
+    end
 
-        -- 分隔线
-        ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 60, 140, 80 } },
-
-        -- 属性区域
-        ctx.UI.Panel {
-            width = "100%",
-            flexDirection = "row",
-            gap = 12,
-            children = {
-                -- 左列属性
-                ctx.UI.Panel {
-                    flex = 1, gap = 3,
-                    children = {
-                        StatRow("攻击", FormatStat(HeroSkills.GetEffectiveAttack(tower)), { 255, 120, 80, 255 }, "heroPanel_atk"),
-                        StatRow("攻速", string.format("%.2f/s", 1.0 / HeroSkills.GetEffectiveSpeed(tower)), { 255, 200, 80, 255 }, "heroPanel_spd"),
-                    },
-                },
-                -- 右列属性
-                ctx.UI.Panel {
-                    flex = 1, gap = 3,
-                    children = {
-                        StatRow("射程", tostring(math.floor(tower.range)), { 200, 180, 255, 255 }),
-                        StatRow("类型", ATTACK_TYPE_NAMES[td.attackType] or td.attackType, { 200, 200, 200, 230 }),
-                    },
-                },
-            },
-        },
-
-        -- 副属性（如果有）
-        (tower.armorPen > 0 or tower.critRate > 0) and ctx.UI.Panel {
-            width = "100%",
-            flexDirection = "row",
-            gap = 12,
-            children = {
-                ctx.UI.Panel {
-                    flex = 1, gap = 3,
-                    children = {
-                        tower.armorPen > 0 and StatRow("破甲", string.format("%.1f%%", tower.armorPen * 100), { 255, 160, 80, 230 }) or nil,
-                    },
-                },
-                ctx.UI.Panel {
-                    flex = 1, gap = 3,
-                    children = {
-                        tower.critRate > 0 and StatRow("暴击", string.format("%.1f%%", tower.critRate * 100), { 255, 80, 80, 230 }) or nil,
-                        tower.critDmg > 0 and StatRow("暴伤", string.format("%.0f%%", tower.critDmg * 100), { 255, 100, 100, 230 }) or nil,
-                    },
-                },
-            },
-        } or nil,
-
-        -- 特殊效果
-        td.special ~= "none" and ctx.UI.Panel {
-            width = "100%",
-            flexDirection = "row",
-            gap = 4,
-            children = {
-                ctx.UI.Label { text = "特殊:", fontSize = 10, fontColor = { 140, 130, 160, 180 } },
-                ctx.UI.Panel {
-                    paddingLeft = 4, paddingRight = 4,
-                    paddingTop = 1, paddingBottom = 1,
-                    backgroundColor = { 80, 60, 140, 150 },
-                    borderRadius = 3,
-                    children = {
-                        ctx.UI.Label {
-                            text = SPECIAL_NAMES[td.special] or td.special,
-                            fontSize = 10,
-                            fontColor = { 200, 180, 255, 230 },
-                        },
-                    },
-                },
-            },
-        } or nil,
-
-        -- 技能区域
-        #skillItems > 0 and ctx.UI.Panel {
-            width = "100%", gap = 4,
-            children = {
-                ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 60, 140, 80 } },
-                ctx.UI.Label { text = "技能", fontSize = 11, fontColor = { 180, 170, 200, 220 }, fontWeight = "bold" },
-                table.unpack(skillItems),
-            },
-        } or nil,
-    }
+    return result
 end
 
 --- 底部操作栏（圆形召唤按钮）

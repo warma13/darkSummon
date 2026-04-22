@@ -97,6 +97,26 @@ ExchangeShopData.SHOP_ITEMS = {
         dailyLimit = 1,
         discount = "8折",
     },
+    {
+        id = "linyan_oath_x10",
+        name = "翎嫣之誓×10",
+        icon = "linyan_oath",
+        cost = 2400,
+        amount = 10,
+        reward = { type = "currency", id = "linyan_oath", amount = 10 },
+        dailyLimit = 1,
+        discount = "8折",
+    },
+    {
+        id = "recruit_select_box_x10",
+        name = "招募自选包×10",
+        icon = "recruit_ticket_select_box",
+        cost = 2400,
+        amount = 10,
+        reward = { type = "item", id = "recruit_ticket_select_box", amount = 10 },
+        dailyLimit = 1,
+        discount = "8折",
+    },
     -- 碎片箱类
     {
         id = "ur_shard_random_x2",

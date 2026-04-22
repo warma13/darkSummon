@@ -161,18 +161,9 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
                 },
             },
         },
-        -- 立绘区域（撑开剩余高度）
+        -- 立绘占位（撑开剩余高度，全屏立绘由绝对定位层覆盖）
         UI.Panel {
             flex = 1, width = "100%",
-            justifyContent = "center",
-            alignItems    = "center",
-            children = {
-                UI.Panel {
-                    width = 120, height = 150,
-                    backgroundImage = avatarPath,
-                    backgroundFit   = "contain",
-                },
-            },
         },
         -- 底部保底进度条（仅活跃期）
         not isLocked and UI.Panel {

@@ -950,7 +950,7 @@ end
 -- 技能系统（等级解锁）
 -- ============================================================================
 
---- 获取英雄已解锁的技能列表（按等级解锁）
+--- 获取英雄全部技能列表（不再需要等级解锁，强度由星级缩放控制）
 ---@param heroId string
 ---@return table  -- array of skill definitions
 function HeroData.GetUnlockedSkills(heroId)
@@ -960,18 +960,10 @@ function HeroData.GetUnlockedSkills(heroId)
     local skillDefs = Config.HERO_SKILLS[heroId]
     if not skillDefs then return {} end
 
+    -- 所有技能直接解锁，无等级门槛
     local skills = {}
-    -- 凛冬君王全被动技能，自动解锁全部
-    local autoUnlockAll = (heroId == "glacial_sovereign")
     for i, skillDef in ipairs(skillDefs) do
-        if autoUnlockAll then
-            skills[#skills + 1] = skillDef
-        else
-            local unlockLv = Config.SKILL_UNLOCK_LEVELS[i] or 999
-            if h.level >= unlockLv then
-                skills[#skills + 1] = skillDef
-            end
-        end
+        skills[#skills + 1] = skillDef
     end
     return skills
 end

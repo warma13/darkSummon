@@ -66,9 +66,11 @@ function SpriteSheet.Draw(vg, name, frameIdx, x, y, drawSize, alpha)
     local totalH = drawSize
     local ox = x - half - frameIdx * drawSize
     local oy = y - half
+    -- 右侧内缩 1px 避免纹理采样到相邻帧边缘（AI生成精灵图帧间泄漏）
+    local trim = 1
     local paint = nvgImagePattern(vg, ox, oy, totalW, totalH, 0, img, alpha / 255)
     nvgBeginPath(vg)
-    nvgRect(vg, x - half, y - half, drawSize, drawSize)
+    nvgRect(vg, x - half, y - half, drawSize - trim, drawSize)
     nvgFillPaint(vg, paint)
     nvgFill(vg)
 end

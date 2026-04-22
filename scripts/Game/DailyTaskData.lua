@@ -35,8 +35,8 @@ DailyTaskData.MILESTONES = {
       rewards = { { type = "chest", id = "bronze_chest", amount = 1 } } },
     { threshold = 85,  desc = "资源副本门票x1",
       rewards = { { type = "item", id = "dungeon_ticket", amount = 1 } } },
-    { threshold = 100, desc = "虚空契约x1",
-      rewards = { { type = "currency", id = "void_pact", amount = 1 } } },
+    { threshold = 100, desc = "免广券x1",
+      rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
 }
 
 -- ============================================================================

@@ -65,6 +65,23 @@ local RECRUIT_MILESTONES = {
     { count = 10000, reward = 100000 },
 }
 
+--- 累积观看广告次数成就：奖励暗影精粹
+local AD_WATCH_MILESTONES = {
+    { count = 1,      reward = 300 },
+    { count = 10,     reward = 1000 },
+    { count = 100,    reward = 20000 },
+    { count = 1000,   reward = 50000 },
+    { count = 10000,  reward = 100000 },
+    { count = 100000, reward = 1000000 },
+}
+
+--- 隐藏成就：当日在线24小时
+local HIDDEN_ACHIEVEMENTS = {
+    { id = "endless_night", name = "永夜不息", desc = "单日累积在线24小时",
+      thresholdSecs = 86400,
+      reward = { type = "currency", id = "shadow_essence", amount = 50000 } },
+}
+
 --- 排行榜名次缓存（异步获取）
 local _rankCache = {
     campaign = nil,   -- number|nil  我的主线排名
@@ -107,6 +124,8 @@ function AchievementData.EnsureData()
             lastLoginDate  = "",
             totalChestOpened = 0,
             totalRecruitCount = 0,
+            hiddenClaimed = {},  -- { ["endless_night"]=true, ... }
+            adWatchClaimed = {},  -- { ["1"]=true, ... }
         }
     end
     local d = HeroData.achievementData
@@ -117,6 +136,8 @@ function AchievementData.EnsureData()
     if d.rankTowerClaimed == nil then d.rankTowerClaimed = {} end
     if d.chestClaimed == nil then d.chestClaimed = {} end
     if d.recruitClaimed == nil then d.recruitClaimed = {} end
+    if d.hiddenClaimed == nil then d.hiddenClaimed = {} end
+    if d.adWatchClaimed == nil then d.adWatchClaimed = {} end
     if d.totalLoginDays == nil then d.totalLoginDays = 0 end
     if d.lastLoginDate == nil then d.lastLoginDate = "" end
     if d.totalChestOpened == nil then d.totalChestOpened = 0 end
@@ -134,6 +155,7 @@ function AchievementData.EnsureData()
     d.rankTowerClaimed = fixKeys(d.rankTowerClaimed)
     d.chestClaimed = fixKeys(d.chestClaimed)
     d.recruitClaimed = fixKeys(d.recruitClaimed)
+    d.adWatchClaimed = fixKeys(d.adWatchClaimed)
     return d
 end
 
@@ -521,6 +543,113 @@ function AchievementData.ClaimRecruit(targetCount)
 end
 
 -- ============================================================================
+-- 累积观看广告成就
+-- ============================================================================
+
+--- 获取累计观看广告数（从 AdTracker 读取）
+---@return number
+function AchievementData.GetTotalAdWatched()
+    local ok, AdTracker = pcall(require, "Game.AdTracker")
+    if ok and AdTracker then return AdTracker.GetTotalCount() end
+    return 0
+end
+
+--- 获取当前应显示的广告观看里程碑
+---@return number targetCount, boolean canClaim, boolean reached, number reward
+function AchievementData.GetCurrentAdWatchMilestone()
+    local data = AchievementData.EnsureData()
+    local total = AchievementData.GetTotalAdWatched()
+    for _, m in ipairs(AD_WATCH_MILESTONES) do
+        if not data.adWatchClaimed[tostring(m.count)] then
+            local reached = total >= m.count
+            return m.count, reached, reached, m.reward
+        end
+    end
+    local last = AD_WATCH_MILESTONES[#AD_WATCH_MILESTONES]
+    return last.count, false, true, last.reward
+end
+
+--- 领取广告观看里程碑奖励（免广券）
+---@param targetCount number
+---@return boolean success, string msg
+function AchievementData.ClaimAdWatch(targetCount)
+    local data = AchievementData.EnsureData()
+    local key = tostring(targetCount)
+    if data.adWatchClaimed[key] then return false, "已领取" end
+    local total = AchievementData.GetTotalAdWatched()
+    if total < targetCount then return false, "未达成（需观看" .. targetCount .. "次广告）" end
+    data.adWatchClaimed[key] = true
+    local reward = 0
+    for _, m in ipairs(AD_WATCH_MILESTONES) do
+        if m.count == targetCount then reward = m.reward; break end
+    end
+    Currency.GrantReward({ type = "currency", id = "shadow_essence", amount = reward }, "AchievementAdWatch")
+    HeroData.Save()
+    print("[Achievement] AdWatch " .. targetCount .. " claimed: +" .. reward .. " shadow_essence")
+    return true, "获得 暗影精粹x" .. reward
+end
+
+-- ============================================================================
+-- 隐藏成就
+-- ============================================================================
+
+--- 获取今日累积在线秒数（从 HeroData.stats 读取）
+---@return number
+local function _GetTodayOnlineSecs()
+    local stats = HeroData.stats
+    if not stats then return 0 end
+    local today = TodayStr()
+    if stats.onlineTimeDate ~= today then return 0 end
+    return stats.onlineTimeAccum or 0
+end
+
+--- 获取隐藏成就列表及状态
+---@return table[] list  { id, name, desc, canClaim, claimed, reached, reward }
+function AchievementData.GetHiddenAchievements()
+    local data = AchievementData.EnsureData()
+    local onlineSecs = _GetTodayOnlineSecs()
+    local result = {}
+    for _, ha in ipairs(HIDDEN_ACHIEVEMENTS) do
+        local claimed = data.hiddenClaimed[ha.id] or false
+        local reached = false
+        if ha.id == "endless_night" then
+            reached = onlineSecs >= ha.thresholdSecs
+        end
+        result[#result + 1] = {
+            id = ha.id, name = ha.name, desc = ha.desc,
+            canClaim = reached and not claimed,
+            claimed = claimed, reached = reached,
+            reward = ha.reward,
+        }
+    end
+    return result
+end
+
+--- 领取隐藏成就
+---@param id string
+---@return boolean success, string msg
+function AchievementData.ClaimHidden(id)
+    local data = AchievementData.EnsureData()
+    if data.hiddenClaimed[id] then return false, "已领取" end
+    local ha
+    for _, h in ipairs(HIDDEN_ACHIEVEMENTS) do
+        if h.id == id then ha = h; break end
+    end
+    if not ha then return false, "无效成就" end
+    -- 检查条件
+    if ha.id == "endless_night" then
+        if _GetTodayOnlineSecs() < ha.thresholdSecs then
+            return false, "未达成"
+        end
+    end
+    data.hiddenClaimed[id] = true
+    Currency.GrantReward(ha.reward, "AchievementHidden")
+    HeroData.Save()
+    print("[Achievement] Hidden '" .. ha.name .. "' claimed")
+    return true, "获得 暗影精粹x" .. ha.reward.amount
+end
+
+-- ============================================================================
 -- 红点
 -- ============================================================================
 
@@ -572,6 +701,18 @@ function AchievementData.HasClaimable()
         if totalRecruit >= m.count and not data.recruitClaimed[tostring(m.count)] then
             return true
         end
+    end
+    -- 累积观看广告成就
+    local totalAd = AchievementData.GetTotalAdWatched()
+    for _, m in ipairs(AD_WATCH_MILESTONES) do
+        if totalAd >= m.count and not data.adWatchClaimed[tostring(m.count)] then
+            return true
+        end
+    end
+    -- 隐藏成就
+    local hiddenList = AchievementData.GetHiddenAchievements()
+    for _, h in ipairs(hiddenList) do
+        if h.canClaim then return true end
     end
     return false
 end

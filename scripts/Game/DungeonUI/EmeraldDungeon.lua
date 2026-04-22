@@ -601,7 +601,19 @@ function EmeraldDungeon._BuildShopView(ctx)
                 local canBuy = remaining > 0 and tokenBalance >= item.cost
                 local soldOut = remaining == 0
 
-                local iconWidget = Currency.IconWidget(UI, item.icon, 28)
+                local iconWidget
+                if item.image then
+                    iconWidget = UI.Panel {
+                        width = 28, height = 28,
+                        backgroundImage = item.image,
+                        backgroundFit = "cover",
+                        borderRadius = 4,
+                        pointerEvents = "none",
+                        flexShrink = 0,
+                    }
+                else
+                    iconWidget = Currency.IconWidget(UI, item.icon, 28)
+                end
 
                 -- 标签
                 local tagWidget = nil

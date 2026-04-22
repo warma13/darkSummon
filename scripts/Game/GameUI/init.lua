@@ -360,7 +360,6 @@ function GameUI.CreateBattlePage()
             GameUI.CreateGameOverPanel(),
             GameUI.CreateStageClearPanel(),
             GameUI.CreateAfkButton(),
-            GameUI.CreateIdleRewardPanel(),
             GameUI.CreateMenuPanel(),
             -- 战报按钮（在x2加速上方）
             UI.Panel {
@@ -446,6 +445,10 @@ function GameUI.CreateUI()
 
     ctx.uiRoot = uiRoot
     GameUI.InvalidateHudCache()
+
+    -- 挂机收益弹窗：放在 uiRoot 层级，确保遮罩覆盖右侧按钮
+    GameUI._idleRewardPanel = GameUI.CreateIdleRewardPanel()
+    uiRoot:AddChild(GameUI._idleRewardPanel)
 
     GameUI._recruitPage = GameUI.CreateRecruitOverlay()
     uiRoot:AddChild(GameUI._recruitPage)

@@ -14,6 +14,7 @@ local MailboxData          = require("Game.MailboxData")
 local RewardDisplay        = require("Game.RewardDisplay")
 local ActivityData         = require("Game.ActivityData")
 local AccumulatedRewardData = require("Game.AccumulatedRewardData")
+local RewardIcon            = require("Game.RewardIcon")
 local DailyDealData        = require("Game.DailyDealData")
 local AdReliefData         = require("Game.AdReliefData")
 local TodayStr = require("Game.DateUtil").TodayStr
@@ -28,6 +29,17 @@ local FormatNum = ctx.FormatNum
 GameUI._afkStartTime = time.elapsedTime
 -- 上次更新显示的秒数（避免每帧刷新文本）
 GameUI._afkLastDisplaySec = -1
+
+-- 累积在线时长（持久化，跨会话累加，每日重置）
+GameUI._onlineSessionStart = time.elapsedTime
+do
+    local stats = HeroData.stats
+    local today = TodayStr()
+    if stats.onlineTimeDate ~= today then
+        stats.onlineTimeDate = today
+        stats.onlineTimeAccum = 0
+    end
+end
 
 -- ============================================================================
 -- 立即领取每日广告次数限制
@@ -61,6 +73,80 @@ local function RecordAfkAdClaim()
     HeroData.stats.afkAdCount = (HeroData.stats.afkAdCount or 0) + 1
 end
 
+-- ============================================================================
+-- 在线送好礼 — 里程碑奖励
+-- ============================================================================
+
+--- 里程碑配置（键用字符串避免反序列化问题）
+--- threshold: 秒，amount: 免广券数量
+local ONLINE_MILESTONES = {
+    { key = "m1",   threshold = 60,     amount = 1, label = "1分钟"  },
+    { key = "m5",   threshold = 300,    amount = 1, label = "5分钟"  },
+    { key = "m10",  threshold = 600,    amount = 2, label = "10分钟" },
+    { key = "m30",  threshold = 1800,   amount = 2, label = "30分钟" },
+    { key = "m60",  threshold = 3600,   amount = 3, label = "1小时"  },
+    { key = "m120", threshold = 7200,   amount = 3, label = "2小时"  },
+    { key = "m180", threshold = 10800,  amount = 4, label = "3小时"  },
+}
+
+--- 获取今日已领取的里程碑表
+local function GetTodayMilestones()
+    local stats = HeroData.stats
+    local today = TodayStr()
+    if stats.onlineMilestoneDate ~= today then
+        stats.onlineMilestoneDate = today
+        stats.onlineMilestones = {}
+    end
+    if not stats.onlineMilestones then
+        stats.onlineMilestones = {}
+    end
+    return stats.onlineMilestones
+end
+
+--- 领取里程碑奖励
+local function ClaimMilestone(key, amount)
+    local claimed = GetTodayMilestones()
+    if claimed[key] then return false end
+    claimed[key] = true
+    Currency.GrantReward({ type = "currency", id = "ad_ticket", amount = amount }, "OnlineMilestone")
+    HeroData.Save()
+    if ctx.uiRoot then
+        local def = Config.CURRENCY and Config.CURRENCY["ad_ticket"]
+        RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
+            title = "在线好礼",
+            rewards = {
+                { icon = def and def.image or "?", name = def and def.name or "免广告券", amount = amount },
+            },
+        })
+    end
+    return true
+end
+
+--- 获取今日累积在线时长（已持久化 + 本次会话）
+local function GetTodayOnlineSeconds()
+    local stats = HeroData.stats
+    local today = TodayStr()
+    if stats.onlineTimeDate ~= today then
+        stats.onlineTimeDate = today
+        stats.onlineTimeAccum = 0
+    end
+    local sessionElapsed = time.elapsedTime - GameUI._onlineSessionStart
+    return (stats.onlineTimeAccum or 0) + sessionElapsed
+end
+
+--- 持久化当前在线时长到 stats（由 UpdateAfkTimer 定期调用）
+local function SaveOnlineTime()
+    local stats = HeroData.stats
+    local today = TodayStr()
+    if stats.onlineTimeDate ~= today then
+        stats.onlineTimeDate = today
+        stats.onlineTimeAccum = 0
+        GameUI._onlineSessionStart = time.elapsedTime
+    end
+    stats.onlineTimeAccum = (stats.onlineTimeAccum or 0) + (time.elapsedTime - GameUI._onlineSessionStart)
+    GameUI._onlineSessionStart = time.elapsedTime
+end
+
 --- 格式化挂机时长
 ---@param secs number
 ---@return string
@@ -77,6 +163,88 @@ local function FormatAfkTime(secs)
     else
         return string.format("%ds", secs)
     end
+end
+
+--- 刷新里程碑区域 UI（弹窗打开时调用）
+local function RefreshMilestoneUI()
+    if not ctx.uiRoot then return end
+    local area = ctx.uiRoot:FindById("idleMilestoneArea")
+    if not area then return end
+
+    area:ClearChildren()
+
+    local elapsed = GetTodayOnlineSeconds()
+    local claimed = GetTodayMilestones()
+    -- 当前在线时长
+    area:AddChild(ctx.UI.Label {
+        text = "今日累积在线时长：" .. FormatAfkTime(math.floor(elapsed)),
+        fontSize = 13,
+        fontColor = { 180, 170, 200, 220 },
+    })
+    -- 分隔线
+    area:AddChild(ctx.UI.Panel {
+        width = "90%", height = 1,
+        marginTop = 2, marginBottom = 2,
+        backgroundColor = { 100, 70, 160, 100 },
+    })
+
+    -- 里程碑行（横向滚动排列）
+    local items = {}
+    for _, ms in ipairs(ONLINE_MILESTONES) do
+        local isClaimed = claimed[ms.key] == true
+        local isReady   = elapsed >= ms.threshold and not isClaimed
+        local isLocked  = elapsed < ms.threshold
+
+        local bgColor, borderColor, labelColor
+        if isClaimed then
+            bgColor     = { 40, 45, 55, 200 }
+            borderColor = { 60, 60, 70, 150 }
+            labelColor  = { 100, 100, 110, 180 }
+        elseif isReady then
+            bgColor     = { 40, 60, 30, 240 }
+            borderColor = { 80, 200, 120, 220 }
+            labelColor  = { 120, 255, 160, 255 }
+        else
+            bgColor     = { 30, 28, 40, 220 }
+            borderColor = { 80, 60, 120, 150 }
+            labelColor  = { 160, 140, 200, 200 }
+        end
+
+        items[#items + 1] = ctx.UI.Panel {
+            width = 62,
+            flexDirection = "column",
+            alignItems = "center",
+            justifyContent = "center",
+            gap = 3,
+            paddingTop = 6, paddingBottom = 6,
+            backgroundColor = bgColor,
+            borderRadius = 8,
+            borderWidth = isReady and 2 or 1,
+            borderColor = borderColor,
+            pointerEvents = "auto",
+            children = {
+                RewardIcon.Create(ctx.UI, 36, "ad_ticket", ms.amount, {
+                    muted = isClaimed,
+                    noTooltip = true,
+                }),
+                ctx.UI.Label {
+                    text = isClaimed and "已领" or ms.label,
+                    fontSize = 9,
+                    fontColor = isClaimed and { 100, 100, 110, 180 } or { 160, 140, 200, 200 },
+                },
+            },
+        }
+    end
+
+    area:AddChild(ctx.UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        justifyContent = "center",
+        flexWrap = "wrap",
+        gap = 6,
+        paddingLeft = 6, paddingRight = 6,
+        children = items,
+    })
 end
 
 --- 计算指定时长的挂机收益（基于当前关卡实际战斗掉落推算）
@@ -394,7 +562,7 @@ function GameUI.CreateAfkButton()
                     },
                 },
             },
-            -- 挂机奖励按钮
+            -- 挂机奖励按钮（双图标轮换）
             ctx.UI.Panel {
                 id = "afkButton",
                 width = btnSize, height = btnSize,
@@ -404,13 +572,29 @@ function GameUI.CreateAfkButton()
                 overflow = "hidden",
                 pointerEvents = "auto",
                 onClick = function(self)
+                    -- 根据当前图标阶段打开对应 tab
+                    GameUI._afkClickTab = (GameUI._afkIconSwitch == 1) and 2 or 1
                     GameUI.ClaimAfkReward()
                 end,
                 children = {
+                    -- 图标1: 挂机收益
                     ctx.UI.Panel {
+                        id = "afkIcon1",
+                        position = "absolute",
+                        top = 0, left = 0,
                         width = btnSize, height = btnSize,
                         backgroundImage = "image/icon_idle.png",
                         backgroundSize = "cover",
+                    },
+                    -- 图标2: 在线好礼
+                    ctx.UI.Panel {
+                        id = "afkIcon2",
+                        position = "absolute",
+                        top = 0, left = btnSize,
+                        width = btnSize, height = btnSize,
+                        backgroundImage = "image/icon_gift.png",
+                        backgroundSize = "cover",
+                        backgroundColor = { 30, 50, 40, 220 },
                     },
                     ctx.UI.Panel {
                         position = "absolute",
@@ -553,6 +737,14 @@ end
 --- 更新挂机计时显示（由 GameUI.Update 调用）
 function GameUI.UpdateAfkTimer()
     if not ctx.uiRoot then return end
+
+    -- 每30秒持久化在线时长
+    local now = time.elapsedTime
+    if not GameUI._lastOnlineSave or (now - GameUI._lastOnlineSave) >= 30 then
+        GameUI._lastOnlineSave = now
+        SaveOnlineTime()
+    end
+
     local elapsed = time.elapsedTime - GameUI._afkStartTime
     local PrivilegeData = require("Game.PrivilegeData")
     local DivineBlessDB = require("Game.DivineBlessData")
@@ -564,48 +756,85 @@ function GameUI.UpdateAfkTimer()
 
     local panel = ctx.uiRoot:FindById("afkTimeLabel")
     if panel then
-        local txt = FormatAfkTime(capped)
         local kids = panel:GetChildren()
         if kids then
-            for i = 1, #kids do
-                kids[i]:SetText(txt)
-            end
-            -- 可领取时前景 Label（最后一个）变金色，描边保持黑色
-            if capped >= Config.IDLE_MIN_SECONDS then
-                kids[#kids]:SetFontColor({ 255, 220, 80, 255 })
+            if GameUI._afkIconSwitch == 1 then
+                -- 好礼图标 → 显示累积在线时长
+                local onlineTxt = FormatAfkTime(math.floor(GetTodayOnlineSeconds()))
+                for i = 1, #kids do kids[i]:SetText(onlineTxt) end
+                kids[#kids]:SetFontColor({ 255, 200, 80, 255 })
+            else
+                -- 挂机图标 → 显示挂机时长
+                local txt = FormatAfkTime(capped)
+                for i = 1, #kids do kids[i]:SetText(txt) end
+                if capped >= Config.IDLE_MIN_SECONDS then
+                    kids[#kids]:SetFontColor({ 255, 220, 80, 255 })
+                end
             end
         end
     end
 
-    -- 弹窗打开时实时刷新时间和奖励数值
+    -- 双图标轮换（每10秒切换一次）
+    local ICON_SWITCH_INTERVAL = 10
+    if not GameUI._afkIconSwitch then GameUI._afkIconSwitch = 0 end
+    local switchPhase = math.floor(capped / ICON_SWITCH_INTERVAL) % 2
+    if switchPhase ~= GameUI._afkIconSwitch then
+        GameUI._afkIconSwitch = switchPhase
+        local icon1 = ctx.uiRoot:FindById("afkIcon1")
+        local icon2 = ctx.uiRoot:FindById("afkIcon2")
+        local btnSize = 56
+        if icon1 and icon2 then
+            if switchPhase == 0 then
+                -- 显示挂机图标
+                icon1:SetStyle({ left = 0 })
+                icon2:SetStyle({ left = btnSize })
+            else
+                -- 显示在线好礼图标
+                icon1:SetStyle({ left = -btnSize })
+                icon2:SetStyle({ left = 0 })
+            end
+        end
+        -- 底部文字切换
+        if panel then
+            local kids2 = panel:GetChildren()
+            if kids2 then
+                if switchPhase == 0 then
+                    local txt2 = FormatAfkTime(capped)
+                    for i = 1, #kids2 do kids2[i]:SetText(txt2) end
+                else
+                    local onlineTxt = FormatAfkTime(math.floor(GetTodayOnlineSeconds()))
+                    for i = 1, #kids2 do kids2[i]:SetText(onlineTxt) end
+                    kids2[#kids2]:SetFontColor({ 255, 200, 80, 255 })
+                end
+            end
+        end
+    end
+
+    -- 弹窗打开时实时刷新
     local idlePanel = ctx.uiRoot:FindById("idleRewardPanel")
     if idlePanel and idlePanel:IsVisible() and GameUI._pendingIdleRewards and not GameUI._pendingIdleRewards.isOffline then
-        -- 重新计算当前挂机收益
-        local rewards = CalcAfkRewardsNow()
-        GameUI._pendingIdleRewards = rewards
-
-        -- 刷新时间显示
-        local secs = rewards.seconds
-        local function fmtHMS(s)
-            s = math.floor(s)
-            local h = math.floor(s / 3600)
-            local m = math.floor((s % 3600) / 60)
-            local sec = s % 60
-            return string.format("%02d:%02d:%02d", h, m, sec)
+        -- 重新计算当前挂机收益（保留随机掉落，仅在整小时变化时重算）
+        local prev = GameUI._pendingIdleRewards
+        local newRewards = CalcAfkRewardsNow()
+        local prevHours = prev and math.floor(prev.seconds / 3600) or -1
+        local newHours = math.floor(newRewards.seconds / 3600)
+        if prevHours == newHours and prev then
+            newRewards.chestDrops = prev.chestDrops
+            newRewards.fragmentBoxDrops = prev.fragmentBoxDrops
         end
-        local remainSecs = math.max(0, maxSecs - secs)
-        local timeStr = "挂机 " .. fmtHMS(secs) .. "  剩余 " .. fmtHMS(remainSecs)
+        GameUI._pendingIdleRewards = newRewards
 
-        local timeLabel = ctx.uiRoot:FindById("idleTimeLabel")
-        if timeLabel then timeLabel:SetText(timeStr) end
-
-        -- 刷新奖励数值
-        local crystalLabel = ctx.uiRoot:FindById("idleCrystalLabel")
-        if crystalLabel then crystalLabel:SetText("冥晶: +" .. rewards.nether_crystal) end
-        local stoneLabel = ctx.uiRoot:FindById("idleStoneLabel")
-        if stoneLabel then stoneLabel:SetText("噬魂石: +" .. rewards.devour_stone) end
-        local ironLabel = ctx.uiRoot:FindById("idleIronLabel")
-        if ironLabel then ironLabel:SetText("锻魂铁: +" .. rewards.forge_iron) end
+        if GameUI._idleTabIndex == 1 then
+            -- tab1：刷新奖励文本（元素仅在 page1 挂载时存在）
+            GameUI._refreshIdlePage1()
+        elseif GameUI._idleTabIndex == 2 then
+            -- tab2：每 5 秒刷新一次里程碑状态
+            local nowMs = time.elapsedTime
+            if not GameUI._lastMilestoneRefresh or (nowMs - GameUI._lastMilestoneRefresh) >= 5 then
+                GameUI._lastMilestoneRefresh = nowMs
+                RefreshMilestoneUI()
+            end
+        end
     end
 end
 
@@ -745,8 +974,322 @@ end
 -- 挂机离线收益弹窗
 -- ============================================================================
 
---- 创建挂机收益面板（全屏遮罩 + 居中卡片）
+--- 构建 Page1 内容：挂机收益
+local function BuildIdlePage1()
+    return ctx.UI.Panel {
+        id = "idlePage1",
+        width = "100%",
+        alignItems = "center",
+        gap = 8,
+        children = {
+            ctx.UI.Label {
+                id = "idleTimeLabel",
+                text = "",
+                fontSize = 13,
+                fontColor = { 160, 150, 180, 200 },
+            },
+            -- 分隔线
+            ctx.UI.Panel {
+                width = "90%", height = 1,
+                marginTop = 2, marginBottom = 2,
+                backgroundColor = { 100, 70, 160, 100 },
+            },
+            -- 奖励行：冥晶
+            ctx.UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 8,
+                children = {
+                    Currency.IconWidget(ctx.UI, "nether_crystal", 20),
+                    ctx.UI.Label {
+                        id = "idleCrystalLabel",
+                        text = "冥晶: +0", fontSize = 15,
+                        fontColor = { 140, 80, 200, 255 },
+                    },
+                },
+            },
+            -- 奖励行：噬魂石
+            ctx.UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 8,
+                children = {
+                    Currency.IconWidget(ctx.UI, "devour_stone", 20),
+                    ctx.UI.Label {
+                        id = "idleStoneLabel",
+                        text = "噬魂石: +0", fontSize = 15,
+                        fontColor = { 60, 160, 80, 255 },
+                    },
+                },
+            },
+            -- 奖励行：锻魂铁
+            ctx.UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 8,
+                children = {
+                    Currency.IconWidget(ctx.UI, "forge_iron", 20),
+                    ctx.UI.Label {
+                        id = "idleIronLabel",
+                        text = "锻魂铁: +0", fontSize = 15,
+                        fontColor = { 130, 160, 200, 255 },
+                    },
+                },
+            },
+            -- 宝箱掉落区域（动态填充）
+            ctx.UI.Panel {
+                id = "idleChestDropArea",
+                width = "100%",
+                alignItems = "center",
+                gap = 4,
+            },
+            -- 分隔线
+            ctx.UI.Panel {
+                width = "90%", height = 1,
+                marginTop = 2, marginBottom = 2,
+                backgroundColor = { 100, 70, 160, 100 },
+            },
+            -- 按钮行：领取 + 立即领取
+            ctx.UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                justifyContent = "center",
+                alignItems = "center",
+                gap = 10,
+                children = {
+                    -- 领取按钮
+                    ctx.UI.Panel {
+                        id = "idleClaimBtn",
+                        paddingLeft = 24, paddingRight = 24,
+                        paddingTop = 10, paddingBottom = 10,
+                        backgroundColor = { 120, 80, 200, 255 },
+                        borderRadius = 8,
+                        borderWidth = 1,
+                        borderColor = { 180, 140, 255, 180 },
+                        alignItems = "center",
+                        justifyContent = "center",
+                        onClick = function(self)
+                            local pendingRewards = GameUI._pendingIdleRewards
+                            if pendingRewards then
+                                if pendingRewards.isOffline then
+                                    HeroData.ClaimIdleRewards(pendingRewards)
+                                    GameUI._pendingIdleRewards = nil
+                                    GameUI.ShowPanel("idleRewardPanel", false)
+                                    local rewardItems = BuildRewardItems(pendingRewards)
+                                    if #rewardItems > 0 and ctx.uiRoot then
+                                        RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
+                                            title = "离线收益",
+                                            rewards = rewardItems,
+                                        })
+                                    end
+                                else
+                                    local elapsed = time.elapsedTime - GameUI._afkStartTime
+                                    if elapsed < Config.IDLE_MIN_SECONDS then
+                                        Toast.Show("挂机不足" .. Config.IDLE_MIN_SECONDS .. "秒，无法领取")
+                                        return
+                                    end
+                                    GrantAndShowRewards(pendingRewards, "挂机收益")
+                                end
+                            end
+                        end,
+                        children = {
+                            ctx.UI.Label {
+                                text = "领取", fontSize = 16,
+                                fontColor = { 255, 255, 255 },
+                                fontWeight = "bold",
+                            },
+                        },
+                    },
+                    -- 立即领取按钮（看广告领满时长收益）
+                    ctx.UI.Panel {
+                        id = "idleAdClaimBtn",
+                        paddingLeft = 16, paddingRight = 16,
+                        paddingTop = 10, paddingBottom = 10,
+                        backgroundColor = { 200, 160, 50 },
+                        borderRadius = 8,
+                        borderWidth = 1,
+                        borderColor = { 255, 220, 100, 180 },
+                        flexDirection = "column",
+                        alignItems = "center",
+                        justifyContent = "center",
+                        gap = 2,
+                        onClick = function(self)
+                            if not CanAfkAdClaim() then
+                                Toast.Show("今日立即领取次数已用完", { 255, 100, 80 })
+                                return
+                            end
+                            local AdHelper = require("Game.AdHelper")
+                            AdHelper.ShowRewardAd(function()
+                                RecordAfkAdClaim()
+                                local maxRewards = CalcAfkRewardsMax()
+                                GrantAfkRewards(maxRewards)
+                                GameUI._pendingIdleRewards = nil
+                                GameUI.ShowPanel("idleRewardPanel", false)
+                                local rewardItems = BuildRewardItems(maxRewards)
+                                if #rewardItems > 0 and ctx.uiRoot then
+                                    RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
+                                        title = "满时长挂机收益",
+                                        rewards = rewardItems,
+                                    })
+                                end
+                            end)
+                        end,
+                        children = {
+                            ctx.UI.Panel {
+                                flexDirection = "row",
+                                alignItems = "center",
+                                gap = 4,
+                                children = {
+                                    ctx.UI.Panel {
+                                        width = 16, height = 16,
+                                        backgroundImage = "image/icon_watch_ad.png",
+                                        backgroundFit = "contain",
+                                    },
+                                    ctx.UI.Label {
+                                        id = "idleAdClaimText",
+                                        text = "立即领取", fontSize = 14,
+                                        fontColor = { 30, 20, 10 },
+                                        fontWeight = "bold",
+                                    },
+                                    ctx.UI.Label {
+                                        id = "idleAdClaimCount",
+                                        text = "", fontSize = 12,
+                                        fontColor = { 60, 40, 10, 200 },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+end
+
+--- 一键领取所有可领取的里程碑奖励
+local function ClaimAllMilestones()
+    local elapsed = GetTodayOnlineSeconds()
+    local claimed = GetTodayMilestones()
+    local totalAmount = 0
+    local count = 0
+    for _, ms in ipairs(ONLINE_MILESTONES) do
+        if elapsed >= ms.threshold and not claimed[ms.key] then
+            claimed[ms.key] = true
+            totalAmount = totalAmount + ms.amount
+            count = count + 1
+        end
+    end
+    if count > 0 then
+        Currency.GrantReward({ type = "currency", id = "ad_ticket", amount = totalAmount }, "OnlineMilestone")
+        HeroData.Save()
+        if ctx.uiRoot then
+            local def = Config.CURRENCY and Config.CURRENCY["ad_ticket"]
+            RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
+                title = "在线好礼",
+                rewards = {
+                    { icon = def and def.image or "?", name = def and def.name or "免广告券", amount = totalAmount },
+                },
+            })
+        end
+        RefreshMilestoneUI()
+    else
+        Toast.Show("暂无可领取的奖励", { 180, 160, 120 })
+    end
+end
+
+--- 构建 Page2 内容：在线送好礼
+local function BuildIdlePage2()
+    return ctx.UI.Panel {
+        id = "idlePage2",
+        width = "100%",
+        alignItems = "center",
+        gap = 6,
+        children = {
+            -- 里程碑奖励区域（动态填充）
+            ctx.UI.Panel {
+                id = "idleMilestoneArea",
+                width = "100%",
+                alignItems = "center",
+                gap = 4,
+                paddingTop = 4, paddingBottom = 4,
+            },
+            -- 分隔线
+            ctx.UI.Panel {
+                width = "90%", height = 1,
+                marginTop = 2, marginBottom = 2,
+                backgroundColor = { 100, 70, 160, 100 },
+            },
+            -- 一键领取按钮
+            ctx.UI.Panel {
+                id = "milestoneClaimAllBtn",
+                paddingLeft = 32, paddingRight = 32,
+                paddingTop = 10, paddingBottom = 10,
+                marginTop = 4,
+                backgroundColor = { 80, 180, 120, 255 },
+                borderRadius = 8,
+                borderWidth = 1,
+                borderColor = { 120, 220, 160, 200 },
+                alignItems = "center",
+                justifyContent = "center",
+                pointerEvents = "auto",
+                onClick = function(self)
+                    ClaimAllMilestones()
+                end,
+                children = {
+                    ctx.UI.Label {
+                        text = "领取",
+                        fontSize = 16,
+                        fontWeight = "bold",
+                        fontColor = { 255, 255, 255 },
+                    },
+                },
+            },
+        },
+    }
+end
+
+--- 切换挂机弹窗的 tab 页（add/remove 方式）
+---@param tabIndex number 1=挂机收益, 2=在线送好礼
+local function SwitchIdleTab(tabIndex)
+    if not ctx.uiRoot then return end
+    GameUI._idleTabIndex = tabIndex
+
+    local container = ctx.uiRoot:FindById("idleTabContent")
+    if not container then return end
+
+    -- 清空旧页面内容
+    container:ClearChildren()
+
+    -- 添加新页面
+    if tabIndex == 1 then
+        container:AddChild(BuildIdlePage1())
+        -- 若有待显示的奖励数据，刷新文本
+        GameUI._refreshIdlePage1()
+    else
+        container:AddChild(BuildIdlePage2())
+        RefreshMilestoneUI()
+    end
+
+    -- tab 高亮样式
+    local tab1 = ctx.uiRoot:FindById("idleTab1")
+    local tab2 = ctx.uiRoot:FindById("idleTab2")
+    local activeColor    = { 120, 80, 200, 255 }
+    local inactiveColor  = { 50, 45, 70, 200 }
+    local activeBorder   = { 180, 140, 255, 220 }
+    local inactiveBorder = { 80, 60, 120, 100 }
+
+    if tab1 then
+        tab1:SetStyle({
+            backgroundColor = tabIndex == 1 and activeColor or inactiveColor,
+            borderColor = tabIndex == 1 and activeBorder or inactiveBorder,
+        })
+    end
+    if tab2 then
+        tab2:SetStyle({
+            backgroundColor = tabIndex == 2 and activeColor or inactiveColor,
+            borderColor = tabIndex == 2 and activeBorder or inactiveBorder,
+        })
+    end
+end
+
+--- 创建挂机收益面板（全屏遮罩 + 居中卡片 + 双 tab 页，add/remove 切换）
 function GameUI.CreateIdleRewardPanel()
+    GameUI._idleTabIndex = 1
+
     local function closePanel()
         GameUI.ShowPanel("idleRewardPanel", false)
     end
@@ -760,15 +1303,12 @@ function GameUI.CreateIdleRewardPanel()
         alignItems = "center",
         backgroundColor = { 0, 0, 0, 180 },
         pointerEvents = "auto",
-        onClick = function(self)
-            -- 点击外部遮罩关闭
-            closePanel()
-        end,
+        onClick = function(self) closePanel() end,
         children = {
             ctx.UI.Panel {
-                width = 280,
+                width = 340,
                 paddingTop = 24, paddingBottom = 24,
-                paddingLeft = 20, paddingRight = 20,
+                paddingLeft = 24, paddingRight = 24,
                 gap = 8,
                 backgroundColor = { 20, 25, 50, 245 },
                 borderRadius = 16,
@@ -776,6 +1316,7 @@ function GameUI.CreateIdleRewardPanel()
                 borderColor = { 140, 80, 200, 200 },
                 alignItems = "center",
                 pointerEvents = "auto",
+                onClick = function(self) end,  -- 拦截点击，防止冒泡到遮罩关闭面板
                 children = {
                     -- 右上角 X 关闭按钮
                     ctx.UI.Panel {
@@ -785,212 +1326,71 @@ function GameUI.CreateIdleRewardPanel()
                         justifyContent = "center",
                         alignItems = "center",
                         pointerEvents = "auto",
-                        onClick = function(self)
-                            closePanel()
-                        end,
+                        onClick = function(self) closePanel() end,
                         children = {
                             ctx.UI.Label {
-                                text = "✕",
-                                fontSize = 18,
+                                text = "✕", fontSize = 18,
                                 fontColor = { 180, 160, 200, 200 },
                             },
                         },
                     },
-                    ctx.UI.Label {
-                        id = "idleTitleLabel",
-                        text = "挂机收益",
-                        fontSize = 24,
-                        fontColor = { 200, 170, 255, 255 },
-                    },
-                    ctx.UI.Label {
-                        id = "idleTimeLabel",
-                        text = "",
-                        fontSize = 13,
-                        fontColor = { 160, 150, 180, 200 },
-                    },
-                    -- 分隔线
-                    ctx.UI.Panel {
-                        width = "90%", height = 1,
-                        marginTop = 4, marginBottom = 4,
-                        backgroundColor = { 100, 70, 160, 100 },
-                    },
-                    -- 奖励行：冥晶
-                    ctx.UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 8,
-                        children = {
-                            Currency.IconWidget(ctx.UI, "nether_crystal", 20),
-                            ctx.UI.Label {
-                                id = "idleCrystalLabel",
-                                text = "冥晶: +0",
-                                fontSize = 15,
-                                fontColor = { 140, 80, 200, 255 },
-                            },
-                        },
-                    },
-                    -- 奖励行：噬魂石
-                    ctx.UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 8,
-                        children = {
-                            Currency.IconWidget(ctx.UI, "devour_stone", 20),
-                            ctx.UI.Label {
-                                id = "idleStoneLabel",
-                                text = "噬魂石: +0",
-                                fontSize = 15,
-                                fontColor = { 60, 160, 80, 255 },
-                            },
-                        },
-                    },
-                    -- 奖励行：锻魂铁
-                    ctx.UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 8,
-                        children = {
-                            Currency.IconWidget(ctx.UI, "forge_iron", 20),
-                            ctx.UI.Label {
-                                id = "idleIronLabel",
-                                text = "锻魂铁: +0",
-                                fontSize = 15,
-                                fontColor = { 130, 160, 200, 255 },
-                            },
-                        },
-                    },
-                    -- 宝箱掉落区域（动态填充）
-                    ctx.UI.Panel {
-                        id = "idleChestDropArea",
-                        width = "100%",
-                        alignItems = "center",
-                        gap = 4,
-                    },
-                    -- 分隔线
-                    ctx.UI.Panel {
-                        width = "90%", height = 1,
-                        marginTop = 4, marginBottom = 4,
-                        backgroundColor = { 100, 70, 160, 100 },
-                    },
-                    -- 按钮行：领取 + 立即领取
+                    -- ===== Tab 栏 =====
                     ctx.UI.Panel {
                         width = "100%",
                         flexDirection = "row",
                         justifyContent = "center",
-                        alignItems = "center",
-                        gap = 10,
+                        gap = 8,
+                        marginBottom = 4,
                         children = {
-                            -- 领取按钮
                             ctx.UI.Panel {
-                                id = "idleClaimBtn",
-                                paddingLeft = 24, paddingRight = 24,
-                                paddingTop = 10, paddingBottom = 10,
+                                id = "idleTab1",
+                                flex = 1,
+                                paddingTop = 8, paddingBottom = 8,
                                 backgroundColor = { 120, 80, 200, 255 },
                                 borderRadius = 8,
                                 borderWidth = 1,
-                                borderColor = { 180, 140, 255, 180 },
+                                borderColor = { 180, 140, 255, 220 },
                                 alignItems = "center",
                                 justifyContent = "center",
-                                onClick = function(self)
-                                    local pendingRewards = GameUI._pendingIdleRewards
-                                    if pendingRewards then
-                                        if pendingRewards.isOffline then
-                                            HeroData.ClaimIdleRewards(pendingRewards)
-                                            GameUI._pendingIdleRewards = nil
-                                            GameUI.ShowPanel("idleRewardPanel", false)
-                                            -- UpdateHUD 由 ClaimIdleRewards→Currency.Add("nether_crystal") 触发 EventBus 自动调用
-                                            -- 用 RewardDisplay 展示离线奖励
-                                            local rewardItems = BuildRewardItems(pendingRewards)
-                                            if #rewardItems > 0 and ctx.uiRoot then
-                                                RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
-                                                    title = "离线收益",
-                                                    rewards = rewardItems,
-                                                })
-                                            end
-                                        else
-                                            -- 挂机领取：检查最低时长
-                                            local elapsed = time.elapsedTime - GameUI._afkStartTime
-                                            if elapsed < Config.IDLE_MIN_SECONDS then
-                                                Toast.Show("挂机不足" .. Config.IDLE_MIN_SECONDS .. "秒，无法领取")
-                                                return
-                                            end
-                                            GrantAndShowRewards(pendingRewards, "挂机收益")
-                                        end
-                                    end
-                                end,
+                                pointerEvents = "auto",
+                                onClick = function(self) SwitchIdleTab(1) end,
                                 children = {
                                     ctx.UI.Label {
-                                        text = "领取",
-                                        fontSize = 16,
-                                        fontColor = { 255, 255, 255 },
+                                        text = "挂机收益",
+                                        fontSize = 14,
                                         fontWeight = "bold",
+                                        fontColor = { 255, 255, 255 },
                                     },
                                 },
                             },
-                            -- 立即领取按钮（看广告领满时长收益）
                             ctx.UI.Panel {
-                                id = "idleAdClaimBtn",
-                                paddingLeft = 16, paddingRight = 16,
-                                paddingTop = 10, paddingBottom = 10,
-                                backgroundColor = { 200, 160, 50 },
+                                id = "idleTab2",
+                                flex = 1,
+                                paddingTop = 8, paddingBottom = 8,
+                                backgroundColor = { 50, 45, 70, 200 },
                                 borderRadius = 8,
                                 borderWidth = 1,
-                                borderColor = { 255, 220, 100, 180 },
-                                flexDirection = "column",
+                                borderColor = { 80, 60, 120, 100 },
                                 alignItems = "center",
                                 justifyContent = "center",
-                                gap = 2,
-                                onClick = function(self)
-                                    if not CanAfkAdClaim() then
-                                        Toast.Show("今日立即领取次数已用完", { 255, 100, 80 })
-                                        return
-                                    end
-                                    local AdHelper = require("Game.AdHelper")
-                                    AdHelper.ShowRewardAd(function()
-                                        RecordAfkAdClaim()
-                                        local maxRewards = CalcAfkRewardsMax()
-                                        -- 广告领取：只发放奖励，不重置挂机计时
-                                        GrantAfkRewards(maxRewards)
-                                        GameUI._pendingIdleRewards = nil
-                                        GameUI.ShowPanel("idleRewardPanel", false)
-                                        local rewardItems = BuildRewardItems(maxRewards)
-                                        if #rewardItems > 0 and ctx.uiRoot then
-                                            RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
-                                                title = "满时长挂机收益",
-                                                rewards = rewardItems,
-                                            })
-                                        end
-                                    end)
-                                end,
+                                pointerEvents = "auto",
+                                onClick = function(self) SwitchIdleTab(2) end,
                                 children = {
-                                    ctx.UI.Panel {
-                                        flexDirection = "row",
-                                        alignItems = "center",
-                                        gap = 4,
-                                        children = {
-                                            ctx.UI.Panel {
-                                                width = 16, height = 16,
-                                                backgroundImage = "image/icon_watch_ad.png",
-                                                backgroundFit = "contain",
-                                            },
-                                            ctx.UI.Label {
-                                                id = "idleAdClaimText",
-                                                text = "立即领取",
-                                                fontSize = 14,
-                                                fontColor = { 30, 20, 10 },
-                                                fontWeight = "bold",
-                                            },
-                                        },
-                                    },
                                     ctx.UI.Label {
-                                        id = "idleAdClaimCount",
-                                        text = "",
-                                        fontSize = 10,
-                                        fontColor = { 60, 40, 10, 200 },
+                                        text = "在线送好礼",
+                                        fontSize = 14,
+                                        fontWeight = "bold",
+                                        fontColor = { 255, 255, 255 },
                                     },
                                 },
                             },
                         },
+                    },
+                    -- ===== 页面内容容器（由 SwitchIdleTab 动态填充） =====
+                    ctx.UI.Panel {
+                        id = "idleTabContent",
+                        width = "100%",
+                        alignItems = "center",
                     },
                 },
             },
@@ -998,16 +1398,11 @@ function GameUI.CreateIdleRewardPanel()
     }
 end
 
---- 显示挂机收益弹窗
----@param rewards table  HeroData.CalcIdleRewards() 的返回值
-function GameUI.ShowIdleRewards(rewards)
+--- 刷新 Page1 上的奖励数据文本（Page1 已挂载到 DOM 后调用）
+function GameUI._refreshIdlePage1()
+    local rewards = GameUI._pendingIdleRewards
     if not rewards or not ctx.uiRoot then return end
 
-    -- 暂存待领取奖励
-    GameUI._pendingIdleRewards = rewards
-
-    -- 格式化时长（HH:MM:SS 格式）
-    local secs = rewards.seconds
     local function fmtHMS(s)
         s = math.floor(s)
         local h = math.floor(s / 3600)
@@ -1017,15 +1412,12 @@ function GameUI.ShowIdleRewards(rewards)
     end
 
     local PrivilegeData = require("Game.PrivilegeData")
-    local maxSecs = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds()
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local maxSecs = Config.IDLE_MAX_SECONDS + PrivilegeData.GetIdleExtraSeconds() + DivineBlessDB.GetBuffValue("idle_extra")
+    local secs = rewards.seconds
     local remainSecs = math.max(0, maxSecs - secs)
-
     local prefix = rewards.isOffline and "离线" or "挂机"
     local timeStr = prefix .. " " .. fmtHMS(secs) .. "  剩余 " .. fmtHMS(remainSecs)
-
-    -- 更新文本
-    local titleLabel = ctx.uiRoot:FindById("idleTitleLabel")
-    if titleLabel then titleLabel:SetText(rewards.isOffline and "离线收益" or "挂机收益") end
 
     local timeLabel = ctx.uiRoot:FindById("idleTimeLabel")
     if timeLabel then timeLabel:SetText(timeStr) end
@@ -1074,7 +1466,6 @@ function GameUI.ShowIdleRewards(rewards)
                 end
             end
             if hasChest then
-                -- 加一条分隔线在宝箱区域前
                 chestArea:AddChild(ctx.UI.Panel {
                     width = "90%", height = 1,
                     marginTop = 2, marginBottom = 2,
@@ -1104,11 +1495,25 @@ function GameUI.ShowIdleRewards(rewards)
             end
             local adCount = ctx.uiRoot:FindById("idleAdClaimCount")
             if adCount then
-                adCount:SetText("今日剩余 " .. remaining .. "/" .. AFK_AD_DAILY_MAX .. " 次")
+                adCount:SetText(remaining .. "/" .. AFK_AD_DAILY_MAX)
                 adCount:SetFontColor(canClaim and { 60, 40, 10, 200 } or { 100, 90, 100, 150 })
             end
         end
     end
+end
+
+--- 显示挂机收益弹窗
+---@param rewards table  HeroData.CalcIdleRewards() 的返回值
+function GameUI.ShowIdleRewards(rewards)
+    if not rewards or not ctx.uiRoot then return end
+
+    -- 暂存待领取奖励
+    GameUI._pendingIdleRewards = rewards
+
+    -- 根据点击时的图标阶段切换到对应 tab
+    local targetTab = GameUI._afkClickTab or 1
+    GameUI._afkClickTab = nil
+    SwitchIdleTab(targetTab)
 
     GameUI.ShowPanel("idleRewardPanel", true)
 end

@@ -866,7 +866,12 @@ function SlotSaveSystem._FinalizeLoad(slotId, saveData, onComplete)
     saveConfirmed = true
     autoSaveTimer = 0
     dirtyTimer = -1
-    playTime = 0
+    -- 从 meta 摘要恢复已累积的游玩时长
+    local prevPlayTime = 0
+    if meta and meta.slots and meta.slots[tostring(slotId)] then
+        prevPlayTime = meta.slots[tostring(slotId)].playTime or 0
+    end
+    playTime = prevPlayTime
     healthy = true
 
     -- 从 headCache 恢复 saveSeq（下次保存从此序号 +1 开始，防止旧存档回滚）

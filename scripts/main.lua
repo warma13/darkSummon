@@ -19,6 +19,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local AudioManager = require("Game.AudioManager")
 local Toast = require("Game.Toast")
+local AchievementToast = require("Game.AchievementToast")
 local SlotSaveSystem = require("Game.SlotSaveSystem")
 local SpeedBoost = require("Game.SpeedBoostData")
 -- WorldBossSkills / EmeraldBossSkills 不再在 main 中直接调用，
@@ -295,6 +296,13 @@ function HandleKeyDown(eventType, eventData)
         else
             print("[Debug] F8 - 当前无试练塔战斗，已忽略 (mode=" .. tostring(BM.GetMode()) .. ")")
         end
+
+        -- 测试成就弹出动画
+        local testNames = { "永夜不息", "初露锋芒", "百战老兵", "暗影收割者", "虚空征服者" }
+        local testDescs = { "单日在线24小时", "完成首次战斗", "累计战斗100次", "击败1000个敌人", "通关虚空裂隙" }
+        local ri = math.random(1, #testNames)
+        AchievementToast.Show(testNames[ri], testDescs[ri])
+        print("[Debug] F8 - 测试成就弹出: " .. testNames[ri])
     end
 end
 
@@ -375,6 +383,7 @@ function HandleUpdate(eventType, eventData)
 
     -- 更新提示消息
     Toast.Update(rawDt)
+    AchievementToast.Update(rawDt)
 
     -- 更新云端存档系统（自动保存、脏标记、重试队列）
     SlotSaveSystem.Update(rawDt)
@@ -529,6 +538,7 @@ function HandleMouseDown(eventType, eventData)
         _YangMG_MouseDown(eventType, eventData)
         return
     end
+    if UI.IsPointerOverUI() then return end
     if InputDedup("mouse") then return end
     local button = eventData["Button"]:GetInt()
     if button ~= MOUSEB_LEFT then return end
@@ -556,6 +566,7 @@ end
 -- 触摸事件
 function HandleTouchBegin(eventType, eventData)
     if MiniGameUI.isActive() then return end
+    if UI.IsPointerOverUI() then return end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
     HandlePointerDown(x, y)
@@ -614,5 +625,6 @@ function HandleToastRender(eventType, eventData)
 
     nvgBeginFrame(toastVg, logW, logH, dpr)
     Toast.Draw(toastVg, logW, toastFontId)
+    AchievementToast.Draw(toastVg, logW, toastFontId)
     nvgEndFrame(toastVg)
 end

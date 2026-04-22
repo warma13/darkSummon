@@ -877,6 +877,30 @@ function GameUI.ShowSettingsPopup()
                         },
                     },
 
+                    -- 增减益标签显示
+                    ctx.UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        alignItems = "center",
+                        children = {
+                            ctx.UI.Label {
+                                text = "增减益标签",
+                                fontSize = 13,
+                                fontColor = { 180, 160, 220, 255 },
+                            },
+                            ctx.UI.Toggle {
+                                value = Renderer.showBuffDebuffLabels,
+                                trackWidth = 42,
+                                trackHeight = 24,
+                                thumbSize = 20,
+                                onChange = function(self, v)
+                                    Renderer.SetShowBuffDebuffLabels(v)
+                                end,
+                            },
+                        },
+                    },
+
                     ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 160, 120, 255, 40 } },
 
                     -- 手动保存

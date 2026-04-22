@@ -448,7 +448,7 @@ function ServerSelectUI.ShowAnnouncementPopup()
                                         fontColor = { 200, 200, 220, 220 },
                                     },
                                     UI.Label {
-                                        text = "限定池「苍华极脉」将于4月22日开放。",
+                                        text = "限定池「苍华极脉」已于4月22日开放。",
                                         fontSize = 13,
                                         fontColor = { 200, 200, 220, 220 },
                                     },
@@ -535,6 +535,61 @@ function ServerSelectUI.ShowAnnouncementPopup()
                                             UI.Label {
                                                 text = " x100张",
                                                 fontSize = 14,
+                                                fontColor = { 255, 200, 60, 255 },
+                                                fontWeight = "bold",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            -- 英雄设计师活动
+                            UI.Panel {
+                                width = "100%",
+                                backgroundColor = { 20, 40, 60, 200 },
+                                borderRadius = 8,
+                                borderWidth = 1,
+                                borderColor = { 100, 180, 255, 80 },
+                                paddingTop = 10, paddingBottom = 10,
+                                paddingLeft = 12, paddingRight = 12,
+                                gap = 4,
+                                children = {
+                                    UI.Label {
+                                        text = "英雄设计师活动",
+                                        fontSize = 14,
+                                        fontColor = { 255, 220, 100, 255 },
+                                        fontWeight = "bold",
+                                    },
+                                    UI.Label {
+                                        text = "在TapTap「暗影召唤师」论坛发帖，发表你关于LR英雄-永恒魔君的设计方案。",
+                                        fontSize = 12,
+                                        fontColor = { 220, 210, 230, 220 },
+                                    },
+                                    UI.Panel {
+                                        flexDirection = "row",
+                                        alignItems = "center",
+                                        flexWrap = "wrap",
+                                        gap = 4,
+                                        children = {
+                                            UI.Label {
+                                                text = "奖励：",
+                                                fontSize = 12,
+                                                fontColor = { 180, 180, 200, 200 },
+                                            },
+                                            UI.Label {
+                                                text = "大量限定抽奖券",
+                                                fontSize = 12,
+                                                fontColor = { 130, 210, 255, 255 },
+                                                fontWeight = "bold",
+                                            },
+                                            UI.Label {
+                                                text = " + 暗影精粹",
+                                                fontSize = 12,
+                                                fontColor = { 200, 130, 255, 255 },
+                                                fontWeight = "bold",
+                                            },
+                                            UI.Label {
+                                                text = " + 限定称号",
+                                                fontSize = 12,
                                                 fontColor = { 255, 200, 60, 255 },
                                                 fontWeight = "bold",
                                             },

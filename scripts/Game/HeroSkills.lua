@@ -65,6 +65,7 @@ local _modules = {
     eternal_archfiend = require("Game.Heroes.eternal_archfiend"),
     leader            = require("Game.Heroes.leader"),
     nature_elf        = require("Game.Heroes.nature_elf"),
+    crimson_night     = require("Game.Heroes.crimson_night"),
 }
 
 -- 按 hook 类型缓存有实现的模块列表（避免每帧遍历所有模块）
@@ -183,6 +184,20 @@ local function ApplySkillMult(skill, mult)
     end
 end
 
+--- 星级缩放：0星→10%，满星→100%，线性插值
+--- 与 ApplySkillMult 不同：即使 factor < 1.0 也应用，且不影响 interval
+---@param skill table  克隆后的技能
+---@param factor number  0.10 ~ 1.00
+local function ApplyStarScale(skill, factor)
+    if factor >= 1.0 then return end
+    for _, key in ipairs(NUMERIC_KEYS) do
+        if skill[key] then skill[key] = skill[key] * factor end
+    end
+    if skill.chance then
+        skill.chance = math.min(skill.chance, skill.maxChance or 0.80)
+    end
+end
+
 -- ============================================================================
 -- 初始化塔技能
 -- ============================================================================
@@ -204,11 +219,18 @@ function HeroSkills.InitTowerSkills(tower)
     local activeDmgMult = HeroSkills.GetActiveMultiplier(activeLevel)
     local activeCdMult  = HeroSkills.GetActiveCDMultiplier(activeLevel)
 
+    -- 星级缩放系数：0星→10%，满星→100%
+    local maxStar = Config.MAX_HERO_STAR or 30
+    local starScaleFactor = 0.10 + 0.90 * math.sqrt(math.min(heroStar, maxStar) / maxStar)
+
     tower.skills      = {}
     tower.skillLevels = { passive = passiveLevel, active = activeLevel }
 
     for i, skillDef in ipairs(baseSkills) do
         local skill = CloneSkill(skillDef)
+        -- 先应用星级缩放（基础值 × 星级系数）
+        ApplyStarScale(skill, starScaleFactor)
+        -- 再叠加技能等级倍率
         if skill.type == "passive" then
             ApplySkillMult(skill, passiveMult)
         elseif skill.type == "active" then
@@ -679,6 +701,10 @@ function HeroSkills.GetEffectiveCritRate(tower)
     if tower.auraCritRateBuff and tower.auraCritRateBuff > 0 then
         rate = rate + tower.auraCritRateBuff
     end
+    -- 英雄模块额外暴击率（绯夜绯瞳锁定等）
+    if tower.bonusCritRate and tower.bonusCritRate > 0 then
+        rate = rate + tower.bonusCritRate
+    end
     return rate
 end
 
@@ -743,6 +769,9 @@ function HeroSkills.OnWaveStart()
         e.dotSpread  = nil
         e.chillStacks = nil
         e.chillTimer  = nil
+        e.shadowNeedleStacks = nil
+        e.shadowNeedleTimer  = nil
+        e.shadowNeedleTowerId = nil
     end
 end
 
