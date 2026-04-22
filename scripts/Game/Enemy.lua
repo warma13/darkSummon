@@ -222,8 +222,9 @@ local function ApplyAffixes(enemy, affixes)
             enemy.maxHP = enemy.maxHP * affix.hpMult
         end
         if affix.speedMult then
-            enemy.speed = enemy.speed * affix.speedMult
-            enemy.baseSpeed = enemy.baseSpeed * affix.speedMult
+            local bonus = enemy.baseSpeed * (affix.speedMult - 1)
+            enemy.speed = enemy.speed + bonus
+            enemy.baseSpeed = enemy.baseSpeed + bonus
         end
         if affix.shieldHP then
             enemy.shield = enemy.maxHP * affix.shieldHP
