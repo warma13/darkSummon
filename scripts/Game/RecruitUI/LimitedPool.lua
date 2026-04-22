@@ -7,6 +7,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local RewardDisplay = require("Game.RewardDisplay")
 local GachaResult = require("Game.RecruitUI.GachaResult")
+local HeroAvatar = require("Game.HeroAvatar")
 
 local LimitedPool = {}
 
@@ -128,7 +129,7 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
     local tc       = GetThemeColor(bannerCfg)
     local isActive = LBD.IsActive(bannerCfg)
     local isLocked = LBD.IsLocked(bannerCfg)
-    local avatarPath = bannerCfg.avatar or ("image/avatars/avatar_" .. bannerCfg.id .. ".png")
+    local avatarPath = bannerCfg.avatar or HeroAvatar.GetPath(bannerCfg.heroId or bannerCfg.id)
 
     local canClaimFrost  = LBD.CanClaimAdFrost(bannerCfg)
 

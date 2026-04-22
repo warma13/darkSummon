@@ -13,6 +13,7 @@ local Toast     = require("Game.Toast")
 local AdTracker = require("Game.AdTracker")
 local HeroSkills = require("Game.HeroSkills")
 local SpeedBoost = require("Game.SpeedBoostData")
+local HeroAvatar = require("Game.HeroAvatar")
 
 local FormatNum = ctx.FormatNum
 local FormatStat = FormatNum  -- FormatStat 与 FormatNum 逻辑一致，统一使用
@@ -55,7 +56,6 @@ function GameUI.BuildHeroInfoContent(tower)
     local rarity = td.rarity or "N"
     local rarityColor = RARITY_COLORS[rarity] or RARITY_COLORS.N
     local skills = Config.HERO_SKILLS[td.id] or {}
-    local avatarPath = td.icon and ("image/avatars/avatar_" .. td.icon .. ".png") or nil
     local tierInfo = HeroData.GetStarTierInfo(td.id)
 
     -- 属性行辅助函数
@@ -119,24 +119,15 @@ function GameUI.BuildHeroInfoContent(tower)
             gap = 8,
             alignItems = "center",
             children = {
-                -- 头像
+                -- 头像（统一组件）
                 ctx.UI.Panel {
                     width = 48, height = 48,
-                    borderRadius = 8,
-                    backgroundColor = rarityColor,
-                    overflow = "hidden",
-                    borderWidth = 1,
-                    borderColor = rarityColor,
                     children = {
-                        avatarPath and ctx.UI.Panel {
-                            position = "absolute",
-                            top = 0, left = 0, right = 0, bottom = 0,
-                            backgroundImage = avatarPath,
-                            backgroundFit = "cover",
-                        } or ctx.UI.Label {
-                            text = td.emoji or "👤",
-                            fontSize = 24,
-                        },
+                        HeroAvatar.Create(td.id, {
+                            preset = "icon",
+                            borderRadius = 8,
+                            borderWidth = 1,
+                        }),
                     },
                 },
                 -- 名称信息

@@ -1405,8 +1405,7 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
     local eqBonus = EquipData.GetTotalBonus(heroId)
     stats.atk = stats.atk + (eqBonus.atk or 0)
     local power = stats.atk + stats.spd
-    local avatarIcon = heroDef.icon or heroId
-    local avatarImage = "image/avatars/avatar_" .. avatarIcon .. ".png"
+    local HeroAvatar = require("Game.HeroAvatar")
 
     -- 星级显示
     local starChildren = {}
@@ -1466,17 +1465,19 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
         children = elemStarChildren,
     }
 
-    -- 大头像
+    -- 大头像（使用统一组件）
     topChildren[#topChildren + 1] = UI.Panel {
         width = 100, height = 100,
-        borderRadius = 12,
-        borderWidth = 2,
-        borderColor = rarityBorder,
-        backgroundColor = rarityColor,
-        backgroundImage = avatarImage,
-        backgroundFit = "contain",
-        opacity = isUnlocked and 1.0 or 0.5,
-        overflow = "hidden",
+        children = {
+            HeroAvatar.Create(heroId, {
+                preset = "icon",
+                fit = "contain",
+                borderRadius = 12,
+                isUnlocked = isUnlocked,
+                borderColor = rarityBorder,
+                opacity = isUnlocked and 1.0 or 0.5,
+            }),
+        },
     }
 
     -- 等级 + 战力

@@ -9,6 +9,8 @@ local RuneData = require("Game.RuneData")
 local Currency = require("Game.Currency")
 local Tower = require("Game.Tower")
 
+local HeroAvatar = require("Game.HeroAvatar")
+
 local RuneUI = {}
 
 ---@type any
@@ -230,64 +232,20 @@ function RuneUI.CreateHeroSelector()
     local items = {}
     for _, heroId in ipairs(heroes) do
         local isSelected = (heroId == selectedHero)
-        local heroName = heroId
-        local heroIcon = nil
-        if heroId == Config.LEADER_HERO.id then
-            heroName = Config.LEADER_HERO.name
-            heroIcon = Config.LEADER_HERO.icon
-        else
-            for _, td in ipairs(Config.TOWER_TYPES) do
-                if td.id == heroId then
-                    heroName = td.name
-                    heroIcon = td.icon
-                    break
-                end
-            end
-        end
-        local avatarPath = heroIcon and ("image/avatars/avatar_" .. heroIcon .. ".png") or nil
 
         items[#items + 1] = UI.Panel {
             flex = 1,
             aspectRatio = 1,
-            alignItems = "center",
-            justifyContent = "flex-end",
-            backgroundColor = isSelected and { 80, 50, 140, 200 } or { 30, 25, 45, 150 },
-            borderRadius = 8,
-            borderWidth = isSelected and 2 or 1,
-            borderColor = isSelected and { 160, 120, 255, 255 } or { 60, 50, 80, 200 },
-            overflow = "hidden",
-            pointerEvents = "auto",
-            onClick = function(self)
-                selectedHero = heroId
-                selectedRune = nil
-                RuneUI.Refresh()
-            end,
             children = {
-                avatarPath and UI.Panel {
-                    position = "absolute",
-                    top = 0, left = 0, right = 0, bottom = 0,
-                    backgroundImage = avatarPath,
-                    backgroundFit = "cover",
-                    pointerEvents = "none",
-                } or UI.Label { text = "👤", fontSize = 28, pointerEvents = "none" },
-                -- 底部名称条
-                UI.Panel {
-                    position = "absolute",
-                    bottom = 0, left = 0, right = 0,
-                    height = 18,
-                    justifyContent = "center", alignItems = "center",
-                    backgroundColor = { 0, 0, 0, 180 },
-                    pointerEvents = "none",
-                    children = {
-                        UI.Label {
-                            text = string.sub(heroName, 1, 6),
-                            fontSize = 9,
-                            fontColor = isSelected and {255,255,255,255} or {200,190,220,230},
-                            fontWeight = isSelected and "bold" or "normal",
-                            pointerEvents = "none",
-                        },
-                    },
-                },
+                HeroAvatar.Create(heroId, {
+                    preset = "selector",
+                    selected = isSelected,
+                    onClick = function(self)
+                        selectedHero = heroId
+                        selectedRune = nil
+                        RuneUI.Refresh()
+                    end,
+                }),
             },
         }
     end

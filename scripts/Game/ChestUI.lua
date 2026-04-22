@@ -8,6 +8,7 @@ local ChestData = require("Game.ChestData")
 local Currency = require("Game.Currency")
 local RewardDisplay = require("Game.RewardDisplay")
 local RC = require("Game.RewardController")
+local HeroAvatar = require("Game.HeroAvatar")
 
 local ChestUI = {}
 
@@ -535,23 +536,10 @@ local function GetCurrencyImage(currType)
     return Currency.GetImage(currType)
 end
 
---- 通过 heroId 获取头像图片路径
----@param heroId string|nil
----@return string|nil
+--- 通过 heroId 获取头像图片路径（委托给统一组件）
 local function GetAvatarImage(heroId)
     if not heroId then return nil end
-    local icon = heroId
-    if heroId == "leader" then
-        icon = Config.LEADER_HERO.icon or "leader"
-    else
-        for _, td in ipairs(Config.TOWER_TYPES) do
-            if td.id == heroId then
-                icon = td.icon or heroId
-                break
-            end
-        end
-    end
-    return "image/avatars/avatar_" .. icon .. ".png"
+    return HeroAvatar.GetPath(heroId)
 end
 
 --- 将开箱/里程碑 result 转为 RewardDisplay 的 rewards 格式

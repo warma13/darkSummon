@@ -334,95 +334,24 @@ local function CreateHeroRow(heroDef, isLeader)
     end
     local power = stats.atk + stats.spd
 
-    -- 头像图片
-    local avatarIcon = heroDef.icon or heroId
-    local avatarImage = "image/avatars/avatar_" .. avatarIcon .. ".png"
-
-    -- 品质
+    -- 品质（仍需用于右侧信息区）
     local rarity = heroDef.rarity or "R"
-    local rarityColor = HeroUI.GetRarityColor(rarity)
-    local rarityBorder = HeroUI.GetRarityBorderColor(rarity)
 
-    -- 星级信息
-    local tierInfo = HeroData.GetStarTierInfo(heroId)
-
-    -- 头像边框颜色
-    local frameColor = { 100, 75, 50, 200 }
-    if isUnlocked then
-        if isLeader then
-            frameColor = { 210, 170, 50, 255 }
-        else
-            frameColor = { rarityBorder[1], rarityBorder[2], rarityBorder[3], 220 }
-        end
-    end
-
-    -- ==================== 左侧：头像区 ====================
-    -- 星级叠加在头像左上角
-    local starOverlay = nil
-    if isUnlocked and tierInfo.starInTier > 0 then
-        local starRows = HeroUI.CreateStarRows(tierInfo.starInTier, tierInfo.color)
-        starOverlay = UI.Panel {
-            position = "absolute",
-            top = 1, left = 1,
-            gap = 0,
-            children = starRows,
-        }
-    end
-
+    -- ==================== 左侧：头像区（使用统一组件） ====================
+    local HeroAvatar = require("Game.HeroAvatar")
     local avatarSection = UI.Panel {
         height = "80%",
         aspectRatio = 1.0,
         flexShrink = 0,
-        borderRadius = 6,
-        borderWidth = 2,
-        borderColor = frameColor,
-        backgroundColor = {
-            rarityColor[1], rarityColor[2], rarityColor[3],
-            isUnlocked and 200 or 50,
+        children = {
+            HeroAvatar.Create(heroId, {
+                preset = "row",
+                isUnlocked = isUnlocked,
+                onClick = function(self)
+                    HeroUI.ShowHeroDetail(heroId)
+                end,
+            }),
         },
-        backgroundImage = avatarImage,
-        backgroundFit = "contain",
-        opacity = isUnlocked and 1.0 or 0.3,
-        overflow = "hidden",
-        onClick = function(self)
-            HeroUI.ShowHeroDetail(heroId)
-        end,
-        children = (function()
-            local items = {}
-            -- 星级（左上）
-            if starOverlay then items[#items + 1] = starOverlay end
-            -- 等级徽章（左下）
-            if isUnlocked then
-                items[#items + 1] = UI.Panel {
-                    position = "absolute",
-                    bottom = 0, left = 0,
-                    paddingLeft = 4, paddingRight = 4,
-                    paddingTop = 1, paddingBottom = 1,
-                    borderTopRightRadius = 4,
-                    backgroundColor = S.lvBadgeBg,
-                    children = {
-                        UI.Label {
-                            text = "Lv." .. level,
-                            fontSize = isLeader and 11 or 9,
-                            fontColor = { 255, 255, 255, 230 },
-                        },
-                    },
-                }
-            end
-            -- 元素图标（右下角）
-            local elemId = Config.HERO_ELEMENT[heroId]
-            local elemDef = elemId and Config.ELEMENTS[elemId]
-            if elemDef then
-                items[#items + 1] = UI.Panel {
-                    position = "absolute",
-                    bottom = 1, right = 1,
-                    width = 18, height = 18,
-                    backgroundImage = elemDef.icon,
-                    backgroundFit = "contain",
-                }
-            end
-            return items
-        end)(),
     }
 
     -- ==================== 右侧：操作按钮 ====================
@@ -835,6 +764,10 @@ function HeroUI.CreatePage(uiModule)
     DeployPopup = require("Game.HeroUI.DeployPopup")
     CollectionPopup = require("Game.HeroUI.CollectionPopup")
     HeroDetail = require("Game.HeroUI.HeroDetail")
+
+    -- 统一头像组件初始化
+    local HeroAvatar = require("Game.HeroAvatar")
+    HeroAvatar.Init(UI)
 
     pageRoot = UI.Panel {
         id = "heroPage",

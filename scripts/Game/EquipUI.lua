@@ -11,6 +11,7 @@ local TemperData = require("Game.TemperData")
 local FormatNumber = require("Game.FormatUtil").FormatNumber
 
 local RuneUI = require("Game.RuneUI")
+local HeroAvatar = require("Game.HeroAvatar")
 
 local EquipUI = {}
 
@@ -198,85 +199,19 @@ function EquipUI.CreateHeroSelector()
     local items = {}
     for _, heroId in ipairs(heroes) do
         local isSelected = (heroId == selectedHero)
-        local heroName = heroId
-        local heroIcon = nil
-        local heroRarity = "N"
-        -- 查找英雄信息
-        if heroId == Config.LEADER_HERO.id then
-            heroName = Config.LEADER_HERO.name
-            heroIcon = Config.LEADER_HERO.icon
-            heroRarity = Config.LEADER_HERO.rarity or "SSR"
-        else
-            for _, td in ipairs(Config.TOWER_TYPES) do
-                if td.id == heroId then
-                    heroName = td.name
-                    heroIcon = td.icon
-                    heroRarity = td.rarity or "N"
-                    break
-                end
-            end
-        end
-
-        local rarityColor = HeroData.GetRarityColor and HeroData.GetRarityColor(heroRarity) or { 60, 50, 80, 200 }
-        local rarityBorder = HeroData.GetRarityBorderColor and HeroData.GetRarityBorderColor(heroRarity) or { 80, 70, 100, 255 }
-        local avatarPath = heroIcon and ("image/avatars/avatar_" .. heroIcon .. ".png") or nil
 
         items[#items + 1] = UI.Panel {
             flex = 1,
             aspectRatio = 1,
-            alignItems = "center",
-            justifyContent = "flex-end",
-            backgroundColor = isSelected and { 80, 50, 140, 200 } or { 30, 25, 45, 150 },
-            borderRadius = 8,
-            borderWidth = isSelected and 2 or 1,
-            borderColor = isSelected and { 160, 120, 255, 255 } or rarityBorder,
-            overflow = "hidden",
-            pointerEvents = "auto",
-            onClick = function(self)
-                selectedHero = heroId
-                EquipUI.Refresh()
-            end,
             children = {
-                -- 全身头像（覆盖整个卡片）
-                avatarPath and UI.Panel {
-                    position = "absolute",
-                    top = 0, left = 0, right = 0, bottom = 0,
-                    backgroundImage = avatarPath,
-                    backgroundFit = "cover",
-                    pointerEvents = "none",
-                } or UI.Label {
-                    text = "👤",
-                    fontSize = 32,
-                    pointerEvents = "none",
-                },
-                -- 底部名称条
-                UI.Panel {
-                    position = "absolute",
-                    bottom = 0, left = 0, right = 0,
-                    height = 20,
-                    justifyContent = "center",
-                    alignItems = "center",
-                    backgroundColor = { 0, 0, 0, 180 },
-                    pointerEvents = "none",
-                    children = {
-                        UI.Label {
-                            text = string.sub(heroName, 1, 6),
-                            fontSize = 10,
-                            fontColor = isSelected and { 255, 255, 255, 255 } or { 200, 190, 220, 230 },
-                            fontWeight = isSelected and "bold" or "normal",
-                            pointerEvents = "none",
-                        },
-                    },
-                },
-                -- 选中高亮边框光效
-                isSelected and UI.Panel {
-                    position = "absolute",
-                    top = 0, left = 0, right = 0, bottom = 0,
-                    borderRadius = 7,
-                    borderWidth = 1,
-                    borderColor = { 200, 170, 255, 100 },
-                    pointerEvents = "none",
-                } or nil,
+                HeroAvatar.Create(heroId, {
+                    preset = "selector",
+                    selected = isSelected,
+                    onClick = function(self)
+                        selectedHero = heroId
+                        EquipUI.Refresh()
+                    end,
+                }),
             },
         }
     end

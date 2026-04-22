@@ -5,6 +5,8 @@ local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
 local LBD = require("Game.LimitedBannerData")
 
+local HeroAvatar = require("Game.HeroAvatar")
+
 local HeroCard = {}
 
 --- 获取排序后的英雄列表（排除主角）
@@ -67,91 +69,19 @@ function HeroCard.CreateHeroCard(ctx, heroDef, mode)
     local cardWidth = "31%"
     local cardBg = isUnlocked and S.cardBg or S.cardLocked
     local borderColor = isUnlocked and ctx.GetRarityBorderColor(rarity) or { 60, 50, 40, 100 }
-    local rarityColor = ctx.GetRarityColor(rarity)
-    local avatarIcon = heroDef.icon or heroId
-    local avatarImage = "image/avatars/avatar_" .. avatarIcon .. ".png"
-    local avatarAlpha = isUnlocked and 220 or 40
 
     local cardChildren = {
-        -- 头像区域
+        -- 头像区域（使用统一组件）
         UI.Panel {
             width = "100%",
             aspectRatio = 1.0,
-            backgroundColor = {
-                rarityColor[1], rarityColor[2], rarityColor[3], avatarAlpha,
-            },
-            backgroundImage = avatarImage,
-            backgroundFit = "contain",
-            opacity = isUnlocked and 1.0 or 0.3,
-            borderTopLeftRadius = 6,
-            borderTopRightRadius = 6,
-            justifyContent = "center",
-            alignItems = "center",
-            overflow = "hidden",
             children = {
-                -- 稀有度角标（左上）
-                rarity ~= "none" and UI.Panel {
-                    position = "absolute",
-                    top = 2, left = 2,
-                    paddingLeft = 4, paddingRight = 4,
-                    paddingTop = 1, paddingBottom = 1,
-                    borderRadius = 3,
-                    backgroundColor = rarityColor,
-                    children = {
-                        UI.Label {
-                            text = rarity,
-                            fontSize = 8,
-                            fontColor = { 255, 255, 255, 240 },
-                            fontWeight = "bold",
-                        },
-                    },
-                } or nil,
-                -- 等级角标（右上）
-                isUnlocked and UI.Panel {
-                    position = "absolute",
-                    top = 2, right = 2,
-                    paddingLeft = 3, paddingRight = 3,
-                    paddingTop = 1, paddingBottom = 1,
-                    borderRadius = 3,
-                    backgroundColor = { 0, 0, 0, 160 },
-                    children = {
-                        UI.Label {
-                            text = "Lv." .. level,
-                            fontSize = 8,
-                            fontColor = { 255, 255, 255, 220 },
-                        },
-                    },
-                } or nil,
-                -- 元素图标（右下角）
-                (function()
-                    local elemId = Config.HERO_ELEMENT[heroId]
-                    local elemDef = elemId and Config.ELEMENTS[elemId]
-                    if not elemDef then return nil end
-                    return UI.Panel {
-                        position = "absolute",
-                        bottom = 1, right = 1,
-                        width = 16, height = 16,
-                        backgroundImage = elemDef.icon,
-                        backgroundFit = "contain",
-                    }
-                end)(),
-                -- 未解锁 / 即将推出 遮罩
-                (not isUnlocked) and UI.Panel {
-                    position = "absolute",
-                    top = 0, left = 0, right = 0, bottom = 0,
-                    backgroundColor = isComingSoon and { 20, 10, 35, 200 } or S.lockOverlay,
-                    justifyContent = "center",
-                    alignItems = "center",
-                    children = {
-                        isComingSoon and UI.Label {
-                            text = "即将\n推出",
-                            fontSize = 11,
-                            fontColor = { 200, 170, 255, 240 },
-                            fontWeight = "bold",
-                            textAlign = "center",
-                        } or UI.Label { text = "🔒", fontSize = 18 },
-                    },
-                } or nil,
+                HeroAvatar.Create(heroId, {
+                    preset = "card",
+                    isUnlocked = isUnlocked,
+                    isComingSoon = isComingSoon,
+                    borderWidth = 0,
+                }),
             },
         },
 

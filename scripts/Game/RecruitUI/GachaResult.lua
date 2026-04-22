@@ -6,27 +6,9 @@ local HeroData = require("Game.HeroData")
 local RecruitData = require("Game.RecruitData")
 local Currency = require("Game.Currency")
 local RewardDisplay = require("Game.RewardDisplay")
+local HeroAvatar = require("Game.HeroAvatar")
 
 local GachaResult = {}
-
---- 通过 heroId 获取头像图片路径
----@param heroId string|nil
----@return string|nil
-function GachaResult.GetAvatarImage(heroId)
-    if not heroId then return nil end
-    local icon = heroId
-    if heroId == "leader" then
-        icon = Config.LEADER_HERO.icon or "leader"
-    else
-        for _, td in ipairs(Config.TOWER_TYPES) do
-            if td.id == heroId then
-                icon = td.icon or heroId
-                break
-            end
-        end
-    end
-    return "image/avatars/avatar_" .. icon .. ".png"
-end
 
 --- 创建单个奖励卡片（与宝箱弹窗同风格）
 ---@param UI any
@@ -156,7 +138,7 @@ function GachaResult.ShowResultPopup(UI, pageRoot, RARITY_COLORS, currentTab, re
             r.rarity .. " " .. r.heroName,
             r.fragments,
             { rc[1], rc[2], rc[3], 200 },
-            GachaResult.GetAvatarImage(r.heroId),
+            r.heroId and HeroAvatar.GetPath(r.heroId) or nil,
             r.isNew,
             r.isLimitedHero
         )

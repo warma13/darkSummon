@@ -6,6 +6,7 @@ local Currency       = require("Game.Currency")
 local RewardIcon     = require("Game.RewardIcon")
 local RewardDisplay  = require("Game.RewardDisplay")
 local Config         = require("Game.Config")
+local HeroAvatar     = require("Game.HeroAvatar")
 
 local InventoryUI = {}
 
@@ -348,8 +349,6 @@ local function ShowHeroSelectPopup(item)
                 heroInfos[#heroInfos + 1] = {
                     id = heroId,
                     name = td.name or heroId,
-                    icon = td.icon or heroId,
-                    avatar = "image/avatars/avatar_" .. (td.icon or heroId) .. ".png",
                 }
                 break
             end
@@ -396,11 +395,15 @@ local function ShowHeroSelectPopup(item)
                             UI.Label { text = "✓", fontSize = 9, fontColor = { 30, 20, 10, 255 }, fontWeight = "bold" },
                         } or {},
                     },
-                    -- 头像
+                    -- 头像（统一组件）
                     UI.Panel {
-                        width = 44, height = 44, borderRadius = 6,
-                        backgroundImage = info.avatar,
-                        backgroundFit = "cover",
+                        width = 44, height = 44,
+                        children = {
+                            HeroAvatar.Create(info.id, {
+                                preset = "icon",
+                                borderWidth = 0,
+                            }),
+                        },
                     },
                     -- 名称
                     UI.Label {
