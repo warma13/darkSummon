@@ -183,6 +183,12 @@ function ActivityData.Load()
         si2._compV1 = true
         ActivityData.Save()
     end
+
+    -- 加载特权系统（含一次性迁移：历史广告次数 → 特权点数）
+    local ok, PrivilegeData = pcall(require, "Game.PrivilegeData")
+    if ok and PrivilegeData then
+        PrivilegeData.Load()
+    end
 end
 
 --- 保存到 HeroData（仅更新 signIn 字段，保留 inventory 等其他子字段）

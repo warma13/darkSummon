@@ -90,8 +90,15 @@ end
 ---@param onSuccess fun()        广告完整观看后的回调（发放奖励等）
 ---@param onFail?   fun(reason:string)  广告未完成/不可用时的回调（可选，默认弹 Toast）
 function AdHelper.ShowRewardAd(onSuccess, onFail)
-    -- 检查是否有免广告券
+    -- 检查是否已激活免广卡（当日看满20次广告，免所有广告）
     local ok, ARD = pcall(require, "Game.AdReliefData")
+    if ok and ARD and ARD.IsAdFreeToday() then
+        Toast.Show("免广卡生效，已跳过广告", { 100, 220, 180 })
+        if onSuccess then onSuccess() end
+        return
+    end
+
+    -- 检查是否有免广告券
     if ok and ARD and ARD.GetTickets() > 0 and AdHelper._showTicketConfirm then
         -- 弹窗让玩家选择：使用券 or 看广告
         AdHelper._showTicketConfirm(function(useTicket)

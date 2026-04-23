@@ -14,27 +14,31 @@ local ARD = {}
 -- ============================================================================
 --- 里程碑配置：threshold = 解锁次数, rewards = 奖励列表
 --- type: "currency" → Currency.Add, "item" → InventoryData.Add, "chest" → ChestData.Add
+--- 减负中心不送免广券，改为挑战券/副本券/资源；看满20次自动激活当日免广卡
 local MILESTONES = {
-    { threshold = 3,  rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
-    { threshold = 6,  rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
-    { threshold = 9,  rewards = { { type = "currency", id = "ad_ticket", amount = 1 } } },
-    { threshold = 12, rewards = { { type = "currency", id = "ad_ticket", amount = 2 } } },
+    { threshold = 3,  rewards = { { type = "item", id = "nether_crystal_pack", amount = 1 } } },
+    { threshold = 6,  rewards = { { type = "item", id = "dungeon_ticket", amount = 1 } } },
+    { threshold = 9,  rewards = { { type = "item", id = "nether_crystal_pack", amount = 4 } } },
+    { threshold = 12, rewards = {
+        { type = "item", id = "shadow_essence_bag", amount = 2 },
+        { type = "item", id = "dungeon_ticket", amount = 1 },
+    }},
     { threshold = 15, rewards = {
-        { type = "currency", id = "ad_ticket", amount = 3 },
+        { type = "currency", id = "devour_stone", amount = 3000 },
         { type = "item",     id = "dungeon_ticket", amount = 2 },
     }},
     { threshold = 17, rewards = {
-        { type = "currency", id = "ad_ticket", amount = 3 },
+        { type = "currency", id = "trial_ticket", amount = 3 },
         { type = "item",     id = "recruit_ticket_select_box", amount = 10 },
     }},
     { threshold = 20, rewards = {
-        { type = "currency", id = "ad_ticket", amount = 5 },
-        { type = "item",     id = "recruit_ticket_select_box", amount = 5 },
-        { type = "chest",    id = "platinum", amount = 5 },
-        { type = "currency", id = "trial_ticket", amount = 10 },
-        { type = "item",     id = "dungeon_ticket", amount = 3 },
+        { type = "item", id = "boss_ticket", amount = 1 },
+        { type = "item", id = "shadow_essence_bag", amount = 2 },
+        { type = "item", id = "nether_crystal_pack", amount = 4 },
+        { type = "item", id = "recruit_ticket_select_box", amount = 20 },
     }},
 }
+local AD_FREE_THRESHOLD = 20         -- 每日看满此数量自动激活免广卡
 local STREAK_THRESHOLD = 3           -- 每日看广告>=3次才计入连续天数
 local MAX_BONUS_HOURS = 3            -- 最大加速时长
 
@@ -230,6 +234,22 @@ function ARD.SpendTickets(amount)
     d.tickets = d.tickets - math.floor(amount)
     HeroData.Save()
     return true
+end
+
+--- 今日是否已激活免广卡（看满 AD_FREE_THRESHOLD 次自动激活）
+---@return boolean
+function ARD.IsAdFreeToday()
+    local d = GetData()
+    DayRollover()
+    return (d.todayAds or 0) >= AD_FREE_THRESHOLD
+end
+
+--- 获取免广卡进度
+---@return number current, number target
+function ARD.GetAdFreeProgress()
+    local d = GetData()
+    DayRollover()
+    return math.min(d.todayAds or 0, AD_FREE_THRESHOLD), AD_FREE_THRESHOLD
 end
 
 --- 获取当前加速时长（小时）

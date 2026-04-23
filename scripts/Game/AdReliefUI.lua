@@ -1,12 +1,13 @@
 -- Game/AdReliefUI.lua
 -- 减负中心界面：里程碑进度、免广告券余额、加速信息
 
-local AdReliefData = require("Game.AdReliefData")
-local Config       = require("Game.Config")
-local Currency     = require("Game.Currency")
-local Toast        = require("Game.Toast")
-local RC           = require("Game.RewardController")
-local RewardIconMod = require("Game.RewardIcon")
+local AdReliefData   = require("Game.AdReliefData")
+local Config         = require("Game.Config")
+local Currency       = require("Game.Currency")
+local Toast          = require("Game.Toast")
+local RC             = require("Game.RewardController")
+local RewardIconMod  = require("Game.RewardIcon")
+local PrivilegeData  = require("Game.PrivilegeData")
 
 local AdReliefUI = {}
 
@@ -25,17 +26,127 @@ local _bonusLabel = nil
 local _streakLabel = nil
 local _milestoneNodes = {}  -- { btn, label }
 
+-- 特权卡罗马数字符号
+local PRIV_CARD_SYMBOLS = { "I", "II", "III", "IV", "V", "VI" }
+
+-- 特权加成区（左右切换）
+local _privilegeIdx = 1
+local _privTitle = nil
+local _privStatus = nil
+local _privValLabels = {}
+local _privNameLabels = {}
+
+local PRIV_BUFF_LABELS = { "挂机时长", "冥晶收益", "收益翻倍", "宝箱掉率", "碎片掉率", "副本次数", "深渊裂隙", "世界Boss" }
+-- 6 级渐进式特权卡加成值（青铜 → 红宝石）
+local PRIV_CARD_VALS = {
+    { "+1h", "+5%",  "5%",  "+5%",  "+5%",  "+0", "+0", "+0" },  -- 青铜
+    { "+2h", "+10%", "10%", "+10%", "+10%", "+1", "+0", "+0" },  -- 白银
+    { "+3h", "+15%", "15%", "+15%", "+15%", "+1", "+1", "+0" },  -- 黄金
+    { "+4h", "+20%", "20%", "+20%", "+25%", "+2", "+1", "+1" },  -- 铂金
+    { "+5h", "+25%", "25%", "+30%", "+35%", "+2", "+2", "+1" },  -- 钻石
+    { "+6h", "+30%", "30%", "+40%", "+50%", "+3", "+3", "+2" },  -- 红宝石
+}
+
+-- 进度条 UI 引用
+local _progressBarPriv = nil
+local _progressLabelPriv = nil
+
 function AdReliefUI.SetOnBack(fn)
     _onBack = fn
+end
+
+--- 刷新特权加成面板（按当前 _privilegeIdx 更新内容）
+local function RefreshPrivilegePanel()
+    local cards = PrivilegeData.CARDS
+    local idx = _privilegeIdx
+    local card = cards[idx]
+    if not card then return end
+
+    local currentTier = PrivilegeData.GetCurrentTierIndex()
+    local pts = PrivilegeData.GetPoints()
+    local unlocked = (idx <= currentTier)
+
+    -- 标题：显示卡名 + 颜色 + 等级符号
+    if _privTitle then
+        local c = card.color or { 200, 200, 200 }
+        local symbol = PRIV_CARD_SYMBOLS[idx] or ""
+        _privTitle:SetText("特权加成 - " .. card.name)
+        _privTitle:SetFontColor({ c[1], c[2], c[3], 255 })
+    end
+
+    -- 顶部装饰条颜色跟随卡片
+    if pageRoot then
+        local topBar = pageRoot:FindById("privTopBar")
+        if topBar then
+            local c = card.color or { 200, 200, 200 }
+            topBar:SetStyle({ backgroundColor = { c[1], c[2], c[3], 200 } })
+        end
+    end
+
+    -- 解锁状态
+    if _privStatus then
+        if unlocked then
+            if idx == currentTier then
+                _privStatus:SetText("当前等级（已解锁）")
+            else
+                _privStatus:SetText("已解锁")
+            end
+            _privStatus:SetFontColor({ 100, 220, 180, 255 })
+        else
+            local need = card.threshold - pts
+            _privStatus:SetText("还需 " .. need .. " 点解锁（当前 " .. pts .. "/" .. card.threshold .. "）")
+            _privStatus:SetFontColor({ 160, 150, 180, 180 })
+        end
+    end
+
+    -- 进度条（总体积分进度）
+    if _progressBarPriv then
+        local maxThreshold = cards[#cards].threshold
+        local pct = math.min(1, pts / maxThreshold)
+        _progressBarPriv:SetStyle({ width = math.floor(pct * 100) .. "%" })
+    end
+    if _progressLabelPriv then
+        local maxThreshold = cards[#cards].threshold
+        _progressLabelPriv:SetText("总积分: " .. pts .. "/" .. maxThreshold .. "  (每天看满20次广告 = 1点)")
+    end
+
+    -- buff 值
+    local vals = PRIV_CARD_VALS[idx]
+    if vals then
+        for i = 1, 8 do
+            local v = vals[i] or "+0"
+            local isActive = v ~= "+0" and v ~= "0%"
+            if _privValLabels[i] then
+                _privValLabels[i]:SetText(v)
+                if unlocked then
+                    _privValLabels[i]:SetFontColor(isActive and { 100, 220, 180, 255 } or { 80, 70, 90, 120 })
+                else
+                    _privValLabels[i]:SetFontColor(isActive and { 180, 170, 200, 160 } or { 80, 70, 90, 100 })
+                end
+            end
+            if _privNameLabels[i] then
+                if unlocked then
+                    _privNameLabels[i]:SetFontColor(isActive and { 200, 190, 220, 255 } or { 120, 110, 130, 140 })
+                else
+                    _privNameLabels[i]:SetFontColor(isActive and { 160, 150, 180, 160 } or { 120, 110, 130, 120 })
+                end
+            end
+        end
+    end
 end
 
 --- 刷新界面数据
 local function RefreshUI()
     if not pageRoot then return end
 
-    -- 券余额
+    -- 券余额（历史存量，无新来源）
+    local tickets = AdReliefData.GetTickets()
     if _ticketLabel then
-        _ticketLabel:SetText(tostring(AdReliefData.GetTickets()))
+        _ticketLabel:SetText(tostring(tickets))
+    end
+    local ticketRow = pageRoot:FindById("ticketBalanceRow")
+    if ticketRow then
+        ticketRow:SetVisible(tickets > 0)
     end
 
     -- 今日广告进度（双进度条）
@@ -71,6 +182,22 @@ local function RefreshUI()
             _streakLabel:SetText("已连续 " .. streak .. " 天看广告")
         else
             _streakLabel:SetText("今日看满3次开始计连续天数")
+        end
+    end
+
+    -- 免广卡状态
+    local adFreeStatus = pageRoot:FindById("adFreeStatus")
+    local adFreeDesc = pageRoot:FindById("adFreeDesc")
+    if adFreeStatus and adFreeDesc then
+        if AdReliefData.IsAdFreeToday() then
+            adFreeStatus:SetText("已激活")
+            adFreeStatus:SetFontColor({ 100, 255, 160, 255 })
+            adFreeDesc:SetText("今日免广卡已生效，所有广告自动跳过")
+        else
+            local cur, target = AdReliefData.GetAdFreeProgress()
+            adFreeStatus:SetText(cur .. "/" .. target)
+            adFreeStatus:SetFontColor({ 255, 220, 100, 200 })
+            adFreeDesc:SetText("每日看满" .. target .. "次广告，当天免看所有广告")
         end
     end
 
@@ -110,6 +237,12 @@ local function RefreshUI()
             end
         end
     end
+
+    -- 尝试发放每日特权积分（打开减负中心时检查）
+    PrivilegeData.TryAwardDailyPoint(todayAds)
+
+    -- 特权加成面板
+    RefreshPrivilegePanel()
 end
 
 --- 创建里程碑节点（奖励图标 + 次数标签 + 领取状态）
@@ -187,6 +320,234 @@ local function CreateMilestoneNode(index, milestone)
             btn,
         },
     }
+end
+
+--- 创建特权加成面板（支持左右切换 6 级特权卡 + 积分进度条）
+local function CreatePrivilegePanel()
+    -- 默认显示当前等级或下一等级
+    local curTier = PrivilegeData.GetCurrentTierIndex()
+    _privilegeIdx = math.max(1, curTier > 0 and curTier or 1)
+    _privValLabels = {}
+    _privNameLabels = {}
+
+    _privTitle = UI.Label {
+        text = "特权加成",
+        fontSize = 17,
+        fontColor = { 255, 220, 100, 255 },
+        fontWeight = "bold",
+        flexShrink = 1,
+    }
+
+    _privStatus = UI.Label {
+        text = "",
+        fontSize = 11,
+        fontColor = { 160, 150, 180, 180 },
+    }
+
+    -- 积分进度条
+    _progressBarPriv = UI.Panel {
+        width = "0%", height = "100%",
+        backgroundColor = { 255, 200, 60, 220 },
+        borderRadius = 5,
+    }
+    _progressLabelPriv = UI.Label {
+        text = "",
+        fontSize = 10,
+        fontColor = { 160, 150, 180, 180 },
+    }
+
+    -- 等级节点指示器（6 个带标签的小圆点）
+    local tierDots = {}
+    for i, card in ipairs(PrivilegeData.CARDS) do
+        local c = card.color
+        local isUnlocked = (i <= curTier)
+        local dotBg = isUnlocked and { c[1], c[2], c[3], 255 } or { 50, 45, 65, 180 }
+        local dotBorder = isUnlocked and { c[1], c[2], c[3], 180 } or { 70, 65, 90, 120 }
+        tierDots[#tierDots + 1] = UI.Panel {
+            width = 14, height = 14,
+            borderRadius = 7,
+            backgroundColor = dotBg,
+            borderWidth = isUnlocked and 2 or 1,
+            borderColor = dotBorder,
+            marginLeft = (i == 1) and 0 or 6,
+            justifyContent = "center",
+            alignItems = "center",
+            children = isUnlocked and {
+                UI.Label {
+                    text = "✓",
+                    fontSize = 8,
+                    fontColor = { 255, 255, 255, 255 },
+                    fontWeight = "bold",
+                },
+            } or {},
+        }
+    end
+
+    -- 8 项 buff 网格（带交替背景）
+    local gridChildren = {}
+    for i = 1, 8 do
+        local nameLabel = UI.Label {
+            text = PRIV_BUFF_LABELS[i],
+            fontSize = 13,
+            fontColor = { 120, 110, 130, 140 },
+        }
+        local valLabel = UI.Label {
+            text = "+0",
+            fontSize = 14,
+            fontWeight = "bold",
+            fontColor = { 80, 70, 90, 120 },
+        }
+        _privNameLabels[i] = nameLabel
+        _privValLabels[i] = valLabel
+
+        local rowBg = (i % 2 == 1) and { 35, 30, 55, 100 } or { 25, 22, 42, 60 }
+        gridChildren[#gridChildren + 1] = UI.Panel {
+            width = "48%",
+            flexDirection = "row",
+            alignItems = "center",
+            justifyContent = "space-between",
+            paddingTop = 5, paddingBottom = 5,
+            paddingLeft = 10, paddingRight = 10,
+            backgroundColor = rowBg,
+            borderRadius = 6,
+            children = { nameLabel, valLabel },
+        }
+    end
+
+    local n = #PrivilegeData.CARDS
+    local panel = UI.Panel {
+        width = "100%",
+        backgroundColor = { 20, 18, 38, 240 },
+        borderRadius = 14,
+        borderWidth = 1.5,
+        borderColor = { 180, 150, 80, 100 },
+        paddingTop = 0, paddingBottom = 16,
+        paddingLeft = 0, paddingRight = 0,
+        flexDirection = "column",
+        gap = 0,
+        overflow = "hidden",
+        children = {
+            -- 顶部装饰条（卡片颜色渐变带）
+            UI.Panel {
+                id = "privTopBar",
+                width = "100%", height = 4,
+                backgroundColor = { 205, 127, 50, 200 },
+            },
+            -- 卡面主体区
+            UI.Panel {
+                width = "100%",
+                paddingTop = 12, paddingBottom = 10,
+                paddingLeft = 16, paddingRight = 16,
+                flexDirection = "column",
+                gap = 8,
+                children = {
+                    -- 标题行：[<]  特权加成 - XX卡  [>]
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = 6,
+                        children = {
+                            UI.Panel {
+                                width = 30, height = 30,
+                                justifyContent = "center", alignItems = "center",
+                                borderRadius = 15,
+                                backgroundColor = { 50, 40, 70, 200 },
+                                borderWidth = 1,
+                                borderColor = { 100, 80, 140, 150 },
+                                onClick = function()
+                                    _privilegeIdx = _privilegeIdx - 1
+                                    if _privilegeIdx < 1 then _privilegeIdx = n end
+                                    RefreshPrivilegePanel()
+                                end,
+                                children = {
+                                    UI.Label { text = "<", fontSize = 16, fontColor = { 220, 200, 255, 255 }, fontWeight = "bold" },
+                                },
+                            },
+                            UI.Panel {
+                                flexGrow = 1, flexShrink = 1,
+                                alignItems = "center",
+                                children = { _privTitle },
+                            },
+                            UI.Panel {
+                                width = 30, height = 30,
+                                justifyContent = "center", alignItems = "center",
+                                borderRadius = 15,
+                                backgroundColor = { 50, 40, 70, 200 },
+                                borderWidth = 1,
+                                borderColor = { 100, 80, 140, 150 },
+                                onClick = function()
+                                    _privilegeIdx = _privilegeIdx + 1
+                                    if _privilegeIdx > n then _privilegeIdx = 1 end
+                                    RefreshPrivilegePanel()
+                                end,
+                                children = {
+                                    UI.Label { text = ">", fontSize = 16, fontColor = { 220, 200, 255, 255 }, fontWeight = "bold" },
+                                },
+                            },
+                        },
+                    },
+                    -- 解锁状态
+                    _privStatus,
+                    -- 分隔线
+                    UI.Panel {
+                        width = "100%", height = 1,
+                        backgroundColor = { 120, 100, 80, 50 },
+                    },
+                    -- buff 网格
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        flexWrap = "wrap",
+                        justifyContent = "space-between",
+                        gap = 4,
+                        children = gridChildren,
+                    },
+                },
+            },
+            -- 底部区：进度条 + 等级圆点
+            UI.Panel {
+                width = "100%",
+                paddingLeft = 16, paddingRight = 16,
+                paddingTop = 8,
+                flexDirection = "column",
+                gap = 6,
+                backgroundColor = { 15, 12, 28, 200 },
+                children = {
+                    -- 积分进度条
+                    UI.Panel {
+                        width = "100%", height = 10,
+                        backgroundColor = { 40, 35, 60, 200 },
+                        borderRadius = 5,
+                        overflow = "hidden",
+                        children = { _progressBarPriv },
+                    },
+                    _progressLabelPriv,
+                    -- 等级节点指示器
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        justifyContent = "center",
+                        alignItems = "center",
+                        paddingTop = 2, paddingBottom = 6,
+                        children = tierDots,
+                    },
+                    -- 提示
+                    UI.Label {
+                        text = "每天看满20次广告获得1点，累计解锁更高等级特权",
+                        fontSize = 10,
+                        fontColor = { 100, 90, 120, 130 },
+                        textAlign = "center",
+                        width = "100%",
+                        paddingBottom = 4,
+                    },
+                },
+            },
+        },
+    }
+
+    RefreshPrivilegePanel()
+    return panel
 end
 
 ---@param uiModule any
@@ -281,7 +642,7 @@ function AdReliefUI.CreatePage(uiModule)
                     gap = 16,
                 },
                 children = {
-                    -- 免广告券余额区
+                    -- 免广卡状态区
                     UI.Panel {
                         width = "100%",
                         backgroundColor = { 25, 30, 50, 220 },
@@ -290,29 +651,59 @@ function AdReliefUI.CreatePage(uiModule)
                         borderColor = { 100, 220, 180, 100 },
                         paddingTop = 16, paddingBottom = 16,
                         paddingLeft = 20, paddingRight = 20,
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 12,
+                        flexDirection = "column",
+                        gap = 8,
                         children = {
-                            -- 券图标
-                            Currency.IconWidget(UI, "ad_ticket", 36),
                             UI.Panel {
-                                flexDirection = "column",
-                                gap = 2,
+                                width = "100%",
+                                flexDirection = "row",
+                                alignItems = "center",
+                                gap = 8,
                                 children = {
                                     UI.Label {
-                                        text = "免广告券",
-                                        fontSize = 14,
-                                        fontColor = { 160, 150, 180, 200 },
+                                        text = "免广卡",
+                                        fontSize = 18,
+                                        fontColor = { 255, 220, 100, 255 },
+                                        fontWeight = "bold",
                                     },
-                                    _ticketLabel,
+                                    UI.Panel { flexGrow = 1 },
+                                    UI.Label {
+                                        id = "adFreeStatus",
+                                        text = "",
+                                        fontSize = 13,
+                                        fontColor = { 100, 220, 180, 255 },
+                                        fontWeight = "bold",
+                                    },
                                 },
                             },
-                            UI.Panel { flexGrow = 1 },
                             UI.Label {
-                                text = "可抵扣广告",
+                                id = "adFreeDesc",
+                                text = "每日看满20次广告，当天免看所有广告",
                                 fontSize = 12,
-                                fontColor = { 120, 110, 140, 150 },
+                                fontColor = { 160, 150, 180, 180 },
+                            },
+                            -- 免广券余额（小字显示，仅历史存量时显示）
+                            UI.Panel {
+                                id = "ticketBalanceRow",
+                                width = "100%",
+                                flexDirection = "row",
+                                alignItems = "center",
+                                gap = 6,
+                                children = {
+                                    Currency.IconWidget(UI, "ad_ticket", 20),
+                                    UI.Label {
+                                        text = "免广告券",
+                                        fontSize = 12,
+                                        fontColor = { 140, 130, 160, 180 },
+                                    },
+                                    _ticketLabel,
+                                    UI.Panel { flexGrow = 1 },
+                                    UI.Label {
+                                        text = "历史存量",
+                                        fontSize = 10,
+                                        fontColor = { 100, 90, 120, 120 },
+                                    },
+                                },
                             },
                         },
                     },
@@ -349,9 +740,9 @@ function AdReliefUI.CreatePage(uiModule)
                                 justifyContent = "space-around",
                                 alignItems = "flex-start",
                                 children = {
-                                    CreateMilestoneNode(1, { threshold = 3,  rewards = {{ id = "ad_ticket", amount = 1 }} }),
-                                    CreateMilestoneNode(2, { threshold = 6,  rewards = {{ id = "ad_ticket", amount = 1 }} }),
-                                    CreateMilestoneNode(3, { threshold = 9,  rewards = {{ id = "ad_ticket", amount = 1 }} }),
+                                    CreateMilestoneNode(1, { threshold = 3,  rewards = {{ id = "nether_crystal_pack", amount = 1 }} }),
+                                    CreateMilestoneNode(2, { threshold = 6,  rewards = {{ id = "dungeon_ticket", amount = 1 }} }),
+                                    CreateMilestoneNode(3, { threshold = 9,  rewards = {{ id = "nether_crystal_pack", amount = 4 }} }),
                                 },
                             },
                         },
@@ -389,17 +780,18 @@ function AdReliefUI.CreatePage(uiModule)
                                 justifyContent = "space-around",
                                 alignItems = "flex-start",
                                 children = {
-                                    CreateMilestoneNode(4, { threshold = 12, rewards = {{ id = "ad_ticket", amount = 2 }} }),
+                                    CreateMilestoneNode(4, { threshold = 12, rewards = {
+                                        { id = "shadow_essence_bag", amount = 2 }, { id = "dungeon_ticket", amount = 1 },
+                                    }}),
                                     CreateMilestoneNode(5, { threshold = 15, rewards = {
-                                        { id = "ad_ticket", amount = 3 }, { id = "dungeon_ticket", amount = 2 },
+                                        { id = "devour_stone", amount = 3000 }, { id = "dungeon_ticket", amount = 2 },
                                     }}),
                                     CreateMilestoneNode(6, { threshold = 17, rewards = {
-                                        { id = "ad_ticket", amount = 3 }, { id = "recruit_ticket_select_box", amount = 10 },
+                                        { id = "trial_ticket", amount = 3 }, { id = "recruit_ticket_select_box", amount = 10 },
                                     }}),
                                     CreateMilestoneNode(7, { threshold = 20, rewards = {
-                                        { id = "ad_ticket", amount = 5 }, { id = "recruit_ticket_select_box", amount = 5 },
-                                        { id = "platinum_chest", amount = 5 }, { id = "trial_ticket", amount = 10 },
-                                        { id = "dungeon_ticket", amount = 3 },
+                                        { id = "boss_ticket", amount = 1 }, { id = "shadow_essence_bag", amount = 2 },
+                                        { id = "nether_crystal_pack", amount = 4 }, { id = "recruit_ticket_select_box", amount = 20 },
                                     }}),
                                 },
                             },
@@ -453,6 +845,8 @@ function AdReliefUI.CreatePage(uiModule)
                             },
                         },
                     },
+                    -- 特权加成区（左右切换）
+                    CreatePrivilegePanel(),
                 },
             },
             -- 底部按钮栏：左返回 + 中一键领取

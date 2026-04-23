@@ -78,15 +78,15 @@ end
 -- ============================================================================
 
 --- 里程碑配置（键用字符串避免反序列化问题）
---- threshold: 秒，amount: 免广券数量
+--- threshold: 秒，reward: { type, id, amount }
 local ONLINE_MILESTONES = {
-    { key = "m1",   threshold = 60,     amount = 1, label = "1分钟"  },
-    { key = "m5",   threshold = 300,    amount = 1, label = "5分钟"  },
-    { key = "m10",  threshold = 600,    amount = 2, label = "10分钟" },
-    { key = "m30",  threshold = 1800,   amount = 2, label = "30分钟" },
-    { key = "m60",  threshold = 3600,   amount = 3, label = "1小时"  },
-    { key = "m120", threshold = 7200,   amount = 3, label = "2小时"  },
-    { key = "m180", threshold = 10800,  amount = 4, label = "3小时"  },
+    { key = "m1",   threshold = 60,     label = "1分钟",  reward = { type = "item", id = "nether_crystal_pack",        amount = 1  } },
+    { key = "m5",   threshold = 300,    label = "5分钟",  reward = { type = "item", id = "nether_crystal_pack",        amount = 2  } },
+    { key = "m10",  threshold = 600,    label = "10分钟", reward = { type = "item", id = "nether_crystal_pack",        amount = 3  } },
+    { key = "m30",  threshold = 1800,   label = "30分钟", reward = { type = "item", id = "shadow_essence_bag",         amount = 2  } },
+    { key = "m60",  threshold = 3600,   label = "1小时",  reward = { type = "item", id = "shadow_essence_bag",         amount = 4  } },
+    { key = "m120", threshold = 7200,   label = "2小时",  reward = { type = "item", id = "recruit_ticket_select_box",  amount = 10 } },
+    { key = "m180", threshold = 10800,  label = "3小时",  reward = { type = "item", id = "recruit_ticket_select_box",  amount = 20 } },
 }
 
 --- 获取今日已领取的里程碑表
@@ -104,18 +104,23 @@ local function GetTodayMilestones()
 end
 
 --- 领取里程碑奖励
-local function ClaimMilestone(key, amount)
+---@param key string 里程碑 key
+---@param reward table { type, id, amount }
+local function ClaimMilestone(key, reward)
     local claimed = GetTodayMilestones()
     if claimed[key] then return false end
     claimed[key] = true
-    Currency.GrantReward({ type = "currency", id = "ad_ticket", amount = amount }, "OnlineMilestone")
+    Currency.GrantReward(reward, "OnlineMilestone")
     HeroData.Save()
     if ctx.uiRoot then
-        local def = Config.CURRENCY and Config.CURRENCY["ad_ticket"]
+        local def = Config.CURRENCY and Config.CURRENCY[reward.id]
+        local iDef = not def and Config.ITEMS and Config.ITEMS[reward.id] or nil
+        local icon = (def and def.image) or (iDef and iDef.image) or "?"
+        local name = (def and def.name) or (iDef and iDef.name) or reward.id
         RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
             title = "在线好礼",
             rewards = {
-                { icon = def and def.image or "?", name = def and def.name or "免广告券", amount = amount },
+                { icon = icon, name = name, amount = reward.amount },
             },
         })
     end
@@ -223,7 +228,7 @@ local function RefreshMilestoneUI()
             borderColor = borderColor,
             pointerEvents = "auto",
             children = {
-                RewardIcon.Create(ctx.UI, 36, "ad_ticket", ms.amount, {
+                RewardIcon.Create(ctx.UI, 36, ms.reward.id, ms.reward.amount, {
                     muted = isClaimed,
                     noTooltip = true,
                 }),
@@ -1164,25 +1169,28 @@ end
 local function ClaimAllMilestones()
     local elapsed = GetTodayOnlineSeconds()
     local claimed = GetTodayMilestones()
-    local totalAmount = 0
     local count = 0
+    local rewardList = {}  -- 用于显示的奖励列表
     for _, ms in ipairs(ONLINE_MILESTONES) do
         if elapsed >= ms.threshold and not claimed[ms.key] then
             claimed[ms.key] = true
-            totalAmount = totalAmount + ms.amount
+            local r = ms.reward
+            Currency.GrantReward(r, "OnlineMilestone")
             count = count + 1
+            -- 构建显示用奖励条目
+            local def = Config.CURRENCY and Config.CURRENCY[r.id]
+            local iDef = not def and Config.ITEMS and Config.ITEMS[r.id] or nil
+            local icon = (def and def.image) or (iDef and iDef.image) or "?"
+            local name = (def and def.name) or (iDef and iDef.name) or r.id
+            rewardList[#rewardList + 1] = { icon = icon, name = name, amount = r.amount }
         end
     end
     if count > 0 then
-        Currency.GrantReward({ type = "currency", id = "ad_ticket", amount = totalAmount }, "OnlineMilestone")
         HeroData.Save()
         if ctx.uiRoot then
-            local def = Config.CURRENCY and Config.CURRENCY["ad_ticket"]
             RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
                 title = "在线好礼",
-                rewards = {
-                    { icon = def and def.image or "?", name = def and def.name or "免广告券", amount = totalAmount },
-                },
+                rewards = rewardList,
             })
         end
         RefreshMilestoneUI()

@@ -293,8 +293,13 @@ local function ensureDailyReset()
     if data.day ~= today then
         data.day = today
         data.adWatched = 0
+        data.todayChallenged = {}  -- 每日重置已挑战难度记录
         -- 每日赠送秘境券
         data.tickets = (data.tickets or 0) + DAILY_FREE_TICKETS
+    end
+    -- 兼容旧存档：确保 todayChallenged 字段存在
+    if not data.todayChallenged then
+        data.todayChallenged = {}
     end
 end
 
@@ -753,6 +758,11 @@ function Emerald.EndSession(session)
     data.totalRuns = data.totalRuns + 1
     data.tokenEarned = data.tokenEarned + tokens
 
+    -- 标记今日已挑战该难度（扫荡前提）
+    ensureDailyReset()
+    if not data.todayChallenged then data.todayChallenged = {} end
+    data.todayChallenged[session.difficultyId] = true
+
     -- 更新最佳记录
     local bestKey = session.difficultyId
     local prevBest = data.bestWaves[bestKey] or 0
@@ -850,6 +860,88 @@ end
 ---@return number
 function Emerald.GetTokenBalance()
     return Currency.Get(CURRENCY_ID)
+end
+
+-- ============================================================================
+-- 扫荡系统
+-- ============================================================================
+
+--- 检查今日是否已挑战过指定难度（扫荡前提条件）
+---@param difficultyId string
+---@return boolean
+function Emerald.HasDailyChallenged(difficultyId)
+    ensureDailyReset()
+    local data = getData()
+    if not data.todayChallenged then return false end
+    return data.todayChallenged[difficultyId] == true
+end
+
+--- 检查指定难度是否可扫荡
+--- 条件：活动中 + 已解锁 + 今日已挑战 + 有最佳记录 + 有秘境券
+---@param difficultyId string
+---@return boolean canSweep, string reason
+function Emerald.CanSweep(difficultyId)
+    if not Emerald.IsActive() then
+        return false, "活动已结束"
+    end
+    if not Emerald.IsDifficultyUnlocked(difficultyId) then
+        return false, "未解锁"
+    end
+    if not Emerald.HasDailyChallenged(difficultyId) then
+        return false, "今日需先挑战一次"
+    end
+    local bestWaves = Emerald.GetBestWaves(difficultyId)
+    if bestWaves <= 0 then
+        return false, "需要先挑战一次"
+    end
+    if Emerald.GetTickets() <= 0 then
+        return false, "秘境券不足"
+    end
+    return true, ""
+end
+
+--- 执行一次扫荡（消耗秘境券，按最佳记录发放奖励）
+---@param difficultyId string
+---@param affixBonusPct? number 词缀加成百分比，默认 0
+---@return boolean success, number tokens
+function Emerald.DoSweep(difficultyId, affixBonusPct)
+    local canSweep, reason = Emerald.CanSweep(difficultyId)
+    if not canSweep then
+        Toast.Show(reason, { 255, 100, 100 })
+        return false, 0
+    end
+
+    if not Emerald.ConsumeTicket() then
+        Toast.Show("秘境券不足", { 255, 100, 100 })
+        return false, 0
+    end
+
+    local bestWaves = Emerald.GetBestWaves(difficultyId)
+    local tokens = Emerald.CalcTokenReward(bestWaves, difficultyId, affixBonusPct or 0)
+
+    -- 发放翠影凭证
+    if tokens > 0 then
+        Currency.GrantReward({ type = "currency", id = CURRENCY_ID, amount = tokens }, "EmeraldSweep")
+    end
+
+    -- 更新统计
+    local data = getData()
+    data.totalRuns = data.totalRuns + 1
+    data.tokenEarned = data.tokenEarned + tokens
+
+    -- 上报排行榜
+    local ok, LBM = pcall(require, "Game.LeaderboardData")
+    if ok then
+        LBM.UploadEmeraldToken(data.tokenEarned)
+    end
+
+    -- 保存
+    HeroData.Save(true)
+
+    print(string.format("[EmeraldDungeon] Sweep diff=%s bestWaves=%d tokens=%d affix=%d%%",
+        difficultyId, bestWaves, tokens, affixBonusPct or 0))
+
+    return true, tokens
 end
 
 --- 获取最高通关进度（最高难度 tier + 该 tier 最佳波次）

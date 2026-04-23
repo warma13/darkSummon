@@ -857,20 +857,20 @@ function showRuneConfirmDialog(item, index)
                             confirmLayer:SetVisible(false)
                             if ok then
                                 -- 通过奖励弹窗展示获得的符文
-                                local rune = item.rune
-                                local quality = RuneData.GetQuality(rune.qualityId)
-                                local series = RuneData.GetSeries(rune.seriesId)
-                                local qName = quality and quality.name or "?"
-                                local sName = series and series.name or "?"
-                                local qColor = quality and quality.color or {255,255,255}
+                                local r = item.rune
+                                local q = RuneData.GetQuality(r.qualityId)
+                                local s = RuneData.GetSeries(r.seriesId)
+                                local qName = q and q.name or "?"
+                                local sName = s and s.name or "?"
+                                local qc = q and q.color or {255,255,255}
                                 RewardDisplay.Show(UI, pageRoot, {
                                     title = "兑换成功",
                                     rewards = {
                                         {
-                                            icon = series and series.icon or "🔮",
+                                            icon = s and s.icon or "🔮",
                                             name = qName .. sName .. "符文",
                                             amount = 1,
-                                            borderColor = {qColor[1], qColor[2], qColor[3], 255},
+                                            borderColor = {qc[1], qc[2], qc[3], 255},
                                         },
                                     },
                                     onClose = function() ExchangeShopUI.Refresh() end,

@@ -167,7 +167,7 @@ end
 
 --- 开箱（批量）
 ---@param chestId string
----@param count number  要开的数量（最多10）
+---@param count number  要开的数量（最多100）
 ---@return boolean success
 ---@return table|string  results数组 或 错误信息
 function ChestData.Open(chestId, count)
@@ -177,7 +177,7 @@ function ChestData.Open(chestId, count)
     local available = ChestData.GetCount(chestId)
     if available <= 0 then return false, "宝箱数量不足" end
 
-    count = math.min(count, available, 10)
+    count = math.min(count, available, 100)
 
     -- 每次开箱独立记录
     local drops = {}    -- { {type, id, name, amount, rarity}, ... } 按顺序记录每个掉落

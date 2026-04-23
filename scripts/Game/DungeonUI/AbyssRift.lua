@@ -8,6 +8,7 @@ local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
 local AdHelper = require("Game.AdHelper")
 local Currency = require("Game.Currency")
+local SweepPopup = require("Game.SweepPopup")
 
 local AbyssRift = {}
 
@@ -262,6 +263,17 @@ function AbyssRift.BuildDetailView(ctx)
                 variant = "primary",
                 onClick = function()
                     AbyssRift._ShowDifficultyPicker(UI, S, ctx)
+                end,
+            },
+            -- 扫荡按钮（始终显示，不可用时点击弹提示）
+            UI.Button {
+                text = "扫荡",
+                fontSize = 13,
+                width = 70, height = 46,
+                borderRadius = 8,
+                variant = "outline",
+                onClick = function()
+                    AbyssRift.OnSweep(UI, S, ctx)
                 end,
             },
             ad > 0 and UI.Button {
@@ -620,6 +632,146 @@ function AbyssRift.StartBattle(UI, S, ctx, difficultyId)
             else
                 GameUI.ExitDungeonBattle()
             end
+        end,
+    })
+end
+
+-- ============================================================================
+-- 扫荡逻辑
+-- ============================================================================
+
+function AbyssRift.OnSweep(UI, S, ctx)
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if not root then return end
+
+    local bestWave = AbyssRiftData.GetBestWave()
+    local lastDiff = AbyssRiftData.GetLastDifficultyId()
+    if bestWave <= 0 or lastDiff == "" then
+        Toast.Show("请先挑战一次深渊裂隙", { 255, 200, 80 })
+        return
+    end
+
+    local ticketCount = AbyssRiftData.GetTicketCount()
+    if ticketCount <= 0 then
+        Toast.Show("挑战券不足", { 255, 200, 80 })
+        return
+    end
+
+    local diffDef = AbyssRiftData.DIFFICULTY_MAP[lastDiff]
+    local diffName = diffDef and diffDef.name or lastDiff
+
+    SweepPopup.Show(UI, root, S, {
+        title = "深渊裂隙 · " .. diffName .. " 扫荡",
+        maxCount = ticketCount,
+        sweepLabel = "波次",
+        sweepValue = bestWave .. "/" .. AbyssRiftData.TOTAL_WAVES,
+        previewFn = function(count)
+            -- 使用 EstimateFullClearDrops 预估单次掉落，乘以次数
+            local est = AbyssRiftData.EstimateFullClearDrops(lastDiff)
+            -- 按实际通关波次比例缩放（bestWave/totalWaves）
+            local ratio = bestWave / AbyssRiftData.TOTAL_WAVES
+            local dustPer = math.floor(est.totalDust * ratio)
+            local sealsPer = est.avgSeals * ratio
+            local runesPer = est.avgRunes * ratio
+            local items = {}
+            if dustPer > 0 then
+                items[#items + 1] = {
+                    icon = Currency.GetImage("rift_dust"),
+                    name = "裂隙之尘",
+                    amount = "~" .. (dustPer * count),
+                    color = { 160, 120, 200 },
+                }
+            end
+            if sealsPer > 0 then
+                items[#items + 1] = {
+                    icon = Currency.GetImage("rune_seal"),
+                    name = "符文封印",
+                    amount = "~" .. string.format("%.0f", sealsPer * count),
+                    color = { 40, 200, 160 },
+                }
+            end
+            if runesPer > 0 then
+                items[#items + 1] = {
+                    icon = "🔮",
+                    name = "符文",
+                    amount = "~" .. string.format("%.1f", runesPer * count),
+                    color = { 220, 180, 60 },
+                }
+            end
+            return items
+        end,
+        onConfirm = function(count)
+            local totalDust = 0
+            local totalSeals = 0
+            local allRunes = {}
+            local successCount = 0
+
+            for i = 1, count do
+                if AbyssRiftData.GetTicketCount() <= 0 then break end
+                if not AbyssRiftData.ConsumeTicket() then break end
+                local result = AbyssRiftData.ClaimReward(bestWave, lastDiff)
+                totalDust = totalDust + (result.totalDust or 0)
+                totalSeals = totalSeals + (result.totalSeals or 0)
+                for _, rune in ipairs(result.runes or {}) do
+                    allRunes[#allRunes + 1] = rune
+                end
+                successCount = successCount + 1
+            end
+
+            if successCount <= 0 then
+                Toast.Show("扫荡失败", { 255, 100, 100 })
+                return
+            end
+
+            -- 构建奖励展示
+            local rewardItems = {}
+            if totalDust > 0 then
+                rewardItems[#rewardItems + 1] = {
+                    icon = Currency.GetImage("rift_dust"),
+                    name = "裂隙之尘",
+                    amount = totalDust,
+                    color = { 160, 120, 200 },
+                }
+            end
+            if totalSeals > 0 then
+                rewardItems[#rewardItems + 1] = {
+                    icon = Currency.GetImage("rune_seal"),
+                    name = "符文封印",
+                    amount = totalSeals,
+                    color = { 40, 200, 160 },
+                }
+            end
+            -- 按系列分组显示符文
+            local runeCounts = {}
+            local runeOrder = {}
+            for _, rune in ipairs(allRunes) do
+                local sid = rune.seriesId
+                if not runeCounts[sid] then
+                    runeCounts[sid] = 0
+                    runeOrder[#runeOrder + 1] = sid
+                end
+                runeCounts[sid] = runeCounts[sid] + 1
+            end
+            for _, sid in ipairs(runeOrder) do
+                local series = RuneConfig.SERIES_MAP[sid]
+                if series then
+                    rewardItems[#rewardItems + 1] = {
+                        icon = series.icon,
+                        name = series.name .. "符文",
+                        amount = runeCounts[sid],
+                        color = series.color or { 220, 180, 60 },
+                    }
+                end
+            end
+
+            RewardDisplay.Show(UI, root, {
+                title = "深渊裂隙扫荡 ×" .. successCount,
+                rewards = rewardItems,
+                onClose = function()
+                    ctx.Refresh()
+                end,
+            })
         end,
     })
 end

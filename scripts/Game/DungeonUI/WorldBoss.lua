@@ -9,6 +9,7 @@ local WorldBossSkills = require("Game.WorldBossSkills")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
 local AdHelper = require("Game.AdHelper")
+local SweepPopup = require("Game.SweepPopup")
 
 local WorldBoss = {}
 
@@ -427,6 +428,18 @@ function WorldBoss._BuildChallengeButton(UI, S, ctx, remaining)
         }
     end
 
+    -- 扫荡按钮（始终显示，不可用时点击弹提示）
+    actionChildren[#actionChildren + 1] = UI.Button {
+        text = "🔄 扫荡",
+        fontSize = 13,
+        width = 80, height = 46,
+        borderRadius = 8,
+        variant = "outline",
+        onClick = function()
+            WorldBoss.OnSweep(UI, S, ctx)
+        end,
+    }
+
     actionChildren[#actionChildren + 1] = UI.Button {
         text = "🏆 排行",
         fontSize = 13,
@@ -658,6 +671,104 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
                 Toast.Show("伤害: " .. WB.FormatDamage(totalDamage) .. " · 未达到奖励阈值", S.red)
             end
             GameUI.ExitDungeonBattle()
+        end,
+    })
+end
+
+-- ============================================================================
+-- 扫荡逻辑
+-- ============================================================================
+
+function WorldBoss.OnSweep(UI, S, ctx)
+    local bestDamage = WB.GetBestDamage()
+    if bestDamage <= 0 then
+        Toast.Show("需要先挑战一次才能扫荡", { 255, 200, 80 })
+        return
+    end
+
+    local ticketCount = WB.GetTicketCount()
+    if ticketCount <= 0 then
+        Toast.Show("没有可用的挑战券", { 255, 200, 80 })
+        return
+    end
+
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if not root then return end
+
+    local selectedDiff = WB.GetSelectedDifficulty()
+
+    SweepPopup.Show(UI, root, S, {
+        title = "世界BOSS · 连续扫荡",
+        maxCount = ticketCount,
+        sweepLabel = "最高伤害",
+        sweepValue = WB.FormatDamage(bestDamage),
+        previewFn = function(count)
+            local frostPact = WB.CalcRewards(bestDamage, selectedDiff)
+            local items = {}
+            if frostPact > 0 then
+                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
+                items[#items + 1] = {
+                    icon = itemDef and itemDef.image or "🎫",
+                    name = itemDef and itemDef.name or "招募券自选包",
+                    amount = frostPact * count,
+                    color = { 200, 150, 255 },
+                }
+            else
+                items[#items + 1] = {
+                    icon = "⚠",
+                    name = "伤害未达奖励阈值",
+                    amount = 0,
+                    color = S.dim,
+                }
+            end
+            return items
+        end,
+        onConfirm = function(count)
+            local successCount = 0
+            local totalFrostPact = 0
+
+            for i = 1, count do
+                if not WB.ConsumeTicket() then
+                    Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
+                    break
+                end
+                local rewards = WB.ClaimReward(bestDamage, selectedDiff)
+                if rewards and rewards.recruit_ticket_select_box then
+                    totalFrostPact = totalFrostPact + rewards.recruit_ticket_select_box
+                end
+                successCount = successCount + 1
+            end
+
+            -- 每日任务：挑战Boss副本
+            local ok2, DTD = pcall(require, "Game.DailyTaskData")
+            if ok2 and DTD then DTD.AddProgress("boss", successCount) end
+
+            if successCount > 0 then
+                local rewardItems = {}
+                if totalFrostPact > 0 then
+                    local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
+                    rewardItems[#rewardItems + 1] = {
+                        icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
+                        name = itemDef and itemDef.name or "招募券自选包",
+                        amount = totalFrostPact,
+                        borderColor = { 200, 150, 255, 200 },
+                    }
+                end
+
+                if #rewardItems > 0 then
+                    RewardDisplay.Show(UI, root, {
+                        title = "世界BOSS 扫荡 ×" .. successCount .. " 完成！\n伤害: " .. WB.FormatDamage(bestDamage) .. " / 次",
+                        rewards = rewardItems,
+                        onClose = function()
+                            ctx.Refresh()
+                        end,
+                    })
+                else
+                    Toast.Show("扫荡完成 ×" .. successCount .. "（未达奖励阈值）", S.dim)
+                    ctx.Refresh()
+                end
+            end
         end,
     })
 end

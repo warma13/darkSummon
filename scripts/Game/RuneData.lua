@@ -28,6 +28,8 @@ local function EnsureData()
                 dailyFreeUsed = 0,
                 dailyAdUsed = 0,
                 lastResetDay = "",
+                bestWave = 0,           -- 最佳通关波次（扫荡用）
+                lastDifficultyId = "",  -- 上次挑战难度（扫荡用）
             },
         }
     end
@@ -38,8 +40,11 @@ local function EnsureData()
     if not d.bagCapacity then d.bagCapacity = RuneConfig.BAG_CAPACITY end
     if not d.nextId then d.nextId = 1 end
     if not d.abyssRift then
-        d.abyssRift = { dailyFreeUsed = 0, dailyAdUsed = 0, lastResetDay = "" }
+        d.abyssRift = { dailyFreeUsed = 0, dailyAdUsed = 0, lastResetDay = "", bestWave = 0, lastDifficultyId = "" }
     end
+    -- 兼容旧存档：补齐扫荡字段
+    if d.abyssRift.bestWave == nil then d.abyssRift.bestWave = 0 end
+    if d.abyssRift.lastDifficultyId == nil then d.abyssRift.lastDifficultyId = "" end
     return d
 end
 
@@ -702,6 +707,13 @@ function RuneData.ConsumeAdForTicket()
     InventoryData.Add("abyss_ticket", 1)
     HeroData.Save()
     return true
+end
+
+--- 获取深渊裂隙进度数据引用（供 AbyssRiftDungeon 读写 bestWave 等）
+---@return table
+function RuneData.GetAbyssRiftProgress()
+    local d = EnsureData()
+    return d.abyssRift
 end
 
 --- 获取背包中深渊裂隙挑战券数量

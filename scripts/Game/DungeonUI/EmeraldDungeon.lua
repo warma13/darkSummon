@@ -9,6 +9,7 @@ local RewardDisplay    = require("Game.RewardDisplay")
 local AdHelper         = require("Game.AdHelper")
 local Currency         = require("Game.Currency")
 
+local SweepPopup      = require("Game.SweepPopup")
 local EmeraldBossSkills = require("Game.EmeraldBossSkills")
 local FormatNum = require("Game.FormatUtil").FormatNum
 local LeaderboardUI = require("Game.LeaderboardUI")
@@ -183,8 +184,12 @@ function EmeraldDungeon._BuildDungeonView(ctx)
         -- 奖励描述（带词缀加成）
         local rewardTiers = EmeraldData.GetRewardTiers(diff.id)
 
-        -- 构建按钮
+        -- 构建按钮（挑战 + 扫荡）
         local actionBtn
+        local canSweep, sweepReason = EmeraldData.CanSweep(diff.id)
+        local hasDailyChallenged = EmeraldData.HasDailyChallenged(diff.id)
+        local sweepBestWaves = EmeraldData.GetBestWaves(diff.id)
+
         if not isActive then
             actionBtn = UI.Panel {
                 paddingLeft = 10, paddingRight = 10,
@@ -205,36 +210,86 @@ function EmeraldDungeon._BuildDungeonView(ctx)
                     UI.Label { text = EmeraldData.GetUnlockHint(diff.id), fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
                 },
             }
-        elseif canEnter then
-            actionBtn = UI.Panel {
-                paddingLeft = 12, paddingRight = 12,
-                paddingTop = 6, paddingBottom = 6,
-                borderRadius = 6,
-                backgroundColor = { diff.color[1], diff.color[2], diff.color[3], 200 },
-                onClick = function()
-                    if EmeraldData.ConsumeTicket() then
-                        EmeraldDungeon.StartBattle(UI, S, ctx, diff.id)
-                    end
-                end,
-                children = {
-                    UI.Panel {
-                        flexDirection = "row", alignItems = "center", gap = 3,
-                        pointerEvents = "none",
-                        children = {
-                            UI.Panel { width = 14, height = 14, backgroundImage = "image/icon_ticket.png", backgroundFit = "contain", pointerEvents = "none", flexShrink = 0 },
-                            UI.Label { text = " 挑战", fontSize = 13, fontWeight = "bold", fontColor = { 255, 255, 255 }, pointerEvents = "none" },
+        else
+            -- 挑战按钮
+            local challengeBtn
+            if canEnter then
+                challengeBtn = UI.Panel {
+                    paddingLeft = 10, paddingRight = 10,
+                    paddingTop = 6, paddingBottom = 6,
+                    borderRadius = 6,
+                    backgroundColor = { diff.color[1], diff.color[2], diff.color[3], 200 },
+                    onClick = function()
+                        if EmeraldData.ConsumeTicket() then
+                            EmeraldDungeon.StartBattle(UI, S, ctx, diff.id)
+                        end
+                    end,
+                    children = {
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = 3,
+                            pointerEvents = "none",
+                            children = {
+                                UI.Panel { width = 12, height = 12, backgroundImage = "image/icon_ticket.png", backgroundFit = "contain", pointerEvents = "none", flexShrink = 0 },
+                                UI.Label { text = "挑战", fontSize = 12, fontWeight = "bold", fontColor = { 255, 255, 255 }, pointerEvents = "none" },
+                            },
                         },
                     },
-                },
-            }
-        else
+                }
+            else
+                challengeBtn = UI.Panel {
+                    paddingLeft = 10, paddingRight = 10,
+                    paddingTop = 6, paddingBottom = 6,
+                    borderRadius = 6,
+                    backgroundColor = { 60, 50, 80, 180 },
+                    children = {
+                        UI.Label { text = "券不足", fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
+                    },
+                }
+            end
+
+            -- 扫荡按钮（始终显示，不可用时灰色+提示）
+            local sweepBtn
+            if canSweep then
+                sweepBtn = UI.Panel {
+                    paddingLeft = 8, paddingRight = 8,
+                    paddingTop = 6, paddingBottom = 6,
+                    borderRadius = 6,
+                    backgroundColor = { 80, 60, 180, 200 },
+                    onClick = function()
+                        EmeraldDungeon.OnSweep(UI, S, ctx, diff)
+                    end,
+                    children = {
+                        UI.Label { text = "扫荡", fontSize = 12, fontWeight = "bold", fontColor = { 255, 255, 255 }, pointerEvents = "none" },
+                    },
+                }
+            else
+                -- 不可扫荡 → 灰色，点击提示原因
+                local tipText = (sweepBestWaves <= 0) and "需先通关" or (not hasDailyChallenged and "今日未挑战" or sweepReason)
+                sweepBtn = UI.Panel {
+                    paddingLeft = 8, paddingRight = 8,
+                    paddingTop = 6, paddingBottom = 6,
+                    borderRadius = 6,
+                    backgroundColor = { 45, 40, 60, 180 },
+                    onClick = function()
+                        if sweepBestWaves <= 0 then
+                            Toast.Show("需要先挑战一次才能扫荡", { 255, 200, 80 })
+                        elseif not hasDailyChallenged then
+                            Toast.Show("今日需先挑战一次该难度才能扫荡", { 255, 200, 80 })
+                        else
+                            Toast.Show(sweepReason, { 255, 200, 80 })
+                        end
+                    end,
+                    children = {
+                        UI.Label { text = "扫荡", fontSize = 12, fontColor = S.dim, pointerEvents = "none" },
+                    },
+                }
+            end
+
             actionBtn = UI.Panel {
-                paddingLeft = 10, paddingRight = 10,
-                paddingTop = 6, paddingBottom = 6,
-                borderRadius = 6,
-                backgroundColor = { 60, 50, 80, 180 },
+                flexDirection = "row", alignItems = "center", gap = 4,
                 children = {
-                    UI.Label { text = "秘境券不足", fontSize = 12, fontColor = S.dim, pointerEvents = "none" },
+                    challengeBtn,
+                    sweepBtn,
                 },
             }
         end
@@ -844,6 +899,80 @@ function EmeraldDungeon._ConfirmPurchase(UI, S, ctx, item)
                 },
             },
         },
+    })
+end
+
+-- ============================================================================
+-- 扫荡逻辑
+-- ============================================================================
+
+function EmeraldDungeon.OnSweep(UI, S, ctx, diff)
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if not root then return end
+
+    local bestWaves = EmeraldData.GetBestWaves(diff.id)
+    if bestWaves <= 0 then
+        Toast.Show("需要先挑战一次才能扫荡", { 255, 200, 80 })
+        return
+    end
+
+    local tickets = EmeraldData.GetTickets()
+    if tickets <= 0 then
+        Toast.Show("秘境券不足", { 255, 100, 100 })
+        return
+    end
+
+    local affixOpt = EmeraldData.GetAffixOption(diff.id)
+
+    SweepPopup.Show(UI, root, S, {
+        title = diff.name .. " · 连续扫荡",
+        maxCount = tickets,
+        sweepLabel = "最高纪录",
+        sweepValue = "第 " .. bestWaves .. "/" .. diff.waves .. " 波"
+            .. (affixOpt.bonusPct > 0 and ("  词缀+" .. affixOpt.bonusPct .. "%") or ""),
+        previewFn = function(count)
+            local tokens = EmeraldData.CalcTokenReward(bestWaves, diff.id, affixOpt.bonusPct)
+            return {
+                {
+                    icon = "image/emerald_certificate.png",
+                    name = "翠影凭证",
+                    amount = tokens * count,
+                    color = { 100, 220, 140 },
+                },
+            }
+        end,
+        onConfirm = function(count)
+            local totalTokens = 0
+            for i = 1, count do
+                local ok, tokens = EmeraldData.DoSweep(diff.id, affixOpt.bonusPct)
+                if ok then
+                    totalTokens = totalTokens + tokens
+                else
+                    if i == 1 then return end  -- 第一次就失败，不显示结果
+                    break
+                end
+            end
+
+            -- 显示扫荡结果
+            local rewardItems = {}
+            if totalTokens > 0 then
+                rewardItems[#rewardItems + 1] = {
+                    icon = "image/emerald_certificate.png",
+                    name = "翠影凭证",
+                    amount = totalTokens,
+                    color = { 100, 220, 140 },
+                }
+            end
+
+            RewardDisplay.Show(UI, root, {
+                title = diff.name .. " · 扫荡完成 ×" .. count,
+                rewards = rewardItems,
+                onClose = function()
+                    ctx.Refresh()
+                end,
+            })
+        end,
     })
 end
 

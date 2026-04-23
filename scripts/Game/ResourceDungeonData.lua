@@ -88,6 +88,27 @@ RD.ENEMIES_PER_WAVE = 20    -- 每波怪物数（含末尾 Boss）
 RD.BOSS_HP_MULT    = 5.0    -- Boss HP = 该波普通怪 × 5
 
 -- ============================================================================
+-- 难度等级定义
+-- ============================================================================
+RD.DIFFICULTY_LEVELS = {
+    { level = 0, label = "普通",  statMult = 1,     rewardMult = 1 },
+    { level = 1, label = "困难",  statMult = 10,    rewardMult = 2 },
+    { level = 2, label = "噩梦",  statMult = 100,   rewardMult = 3 },
+    { level = 3, label = "地狱",  statMult = 1000,  rewardMult = 4 },
+    { level = 4, label = "炼狱",  statMult = 10000, rewardMult = 5 },
+}
+
+--- 根据 level 返回难度定义
+---@param level number
+---@return table
+function RD.GetDifficultyDef(level)
+    for _, d in ipairs(RD.DIFFICULTY_LEVELS) do
+        if d.level == level then return d end
+    end
+    return RD.DIFFICULTY_LEVELS[1]  -- fallback 普通
+end
+
+-- ============================================================================
 -- 难度缩放公式
 -- 目标：wave 1 ≈ 主线第 10 关，wave 20 ≈ 主线第 6000 关
 --
@@ -206,14 +227,18 @@ end
 --- 宝箱副本返回该波宝箱数量（具体类型用 GetChestWaveReward 查询）
 ---@param dungeonKey string
 ---@param wave number 1~20
+---@param diffLevel number|nil 难度等级（默认0），影响奖励倍率
 ---@return number amount
-function RD.GetWaveReward(dungeonKey, wave)
+function RD.GetWaveReward(dungeonKey, wave, diffLevel)
     local def = RD.DUNGEON_MAP[dungeonKey]
     if not def then return 0 end
 
+    local diffDef = RD.GetDifficultyDef(diffLevel or 0)
+    local rewardMult = diffDef.rewardMult or 1
+
     if def.rewardCurrency == "chest" then
         local cr = CHEST_WAVE_REWARDS[wave]
-        return cr and cr.count or 0
+        return cr and (cr.count * rewardMult) or 0
     end
 
     local currId = def.rewardCurrency
@@ -223,23 +248,27 @@ function RD.GetWaveReward(dungeonKey, wave)
     local base = LogInterp(wave, knots)
     local baseFull = BASE_FULL_CLEAR[currId] or 1
     local target = FULL_CLEAR_TARGET[currId] or baseFull
-    return math.floor(base * target / baseFull)
+    return math.floor(base * target / baseFull * rewardMult)
 end
 
 --- 计算通关到第 maxWave 波的总奖励
 ---@param dungeonKey string
 ---@param maxWave number 打到第几波
+---@param diffLevel number|nil 难度等级（默认0）
 ---@return table rewards {currencyId = amount} 或 {chests = {chestId=count}}
-function RD.CalcTotalRewards(dungeonKey, maxWave)
+function RD.CalcTotalRewards(dungeonKey, maxWave, diffLevel)
     local def = RD.DUNGEON_MAP[dungeonKey]
     if not def then return {} end
+
+    local diffDef = RD.GetDifficultyDef(diffLevel or 0)
+    local rewardMult = diffDef.rewardMult or 1
 
     if def.rewardCurrency == "chest" then
         local chests = {}  -- chestId -> count
         for w = 1, maxWave do
             local cr = CHEST_WAVE_REWARDS[w]
             if cr then
-                chests[cr.id] = (chests[cr.id] or 0) + cr.count
+                chests[cr.id] = (chests[cr.id] or 0) + cr.count * rewardMult
             end
         end
         return { chests = chests }
@@ -247,7 +276,7 @@ function RD.CalcTotalRewards(dungeonKey, maxWave)
 
     local total = 0
     for w = 1, maxWave do
-        total = total + RD.GetWaveReward(dungeonKey, w)
+        total = total + RD.GetWaveReward(dungeonKey, w, diffLevel)
     end
     return { [def.rewardCurrency] = total }
 end
@@ -259,12 +288,17 @@ end
 --- 生成指定副本、指定波次的敌人列表
 ---@param dungeonKey string 副本 key
 ---@param wave number 1~20
+---@param diffLevel number|nil 难度等级（默认0）
 ---@return table enemies 敌人定义列表
-function RD.GenerateWaveEnemies(dungeonKey, wave)
+function RD.GenerateWaveEnemies(dungeonKey, wave, diffLevel)
     local stageEquiv = RD.WaveToStage(wave)
     local stageNum = math.max(1, math.floor(stageEquiv))
     local hpScale = RD.CalcHPScale(stageEquiv)
     local spdScale = RD.CalcSpeedScale(stageEquiv)
+
+    -- 难度倍率：影响 HP
+    local diffDef = RD.GetDifficultyDef(diffLevel or 0)
+    local statMult = diffDef.statMult or 1
 
     -- 获取该等效关卡的主题
     local themeIdx = ((stageNum - 1) % Config.THEME_COUNT) + 1
@@ -294,7 +328,7 @@ function RD.GenerateWaveEnemies(dungeonKey, wave)
         local roleId = availRoles[((i - 1) % #availRoles) + 1]
         local def = Config.BuildEnemyDef(stageNum, roleId)
         if def then
-            def.baseHP = def.baseHP * hpScale
+            def.baseHP = def.baseHP * hpScale * statMult
             def.speed = def.speed * spdScale
             def.isDungeonEnemy = true
             enemies[#enemies + 1] = def
@@ -304,8 +338,8 @@ function RD.GenerateWaveEnemies(dungeonKey, wave)
     -- 第 20 个是 Boss
     local bossDef = Config.BuildBossDef(stageNum)
     if bossDef then
-        -- Boss HP = 普通怪基准 × BOSS_HP_MULT × hpScale
-        bossDef.baseHP = bossDef.baseHP * hpScale * RD.BOSS_HP_MULT
+        -- Boss HP = 普通怪基准 × BOSS_HP_MULT × hpScale × 难度倍率
+        bossDef.baseHP = bossDef.baseHP * hpScale * RD.BOSS_HP_MULT * statMult
         bossDef.speed = bossDef.speed * spdScale * 0.7  -- Boss 略慢
         bossDef.isDungeonEnemy = true
         bossDef.isDungeonBoss = true
@@ -346,7 +380,23 @@ function RD.GetData()
                 chest   = 0,
             },
             lastResetDate = TodayStr(),
+            selectedDifficulty = 0,
+            clearedDifficulties = {},
+            bestWaveDiff = {},
         }
+    end
+
+    -- 兼容旧存档：补充 bestWaveDiff
+    if not HeroData.resourceDungeon.bestWaveDiff then
+        HeroData.resourceDungeon.bestWaveDiff = {}
+    end
+
+    -- 兼容旧存档：补充 selectedDifficulty / clearedDifficulties
+    if HeroData.resourceDungeon.selectedDifficulty == nil then
+        HeroData.resourceDungeon.selectedDifficulty = 0
+    end
+    if not HeroData.resourceDungeon.clearedDifficulties then
+        HeroData.resourceDungeon.clearedDifficulties = {}
     end
 
     -- 兼容旧存档：补充 todayAdAttempts
@@ -404,12 +454,76 @@ function RD.GetAdRemaining(dungeonKey)
     return math.max(0, RD.AD_EXTRA_ATTEMPTS - adUsed)
 end
 
---- 获取最高通关波数
+--- 获取最高通关波数（按难度分别记录）
 ---@param dungeonKey string
+---@param diffLevel number|nil 难度等级（默认为当前选择难度）
 ---@return number
-function RD.GetBestWave(dungeonKey)
+function RD.GetBestWave(dungeonKey, diffLevel)
     local data = RD.GetData()
-    return data.bestWave[dungeonKey] or 0
+    if diffLevel == nil then
+        diffLevel = data.selectedDifficulty or 0
+    end
+    -- 难度0 使用旧字段兼容（bestWave[dungeonKey]）
+    if diffLevel == 0 then
+        return data.bestWave[dungeonKey] or 0
+    end
+    -- 难度1+ 使用 bestWaveDiff[diffLevel][dungeonKey]
+    local bwd = data.bestWaveDiff
+    if not bwd then return 0 end
+    local dk = tostring(diffLevel)
+    if not bwd[dk] then return 0 end
+    return bwd[dk][dungeonKey] or 0
+end
+
+-- ============================================================================
+-- 难度系统 API
+-- ============================================================================
+
+--- 获取当前选择的难度等级
+---@return number
+function RD.GetSelectedDifficulty()
+    local data = RD.GetData()
+    return data.selectedDifficulty or 0
+end
+
+--- 设置当前难度等级（需已解锁）
+---@param level number
+function RD.SetSelectedDifficulty(level)
+    local data = RD.GetData()
+    if not RD.IsDifficultyUnlocked(level) then return end
+    data.selectedDifficulty = level
+    HeroData.Save()
+end
+
+--- 判断难度是否已解锁
+---@param level number
+---@return boolean
+function RD.IsDifficultyUnlocked(level)
+    if level == 0 then return true end  -- 难度0默认解锁
+    local data = RD.GetData()
+    local cleared = data.clearedDifficulties or {}
+    -- 找到前一个难度等级
+    local prevLevel = nil
+    for i, d in ipairs(RD.DIFFICULTY_LEVELS) do
+        if d.level == level then
+            if i > 1 then prevLevel = RD.DIFFICULTY_LEVELS[i - 1].level end
+            break
+        end
+    end
+    if prevLevel == nil then return true end  -- 没有前置难度
+    return cleared[tostring(prevLevel)] == true
+end
+
+--- 标记某难度已通关（解锁下一难度）
+---@param level number
+function RD.MarkDifficultyCleared(level)
+    local data = RD.GetData()
+    if not data.clearedDifficulties then
+        data.clearedDifficulties = {}
+    end
+    data.clearedDifficulties[tostring(level)] = true
+    HeroData.Save()
+    print("[ResourceDungeon] Difficulty " .. level .. " cleared, next unlocked")
 end
 
 --- 消耗每日免费挑战次数（进入副本时调用）
@@ -531,19 +645,35 @@ end
 --- 挑战结算：记录本次打到第几波、发放奖励（纯结算，次数/门票已在入场时扣除）
 ---@param dungeonKey string
 ---@param clearedWave number 本次最高通关波数 (1~20)
+---@param diffLevel number|nil 难度等级（默认0）
 ---@return table|nil rewards
-function RD.ClaimReward(dungeonKey, clearedWave)
+function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
+    diffLevel = diffLevel or 0
     local data = RD.GetData()
     local def = RD.DUNGEON_MAP[dungeonKey]
     if not def then return nil end
 
-    -- 更新最高纪录
-    if clearedWave > (data.bestWave[dungeonKey] or 0) then
-        data.bestWave[dungeonKey] = clearedWave
+    -- 更新最高纪录（按难度分别记录）
+    if diffLevel == 0 then
+        if clearedWave > (data.bestWave[dungeonKey] or 0) then
+            data.bestWave[dungeonKey] = clearedWave
+        end
+    else
+        if not data.bestWaveDiff then data.bestWaveDiff = {} end
+        local dk = tostring(diffLevel)
+        if not data.bestWaveDiff[dk] then data.bestWaveDiff[dk] = {} end
+        if clearedWave > (data.bestWaveDiff[dk][dungeonKey] or 0) then
+            data.bestWaveDiff[dk][dungeonKey] = clearedWave
+        end
+    end
+
+    -- 全通 20 波时标记该难度通关（解锁下一难度）
+    if clearedWave >= RD.TOTAL_WAVES then
+        RD.MarkDifficultyCleared(diffLevel)
     end
 
     -- 计算并发放奖励
-    local rewards = RD.CalcTotalRewards(dungeonKey, clearedWave)
+    local rewards = RD.CalcTotalRewards(dungeonKey, clearedWave, diffLevel)
 
     if def.rewardCurrency == "chest" then
         -- 宝箱副本：按类型发放宝箱
@@ -560,12 +690,12 @@ function RD.ClaimReward(dungeonKey, clearedWave)
         end
     end
 
-    -- 上传资源副本排行榜（当天最高波次）
+    -- 上传资源副本排行榜（取难度0的最高波次，因为高难度必须先通关普通）
     local ok, LBMod = pcall(require, "Game.LeaderboardData")
     if ok then
         local maxWave = 0
         for _, d in ipairs(RD.DUNGEON_DEFS) do
-            local w = RD.GetBestWave(d.key)
+            local w = RD.GetBestWave(d.key, 0)
             if w > maxWave then maxWave = w end
         end
         if maxWave > 0 then LBMod.UploadDungeon(maxWave) end
@@ -618,19 +748,25 @@ SaveRegistry.Register("resourceDungeon", {
     serialize = function()
         local data = RD.GetData()  -- 确保已初始化
         return {
-            bestWave       = data.bestWave,
-            todayAttempts  = data.todayAttempts,
-            todayAdAttempts = data.todayAdAttempts,
-            lastResetDate  = data.lastResetDate,
+            bestWave            = data.bestWave,
+            bestWaveDiff        = data.bestWaveDiff,
+            todayAttempts       = data.todayAttempts,
+            todayAdAttempts     = data.todayAdAttempts,
+            lastResetDate       = data.lastResetDate,
+            selectedDifficulty  = data.selectedDifficulty,
+            clearedDifficulties = data.clearedDifficulties,
         }
     end,
     deserialize = function(saved, _saveData)
         if saved and saved.bestWave then
             HeroData.resourceDungeon = {
-                bestWave        = saved.bestWave or {},
-                todayAttempts   = saved.todayAttempts or {},
-                todayAdAttempts = saved.todayAdAttempts or {},
-                lastResetDate   = saved.lastResetDate or TodayStr(),
+                bestWave            = saved.bestWave or {},
+                bestWaveDiff        = saved.bestWaveDiff or {},
+                todayAttempts       = saved.todayAttempts or {},
+                todayAdAttempts     = saved.todayAdAttempts or {},
+                lastResetDate       = saved.lastResetDate or TodayStr(),
+                selectedDifficulty  = saved.selectedDifficulty or 0,
+                clearedDifficulties = saved.clearedDifficulties or {},
             }
             -- 确保四种副本的 key 都存在
             for _, def in ipairs(RD.DUNGEON_DEFS) do

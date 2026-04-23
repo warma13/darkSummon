@@ -125,8 +125,8 @@ function RecruitData.DoPull(pullCount, isFree)
 
     -- 先决定每抽的稀有度（含 LR/UR 保底逻辑）
     local rarities = {}
-    local pityFateUR = {}   -- 记录哪些抽触发了 UR 保底
-    local pityFateLR = {}   -- 记录哪些抽触发了 LR 保底
+    local useFateUR = {}   -- 记录哪些抽应使用 UR 命定英雄
+    local useFateLR = {}   -- 记录哪些抽应使用 LR 命定英雄
     for i = 1, pullCount do
         rd.totalPulls = rd.totalPulls + 1
         rd.lrPityCount = (rd.lrPityCount or 0) + 1
@@ -142,11 +142,13 @@ function RecruitData.DoPull(pullCount, isFree)
         rarities[i] = RollRarity(false, forceLR, lrBonus, forceUR)
 
         if rarities[i] == "LR" then
-            pityFateLR[i] = forceLR
+            -- 只要出了 LR 就使用命定英雄（无论概率/软保底/硬保底）
+            useFateLR[i] = true
             print("[RecruitData] LR obtained at pityCount=" .. rd.lrPityCount .. ", resetting")
             rd.lrPityCount = 0
         elseif rarities[i] == "UR" then
-            pityFateUR[i] = forceUR
+            -- 只要出了 UR 就使用命定英雄（无论概率/硬保底）
+            useFateUR[i] = true
             print("[RecruitData] UR obtained at urPityCount=" .. rd.urPityCount .. ", resetting")
             rd.urPityCount = 0
         end
@@ -168,13 +170,13 @@ function RecruitData.DoPull(pullCount, isFree)
         end
     end
 
-    -- 按确定的稀有度发放奖励（保底触发时使用命定英雄）
+    -- 按确定的稀有度发放奖励（命定仪轨：出对应品质时使用命定英雄）
     local results = {}
     for i = 1, pullCount do
         local fateOverride = nil
-        if rarities[i] == "UR" and pityFateUR[i] and rd.fateHeroUR then
+        if rarities[i] == "UR" and useFateUR[i] and rd.fateHeroUR then
             fateOverride = rd.fateHeroUR
-        elseif rarities[i] == "LR" and pityFateLR[i] and rd.fateHeroLR then
+        elseif rarities[i] == "LR" and useFateLR[i] and rd.fateHeroLR then
             fateOverride = rd.fateHeroLR
         end
         results[i] = ResolveHero(rarities[i], fateOverride)

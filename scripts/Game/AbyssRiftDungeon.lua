@@ -127,6 +127,33 @@ function Abyss.GetAdRemaining()
     return ad
 end
 
+--- 获取最佳通关波次（扫荡用）
+---@return number
+function Abyss.GetBestWave()
+    local d = RuneData.GetAbyssRiftProgress()
+    return d and d.bestWave or 0
+end
+
+--- 获取上次挑战难度（扫荡用）
+---@return string
+function Abyss.GetLastDifficultyId()
+    local d = RuneData.GetAbyssRiftProgress()
+    return d and d.lastDifficultyId or ""
+end
+
+--- 记录最佳通关波次和难度（EndSession 时调用）
+---@param clearedWave number
+---@param difficultyId string
+function Abyss.RecordBestResult(clearedWave, difficultyId)
+    local d = RuneData.GetAbyssRiftProgress()
+    if d then
+        if clearedWave > (d.bestWave or 0) then
+            d.bestWave = clearedWave
+        end
+        d.lastDifficultyId = difficultyId
+    end
+end
+
 -- ============================================================================
 -- 难度缩放
 -- 深渊裂隙基于玩家当前关卡 × 难度系数，15波内从低到高递增
@@ -389,6 +416,9 @@ function Abyss.ClaimReward(clearedWave, difficultyId)
         end
     end
 
+    -- 记录最佳波次和难度（扫荡用）
+    Abyss.RecordBestResult(clearedWave, difficultyId)
+
     -- 保存
     HeroData.Save(true)  -- 立即云端保存
 
@@ -567,6 +597,9 @@ function Abyss.EndSession(session)
             overflowRunes[#overflowRunes + 1] = rune
         end
     end
+
+    -- 记录最佳波次和难度（扫荡用）
+    Abyss.RecordBestResult(session.currentWave, session.difficultyId)
 
     -- 保存
     HeroData.Save(true)

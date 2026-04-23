@@ -297,6 +297,23 @@ function HandleKeyDown(eventType, eventData)
             print("[Debug] F8 - 当前无试练塔战斗，已忽略 (mode=" .. tostring(BM.GetMode()) .. ")")
         end
 
+        -- 调试：直接激活当日免广卡（将今日广告次数设为20）
+        local AdReliefData = require("Game.AdReliefData")
+        local ToastDbg = require("Game.Toast")
+        if AdReliefData.IsAdFreeToday() then
+            print("[Debug] F8 - 免广卡已激活，跳过")
+            ToastDbg.Show("调试: 免广卡已激活", { 100, 200, 255 })
+        else
+            local heroStats = require("Game.HeroData").stats
+            if heroStats.adRelief then
+                heroStats.adRelief.todayAds = 20
+                heroStats.adRelief.lastAdDate = require("Game.DateUtil").TodayStr()
+                require("Game.HeroData").Save()
+                print("[Debug] F8 - 免广卡已激活 (todayAds=20)")
+                ToastDbg.Show("调试: 免广卡已激活，广告将自动跳过", { 100, 220, 180 })
+            end
+        end
+
         -- 测试成就弹出动画
         local testNames = { "永夜不息", "初露锋芒", "百战老兵", "暗影收割者", "虚空征服者" }
         local testDescs = { "单日在线24小时", "完成首次战斗", "累计战斗100次", "击败1000个敌人", "通关虚空裂隙" }

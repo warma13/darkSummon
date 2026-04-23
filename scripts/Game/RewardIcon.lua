@@ -11,8 +11,9 @@
 --        backgroundColor = ...,  -- 可选：覆盖背景色
 --    })
 
-local Config  = require("Game.Config")
-local Currency = require("Game.Currency")
+local Config       = require("Game.Config")
+local Currency     = require("Game.Currency")
+local FormatNumber = require("Game.FormatUtil").FormatNumber
 local Tooltip = require("Game.Tooltip")
 
 local RewardIcon = {}
@@ -102,7 +103,7 @@ function RewardIcon.Create(UI, size, currencyId, amount, opts)
     -- 图标内容子项（图片 + 徽章），两种模式共用
     local onClickFn = (not opts.noTooltip) and function(self)
         Tooltip.Show({
-            title = displayName .. " ×" .. amount,
+            title = displayName .. " ×" .. FormatNumber(amount),
             desc = desc,
             anchor = self,
         })
@@ -132,7 +133,7 @@ function RewardIcon.Create(UI, size, currencyId, amount, opts)
             borderRadius = 4,
             children = {
                 UI.Label {
-                    text = "×" .. amount,
+                    text = "×" .. FormatNumber(amount),
                     fontSize = 10,
                     fontColor = muted and { 150, 140, 170, 180 } or { 255, 255, 255 },
                     fontWeight = "bold",

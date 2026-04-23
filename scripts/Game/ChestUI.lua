@@ -561,24 +561,56 @@ end
 local function BuildRewards(result)
     local rewards = {}
 
+    -- 聚合同类掉落（批量开箱时避免产生数百条重复条目）
+    local currAgg = {}      -- { [currType] = totalAmount }
+    local currOrder = {}    -- 保持插入顺序
+    local fragAgg = {}      -- { [heroId] = { totalAmount, heroName, rarity, isNew } }
+    local fragOrder = {}    -- 保持插入顺序
+
     for _, drop in ipairs(result.drops) do
         if drop.kind == "currency" then
-            rewards[#rewards + 1] = {
-                icon = GetCurrencyImage(drop.currType),
-                name = GetCurrencyName(drop.currType),
-                amount = drop.amount,
-            }
+            if not currAgg[drop.currType] then
+                currAgg[drop.currType] = 0
+                currOrder[#currOrder + 1] = drop.currType
+            end
+            currAgg[drop.currType] = currAgg[drop.currType] + drop.amount
         elseif drop.kind == "fragment" then
-            local rc = RARITY_COLORS[drop.rarity] or { 200, 200, 200 }
-            rewards[#rewards + 1] = {
-                icon = "👤",
-                name = drop.rarity .. " " .. drop.heroName,
-                amount = drop.amount,
-                borderColor = { rc[1], rc[2], rc[3], 200 },
-                avatarImage = GetAvatarImage(drop.heroId),
-                isNew = drop.isNew,
-            }
+            if not fragAgg[drop.heroId] then
+                fragAgg[drop.heroId] = {
+                    amount = 0,
+                    heroName = drop.heroName,
+                    rarity = drop.rarity,
+                    isNew = drop.isNew,
+                }
+                fragOrder[#fragOrder + 1] = drop.heroId
+            end
+            fragAgg[drop.heroId].amount = fragAgg[drop.heroId].amount + drop.amount
+            -- 只要有一次 isNew，就标记为 isNew
+            if drop.isNew then fragAgg[drop.heroId].isNew = true end
         end
+    end
+
+    -- 先显示英雄碎片（更醒目）
+    for _, heroId in ipairs(fragOrder) do
+        local f = fragAgg[heroId]
+        local rc = RARITY_COLORS[f.rarity] or { 200, 200, 200 }
+        rewards[#rewards + 1] = {
+            icon = "👤",
+            name = f.rarity .. " " .. f.heroName,
+            amount = f.amount,
+            borderColor = { rc[1], rc[2], rc[3], 200 },
+            avatarImage = GetAvatarImage(heroId),
+            isNew = f.isNew,
+        }
+    end
+
+    -- 再显示货币
+    for _, currType in ipairs(currOrder) do
+        rewards[#rewards + 1] = {
+            icon = GetCurrencyImage(currType),
+            name = GetCurrencyName(currType),
+            amount = currAgg[currType],
+        }
     end
 
     if result.milestoneRewards then
@@ -615,7 +647,7 @@ function ChestUI.ShowResultPopup(result)
     -- 构建按钮
     local remainCount = ChestData.GetCount(selectedChest)
     local canReopen = remainCount > 0
-    local reopenCount = math.min(remainCount, 10)
+    local reopenCount = math.min(remainCount, result.count or 10)
 
     local buttons = {
         {

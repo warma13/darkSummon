@@ -9,6 +9,7 @@ local InventoryData = require("Game.InventoryData")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
 local AdHelper = require("Game.AdHelper")
+local SweepPopup = require("Game.SweepPopup")
 
 local ResourceDungeon = {}
 
@@ -224,7 +225,8 @@ function ResourceDungeon.BuildDetailView(ctx)
         return
     end
 
-    local bestWave = RD.GetBestWave(def.key)
+    local selectedDiffEarly = RD.GetSelectedDifficulty()
+    local bestWave = RD.GetBestWave(def.key, selectedDiffEarly)
     local remaining = RD.GetRemainingAttempts(def.key)
     local totalTickets, specificTickets, genericTickets = RD.GetTotalTicketCount(def.key)
 
@@ -291,11 +293,15 @@ function ResourceDungeon.BuildDetailView(ctx)
         },
     })
 
+    -- 当前选中的难度
+    local selectedDiff = RD.GetSelectedDifficulty()
+
     -- 滚动内容
     local contentChildren = {}
     contentChildren[#contentChildren + 1] = ResourceDungeon._BuildInfoCard(UI, S, def, bestWave)
+    contentChildren[#contentChildren + 1] = ResourceDungeon._BuildDifficultySelector(UI, S, ctx, selectedDiff)
     contentChildren[#contentChildren + 1] = ResourceDungeon._BuildWaveGrid(UI, S, ctx, def, bestWave)
-    contentChildren[#contentChildren + 1] = ResourceDungeon._BuildRewardPreview(UI, S, ctx, def)
+    contentChildren[#contentChildren + 1] = ResourceDungeon._BuildRewardPreview(UI, S, ctx, def, selectedDiff)
 
     pageRoot:AddChild(UI.ScrollView {
         width = "100%",
@@ -358,6 +364,106 @@ function ResourceDungeon._BuildInfoCard(UI, S, def, bestWave)
                                 pointerEvents = "none",
                             },
                         },
+                    },
+                },
+            },
+        },
+    }
+end
+
+--- 难度选择器
+function ResourceDungeon._BuildDifficultySelector(UI, S, ctx, selectedDiff)
+    local diffButtons = {}
+    local diffColors = {
+        [0] = { 120, 180, 120 },
+        [1] = { 200, 180, 80 },
+        [2] = { 220, 140, 60 },
+        [3] = { 220, 60, 60 },
+        [4] = { 180, 40, 180 },
+    }
+
+    for _, d in ipairs(RD.DIFFICULTY_LEVELS) do
+        local isSelected = (d.level == selectedDiff)
+        local isUnlocked = RD.IsDifficultyUnlocked(d.level)
+        local diffLevel = d.level
+        local color = diffColors[d.level] or S.dim
+
+        diffButtons[#diffButtons + 1] = UI.Panel {
+            flex = 1,
+            height = 40,
+            justifyContent = "center",
+            alignItems = "center",
+            backgroundColor = isSelected and { color[1], color[2], color[3], 60 } or { 30, 30, 40, 120 },
+            borderRadius = 6,
+            borderWidth = isSelected and 2 or 1,
+            borderColor = isSelected and color or { 60, 60, 70, 100 },
+            opacity = isUnlocked and 1.0 or 0.4,
+            onClick = isUnlocked and function()
+                RD.SetSelectedDifficulty(diffLevel)
+                ctx.Refresh()
+            end or function()
+                Toast.Show("需要先通关「" .. RD.GetDifficultyDef(diffLevel - 1).label .. "」难度全20波", { 255, 200, 80 })
+            end,
+            children = {
+                UI.Label {
+                    text = d.label,
+                    fontSize = 12, fontWeight = isSelected and "bold" or "normal",
+                    fontColor = isSelected and color or (isUnlocked and S.white or S.dim),
+                    pointerEvents = "none",
+                },
+                UI.Label {
+                    text = isUnlocked and ("×" .. d.rewardMult .. "奖励") or "🔒",
+                    fontSize = 9,
+                    fontColor = isSelected and color or S.dim,
+                    pointerEvents = "none",
+                },
+            },
+        }
+    end
+
+    -- 描述文本
+    local diff = RD.GetDifficultyDef(selectedDiff)
+    local descText
+    if selectedDiff == 0 then
+        descText = "原始难度，适合入门挑战"
+    else
+        local multStr
+        if diff.statMult >= 10000 then
+            multStr = string.format("%.0f万", diff.statMult / 10000)
+        else
+            multStr = tostring(diff.statMult)
+        end
+        descText = "怪物血量/防御×" .. multStr .. "  奖励×" .. diff.rewardMult
+    end
+
+    return UI.Panel {
+        width = "100%",
+        paddingLeft = 12, paddingRight = 12,
+        paddingTop = 6,
+        flexShrink = 0,
+        children = {
+            UI.Panel {
+                width = "100%",
+                backgroundColor = S.cardBg,
+                borderRadius = 8,
+                paddingLeft = 10, paddingRight = 10,
+                paddingTop = 8, paddingBottom = 8,
+                flexDirection = "column",
+                gap = 6,
+                children = {
+                    UI.Label {
+                        text = "难度选择", fontSize = 13, fontWeight = "bold",
+                        fontColor = S.white, pointerEvents = "none",
+                    },
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        gap = 6,
+                        children = diffButtons,
+                    },
+                    UI.Label {
+                        text = descText,
+                        fontSize = 10, fontColor = S.dim, pointerEvents = "none",
                     },
                 },
             },
@@ -487,12 +593,14 @@ function ResourceDungeon._BuildWaveCell(UI, S, ctx, def, wave, bestWave)
 end
 
 --- 奖励预览
-function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def)
+function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def, selectedDiff)
+    selectedDiff = selectedDiff or 0
+    local diffDef = RD.GetDifficultyDef(selectedDiff)
     local milestones = { 5, 10, 15, 20 }
     local items = {}
 
     for _, w in ipairs(milestones) do
-        local reward = RD.GetWaveReward(def.key, w)
+        local reward = RD.GetWaveReward(def.key, w, selectedDiff)
         local diffLabel, diffColor = RD.GetWaveDifficulty(w)
         local rewardText = ""
         local rewardImage = nil
@@ -500,7 +608,8 @@ function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def)
             local cr = RD.GetChestWaveReward(w)
             if cr then
                 local ct = Config.CHEST_TYPES_MAP[cr.id]
-                rewardText = (ct and ct.name or cr.id) .. " ×" .. cr.count
+                local count = cr.count * diffDef.rewardMult
+                rewardText = (ct and ct.name or cr.id) .. " ×" .. count
                 rewardImage = ct and ct.image
             end
         else
@@ -556,7 +665,7 @@ function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def)
     end
 
     -- 总计
-    local totalRewards = RD.CalcTotalRewards(def.key, RD.TOTAL_WAVES)
+    local totalRewards = RD.CalcTotalRewards(def.key, RD.TOTAL_WAVES, selectedDiff)
     local totalText
     if def.rewardCurrency == "chest" then
         local c = totalRewards.chests or {}
@@ -667,6 +776,18 @@ function ResourceDungeon._BuildChallengeButton(UI, S, ctx, def, remaining)
         }
     end
 
+    -- 扫荡按钮（始终显示，不可用时点击弹提示）
+    actionChildren[#actionChildren + 1] = UI.Button {
+        text = "🔄 扫荡",
+        fontSize = 13,
+        width = 80, height = 46,
+        borderRadius = 8,
+        variant = "outline",
+        onClick = function()
+            ResourceDungeon.OnSweep(UI, S, ctx, def)
+        end,
+    }
+
     -- 看广告得券按钮（右侧）
     if adRemaining > 0 then
         actionChildren[#actionChildren + 1] = UI.Button {
@@ -750,15 +871,19 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
     local BM = require("Game.BattleManager")
     local GameUI = require("Game.GameUI")
 
+    local diffLevel = RD.GetSelectedDifficulty()
+    local diffDef = RD.GetDifficultyDef(diffLevel)
+
     local waves = {}
     local totalWaves = RD.TOTAL_WAVES
 
     for w = 1, totalWaves do
-        local enemyDefs = RD.GenerateWaveEnemies(dungeonKey, w)
+        local enemyDefs = RD.GenerateWaveEnemies(dungeonKey, w, diffLevel)
         waves[w] = BM.BuildSpawnQueue(enemyDefs, 0.5)
     end
 
-    local label = (def.name or dungeonKey) .. "副本"
+    local diffSuffix = diffLevel > 0 and (" [" .. diffDef.label .. "]") or ""
+    local label = (def.name or dungeonKey) .. "副本" .. diffSuffix
 
     GameUI.EnterDungeonBattle({
         mode = "resource_dungeon",
@@ -774,7 +899,7 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
         initialDarkSoul = Config.INITIAL_DARK_SOUL,
 
         onWin = function(result)
-            local rewards = RD.ClaimReward(dungeonKey, totalWaves)
+            local rewards = RD.ClaimReward(dungeonKey, totalWaves, diffLevel)
             if rewards then
                 local rewardItems = {}
                 if def.rewardCurrency == "chest" then
@@ -821,7 +946,7 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
         onExit = function(result)
             local clearedWave = math.max(0, result.wave - 1)
             if clearedWave > 0 then
-                local rewards = RD.ClaimReward(dungeonKey, clearedWave)
+                local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
                 if rewards then
                     local rewardItems = {}
                     if def.rewardCurrency == "chest" then
@@ -874,7 +999,7 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
 
             local clearedWave = math.max(0, result.wave - 1)
             if clearedWave > 0 then
-                local rewards = RD.ClaimReward(dungeonKey, clearedWave)
+                local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
                 if rewards then
                     local rewardItems = {}
                     if def.rewardCurrency == "chest" then
@@ -919,6 +1044,123 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
                 Toast.Show(label .. " 挑战失败", S.red)
             end
             GameUI.ExitDungeonBattle()
+        end,
+    })
+end
+
+-- ============================================================================
+-- 扫荡逻辑
+-- ============================================================================
+
+function ResourceDungeon.OnSweep(UI, S, ctx, def)
+    local diffLevel = RD.GetSelectedDifficulty()
+    local diffDef = RD.GetDifficultyDef(diffLevel)
+    local diffSuffix = diffLevel > 0 and (" [" .. diffDef.label .. "]") or ""
+
+    local bestWave = RD.GetBestWave(def.key, diffLevel)
+    if bestWave <= 0 then
+        Toast.Show("当前难度下需要先挑战一次才能扫荡", { 255, 200, 80 })
+        return
+    end
+
+    local totalTickets = RD.GetTotalTicketCount(def.key)
+    if totalTickets <= 0 then
+        Toast.Show("没有可用的挑战券", { 255, 200, 80 })
+        return
+    end
+
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if not root then return end
+
+    SweepPopup.Show(UI, root, S, {
+        title = def.name .. diffSuffix .. " · 连续扫荡",
+        maxCount = totalTickets,
+        sweepLabel = "最高纪录",
+        sweepValue = "第 " .. bestWave .. " 波" .. (diffLevel > 0 and ("  奖励×" .. diffDef.rewardMult) or ""),
+        previewFn = function(count)
+            local rewards = RD.CalcTotalRewards(def.key, bestWave, diffLevel)
+            local items = {}
+            if def.rewardCurrency == "chest" then
+                local chests = rewards.chests or {}
+                for _, ctDef in ipairs(Config.CHEST_TYPES) do
+                    if chests[ctDef.id] and chests[ctDef.id] > 0 then
+                        items[#items + 1] = {
+                            icon = ctDef.image or "📦",
+                            name = ctDef.name,
+                            amount = chests[ctDef.id] * count,
+                            color = S.gold,
+                        }
+                    end
+                end
+            else
+                local amount = rewards[def.rewardCurrency] or 0
+                local currDef = Config.CURRENCY[def.rewardCurrency]
+                if amount > 0 then
+                    items[#items + 1] = {
+                        icon = currDef and currDef.image or "💰",
+                        name = currDef and currDef.name or def.rewardCurrency,
+                        amount = amount * count,
+                        color = def.accentColor,
+                    }
+                end
+            end
+            return items
+        end,
+        onConfirm = function(count)
+            -- 执行扫荡：消耗门票 + 发放奖励
+            local successCount = 0
+
+            for i = 1, count do
+                if not RD.ConsumeDungeonTicket(def.key) then
+                    Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
+                    break
+                end
+                local rewards = RD.ClaimReward(def.key, bestWave, diffLevel)
+                successCount = successCount + 1
+            end
+
+            -- 汇总显示奖励（只需展示总计）
+            if successCount > 0 then
+                local totalRewards = RD.CalcTotalRewards(def.key, bestWave, diffLevel)
+                local rewardItems = {}
+                if def.rewardCurrency == "chest" then
+                    local chests = totalRewards.chests or {}
+                    for _, ctDef in ipairs(Config.CHEST_TYPES) do
+                        if chests[ctDef.id] and chests[ctDef.id] > 0 then
+                            rewardItems[#rewardItems + 1] = {
+                                icon = ctDef.image or "📦",
+                                name = ctDef.name,
+                                amount = chests[ctDef.id] * successCount,
+                                borderColor = ctDef.borderColor or nil,
+                            }
+                        end
+                    end
+                else
+                    local currDef = Config.CURRENCY[def.rewardCurrency]
+                    local amount = (totalRewards[def.rewardCurrency] or 0) * successCount
+                    if amount > 0 then
+                        rewardItems[#rewardItems + 1] = {
+                            icon = currDef and currDef.image or "💰",
+                            name = currDef and currDef.name or def.rewardCurrency,
+                            amount = amount,
+                        }
+                    end
+                end
+
+                if #rewardItems > 0 then
+                    RewardDisplay.Show(UI, root, {
+                        title = def.name .. diffSuffix .. " 扫荡 ×" .. successCount .. " 完成！",
+                        rewards = rewardItems,
+                        onClose = function()
+                            ctx.SetView("resource_detail", def.key)
+                        end,
+                    })
+                else
+                    Toast.Show("扫荡完成 ×" .. successCount, S.green)
+                    ctx.SetView("resource_detail", def.key)
+                end
+            end
         end,
     })
 end
