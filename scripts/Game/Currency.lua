@@ -168,8 +168,14 @@ function Currency.GetDarkSoulDrop(enemyType)
 end
 
 --- 记录战斗内暗魂收集（暂存，结算时转化）
+--- 自动应用神裔降临"暗魂掉落倍率"加成
 ---@param amount number
 function Currency.CollectDarkSoul(amount)
+    local ok, DB = pcall(require, "Game.DivineBlessData")
+    if ok and DB then
+        local multi = DB.GetBuffValue("darksoul_multi")
+        amount = math.floor(amount * multi)
+    end
     local newVal = (HeroData.currencies.dark_soul or 0) + amount
     HeroData.currencies.dark_soul = newVal
     EventBus.emit(EventBus.EVENT.CURRENCY_CHANGED, { type = "dark_soul", delta = amount, balance = newVal })

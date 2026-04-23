@@ -521,7 +521,7 @@ function GameUI.CreateUI()
     -- 左下角固定显示版本号（放在 TabBar 上方，避免被遮挡）
     local versionLabel = UI.Label {
         id = "fixedVersion",
-        text = "v1.0.57",
+        text = "v1.0.60",
         fontSize = 10,
         fontColor = { 160, 160, 180, 130 },
     }
