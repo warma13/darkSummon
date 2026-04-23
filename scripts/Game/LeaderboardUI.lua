@@ -10,10 +10,18 @@ local LeaderboardUI = {}
 local UI = nil
 
 -- 默认标签定义
+local _fmtBoss = function(s) return LB.FormatWorldBoss(s) end
 local DEFAULT_TABS = {
     { key = LB.KEY_CAMPAIGN, label = "主线", format = function(s) return LB.FormatStage(s) end },
     { key = LB.KEY_TOWER,    label = "试练", format = function(s) return LB.FormatTower(s) end },
-    { key = "wb_daily",      label = "BOSS", format = function(s) return LB.FormatWorldBoss(s) end, dynamic = true },
+    { key = "wb_diff_combined", label = "BOSS", format = _fmtBoss,
+      combined = {
+          { level = 9, label = "地狱", color = { 255, 80, 80 },   getKey = function() return LB.GetWorldBossDiffDailyKey(9) end },
+          { level = 3, label = "噩梦", color = { 255, 160, 80 },  getKey = function() return LB.GetWorldBossDiffDailyKey(3) end },
+          { level = 1, label = "困难", color = { 255, 220, 100 }, getKey = function() return LB.GetWorldBossDiffDailyKey(1) end },
+          { level = 0, label = "普通", color = { 150, 220, 150 }, getKey = function() return LB.GetWorldBossDiffDailyKey(0) end },
+      },
+    },
     { key = LB.KEY_COSTUME,  label = "时装", format = function(s) return LB.FormatCostume(s) end,
       onActivate = function()
           local ok, CD = pcall(require, "Game.CostumeData")
@@ -61,6 +69,7 @@ local C = {
 
 local function GetActiveKey()
     local tab = TABS[activeTab]
+    if tab.getKey then return tab.getKey() end
     if tab.dynamic and tab.key == "wb_daily" then
         return LB.GetWorldBossDailyKey()
     end
@@ -338,10 +347,34 @@ end
 -- ============================================================================
 
 function LeaderboardUI.LoadMyRank()
+    local tab = TABS[activeTab]
+
+    -- combined 模式：查询所有子难度的排名
+    if tab.combined then
+        local results = {}
+        local pending = #tab.combined
+        for i, sub in ipairs(tab.combined) do
+            local subKey = sub.getKey()
+            LB.FetchMyRank(subKey, function(rank, score)
+                local s = score or 0
+                local r = (s > 0 and rank) and rank or nil
+                results[i] = { label = sub.label, rank = r, score = s, color = sub.color }
+                pending = pending - 1
+                if pending <= 0 then
+                    -- 所有查询完毕，更新 UI
+                    LeaderboardUI._UpdateMyRankCombined(results, tab.format)
+                end
+            end)
+        end
+        return
+    end
+
+    -- 普通模式
     local key = GetActiveKey()
     LB.FetchMyRank(key, function(rank, score)
-        myRank = rank
         myScore = score or 0
+        -- 无有效分数时视为未上榜（API 可能对 score=0 也返回 rank=1）
+        myRank = (myScore > 0 and rank) and rank or nil
         LeaderboardUI.UpdateMyRankCard()
     end)
 
@@ -351,8 +384,101 @@ function LeaderboardUI.LoadMyRank()
     end)
 end
 
+--- combined 模式下更新底部"我的排名"
+function LeaderboardUI._UpdateMyRankCombined(results, fmt)
+    if not UI then return end
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if not root then return end
+
+    local card = root:FindById("lb_myRankCard")
+    if not card then return end
+
+    card:ClearChildren()
+
+    local hasAny = false
+    for _, r in ipairs(results) do
+        if r.rank and r.rank > 0 then hasAny = true; break end
+    end
+
+    if not hasAny then
+        card:AddChild(UI.Label {
+            text = "暂无排名数据",
+            fontSize = 13,
+            fontColor = C.purple,
+            pointerEvents = "none",
+        })
+        return
+    end
+
+    -- 显示各难度排名，一行展示
+    for _, r in ipairs(results) do
+        local txt
+        if r.rank and r.rank > 0 then
+            txt = r.label .. " #" .. r.rank
+        else
+            txt = r.label .. " —"
+        end
+        card:AddChild(UI.Label {
+            text = txt,
+            fontSize = 12,
+            fontColor = r.color or C.purple,
+            pointerEvents = "none",
+            marginRight = 10,
+        })
+    end
+end
+
 function LeaderboardUI.LoadMore()
     if isLoading then return end
+
+    local tab = TABS[activeTab]
+
+    -- combined 模式：一次性加载所有子难度的排行榜
+    if tab.combined then
+        if loadedCount > 0 then return end  -- combined 模式只加载一次
+        isLoading = true
+        local subCount = #tab.combined
+        local subResults = {}
+        local pending = subCount
+        local PER_DIFF = 10  -- 每个难度显示 top 10
+
+        for i, sub in ipairs(tab.combined) do
+            local subKey = sub.getKey()
+            LB.FetchRankList(subKey, 0, PER_DIFF, function(list)
+                subResults[i] = list or {}
+                pending = pending - 1
+                if pending <= 0 then
+                    isLoading = false
+                    -- 合并结果：每个难度一个分区头 + 排名列表
+                    rankList = {}
+                    for j, sub2 in ipairs(tab.combined) do
+                        -- 分区头
+                        rankList[#rankList + 1] = {
+                            isHeader = true,
+                            label = sub2.label,
+                            color = sub2.color,
+                        }
+                        local sList = subResults[j]
+                        if #sList > 0 then
+                            for _, entry in ipairs(sList) do
+                                rankList[#rankList + 1] = entry
+                            end
+                        else
+                            rankList[#rankList + 1] = {
+                                isEmpty = true,
+                            }
+                        end
+                    end
+                    loadedCount = #rankList
+                    LeaderboardUI.RebuildList(false)
+                end
+            end)
+        end
+        return
+    end
+
+    -- 普通模式
     if loadedCount >= MAX_LOAD then
         Toast.Show("已加载全部排名", C.dim)
         return
@@ -415,9 +541,30 @@ function LeaderboardUI.RebuildList(hasMore)
 
     container:ClearChildren()
 
-    -- 排名行
+    -- 排名行（支持分区头 + 空区域 + 普通排名行）
     for i, entry in ipairs(rankList) do
-        container:AddChild(LeaderboardUI.BuildRankRow(entry, i))
+        if entry.isHeader then
+            -- 分区头：难度标题
+            container:AddChild(LeaderboardUI._BuildSectionHeader(entry))
+        elseif entry.isEmpty then
+            -- 空分区提示
+            container:AddChild(UI.Panel {
+                width = "100%", height = 32,
+                justifyContent = "center",
+                alignItems = "center",
+                backgroundColor = { 25, 20, 40, 180 },
+                children = {
+                    UI.Label {
+                        text = "暂无数据",
+                        fontSize = 11,
+                        fontColor = C.dim,
+                        pointerEvents = "none",
+                    },
+                },
+            })
+        else
+            container:AddChild(LeaderboardUI.BuildRankRow(entry, i))
+        end
     end
 
     -- "加载更多" 按钮
@@ -469,6 +616,36 @@ function LeaderboardUI.RebuildList(hasMore)
             },
         })
     end
+end
+
+--- 构建分区头（难度标题行）
+function LeaderboardUI._BuildSectionHeader(entry)
+    local clr = entry.color or { 200, 200, 200 }
+    return UI.Panel {
+        width = "100%", height = 32,
+        flexDirection = "row",
+        alignItems = "center",
+        paddingLeft = 12,
+        backgroundColor = { clr[1], clr[2], clr[3], 35 },
+        borderBottomWidth = 1,
+        borderColor = { clr[1], clr[2], clr[3], 80 },
+        children = {
+            -- 彩色圆点
+            UI.Panel {
+                width = 8, height = 8,
+                borderRadius = 4,
+                backgroundColor = { clr[1], clr[2], clr[3], 255 },
+                marginRight = 8,
+            },
+            UI.Label {
+                text = entry.label,
+                fontSize = 13,
+                fontWeight = "bold",
+                fontColor = { clr[1], clr[2], clr[3], 255 },
+                pointerEvents = "none",
+            },
+        },
+    }
 end
 
 -- ============================================================================

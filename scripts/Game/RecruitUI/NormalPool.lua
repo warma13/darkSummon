@@ -16,42 +16,129 @@ local NormalPool = {}
 function NormalPool.CreateTokenBar(UI)
     local tokens = HeroData.currencies.void_pact or 0
     local totalPulls = RecruitData.GetTotalPulls()
+    local urPity = RecruitData.GetURPityCount()
+    local lrPity = RecruitData.GetLRPityCount()
     local safeTop = (UI.GetSafeAreaInsets().top or 0)
 
     return UI.Panel {
         width = "100%",
-        flexDirection = "row",
-        justifyContent = "space-between",
-        alignItems = "center",
-        paddingTop = safeTop + 10, paddingBottom = 10,
+        flexDirection = "column",
+        paddingTop = safeTop + 8, paddingBottom = 8,
         paddingLeft = 12, paddingRight = 12,
         backgroundColor = { 20, 16, 32, 200 },
         borderWidth = 1,
         borderColor = { 70, 55, 100, 120 },
         flexShrink = 0,
+        gap = 6,
         children = {
+            -- 第一行：货币 + 累计抽数
             UI.Panel {
+                width = "100%",
                 flexDirection = "row",
+                justifyContent = "space-between",
                 alignItems = "center",
-                gap = 4,
                 children = {
-                    Currency.IconWidget(UI, "void_pact", 18),
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = 4,
+                        children = {
+                            Currency.IconWidget(UI, "void_pact", 18),
+                            UI.Label {
+                                text = "虚空契约: " .. tokens,
+                                fontSize = 15,
+                                fontColor = { 255, 200, 50, 255 },
+                            },
+                        },
+                    },
                     UI.Label {
-                        text = "虚空契约: " .. tokens,
-                        fontSize = 15,
-                        fontColor = { 255, 200, 50, 255 },
+                        text = "十连保底SSR",
+                        fontSize = 12,
+                        fontColor = { 200, 160, 255, 160 },
+                    },
+                    UI.Label {
+                        text = "累计: " .. totalPulls .. "抽",
+                        fontSize = 12,
+                        fontColor = { 150, 140, 170, 180 },
                     },
                 },
             },
-            UI.Label {
-                text = "十连保底SSR",
-                fontSize = 12,
-                fontColor = { 200, 160, 255, 160 },
-            },
-            UI.Label {
-                text = "累计: " .. totalPulls .. "抽",
-                fontSize = 12,
-                fontColor = { 150, 140, 170, 180 },
+            -- 第二行：UR/LR 保底进度条
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                gap = 8,
+                alignItems = "center",
+                children = {
+                    -- UR 保底进度
+                    UI.Panel {
+                        flex = 1, flexDirection = "row", alignItems = "center", gap = 4,
+                        children = {
+                            UI.Label {
+                                text = "UR",
+                                fontSize = 10, fontWeight = "bold",
+                                fontColor = Config.RARITY_COLORS.UR or { 255, 200, 50, 255 },
+                            },
+                            UI.Panel {
+                                flex = 1, height = 8,
+                                borderRadius = 4,
+                                backgroundColor = { 40, 35, 55, 200 },
+                                overflow = "hidden",
+                                children = {
+                                    UI.Panel {
+                                        width = math.max(2, math.floor((urPity / 50) * 100)) .. "%",
+                                        height = "100%",
+                                        borderRadius = 4,
+                                        backgroundColor = urPity >= 45
+                                            and { 255, 180, 50, 255 }
+                                            or  { 180, 140, 60, 200 },
+                                    },
+                                },
+                            },
+                            UI.Label {
+                                text = urPity .. "/50",
+                                fontSize = 10,
+                                fontColor = urPity >= 45
+                                    and { 255, 200, 60, 255 }
+                                    or  { 150, 140, 170, 180 },
+                            },
+                        },
+                    },
+                    -- LR 保底进度
+                    UI.Panel {
+                        flex = 1, flexDirection = "row", alignItems = "center", gap = 4,
+                        children = {
+                            UI.Label {
+                                text = "LR",
+                                fontSize = 10, fontWeight = "bold",
+                                fontColor = Config.RARITY_COLORS.LR or { 255, 80, 80, 255 },
+                            },
+                            UI.Panel {
+                                flex = 1, height = 8,
+                                borderRadius = 4,
+                                backgroundColor = { 40, 35, 55, 200 },
+                                overflow = "hidden",
+                                children = {
+                                    UI.Panel {
+                                        width = math.max(2, math.floor((lrPity / 100) * 100)) .. "%",
+                                        height = "100%",
+                                        borderRadius = 4,
+                                        backgroundColor = lrPity >= 81
+                                            and { 255, 80, 80, 255 }
+                                            or  { 180, 60, 60, 200 },
+                                    },
+                                },
+                            },
+                            UI.Label {
+                                text = lrPity .. "/100",
+                                fontSize = 10,
+                                fontColor = lrPity >= 81
+                                    and { 255, 100, 100, 255 }
+                                    or  { 150, 140, 170, 180 },
+                            },
+                        },
+                    },
+                },
             },
         },
     }
@@ -61,8 +148,9 @@ end
 ---@param UI any
 ---@param showAdPactFn function
 ---@param showDetailFn function
+---@param showFateRitualFn function|nil
 ---@return any
-function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn)
+function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn, showFateRitualFn)
     return UI.Panel {
         width = "100%",
         flex = 1,
@@ -162,6 +250,71 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn)
                 backgroundPosition = "center center",
                 pointerEvents = "none",
             },
+            -- 命定仪轨入口按钮
+            (function()
+                local fateUR, fateLR = RecruitData.GetFateHeroes()
+                local hasFate = (fateUR ~= nil or fateLR ~= nil)
+                -- 查英雄名称
+                local function heroName(heroId)
+                    if not heroId then return nil end
+                    for _, td in ipairs(Config.TOWER_TYPES) do
+                        if td.id == heroId then return td.name end
+                    end
+                    return heroId
+                end
+                local subChildren = {}
+                if hasFate then
+                    if fateUR then
+                        subChildren[#subChildren + 1] = UI.Label {
+                            text = "UR " .. heroName(fateUR),
+                            fontSize = 9,
+                            fontColor = { 255, 220, 130, 200 },
+                        }
+                    end
+                    if fateLR then
+                        subChildren[#subChildren + 1] = UI.Label {
+                            text = "LR " .. heroName(fateLR),
+                            fontSize = 9,
+                            fontColor = { 255, 140, 140, 200 },
+                        }
+                    end
+                else
+                    subChildren[#subChildren + 1] = UI.Label {
+                        text = "当前未命定",
+                        fontSize = 9,
+                        fontColor = { 140, 120, 160, 160 },
+                    }
+                end
+                return UI.Panel {
+                    position = "absolute",
+                    bottom = 10, left = 12,
+                    flexDirection = "column",
+                    alignItems = "center",
+                    gap = 2,
+                    paddingLeft = 10, paddingRight = 10,
+                    paddingTop = 5, paddingBottom = 5,
+                    backgroundColor = { 20, 10, 30, 180 },
+                    borderRadius = 12,
+                    borderWidth = 1,
+                    borderColor = hasFate
+                        and { 200, 160, 80, 200 }
+                        or  { 100, 80, 120, 150 },
+                    onClick = function(self)
+                        if showFateRitualFn then showFateRitualFn() end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = "命定",
+                            fontSize = 12,
+                            fontColor = hasFate
+                                and { 255, 220, 130, 240 }
+                                or  { 160, 140, 180, 200 },
+                            fontWeight = "bold",
+                        },
+                        table.unpack(subChildren),
+                    },
+                }
+            end)(),
             -- 详情入口按钮
             UI.Panel {
                 position = "absolute",
@@ -753,6 +906,360 @@ function NormalPool.ShowAdPactDialog(UI, pageRoot, refreshFn)
                         height = 34,
                         borderRadius = 8,
                         onClick = function(self) closePopup() end,
+                    },
+                },
+            },
+        },
+    }
+
+    pageRoot:AddChild(popup)
+end
+
+--- 显示命定仪轨弹窗（选择命定英雄 + 保底进度）
+---@param UI any
+---@param pageRoot any
+---@param refreshFn function
+function NormalPool.ShowFateRitualPopup(UI, pageRoot, refreshFn)
+    if not pageRoot or not UI then return end
+
+    local old = pageRoot:FindById("fateRitualPopup")
+    if old then pageRoot:RemoveChild(old) end
+
+    local HeroAvatar = require("Game.HeroAvatar")
+    local curUR, curLR = RecruitData.GetFateHeroes()
+    local urPity = RecruitData.GetURPityCount()
+    local lrPity = RecruitData.GetLRPityCount()
+
+    local RARITY_COLORS = Config.RARITY_COLORS
+
+    local function closePopup()
+        local p = pageRoot:FindById("fateRitualPopup")
+        if p then pageRoot:RemoveChild(p) end
+    end
+
+    --- 查英雄名称和颜色
+    local function getHeroInfo(heroId)
+        for _, td in ipairs(Config.TOWER_TYPES) do
+            if td.id == heroId then
+                return td.name, td.color
+            end
+        end
+        return heroId, { 200, 200, 200 }
+    end
+
+    --- 构建一个稀有度段（标题 + 英雄选择卡片 + 进度条）
+    local function buildSection(rarity, pool, currentFate, pityCount, pityMax, setFn)
+        local rc = RARITY_COLORS[rarity] or { 200, 200, 200, 255 }
+        local cards = {}
+        for _, heroId in ipairs(pool) do
+            local heroName, heroColor = getHeroInfo(heroId)
+            local isSelected = (currentFate == heroId)
+            cards[#cards + 1] = UI.Panel {
+                width = 90, alignItems = "center", gap = 4,
+                paddingTop = 6, paddingBottom = 8,
+                paddingLeft = 4, paddingRight = 4,
+                backgroundColor = isSelected
+                    and { rc[1], rc[2], rc[3], 40 }
+                    or  { 40, 35, 55, 150 },
+                borderRadius = 10,
+                borderWidth = isSelected and 2 or 1,
+                borderColor = isSelected
+                    and { rc[1], rc[2], rc[3], 220 }
+                    or  { 60, 50, 80, 100 },
+                onClick = function(self)
+                    if isSelected then
+                        -- 取消选择
+                        setFn(nil)
+                    else
+                        setFn(heroId)
+                    end
+                    closePopup()
+                    NormalPool.ShowFateRitualPopup(UI, pageRoot, refreshFn)
+                end,
+                children = {
+                    -- 英雄头像
+                    UI.Panel {
+                        width = 64, height = 64,
+                        borderRadius = 8,
+                        overflow = "hidden",
+                        borderWidth = isSelected and 2 or 1,
+                        borderColor = isSelected
+                            and { rc[1], rc[2], rc[3], 255 }
+                            or  { 80, 70, 100, 150 },
+                        children = {
+                            HeroAvatar.Create(heroId, {
+                                preset = "icon",
+                                size = 64,
+                            }),
+                        },
+                    },
+                    -- 英雄名称
+                    UI.Label {
+                        text = heroName,
+                        fontSize = 12,
+                        fontColor = { heroColor[1], heroColor[2], heroColor[3], 255 },
+                        fontWeight = isSelected and "bold" or "normal",
+                    },
+                    -- 选中标记
+                    isSelected and UI.Panel {
+                        paddingLeft = 6, paddingRight = 6,
+                        paddingTop = 1, paddingBottom = 1,
+                        backgroundColor = { rc[1], rc[2], rc[3], 200 },
+                        borderRadius = 4,
+                        children = {
+                            UI.Label {
+                                text = "命定",
+                                fontSize = 9,
+                                fontColor = { 20, 16, 32, 255 },
+                                fontWeight = "bold",
+                            },
+                        },
+                    } or nil,
+                },
+            }
+        end
+
+        -- 进度条
+        local pctWidth = math.max(2, math.floor((pityCount / pityMax) * 100))
+
+        return UI.Panel {
+            width = "100%",
+            marginBottom = 14,
+            gap = 8,
+            children = {
+                -- 段标题
+                UI.Panel {
+                    flexDirection = "row", alignItems = "center", gap = 6,
+                    children = {
+                        UI.Panel {
+                            paddingLeft = 8, paddingRight = 8,
+                            paddingTop = 2, paddingBottom = 2,
+                            backgroundColor = { rc[1], rc[2], rc[3], 200 },
+                            borderRadius = 4,
+                            children = {
+                                UI.Label {
+                                    text = rarity,
+                                    fontSize = 12,
+                                    fontColor = { 20, 16, 32, 255 },
+                                    fontWeight = "bold",
+                                },
+                            },
+                        },
+                        UI.Label {
+                            text = "命定英雄",
+                            fontSize = 14,
+                            fontColor = { 220, 200, 255, 220 },
+                        },
+                        UI.Panel { flex = 1 },
+                        UI.Label {
+                            text = pityMax .. "抽保底",
+                            fontSize = 11,
+                            fontColor = { 150, 140, 170, 180 },
+                        },
+                    },
+                },
+                -- 英雄卡片行
+                UI.Panel {
+                    width = "100%",
+                    flexDirection = "row",
+                    justifyContent = "center",
+                    gap = 10,
+                    children = cards,
+                },
+                -- 保底进度
+                UI.Panel {
+                    width = "100%", gap = 3,
+                    children = {
+                        UI.Panel {
+                            flexDirection = "row", justifyContent = "space-between",
+                            children = {
+                                UI.Label {
+                                    text = "保底进度",
+                                    fontSize = 11,
+                                    fontColor = { 160, 150, 180, 200 },
+                                },
+                                UI.Label {
+                                    text = pityCount .. "/" .. pityMax,
+                                    fontSize = 11,
+                                    fontColor = { rc[1], rc[2], rc[3], 230 },
+                                    fontWeight = "bold",
+                                },
+                            },
+                        },
+                        UI.Panel {
+                            width = "100%", height = 10,
+                            borderRadius = 5,
+                            backgroundColor = { 40, 35, 55, 200 },
+                            overflow = "hidden",
+                            children = {
+                                UI.Panel {
+                                    width = pctWidth .. "%",
+                                    height = "100%",
+                                    borderRadius = 5,
+                                    backgroundColor = { rc[1], rc[2], rc[3], 220 },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+    end
+
+    -- 当前命定英雄显示
+    local fateStatusText = "当前未命定"
+    if curUR or curLR then
+        local parts = {}
+        if curUR then
+            local n = getHeroInfo(curUR)
+            parts[#parts + 1] = "UR: " .. n
+        end
+        if curLR then
+            local n = getHeroInfo(curLR)
+            parts[#parts + 1] = "LR: " .. n
+        end
+        fateStatusText = "当前命定: " .. table.concat(parts, " | ")
+    end
+
+    local popup = UI.Panel {
+        id = "fateRitualPopup",
+        position = "absolute",
+        top = 0, left = 0, right = 0, bottom = 0,
+        flexDirection = "column",
+        backgroundColor = { 0, 0, 0, 210 },
+        pointerEvents = "auto",
+        children = {
+            -- 标题栏
+            UI.Panel {
+                width = "100%",
+                alignItems = "center",
+                paddingTop = 14, paddingBottom = 10,
+                flexShrink = 0,
+                backgroundColor = { 25, 20, 40, 255 },
+                borderWidth = 1,
+                borderColor = { 200, 160, 80, 150 },
+                gap = 4,
+                children = {
+                    UI.Label {
+                        text = "命定仪轨",
+                        fontSize = 18,
+                        fontColor = { 255, 220, 130, 255 },
+                        fontWeight = "bold",
+                    },
+                    UI.Label {
+                        text = "选择命定英雄，保底时必定获得",
+                        fontSize = 12,
+                        fontColor = { 180, 170, 200, 180 },
+                    },
+                },
+            },
+            -- 内容区域
+            UI.ScrollView {
+                width = "100%",
+                flex = 1,
+                paddingTop = 14, paddingBottom = 14,
+                paddingLeft = 16, paddingRight = 16,
+                children = {
+                    -- 当前状态
+                    UI.Panel {
+                        width = "100%",
+                        paddingTop = 8, paddingBottom = 8,
+                        paddingLeft = 12, paddingRight = 12,
+                        backgroundColor = { 40, 30, 60, 180 },
+                        borderRadius = 8,
+                        borderWidth = 1,
+                        borderColor = { 200, 160, 80, 100 },
+                        marginBottom = 14,
+                        alignItems = "center",
+                        children = {
+                            UI.Label {
+                                text = fateStatusText,
+                                fontSize = 13,
+                                fontColor = { 255, 220, 140, 220 },
+                            },
+                        },
+                    },
+                    -- UR 段
+                    buildSection("UR", Config.RECRUIT_POOL.UR, curUR, urPity, 50,
+                        RecruitData.SetFateHeroUR),
+                    -- LR 段
+                    buildSection("LR", Config.RECRUIT_POOL.LR, curLR, lrPity, 100,
+                        RecruitData.SetFateHeroLR),
+                    -- 规则说明
+                    UI.Panel {
+                        width = "100%",
+                        paddingTop = 10, paddingBottom = 10,
+                        paddingLeft = 10, paddingRight = 10,
+                        backgroundColor = { 30, 25, 45, 180 },
+                        borderRadius = 8,
+                        gap = 4,
+                        children = {
+                            UI.Label {
+                                text = "规则说明",
+                                fontSize = 13,
+                                fontColor = { 200, 180, 240, 230 },
+                                fontWeight = "bold",
+                            },
+                            UI.Label {
+                                text = "· UR英雄50抽保底，LR英雄100抽保底",
+                                fontSize = 11,
+                                fontColor = { 160, 150, 180, 200 },
+                            },
+                            UI.Label {
+                                text = "· 保底触发时，必定获得命定英雄",
+                                fontSize = 11,
+                                fontColor = { 160, 150, 180, 200 },
+                            },
+                            UI.Label {
+                                text = "· 自然获得UR/LR也会重置对应保底计数",
+                                fontSize = 11,
+                                fontColor = { 160, 150, 180, 200 },
+                            },
+                            UI.Label {
+                                text = "· 可随时切换命定英雄，保底次数保留",
+                                fontSize = 11,
+                                fontColor = { 160, 150, 180, 200 },
+                            },
+                        },
+                    },
+                },
+            },
+            -- 底部关闭栏
+            UI.Panel {
+                width = "100%",
+                paddingTop = 8, paddingBottom = 10,
+                paddingLeft = 12, paddingRight = 12,
+                flexShrink = 0,
+                backgroundColor = { 25, 20, 40, 255 },
+                borderWidth = 1,
+                borderColor = { 200, 160, 80, 150 },
+                children = {
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = 4,
+                        paddingLeft = 14, paddingRight = 18,
+                        paddingTop = 6, paddingBottom = 6,
+                        backgroundColor = { 60, 40, 80, 255 },
+                        borderRadius = 8,
+                        borderWidth = 1,
+                        borderColor = { 200, 160, 80, 150 },
+                        onClick = function(self)
+                            closePopup()
+                            if refreshFn then refreshFn() end
+                        end,
+                        children = {
+                            UI.Label {
+                                text = "<",
+                                fontSize = 14,
+                                fontColor = { 200, 180, 130, 200 },
+                            },
+                            UI.Label {
+                                text = "返回",
+                                fontSize = 14,
+                                fontColor = { 255, 220, 140, 255 },
+                            },
+                        },
                     },
                 },
             },

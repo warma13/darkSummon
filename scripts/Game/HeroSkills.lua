@@ -769,9 +769,7 @@ function HeroSkills.OnWaveStart()
         e.dotSpread  = nil
         e.chillStacks = nil
         e.chillTimer  = nil
-        e.shadowNeedleStacks = nil
-        e.shadowNeedleTimer  = nil
-        e.shadowNeedleTowerId = nil
+        -- shadowNeedle 已迁移到 tower 上，enemy 上不再需要清理
     end
 end
 

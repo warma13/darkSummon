@@ -13,6 +13,101 @@ local TodayStr = require("Game.DateUtil").TodayStr
 local WB = {}
 
 -- ============================================================================
+-- 难度等级配置
+-- ============================================================================
+
+--- 难度等级定义
+--- level: 难度编号（显示用）
+--- label: 难度名称
+--- attrMult: 全属性倍率（DEF、精英怪HP/DEF等，仅影响战斗难度）
+--- scoreMult: 排行榜分数倍率（原始伤害 × scoreMult = 加权分数）
+--- cdReduction: 技能冷却减少秒数
+--- darkSoulBonus: 每秒额外暗魂掉落
+--- rewardBonuses: 每个奖励档位额外增加的券数（长度=rewardTiers数量，总计+5）
+WB.DIFFICULTY_LEVELS = {
+    { level = 0, label = "普通",   attrMult = 1,             scoreMult = 1,   cdReduction = 0, darkSoulBonus = 0,
+      rewardBonuses = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },  -- 总计+0
+    { level = 1, label = "困难",   attrMult = 100,           scoreMult = 5,   cdReduction = 1, darkSoulBonus = 10,
+      rewardBonuses = { 0, 0, 1, 0, 1, 0, 1, 0, 1, 1 } },  -- 总计+5
+    { level = 3, label = "噩梦",   attrMult = 100000,        scoreMult = 25,  cdReduction = 3, darkSoulBonus = 20,
+      rewardBonuses = { 0, 1, 1, 1, 1, 1, 1, 1, 1, 2 } },  -- 总计+10
+    { level = 9, label = "地狱",   attrMult = 10000000000,   scoreMult = 100, cdReduction = 9, darkSoulBonus = 30,
+      rewardBonuses = { 1, 1, 1, 1, 2, 2, 2, 2, 2, 1 } },  -- 总计+15
+}
+
+--- 获取难度配置（按level索引）
+---@param level number 难度编号 0/1/3/9
+---@return table|nil
+function WB.GetDifficultyDef(level)
+    for _, d in ipairs(WB.DIFFICULTY_LEVELS) do
+        if d.level == level then return d end
+    end
+    return WB.DIFFICULTY_LEVELS[1]  -- fallback 普通
+end
+
+--- 获取当前选择的难度等级
+---@return number level
+function WB.GetSelectedDifficulty()
+    local data = WB.GetData()
+    return data.selectedDifficulty or 0
+end
+
+--- 设置当前选择的难度等级
+---@param level number
+function WB.SetSelectedDifficulty(level)
+    local data = WB.GetData()
+    -- 检查是否已解锁
+    if not WB.IsDifficultyUnlocked(level) then return end
+    data.selectedDifficulty = level
+    HeroData.Save()
+end
+
+--- 检查某个难度是否已解锁
+---@param level number
+---@return boolean
+function WB.IsDifficultyUnlocked(level)
+    if level == 0 then return true end  -- 难度0默认解锁
+    local data = WB.GetData()
+    local cleared = data.clearedDifficulties or {}
+    -- 找到前一个难度
+    local prevLevel = nil
+    for i, d in ipairs(WB.DIFFICULTY_LEVELS) do
+        if d.level == level then
+            if i > 1 then prevLevel = WB.DIFFICULTY_LEVELS[i - 1].level end
+            break
+        end
+    end
+    if prevLevel == nil then return true end  -- 没有前置难度
+    return cleared[tostring(prevLevel)] == true
+end
+
+--- 标记某个难度已通关
+---@param level number
+function WB.MarkDifficultyCleared(level)
+    local data = WB.GetData()
+    if not data.clearedDifficulties then
+        data.clearedDifficulties = {}
+    end
+    data.clearedDifficulties[tostring(level)] = true
+    HeroData.Save()
+end
+
+--- 获取指定难度下的奖励档位表（每档加上对应的 rewardBonuses）
+---@param level number|nil 难度等级，nil则用当前选择的
+---@return table adjustedTiers { threshold, amount }[]
+function WB.GetAdjustedRewardTiers(level)
+    level = level or WB.GetSelectedDifficulty()
+    local diff = WB.GetDifficultyDef(level)
+    local bonuses = diff and diff.rewardBonuses or {}
+    local result = {}
+    for i, tier in ipairs(WB.CONFIG.rewardTiers) do
+        local bonus = bonuses[i] or 0
+        result[#result + 1] = { tier[1], tier[2] + bonus }
+    end
+    return result
+end
+
+-- ============================================================================
 -- 配置常量
 -- ============================================================================
 
@@ -113,13 +208,18 @@ end
 -- 渐进难度：动态DEF / CD衰减 / 精英增强
 -- ============================================================================
 
---- 计算当前战斗时间对应的动态DEF
+--- 计算当前战斗时间对应的动态DEF（支持难度倍率）
 ---@param elapsed number 战斗已过秒数
+---@param difficultyLevel number|nil 难度等级（nil使用当前选择的）
 ---@return number currentDEF
-function WB.GetScaledDEF(elapsed)
+function WB.GetScaledDEF(elapsed, difficultyLevel)
     local cfg = WB.CONFIG
     local periods = math.floor(elapsed / cfg.defGrowthInterval)
-    return math.floor(cfg.bossDEF * (1 + cfg.defGrowthRate) ^ periods)
+    local baseDEF = cfg.bossDEF * (1 + cfg.defGrowthRate) ^ periods
+    -- 应用难度倍率
+    local diff = WB.GetDifficultyDef(difficultyLevel or WB.GetSelectedDifficulty())
+    local mult = diff and diff.attrMult or 1
+    return math.floor(baseDEF * mult)
 end
 
 --- 计算技能CD衰减倍率（越久CD越短）
@@ -128,6 +228,16 @@ end
 function WB.GetCDMultiplier(elapsed)
     local cfg = WB.CONFIG
     return math.max(cfg.cdMinMult, 1 - cfg.cdDecayRate * elapsed)
+end
+
+--- 获取难度调整后的技能冷却时间
+---@param baseCooldown number 基础冷却时间
+---@param difficultyLevel number|nil 难度等级
+---@return number adjustedCD
+function WB.GetDifficultyCooldown(baseCooldown, difficultyLevel)
+    local diff = WB.GetDifficultyDef(difficultyLevel or WB.GetSelectedDifficulty())
+    local reduction = diff and diff.cdReduction or 0
+    return math.max(1, baseCooldown - reduction)  -- 最低1秒CD
 end
 
 --- 计算精英怪HP增强倍率
@@ -298,7 +408,24 @@ function WB.GetData()
             todayAdAttempts = 0,
             lastResetDate = TodayStr(),
             totalAttempts = 0,
+            selectedDifficulty = 0,
+            clearedDifficulties = {},
         }
+    end
+    -- 兼容旧存档：补充新字段
+    if HeroData.worldBossData.selectedDifficulty == nil then
+        HeroData.worldBossData.selectedDifficulty = 0
+    end
+    if HeroData.worldBossData.clearedDifficulties == nil then
+        HeroData.worldBossData.clearedDifficulties = {}
+    end
+    -- v3 迁移：重置旧的加权分数（旧版用 attrMult 计算，数值极大，不适用于 v3 的 scoreMult）
+    if not HeroData.worldBossData.scoreMultMigrated then
+        HeroData.worldBossData.bestWeightedDamage = HeroData.worldBossData.bestDamage or 0
+        HeroData.worldBossData.bestWeightedDifficulty = 0
+        HeroData.worldBossData.bestDailyWeightedDamage = 0
+        HeroData.worldBossData.bestDailyWeightedDifficulty = 0
+        HeroData.worldBossData.scoreMultMigrated = true
     end
 
     -- 每日重置
@@ -307,6 +434,9 @@ function WB.GetData()
         HeroData.worldBossData.todayAttempts = 0
         HeroData.worldBossData.todayAdAttempts = 0
         HeroData.worldBossData.bestDailyDamage = 0
+        HeroData.worldBossData.bestDailyWeightedDamage = 0
+        HeroData.worldBossData.bestDailyWeightedDifficulty = 0
+        HeroData.worldBossData.bestDailyDiffDamage = {}  -- 清理按难度每日最高
         HeroData.worldBossData.lastResetDate = today
     end
 
@@ -411,12 +541,14 @@ end
 -- 奖励结算
 -- ============================================================================
 
---- 计算累计伤害可获得的奖励
+--- 计算累计伤害可获得的奖励（支持难度加成）
 ---@param totalDamage number
----@return number frostPactTotal 霜誓契约总数
-function WB.CalcRewards(totalDamage)
+---@param difficultyLevel number|nil 难度等级（nil使用当前选择的）
+---@return number total 招募券自选包总数
+function WB.CalcRewards(totalDamage, difficultyLevel)
+    local tiers = WB.GetAdjustedRewardTiers(difficultyLevel)
     local total = 0
-    for _, tier in ipairs(WB.CONFIG.rewardTiers) do
+    for _, tier in ipairs(tiers) do
         if totalDamage >= tier[1] then
             total = total + tier[2]
         end
@@ -426,43 +558,78 @@ end
 
 --- 结算奖励（战斗结束时调用）
 ---@param totalDamage number 本场对BOSS累计伤害
+---@param difficultyLevel number|nil 难度等级（nil使用当前选择的）
 ---@return table|nil rewards { recruit_ticket_select_box = amount }
-function WB.ClaimReward(totalDamage)
+function WB.ClaimReward(totalDamage, difficultyLevel)
+    difficultyLevel = difficultyLevel or WB.GetSelectedDifficulty()
     local data = WB.GetData()
 
-    -- 更新最高纪录
+    -- 更新最高纪录（原始伤害）
     if totalDamage > (data.bestDamage or 0) then
         data.bestDamage = totalDamage
     end
 
-    -- 计算奖励（招募券自选包）
-    local frostPact = WB.CalcRewards(totalDamage)
+    -- 标记该难度已通关（必须达到最高奖励档位才算通关，解锁下一个难度）
+    local maxThreshold = WB.CONFIG.rewardTiers[#WB.CONFIG.rewardTiers][1]  -- 250亿
+    if totalDamage >= maxThreshold then
+        WB.MarkDifficultyCleared(difficultyLevel)
+    end
+
+    -- 计算奖励（招募券自选包，含难度加成）
+    local frostPact = WB.CalcRewards(totalDamage, difficultyLevel)
     if frostPact > 0 then
         InventoryData.Add("recruit_ticket_select_box", frostPact)
     end
 
-    -- 更新当日最高伤害
-    local bestDaily = data.bestDailyDamage or 0
-    if totalDamage > bestDaily then
-        data.bestDailyDamage = totalDamage
+    -- 计算加权伤害（原始伤害 × 分数倍率），用于排行榜
+    -- 注意：用 scoreMult（分数倍率）而非 attrMult（属性倍率），避免天文数字
+    local diffDef = WB.GetDifficultyDef(difficultyLevel)
+    local scoreMult = diffDef and diffDef.scoreMult or 1
+    local weightedDamage = totalDamage * scoreMult
+
+    -- 更新最高加权伤害（历史总榜用）
+    local bestWeighted = data.bestWeightedDamage or 0
+    if weightedDamage > bestWeighted then
+        data.bestWeightedDamage = weightedDamage
+        data.bestWeightedDifficulty = difficultyLevel
     end
 
-    -- 上传排行榜（历史总榜 + 每日榜，均取最高）
+    -- 更新当日最高加权伤害
+    local bestDailyWeighted = data.bestDailyWeightedDamage or 0
+    if weightedDamage > bestDailyWeighted then
+        data.bestDailyWeightedDamage = weightedDamage
+        data.bestDailyWeightedDifficulty = difficultyLevel
+    end
+
+    -- 上传排行榜（历史总榜 + 每日榜 + 按难度每日榜）
     local ok, LBMod = pcall(require, "Game.LeaderboardData")
     if ok then
         if LBMod.UploadWorldBoss then
-            LBMod.UploadWorldBoss(data.bestDamage)
+            LBMod.UploadWorldBoss(data.bestWeightedDamage, data.bestWeightedDifficulty)
         end
-        if LBMod.UploadWorldBossDaily and totalDamage > bestDaily then
-            LBMod.UploadWorldBossDaily(data.bestDailyDamage)
+        if LBMod.UploadWorldBossDaily and weightedDamage > bestDailyWeighted then
+            LBMod.UploadWorldBossDaily(data.bestDailyWeightedDamage, data.bestDailyWeightedDifficulty)
+        end
+        -- 按难度独立每日排行榜（原始伤害，同难度内排序）
+        -- 记录每难度当日最高原始伤害
+        if not data.bestDailyDiffDamage then data.bestDailyDiffDamage = {} end
+        local diffKey = tostring(difficultyLevel)
+        local prevBest = data.bestDailyDiffDamage[diffKey] or 0
+        if totalDamage > prevBest then
+            data.bestDailyDiffDamage[diffKey] = totalDamage
+            if LBMod.UploadWorldBossDiffDaily then
+                LBMod.UploadWorldBossDiffDaily(totalDamage, difficultyLevel)
+            end
         end
     end
 
     HeroData.Save(true)
 
     print("[WorldBoss] Claimed reward: damage=" .. totalDamage
+        .. " weighted=" .. weightedDamage
+        .. " diff=" .. difficultyLevel
         .. " recruit_ticket_select_box=" .. frostPact
-        .. " bestDamage=" .. data.bestDamage)
+        .. " bestWeighted=" .. (data.bestWeightedDamage or 0))
 
     return frostPact > 0 and { recruit_ticket_select_box = frostPact } or nil
 end

@@ -129,8 +129,10 @@ end
 
 -- 按 ID 查词条定义
 RuneConfig.AFFIX_MAP = {}
+RuneConfig.AFFIX_CATEGORY = {}   -- id -> "base" / "special"
 for _, entry in ipairs(RuneConfig.ALL_AFFIXES) do
     RuneConfig.AFFIX_MAP[entry.def.id] = entry.def
+    RuneConfig.AFFIX_CATEGORY[entry.def.id] = entry.category
 end
 
 -- 预计算总权重

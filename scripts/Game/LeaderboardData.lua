@@ -15,7 +15,7 @@ local LB = {}
 LB.KEY_CAMPAIGN    = "lb_campaign_v3"  -- 主线最高全局波次（直接存 globalWave，无编码）
 LB.KEY_TOWER       = "lb_tower"        -- 试练塔最高层
 LB.KEY_DUNGEON     = "lb_dungeon"      -- 资源副本当天最高波次（每日重置上传）
-LB.KEY_WORLD_BOSS  = "lb_world_boss_v2"   -- 世界BOSS最高伤害（历史，v2编码）
+LB.KEY_WORLD_BOSS  = "lb_world_boss_v3"   -- 世界BOSS最高伤害（历史，v3：scoreMult替代attrMult）
 LB.KEY_ABYSS_NORMAL    = "lb_abyss_normal"     -- 深渊裂隙·普通最高波数
 LB.KEY_ABYSS_HARD      = "lb_abyss_hard"       -- 深渊裂隙·困难最高波数
 LB.KEY_ABYSS_NIGHTMARE = "lb_abyss_nightmare"  -- 深渊裂隙·噩梦最高波数
@@ -23,10 +23,21 @@ LB.KEY_COSTUME         = "lb_costume"          -- 时装战力总加分
 LB.KEY_EMERALD_TOKEN    = "lb_emerald_token"    -- 翠影秘境累计凭证
 LB.KEY_EMERALD_PROGRESS = "lb_emerald_progress" -- 翠影秘境最高进度 (tier*100+wave)
 
---- 获取世界BOSS每日排行榜 key（每天一个，格式：lb_wb_daily_20260415）
+--- 获取世界BOSS每日排行榜 key（每天一个，格式：lb_wbv3_20260415）
 ---@return string
 function LB.GetWorldBossDailyKey()
-    return "lb_wbv2_" .. TodayKey()
+    return "lb_wbv3_" .. TodayKey()
+end
+
+--- 世界BOSS难度等级列表（与 WorldBossData.DIFFICULTY_LEVELS 对应）
+LB.WB_DIFF_LEVELS = { 0, 1, 3, 9 }
+
+--- 获取世界BOSS某难度的每日排行榜 key
+--- 格式：lb_wbd0_20260423（难度0普通）、lb_wbd1_20260423（难度1困难）等
+---@param diffLevel number 难度等级 0/1/3/9
+---@return string
+function LB.GetWorldBossDiffDailyKey(diffLevel)
+    return "lb_wbd" .. diffLevel .. "_" .. TodayKey()
 end
 
 -- 本地缓存
@@ -40,19 +51,35 @@ LB._cache = {
 -- (v3: 直接存 globalWave，无偏移编码)
 
 -- ============================================================================
--- BOSS 伤害编码（科学计数法 → 单个 32 位整数，保持排序正确）
--- 编码规则：encoded = exp * 10,000,000 + floor(mantissa * 1,000,000)
+-- BOSS 伤害编码（v3：科学计数法 + 难度位 → 单个 32 位整数，保持排序正确）
+-- 编码规则：encoded = exp * 10,000,000 + floor(mantissa * 100,000) * 10 + diffDigit
 --   mantissa ∈ [1.0, 10.0)，exp = floor(log10(damage))
--- 示例：1.5亿 → exp=8, mantissa=1.5 → 81,500,000
---       15亿  → exp=9, mantissa=1.5 → 91,500,000
---       100亿 → exp=10, mantissa=1  → 101,000,000
+--   diffDigit: 难度标记位 0=普通 1=困难 2=噩梦 3=地狱
+--   最低一位是难度标记，不影响排序（最多 ±3/10^7 误差，忽略不计）
+-- 示例：1.5亿 困难 → exp=8, mantissa=1.5, diff=1 → 81,500,001
+--       100亿 地狱 → exp=10, mantissa=1, diff=3 → 101,000,003
 -- 最大支持 exp=213，远超游戏实际范围，完全不会溢出 32 位有符号整数
 -- ============================================================================
 
---- 将 BOSS 伤害编码为可排序的 32 位整数
----@param damage number 原始伤害值（可超过 2^31）
+--- 难度等级 → 编码数字映射
+LB.DIFF_TO_DIGIT = { [0] = 0, [1] = 1, [3] = 2, [9] = 3 }
+--- 编码数字 → 难度等级映射
+LB.DIGIT_TO_DIFF = { [0] = 0, [1] = 1, [2] = 3, [3] = 9 }
+--- 难度标签（用于显示）
+LB.DIFF_LABELS = { [0] = "普通", [1] = "困难", [3] = "噩梦", [9] = "地狱" }
+--- 难度颜色（用于显示）
+LB.DIFF_COLORS = {
+    [0] = { 150, 220, 150 },  -- 绿色
+    [1] = { 255, 220, 100 },  -- 黄色
+    [3] = { 255, 160, 80 },   -- 橙色
+    [9] = { 255, 80, 80 },    -- 红色
+}
+
+--- 将 BOSS 加权伤害编码为可排序的 32 位整数（含难度标记）
+---@param damage number 加权伤害值（原始伤害 × 难度倍率）
+---@param difficultyLevel number|nil 难度等级 0/1/3/9，默认0
 ---@return number encoded 编码后的整数
-function LB.EncodeBossScore(damage)
+function LB.EncodeBossScore(damage, difficultyLevel)
     if not damage or damage <= 0 then return 0 end
     local exp = math.floor(math.log(damage, 10))
     local mantissa = damage / (10 ^ exp)  -- [1.0, 10.0)
@@ -61,17 +88,23 @@ function LB.EncodeBossScore(damage)
         exp = exp + 1
         mantissa = mantissa / 10
     end
-    return math.floor(exp * 10000000 + mantissa * 1000000)
+    local diffDigit = LB.DIFF_TO_DIGIT[difficultyLevel or 0] or 0
+    return exp * 10000000 + math.floor(mantissa * 100000) * 10 + diffDigit
 end
 
---- 将编码后的整数还原为近似伤害值（用于显示）
+--- 将编码后的整数还原为近似伤害值和难度等级（用于显示）
 ---@param encoded number
 ---@return number damage 还原的伤害值
+---@return number difficultyLevel 难度等级 0/1/3/9
 function LB.DecodeBossScore(encoded)
-    if not encoded or encoded <= 0 then return 0 end
+    if not encoded or encoded <= 0 then return 0, 0 end
     local exp = math.floor(encoded / 10000000)
-    local mantissa = (encoded % 10000000) / 1000000  -- [1.0, 10.0)
-    return mantissa * (10 ^ exp)
+    local remainder = encoded % 10000000
+    local diffDigit = remainder % 10
+    local mantissa = math.floor(remainder / 10) / 100000  -- [1.0, 10.0)
+    local damage = mantissa * (10 ^ exp)
+    local diffLevel = LB.DIGIT_TO_DIFF[diffDigit] or 0
+    return damage, diffLevel
 end
 
 -- ============================================================================
@@ -123,15 +156,17 @@ function LB.UploadDungeon(wave)
     })
 end
 
---- 上传世界BOSS最高伤害（历史总榜）
----@param bestDamage number
-function LB.UploadWorldBoss(bestDamage)
-    if not bestDamage or bestDamage <= 0 then return end
+--- 上传世界BOSS最高加权伤害（历史总榜，含难度标记）
+---@param weightedDamage number 加权伤害（原始伤害 × 难度倍率）
+---@param difficultyLevel number 产出该伤害的难度等级 0/1/3/9
+function LB.UploadWorldBoss(weightedDamage, difficultyLevel)
+    if not weightedDamage or weightedDamage <= 0 then return end
     if not clientCloud then return end
-    local encoded = LB.EncodeBossScore(bestDamage)
+    local encoded = LB.EncodeBossScore(weightedDamage, difficultyLevel or 0)
     clientCloud:SetInt(LB.KEY_WORLD_BOSS, encoded, {
         ok = function()
-            print("[LB] World Boss score uploaded: " .. bestDamage .. " (encoded=" .. encoded .. ")")
+            print("[LB] World Boss score uploaded: weighted=" .. weightedDamage
+                .. " diff=" .. tostring(difficultyLevel) .. " (encoded=" .. encoded .. ")")
         end,
         error = function(code, reason)
             print("[LB] World Boss upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
@@ -139,19 +174,41 @@ function LB.UploadWorldBoss(bestDamage)
     })
 end
 
---- 上传世界BOSS每日伤害（当日排行榜，每日换 key）
----@param damage number 本场伤害
-function LB.UploadWorldBossDaily(damage)
-    if not damage or damage <= 0 then return end
+--- 上传世界BOSS每日加权伤害（当日排行榜，每日换 key，含难度标记）
+---@param weightedDamage number 加权伤害
+---@param difficultyLevel number 难度等级
+function LB.UploadWorldBossDaily(weightedDamage, difficultyLevel)
+    if not weightedDamage or weightedDamage <= 0 then return end
     if not clientCloud then return end
     local dailyKey = LB.GetWorldBossDailyKey()
-    local encoded = LB.EncodeBossScore(damage)
+    local encoded = LB.EncodeBossScore(weightedDamage, difficultyLevel or 0)
     clientCloud:SetInt(dailyKey, encoded, {
         ok = function()
-            print("[LB] World Boss daily score uploaded: " .. damage .. " (encoded=" .. encoded .. ") key=" .. dailyKey)
+            print("[LB] World Boss daily score uploaded: weighted=" .. weightedDamage
+                .. " diff=" .. tostring(difficultyLevel) .. " (encoded=" .. encoded .. ") key=" .. dailyKey)
         end,
         error = function(code, reason)
             print("[LB] World Boss daily upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
+        end,
+    })
+end
+
+--- 上传世界BOSS按难度的每日排行榜（每个难度独立 key，原始伤害）
+---@param rawDamage number 原始伤害（不乘 scoreMult）
+---@param difficultyLevel number 难度等级 0/1/3/9
+function LB.UploadWorldBossDiffDaily(rawDamage, difficultyLevel)
+    if not rawDamage or rawDamage <= 0 then return end
+    if not clientCloud then return end
+    local dailyKey = LB.GetWorldBossDiffDailyKey(difficultyLevel or 0)
+    -- 不含难度位编码（同难度内排序，无需标记）
+    local encoded = LB.EncodeBossScore(rawDamage, 0)
+    clientCloud:SetInt(dailyKey, encoded, {
+        ok = function()
+            print("[LB] World Boss diff daily uploaded: damage=" .. rawDamage
+                .. " diff=" .. tostring(difficultyLevel) .. " key=" .. dailyKey)
+        end,
+        error = function(code, reason)
+            print("[LB] World Boss diff daily upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
         end,
     })
 end
@@ -328,12 +385,19 @@ function LB.SyncAll()
             LB.UploadDungeon(maxWave)
         end
     end
-    -- 世界BOSS最高伤害
+    -- 世界BOSS最高加权伤害（v3：scoreMult + 难度标记）
     local ok3, WBD = pcall(require, "Game.WorldBossData")
     if ok3 then
-        local bestDmg = WBD.GetBestDamage()
-        if bestDmg > 0 then
-            LB.UploadWorldBoss(bestDmg)
+        local wData = WBD.GetData()
+        local bestWeighted = wData.bestWeightedDamage or 0
+        local bestDiff = wData.bestWeightedDifficulty or 0
+        -- 兼容旧存档：如果没有加权分数，用原始 bestDamage（普通难度）
+        if bestWeighted <= 0 then
+            bestWeighted = wData.bestDamage or 0
+            bestDiff = 0
+        end
+        if bestWeighted > 0 then
+            LB.UploadWorldBoss(bestWeighted, bestDiff)
         end
     end
     -- 时装战力总加分
@@ -508,7 +572,8 @@ function LB.FormatDungeon(wave)
     return "第" .. wave .. "波"
 end
 
---- 格式化世界BOSS伤害为可读字符串（接收编码后的整数，内部解码）
+--- 格式化世界BOSS加权伤害为可读字符串（接收编码后的整数，内部解码）
+--- 注意：不从编码中显示难度标签，因为旧v2数据末位是尾数不是难度位，会误判
 ---@param encoded number 编码后的排行榜整数
 ---@return string
 function LB.FormatWorldBoss(encoded)

@@ -81,7 +81,8 @@ function RecruitUI.RefreshNormal()
     -- 池子横幅
     pageRoot:AddChild(NormalPool.CreatePoolBanner(UI,
         function() NormalPool.ShowAdPactDialog(UI, pageRoot, RecruitUI.Refresh) end,
-        function() NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG) end
+        function() NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG) end,
+        function() NormalPool.ShowFateRitualPopup(UI, pageRoot, RecruitUI.Refresh) end
     ))
     -- 底部按钮区
     pageRoot:AddChild(NormalPool.CreateButtonArea(UI, pageRoot, RARITY_COLORS, currentTab, RecruitUI.Refresh))

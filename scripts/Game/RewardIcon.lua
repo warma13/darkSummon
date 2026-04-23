@@ -25,6 +25,8 @@ local REWARD_DESC = {
     ur_shard_box   = "开启后可任选一个UR英雄碎片",
     void_pact      = "虚空契约，用于招募强力英雄",
     nether_crystal = "冥界结晶，英雄升级的核心资源",
+    pale_jade      = "淬炼消耗材料，用于重随装备淬炼词条",
+    rainbow_jade   = "淬炼稀有材料，锁定已有淬炼词条使其不被洗练覆盖",
     bronze_chest   = "青铜宝箱，开启可获得随机奖励",
     shadow_orb     = "幽影珠，可在神秘商店兑换物品",
     -- 福袋 & 礼包
@@ -34,6 +36,7 @@ local REWARD_DESC = {
     forge_iron_bag      = "打开可获得30~300锻魂铁",
     -- 道具
     dungeon_ticket            = "每日免费次数用完后，消耗门票可额外挑战资源副本1次",
+    boss_ticket               = "消耗后可额外挑战深渊主宰1次",
     recruit_ticket_select_box = "使用后可选择当前开放的招募池，获得对应招募券",
     -- 碎片箱
     random_ur_shard_box   = "打开随机获得1个UR英雄碎片",
@@ -60,6 +63,25 @@ local REWARD_DESC = {
 function RewardIcon.Create(UI, size, currencyId, amount, opts)
     opts = opts or {}
     local cdef = Config.CURRENCY[currencyId]
+    -- fallback: 如果不在 CURRENCY 中，尝试从 InventoryData.ITEM_DEFS 查找
+    if not cdef then
+        local ok, InvData = pcall(require, "Game.InventoryData")
+        if ok and InvData.ITEM_DEFS then
+            local itemDef = InvData.ITEM_DEFS[currencyId]
+            if itemDef then
+                -- 构造兼容的 cdef 结构，用 icon 字段作为二次查找 key
+                local iconKey = itemDef.icon or currencyId
+                cdef = Config.CURRENCY[iconKey]  -- icon 可能指向 CURRENCY 中的 emoji/image
+                if not cdef then
+                    -- 构造临时 cdef
+                    cdef = { name = itemDef.name, image = itemDef.image }
+                else
+                    -- 用道具自身名称覆盖
+                    cdef = { name = itemDef.name, image = cdef.image, color = cdef.color }
+                end
+            end
+        end
+    end
     local img = opts.image or (cdef and cdef.image)
     local muted = opts.muted
     local displayName = opts.label or (cdef and cdef.name) or currencyId

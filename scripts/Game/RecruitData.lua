@@ -28,9 +28,10 @@ end
 ---@param forcePity boolean  是否强制 SSR（十连保底）
 ---@param forceLR boolean    是否强制 LR（第100次硬保底）
 ---@param lrBonusRate number LR 软保底额外概率（第81~99次，每次 +2%）
+---@param forceUR boolean    是否强制 UR（第50次硬保底）
 ---@return string rarity
-local function RollRarity(forcePity, forceLR, lrBonusRate)
-    -- 硬保底：第100次直接 LR
+local function RollRarity(forcePity, forceLR, lrBonusRate, forceUR)
+    -- 硬保底：第100次直接 LR（优先级最高）
     if forceLR then return "LR" end
 
     local rates = Config.RECRUIT_RATES
@@ -38,6 +39,9 @@ local function RollRarity(forcePity, forceLR, lrBonusRate)
     -- LR 独立 roll（基础概率 + 软保底加成，上限100%）
     local effectiveLR = math.min(100, (rates.LR or 0) + (lrBonusRate or 0))
     if math.random(1, 100) <= effectiveLR then return "LR" end
+
+    -- 硬保底：第50次强制 UR
+    if forceUR then return "UR" end
 
     -- 未出 LR，从非 LR 池随机（UR > SSR > SR > R > N）
     if forcePity then return "SSR" end
@@ -53,10 +57,16 @@ end
 
 --- 随机一个英雄并发放奖励
 ---@param rarity string
+---@param fateOverride string|nil 命定英雄覆盖（保底触发时使用）
 ---@return table
-local function ResolveHero(rarity)
+local function ResolveHero(rarity, fateOverride)
     local pool = Config.RECRUIT_POOL[rarity]
-    local heroId = pool[math.random(1, #pool)]
+    local heroId
+    if fateOverride then
+        heroId = fateOverride
+    else
+        heroId = pool[math.random(1, #pool)]
+    end
 
     local heroName = heroId
     for _, td in ipairs(Config.TOWER_TYPES) do
@@ -113,22 +123,32 @@ function RecruitData.DoPull(pullCount, isFree)
         HeroData.currencies.void_pact = HeroData.currencies.void_pact - cost
     end
 
-    -- 先决定每抽的稀有度（含 LR 保底逻辑）
+    -- 先决定每抽的稀有度（含 LR/UR 保底逻辑）
     local rarities = {}
+    local pityFateUR = {}   -- 记录哪些抽触发了 UR 保底
+    local pityFateLR = {}   -- 记录哪些抽触发了 LR 保底
     for i = 1, pullCount do
         rd.totalPulls = rd.totalPulls + 1
         rd.lrPityCount = (rd.lrPityCount or 0) + 1
+        rd.urPityCount = (rd.urPityCount or 0) + 1
 
         -- 硬保底：第 100 次强制 LR
         local forceLR = rd.lrPityCount >= 100
         -- 软保底：第 81~99 次每抽额外 +2% LR 概率（pull 81=+2%, pull 82=+4%, ...）
         local lrBonus = rd.lrPityCount > 80 and (rd.lrPityCount - 80) * 2 or 0
+        -- 硬保底：第 50 次强制 UR（LR 优先）
+        local forceUR = (not forceLR) and rd.urPityCount >= 50
 
-        rarities[i] = RollRarity(false, forceLR, lrBonus)
+        rarities[i] = RollRarity(false, forceLR, lrBonus, forceUR)
 
         if rarities[i] == "LR" then
+            pityFateLR[i] = forceLR
             print("[RecruitData] LR obtained at pityCount=" .. rd.lrPityCount .. ", resetting")
             rd.lrPityCount = 0
+        elseif rarities[i] == "UR" then
+            pityFateUR[i] = forceUR
+            print("[RecruitData] UR obtained at urPityCount=" .. rd.urPityCount .. ", resetting")
+            rd.urPityCount = 0
         end
     end
 
@@ -148,10 +168,16 @@ function RecruitData.DoPull(pullCount, isFree)
         end
     end
 
-    -- 按确定的稀有度发放奖励
+    -- 按确定的稀有度发放奖励（保底触发时使用命定英雄）
     local results = {}
     for i = 1, pullCount do
-        results[i] = ResolveHero(rarities[i])
+        local fateOverride = nil
+        if rarities[i] == "UR" and pityFateUR[i] and rd.fateHeroUR then
+            fateOverride = rd.fateHeroUR
+        elseif rarities[i] == "LR" and pityFateLR[i] and rd.fateHeroLR then
+            fateOverride = rd.fateHeroLR
+        end
+        results[i] = ResolveHero(rarities[i], fateOverride)
     end
 
     -- 保存（抽卡消耗货币，不可逆操作，立即云端保存）
@@ -227,6 +253,62 @@ end
 ---@return number
 function RecruitData.GetAdPactDailyMax()
     return AD_PACT_DAILY_MAX
+end
+
+-- ============================================================================
+-- 命定仪轨
+-- ============================================================================
+
+--- 设置命定UR英雄
+---@param heroId string|nil  英雄ID，nil 表示清除
+---@return boolean success
+function RecruitData.SetFateHeroUR(heroId)
+    if heroId ~= nil then
+        local valid = false
+        for _, id in ipairs(Config.RECRUIT_POOL.UR) do
+            if id == heroId then valid = true; break end
+        end
+        if not valid then return false end
+    end
+    HeroData.recruitData.fateHeroUR = heroId
+    HeroData.Save()
+    return true
+end
+
+--- 设置命定LR英雄
+---@param heroId string|nil  英雄ID，nil 表示清除
+---@return boolean success
+function RecruitData.SetFateHeroLR(heroId)
+    if heroId ~= nil then
+        local valid = false
+        for _, id in ipairs(Config.RECRUIT_POOL.LR) do
+            if id == heroId then valid = true; break end
+        end
+        if not valid then return false end
+    end
+    HeroData.recruitData.fateHeroLR = heroId
+    HeroData.Save()
+    return true
+end
+
+--- 获取当前命定英雄
+---@return string|nil urHeroId
+---@return string|nil lrHeroId
+function RecruitData.GetFateHeroes()
+    local rd = HeroData.recruitData
+    return rd.fateHeroUR, rd.fateHeroLR
+end
+
+--- 获取UR保底计数
+---@return number
+function RecruitData.GetURPityCount()
+    return HeroData.recruitData.urPityCount or 0
+end
+
+--- 获取LR保底计数
+---@return number
+function RecruitData.GetLRPityCount()
+    return HeroData.recruitData.lrPityCount or 0
 end
 
 return RecruitData

@@ -57,6 +57,11 @@ local rankCache = {
     tower = nil,
     dungeon = nil,
     world_boss = nil,
+    -- 世界BOSS按难度每日排名：wb_diff_0/1/3/9（0=未上榜）
+    wb_diff_0 = 0,
+    wb_diff_1 = 0,
+    wb_diff_3 = 0,
+    wb_diff_9 = 0,
 }
 
 -- ============================================================================
@@ -247,6 +252,24 @@ function DungeonUI.FetchRanks()
             end
         end
     end)
+
+    -- 世界BOSS按难度的每日排名
+    local diffLabels = { [0] = "普通", [1] = "困难", [3] = "噩梦", [9] = "地狱" }
+    for _, dl in ipairs(LB.WB_DIFF_LEVELS) do
+        local dailyKey = LB.GetWorldBossDiffDailyKey(dl)
+        local cacheKey = "wb_diff_" .. dl
+        LB.FetchMyRank(dailyKey, function(rank, score)
+            -- 无有效分数时视为未上榜（API 可能对 score=0 也返回 rank=1）
+            local validRank = (score and score > 0 and rank) and rank or 0
+            rankCache[cacheKey] = validRank
+            if pageRoot and currentView == "list" then
+                local label = pageRoot:FindById("wbDiffRank_" .. dl)
+                if label then
+                    label:SetText(diffLabels[dl] .. " #" .. validRank)
+                end
+            end
+        end)
+    end
 end
 
 -- ============================================================================
@@ -410,12 +433,10 @@ function DungeonUI.BuildDungeonCard(def)
             },
         }
     elseif def.key == "world_boss" and isAvailable then
-        local rankText = rankCache.world_boss and ("  🏆 排名 第" .. rankCache.world_boss .. "名") or ""
         rewardChildren = {
             Currency.IconWidget(UI, "recruit_ticket_select_box", 13),
             UI.Label { text = "招募券自选包", fontSize = 11, fontColor = { 130, 210, 255 }, pointerEvents = "none" },
             UI.Label { text = " 最高" .. WB.FormatDamage(WB.GetBestDamage()), fontSize = 11, fontColor = S.dim, pointerEvents = "none" },
-            UI.Label { id = "worldBossRankLabel", text = rankText, fontSize = 11, fontColor = S.gold, pointerEvents = "none" },
         }
     elseif def.key == "abyss_rift" and isAvailable then
         rewardChildren = {
@@ -489,39 +510,77 @@ function DungeonUI.BuildDungeonCard(def)
                 flex = 1,
                 flexDirection = "column",
                 paddingLeft = 12, paddingRight = 14,
-                paddingTop = 14, paddingBottom = 14,
-                gap = 6,
+                paddingTop = 10, paddingBottom = 8,
+                gap = 4,
                 backgroundColor = bgImage and { 15, 12, 25, 160 } or nil,
-                children = {
-                    UI.Panel {
+                children = (function()
+                    local rows = {}
+                    -- 1. 主标题行（大字 + 底条）
+                    local titleChildren = {}
+                    if def.nameIcon then
+                        titleChildren[#titleChildren + 1] = UI.Panel {
+                            width = 22, height = 22,
+                            backgroundImage = def.nameIcon,
+                            backgroundFit = "contain",
+                            pointerEvents = "none", flexShrink = 0,
+                        }
+                    end
+                    titleChildren[#titleChildren + 1] = UI.Label {
+                        text = def.name,
+                        fontSize = 20,
+                        fontWeight = "bold",
+                        fontColor = isAvailable and { 255, 255, 255, 255 } or S.dim,
+                        pointerEvents = "none",
+                    }
+                    if def.isEvent then
+                        titleChildren[#titleChildren + 1] = UI.Panel {
+                            paddingLeft = 5, paddingRight = 5,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 6,
+                            backgroundColor = { 255, 255, 255, 40 },
+                            children = {
+                                UI.Label {
+                                    text = "限时",
+                                    fontSize = 10,
+                                    fontColor = { 255, 255, 255, 220 },
+                                    pointerEvents = "none",
+                                },
+                            },
+                        }
+                    end
+                    rows[#rows + 1] = UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        alignSelf = "flex-start",
+                        gap = 6,
+                        paddingLeft = 8, paddingRight = 10,
+                        paddingTop = 4, paddingBottom = 4,
+                        borderRadius = 6,
+                        backgroundColor = { accentColor[1], accentColor[2], accentColor[3], isAvailable and 160 or 80 },
+                        children = titleChildren,
+                    }
+                    -- 2. 进度 badge 行
+                    rows[#rows + 1] = UI.Panel {
                         width = "100%",
                         flexDirection = "row",
                         alignItems = "center",
                         justifyContent = "space-between",
                         children = {
-                            UI.Panel {
-                                flexDirection = "row", alignItems = "center", gap = 4,
-                                children = {
-                                    def.nameIcon and UI.Panel {
-                                        width = 18, height = 18,
-                                        backgroundImage = def.nameIcon,
-                                        backgroundFit = "contain",
-                                        pointerEvents = "none", flexShrink = 0,
-                                    } or nil,
-                                    UI.Label {
-                                        text = def.name,
-                                        fontSize = 17,
-                                        fontWeight = "bold",
-                                        fontColor = isAvailable and S.white or S.dim,
-                                        pointerEvents = "none",
-                                    },
-                                },
+                            UI.Label {
+                                text = def.desc,
+                                fontSize = 12,
+                                fontColor = S.dim,
+                                pointerEvents = "none",
+                                flex = 1,
+                                flexShrink = 1,
                             },
                             UI.Panel {
                                 paddingLeft = 8, paddingRight = 8,
                                 paddingTop = 3, paddingBottom = 3,
                                 borderRadius = 10,
                                 backgroundColor = { progressColor[1], progressColor[2], progressColor[3], 40 },
+                                flexShrink = 0,
+                                marginLeft = 6,
                                 children = {
                                     UI.Label {
                                         text = progressText,
@@ -532,61 +591,101 @@ function DungeonUI.BuildDungeonCard(def)
                                 },
                             },
                         },
-                    },
-                    UI.Label {
-                        text = def.desc,
-                        fontSize = 12,
-                        fontColor = S.dim,
-                        pointerEvents = "none",
-                    },
-                    #rewardChildren > 0 and UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 3,
-                        marginTop = 2,
-                        children = rewardChildren,
-                    } or nil,
-                    (def.key == "tower" and isAvailable) and UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 4,
-                        marginTop = 2,
-                        children = {
-                            UI.Label {
-                                text = "🏆",
-                                fontSize = 11,
-                                pointerEvents = "none",
+                    }
+                    -- 3. 奖励行
+                    if #rewardChildren > 0 then
+                        rows[#rows + 1] = UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = 3,
+                            marginTop = 2,
+                            children = rewardChildren,
+                        }
+                    end
+                    -- 4. 排名行（按副本类型）
+                    if def.key == "tower" and isAvailable then
+                        rows[#rows + 1] = UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = 4,
+                            marginTop = 2,
+                            children = {
+                                UI.Label {
+                                    text = "🏆",
+                                    fontSize = 11,
+                                    pointerEvents = "none",
+                                },
+                                UI.Label {
+                                    id = "towerRankLabel",
+                                    text = rankCache.tower and ("排名 第" .. rankCache.tower .. "名") or "加载中...",
+                                    fontSize = 11,
+                                    fontColor = S.gold,
+                                    pointerEvents = "none",
+                                },
                             },
-                            UI.Label {
-                                id = "towerRankLabel",
-                                text = rankCache.tower and ("排名 第" .. rankCache.tower .. "名") or "加载中...",
-                                fontSize = 11,
-                                fontColor = S.gold,
-                                pointerEvents = "none",
+                        }
+                    elseif def.key == "resource" and isAvailable then
+                        rows[#rows + 1] = UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = 4,
+                            marginTop = 2,
+                            children = {
+                                UI.Label {
+                                    text = "🏆",
+                                    fontSize = 11,
+                                    pointerEvents = "none",
+                                },
+                                UI.Label {
+                                    id = "dungeonRankLabel",
+                                    text = rankCache.dungeon and ("排名 第" .. rankCache.dungeon .. "名") or "加载中...",
+                                    fontSize = 11,
+                                    fontColor = S.gold,
+                                    pointerEvents = "none",
+                                },
                             },
-                        },
-                    } or nil,
-                    (def.key == "resource" and isAvailable) and UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 4,
-                        marginTop = 2,
-                        children = {
-                            UI.Label {
-                                text = "🏆",
-                                fontSize = 11,
-                                pointerEvents = "none",
-                            },
-                            UI.Label {
-                                id = "dungeonRankLabel",
-                                text = rankCache.dungeon and ("排名 第" .. rankCache.dungeon .. "名") or "加载中...",
-                                fontSize = 11,
-                                fontColor = S.gold,
-                                pointerEvents = "none",
-                            },
-                        },
-                    } or nil,
-                },
+                        }
+                    elseif def.key == "world_boss" and isAvailable then
+                        local diffInfo = {
+                            { level = 0, label = "普通", color = { 150, 220, 150 } },
+                            { level = 1, label = "困难", color = { 255, 220, 100 } },
+                            { level = 3, label = "噩梦", color = { 255, 160, 80 } },
+                            { level = 9, label = "地狱", color = { 255, 80, 80 } },
+                        }
+                        local rankWidgets = {}
+                        for _, di in ipairs(diffInfo) do
+                            local cacheKey = "wb_diff_" .. di.level
+                            local r = rankCache[cacheKey]
+                            local txt = di.label .. " #" .. (r or 0)
+                            rankWidgets[#rankWidgets + 1] = UI.Panel {
+                                flexDirection = "row",
+                                alignItems = "center",
+                                gap = 2,
+                                paddingLeft = 4, paddingRight = 4,
+                                paddingTop = 2, paddingBottom = 2,
+                                borderRadius = 6,
+                                backgroundColor = { di.color[1], di.color[2], di.color[3], 30 },
+                                children = {
+                                    UI.Label {
+                                        id = "wbDiffRank_" .. di.level,
+                                        text = txt,
+                                        fontSize = 10,
+                                        fontColor = di.color,
+                                        pointerEvents = "none",
+                                    },
+                                },
+                            }
+                        end
+                        rows[#rows + 1] = UI.Panel {
+                            flexDirection = "row",
+                            alignItems = "center",
+                            gap = 4,
+                            marginTop = 2,
+                            children = rankWidgets,
+                        }
+                    end
+                    return rows
+                end)(),
             },
             isAvailable and UI.Panel {
                 width = 30,

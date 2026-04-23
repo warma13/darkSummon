@@ -67,6 +67,7 @@ function WorldBoss.BuildDetailView(ctx)
 
     -- 滚动内容
     local contentChildren = {}
+    local selectedDiff = WB.GetSelectedDifficulty()
 
     -- BOSS 信息卡
     contentChildren[#contentChildren + 1] = UI.Panel {
@@ -103,7 +104,7 @@ function WorldBoss.BuildDetailView(ctx)
                                 },
                             },
                             UI.Label {
-                                text = "HP: 无限  |  DEF: " .. ctx.FormatNum(cfg.bossDEF) .. "（随时间增长）",
+                                text = "HP: 无限  |  DEF: " .. ctx.FormatNum(cfg.bossDEF * (WB.GetDifficultyDef(selectedDiff).attrMult)) .. "（随时间增长）",
                                 fontSize = 11, fontColor = S.dim, pointerEvents = "none",
                             },
                             UI.Label {
@@ -123,6 +124,104 @@ function WorldBoss.BuildDetailView(ctx)
                                 pointerEvents = "none",
                             },
                         },
+                    },
+                },
+            },
+        },
+    }
+
+    -- 难度选择器
+    local diffButtons = {}
+    for _, d in ipairs(WB.DIFFICULTY_LEVELS) do
+        local isSelected = (d.level == selectedDiff)
+        local isUnlocked = WB.IsDifficultyUnlocked(d.level)
+        local diffLevel = d.level
+
+        -- 难度颜色
+        local diffColors = {
+            [0] = { 120, 180, 120 },
+            [1] = { 200, 180, 80 },
+            [3] = { 220, 120, 60 },
+            [9] = { 220, 50, 50 },
+        }
+        local color = diffColors[d.level] or S.dim
+
+        diffButtons[#diffButtons + 1] = UI.Panel {
+            flex = 1,
+            height = 40,
+            justifyContent = "center",
+            alignItems = "center",
+            backgroundColor = isSelected and { color[1], color[2], color[3], 60 } or { 30, 30, 40, 120 },
+            borderRadius = 6,
+            borderWidth = isSelected and 2 or 1,
+            borderColor = isSelected and color or { 60, 60, 70, 100 },
+            opacity = isUnlocked and 1.0 or 0.4,
+            onClick = isUnlocked and function()
+                WB.SetSelectedDifficulty(diffLevel)
+                ctx.Refresh()
+            end or nil,
+            children = {
+                UI.Label {
+                    text = d.label,
+                    fontSize = 12, fontWeight = isSelected and "bold" or "normal",
+                    fontColor = isSelected and color or (isUnlocked and S.white or S.dim),
+                    pointerEvents = "none",
+                },
+                UI.Label {
+                    text = isUnlocked and ("Lv." .. d.level) or "🔒",
+                    fontSize = 9,
+                    fontColor = isSelected and color or S.dim,
+                    pointerEvents = "none",
+                },
+            },
+        }
+    end
+
+    contentChildren[#contentChildren + 1] = UI.Panel {
+        width = "100%",
+        paddingLeft = 12, paddingRight = 12,
+        paddingTop = 6,
+        flexShrink = 0,
+        children = {
+            UI.Panel {
+                width = "100%",
+                backgroundColor = S.cardBg,
+                borderRadius = 8,
+                paddingLeft = 10, paddingRight = 10,
+                paddingTop = 8, paddingBottom = 8,
+                flexDirection = "column",
+                gap = 6,
+                children = {
+                    UI.Label {
+                        text = "难度选择", fontSize = 13, fontWeight = "bold",
+                        fontColor = S.white, pointerEvents = "none",
+                    },
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        gap = 6,
+                        children = diffButtons,
+                    },
+                    UI.Label {
+                        text = (function()
+                            local diff = WB.GetDifficultyDef(selectedDiff)
+                            if selectedDiff == 0 then
+                                return "原始难度，适合入门挑战"
+                            else
+                                local multStr
+                                if diff.attrMult >= 10000000000 then
+                                    multStr = string.format("%.0f亿", diff.attrMult / 100000000)
+                                elseif diff.attrMult >= 10000 then
+                                    multStr = string.format("%.0f万", diff.attrMult / 10000)
+                                else
+                                    multStr = tostring(diff.attrMult)
+                                end
+                                local totalBonus = 0
+                                for _, b in ipairs(diff.rewardBonuses) do totalBonus = totalBonus + b end
+                                return "全属性×" .. multStr .. "  技能CD-" .. diff.cdReduction .. "秒  暗魂+" .. diff.darkSoulBonus .. "/秒  券+" .. totalBonus
+                            end
+                        end)(),
+                        fontSize = 10, fontColor = S.dim, pointerEvents = "none",
                     },
                 },
             },
@@ -180,12 +279,13 @@ function WorldBoss.BuildDetailView(ctx)
         paddingBottom = 4,
         children = {
             UI.Label { text = "累计伤害", fontSize = 12, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
-            UI.Label { text = "霜誓契约", fontSize = 12, fontWeight = "bold", fontColor = { 130, 210, 255 }, pointerEvents = "none" },
+            UI.Label { text = "招募自选包", fontSize = 12, fontWeight = "bold", fontColor = { 130, 210, 255 }, pointerEvents = "none" },
         },
     }
 
+    local adjustedTiers = WB.GetAdjustedRewardTiers(selectedDiff)
     local cumReward = 0
-    for i, tier in ipairs(cfg.rewardTiers) do
+    for i, tier in ipairs(adjustedTiers) do
         local threshold = tier[1]
         local amount = tier[2]
         cumReward = cumReward + amount
@@ -335,7 +435,18 @@ function WorldBoss._BuildChallengeButton(UI, S, ctx, remaining)
         variant = "outline",
         onClick = function()
             local LeaderboardUI = require("Game.LeaderboardUI")
-            LeaderboardUI.Show(3)
+            local LBData = require("Game.LeaderboardData")
+            local diffTabs = {
+                { key = LBData.GetWorldBossDiffDailyKey(0), label = "普通",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+                { key = LBData.GetWorldBossDiffDailyKey(1), label = "困难",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+                { key = LBData.GetWorldBossDiffDailyKey(3), label = "噩梦",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+                { key = LBData.GetWorldBossDiffDailyKey(9), label = "地狱",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+            }
+            LeaderboardUI.ShowWithTabs(diffTabs, 1)
         end,
     }
 
@@ -395,7 +506,12 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
 
     local cfg = WB.CONFIG
 
+    local challengeDifficulty = WB.GetSelectedDifficulty()
+    local diffDef = WB.GetDifficultyDef(challengeDifficulty)
+
     local bossDef = WB.CreateWorldBossDef()
+    -- 应用难度倍率到BOSS DEF（DEF是核心战斗属性，其他属性由GetScaledDEF实时更新）
+    bossDef.baseDEF = (bossDef.baseDEF or cfg.bossDEF) * diffDef.attrMult
     local waves = {
         {
             {
@@ -409,7 +525,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
         },
     }
 
-    local label = "世界BOSS · 深渊主宰"
+    local label = "世界BOSS · 深渊主宰" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
 
     GameUI.EnterDungeonBattle({
         mode = "world_boss",
@@ -422,11 +538,11 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
         bossTimerEnabled = true,
         overloadEnabled = false,
         worldBossDuration = cfg.totalDuration,
-        worldBossDarkSoulDrain = cfg.darkSoulDrain,
+        worldBossDarkSoulDrain = cfg.darkSoulDrain + diffDef.darkSoulBonus,
         initialDarkSoul = Config.INITIAL_DARK_SOUL,
 
         onStart = function()
-            WorldBossSkills.Init()
+            WorldBossSkills.Init(challengeDifficulty)
         end,
         onUpdate = function(dt)
             WorldBossSkills.Update(dt)
@@ -437,7 +553,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
             State.worldBossActive = false
             local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
-            local rewards = WB.ClaimReward(totalDamage)
+            local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
             local rewardItems = {}
             if rewards and rewards.recruit_ticket_select_box then
                 local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
@@ -474,7 +590,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
             State.worldBossActive = false
             local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
-            local rewards = WB.ClaimReward(totalDamage)
+            local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
             local rewardItems = {}
             if rewards and rewards.recruit_ticket_select_box then
                 local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
@@ -512,7 +628,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
             State.worldBossActive = false
             local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
-            local rewards = WB.ClaimReward(totalDamage)
+            local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
             local rewardItems = {}
             if rewards and rewards.recruit_ticket_select_box then
                 local itemDef = Config.CURRENCY["recruit_ticket_select_box"]

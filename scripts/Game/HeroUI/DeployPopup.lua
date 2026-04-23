@@ -13,6 +13,21 @@ local popupContentContainer = nil
 --- 页面重建时清理局部状态
 function DeployPopup.OnPageClear()
     popupContentContainer = nil
+    local HeroCardMod = require("Game.HeroUI.HeroCard")
+    HeroCardMod.ClearCache("deploy")
+end
+
+--- 更新上阵计数显示（增量）
+local function UpdateDeployCount(ctx)
+    if not popupContentContainer then return end
+    local S = ctx.GetS()
+    local countLabel = popupContentContainer:FindById("deploy_count_label")
+    if not countLabel then return end
+    local count = HeroData.GetDeployedCount()
+    local maxDeploy = Config.MAX_DEPLOYED
+    local isFull = count >= maxDeploy
+    countLabel:SetText(count .. "/" .. maxDeploy)
+    countLabel:SetFontColor(isFull and S.deployFull or S.deployedCount)
 end
 
 --- 刷新收藏弹出层网格内容（不重建整个弹出层）
@@ -22,6 +37,8 @@ function DeployPopup.RefreshCollectionContent(ctx)
     local S = ctx.GetS()
     local HeroCardMod = require("Game.HeroUI.HeroCard")
 
+    -- 清除旧缓存
+    HeroCardMod.ClearCache("deploy")
     popupContentContainer:ClearChildren()
 
     -- 上阵信息栏
@@ -52,6 +69,7 @@ function DeployPopup.RefreshCollectionContent(ctx)
                 children = {
                     UI.Label { text = "上阵", fontSize = 11, fontColor = S.dim },
                     UI.Label {
+                        id = "deploy_count_label",
                         text = count .. "/" .. maxDeploy,
                         fontSize = 13,
                         fontColor = countColor,
@@ -88,8 +106,17 @@ function DeployPopup.HandleCardClick(ctx, heroId, isUnlocked, isDeployed)
         end
     end
 
-    -- 刷新弹出层内容
-    DeployPopup.RefreshCollectionContent(ctx)
+    if not ok then return end
+
+    -- 增量刷新：只更新被点击的卡片 + 上阵计数
+    local HeroCardMod = require("Game.HeroUI.HeroCard")
+    local refreshed = HeroCardMod.RefreshSingleCard(ctx, heroId, "deploy")
+    if refreshed then
+        UpdateDeployCount(ctx)
+    else
+        -- fallback：缓存失效时全量刷新
+        DeployPopup.RefreshCollectionContent(ctx)
+    end
 end
 
 --- 显示英雄收藏弹出层
@@ -188,6 +215,8 @@ function DeployPopup.HideCollectionPopup(ctx)
         pageRoot:RemoveChild(overlay)
         ctx.SetCollectionOverlay(nil)
         popupContentContainer = nil
+        local HeroCardMod = require("Game.HeroUI.HeroCard")
+        HeroCardMod.ClearCache("deploy")
         -- 关闭后刷新主页（上阵列表可能变化）
         ctx.Refresh()
     end

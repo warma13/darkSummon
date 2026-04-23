@@ -53,6 +53,9 @@ HeroData.recruitData = {   -- 招募系统数据
     totalPulls = 0,         -- 历史总抽数
     freeDaily = "",         -- 今日免费抽标记（日期字符串 "YYYY-MM-DD"）
     lrPityCount = 0,        -- LR 保底计数（0~100，第100次强制LR）
+    urPityCount = 0,        -- UR 保底计数（0~50，第50次强制UR）
+    fateHeroUR = nil,       -- 命定UR英雄ID（string|nil）
+    fateHeroLR = nil,       -- 命定LR英雄ID（string|nil）
 }
 HeroData.stats = {
     bestStage = 0,
@@ -93,7 +96,7 @@ function HeroData._InitCoreDefaults()
         -- 旧字段置零
         gold = 0, diamonds = 0, advanceStones = 0, recruitTokens = 0,
     })
-    HeroData.recruitData = { pityCounter = 0, totalPulls = 0, freeDaily = "", lrPityCount = 0 }
+    HeroData.recruitData = { pityCounter = 0, totalPulls = 0, freeDaily = "", lrPityCount = 0, urPityCount = 0, fateHeroUR = nil, fateHeroLR = nil }
     HeroData.stats, statsSnapshot = SafeTable.Create({ bestStage = 0, bestGlobalWave = 0, totalGames = 0 })
 
     -- 新玩家首日免费赠送自动召唤/合成/布阵/x2
@@ -292,6 +295,9 @@ function HeroData._DeserializeCore(_saved, saveData)
     HeroData.recruitData = saveData.recruitData or { pityCounter = 0, totalPulls = 0, freeDaily = "", lrPityCount = 0 }
     if HeroData.recruitData.lrPityCount == nil then
         HeroData.recruitData.lrPityCount = 0  -- 旧存档迁移
+    end
+    if HeroData.recruitData.urPityCount == nil then
+        HeroData.recruitData.urPityCount = 0  -- 旧存档迁移
     end
 
     -- deployed（旧存档可能无此字段，需迁移）

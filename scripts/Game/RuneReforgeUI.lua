@@ -107,6 +107,11 @@ function RuneReforgeUI.CreatePanel(rune, series, quality, lockedCount)
     -- 模式选择（基础 / 定向基础 / 定向特殊）
     children[#children + 1] = RuneReforgeUI.CreateModeSelector()
 
+    -- 词条池说明（定向模式时显示）
+    if reforgeMode ~= "basic" then
+        children[#children + 1] = RuneReforgeUI.CreatePoolHint()
+    end
+
     -- 分隔线
     children[#children + 1] = UI.Panel {
         width = "100%", height = 1,
@@ -163,7 +168,6 @@ function RuneReforgeUI.CreateTitle(rune, series, quality)
             UI.Panel {
                 flexDirection = "row", alignItems = "center", gap = 6,
                 children = {
-                    UI.Label { text = series and series.emoji or "🔮", fontSize = 20 },
                     UI.Label {
                         text = "洗练",
                         fontSize = 18, fontColor = { 220, 200, 255, 255 }, fontWeight = "bold",
@@ -250,11 +254,86 @@ function RuneReforgeUI.CreateModeSelector()
                 gap = 4,
                 children = tabs,
             },
-            -- 未解锁提示
-            not directedUnlocked and UI.Label {
-                text = "定向洗练需通关第" .. RuneConfig.DIRECTED_UNLOCK_STAGE .. "波解锁",
-                fontSize = 9, fontColor = { 150, 130, 180, 150 },
-            } or nil,
+            -- 模式说明
+            (function()
+                if not directedUnlocked then
+                    return UI.Label {
+                        text = "定向洗练需通关第" .. RuneConfig.DIRECTED_UNLOCK_STAGE .. "波解锁",
+                        fontSize = 9, fontColor = { 150, 130, 180, 150 },
+                    }
+                end
+                local descMap = {
+                    basic            = { text = "从全部词条池中随机重随未锁定词条", color = { 150, 140, 180, 180 } },
+                    directed_base    = { text = "仅从攻击力/暴击/穿甲等基础属性池中重随", color = { 100, 180, 255, 180 } },
+                    directed_special = { text = "仅从连锁/减速/DOT等特殊效果池中重随", color = { 255, 160, 80, 180 } },
+                }
+                local d = descMap[reforgeMode]
+                if d then
+                    return UI.Label {
+                        text = d.text,
+                        fontSize = 9, fontColor = d.color,
+                    }
+                end
+                return nil
+            end)(),
+        },
+    }
+end
+
+-- ============================================================================
+-- 词条池说明（定向模式时显示可选词条范围）
+-- ============================================================================
+
+function RuneReforgeUI.CreatePoolHint()
+    local isBase = reforgeMode == "directed_base"
+    local pool = isBase and RuneConfig.AFFIX_BASE or RuneConfig.AFFIX_SPECIAL
+    local poolLabel = isBase and "基础属性池" or "特殊效果池"
+    local poolColor = isBase and { 100, 180, 255, 200 } or { 255, 160, 80, 200 }
+    local bgColor   = isBase and { 30, 50, 80, 120 }   or { 60, 35, 20, 120 }
+
+    -- 构建词条标签
+    local tags = {}
+    for _, def in ipairs(pool) do
+        tags[#tags + 1] = UI.Panel {
+            paddingLeft = 5, paddingRight = 5,
+            paddingTop = 2, paddingBottom = 2,
+            backgroundColor = { poolColor[1], poolColor[2], poolColor[3], 50 },
+            borderRadius = 3,
+            borderWidth = 1,
+            borderColor = { poolColor[1], poolColor[2], poolColor[3], 80 },
+            children = {
+                UI.Label {
+                    text = def.name,
+                    fontSize = 9,
+                    fontColor = poolColor,
+                },
+            },
+        }
+    end
+
+    return UI.Panel {
+        width = "100%",
+        flexDirection = "column",
+        gap = 4,
+        paddingTop = 4, paddingBottom = 4,
+        paddingLeft = 6, paddingRight = 6,
+        backgroundColor = bgColor,
+        borderRadius = 6,
+        flexShrink = 0,
+        children = {
+            UI.Label {
+                text = "重随范围：" .. poolLabel .. "（" .. #pool .. "种）",
+                fontSize = 10,
+                fontColor = poolColor,
+                fontWeight = "bold",
+            },
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                flexWrap = "wrap",
+                gap = 4,
+                children = tags,
+            },
         },
     }
 end

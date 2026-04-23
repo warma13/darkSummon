@@ -210,24 +210,29 @@ function GameUI.UpdateHUD()
         end
     end
 
-    -- ======== 英雄信息面板（实时刷新：切换/升星立即重建，同一英雄每0.5秒刷新属性） ========
+    -- ======== 英雄信息面板（切换/升星重建结构，同一英雄只增量更新数值） ========
     if refs.heroInfoPanel then
         local sel = State.selectedTower
         if sel then
-            local now = os.clock()
             local switched = (sel.id ~= ctx.lastInfoTowerId) or (sel.star ~= ctx.lastInfoTowerStar)
-            local elapsed = now - (ctx.heroInfoLastTime or 0)
-            local needUpdate = switched or (elapsed >= 0.2)
-            if needUpdate then
+            if switched then
+                -- 英雄切换或升星：完全重建面板
                 ctx.lastInfoTowerId = sel.id
                 ctx.lastInfoTowerStar = sel.star
-                ctx.heroInfoLastTime = now
                 refs.heroInfoPanel:ClearChildren()
                 local content = GameUI.BuildHeroInfoContent(sel)
                 for _, child in ipairs(content) do
                     if child then
                         refs.heroInfoPanel:AddChild(child)
                     end
+                end
+            else
+                -- 同一英雄：只增量更新动态数值（攻击/攻速/暴击等）
+                local now = os.clock()
+                local elapsed = now - (ctx.heroInfoLastTime or 0)
+                if elapsed >= 0.3 then
+                    ctx.heroInfoLastTime = now
+                    GameUI.UpdateHeroInfoValues(sel, refs.heroInfoPanel)
                 end
             end
             refs.heroInfoPanel:SetVisible(true)
@@ -516,7 +521,7 @@ function GameUI.CreateUI()
     -- 左下角固定显示版本号（放在 TabBar 上方，避免被遮挡）
     local versionLabel = UI.Label {
         id = "fixedVersion",
-        text = "v1.0.51",
+        text = "v1.0.56",
         fontSize = 10,
         fontColor = { 160, 160, 180, 130 },
     }
@@ -1499,32 +1504,6 @@ function GameUI.Update(dt)
     end
 
     GameUI.UpdateHUD()
-    -- 英雄面板攻击力/攻速实时刷新（buff 加成随时变化）
-    local sel = State.selectedTower
-    if sel and ctx.uiRoot then
-        local HeroSkills = require("Game.HeroSkills")
-        local atkLabel = ctx.uiRoot:FindById("heroPanel_atk")
-        if atkLabel then
-            local v = HeroSkills.GetEffectiveAttack(sel)
-            local t
-            if v >= 100000000 then t = string.format("%.1f亿", v / 100000000)
-            elseif v >= 10000 then t = string.format("%.1f万", v / 10000)
-            else t = tostring(math.floor(v)) end
-            if t ~= ctx._heroPanelAtkCache then
-                ctx._heroPanelAtkCache = t
-                atkLabel:SetText(t)
-            end
-        end
-        local spdLabel = ctx.uiRoot:FindById("heroPanel_spd")
-        if spdLabel then
-            local spd = HeroSkills.GetEffectiveSpeed(sel)
-            local t = string.format("%.2f/s", 1.0 / spd)
-            if t ~= ctx._heroPanelSpdCache then
-                ctx._heroPanelSpdCache = t
-                spdLabel:SetText(t)
-            end
-        end
-    end
     GameUI.UpdateAfkTimer()
     EquipUI.Update(dt)
     -- 时装签到预览动画

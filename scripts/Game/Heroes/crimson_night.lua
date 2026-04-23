@@ -21,20 +21,19 @@ end
 ---@param killed boolean
 function M.OnHit(tower, target, killed)
     -- ================================================================
-    -- 技能1：暗影之针 — 叠加印记，满层穿刺爆发
+    -- 技能1：暗影之针 — 叠加印记（存在塔自身），满层穿刺爆发
     -- ================================================================
     local needle = has(tower, "shadow_needle")
     if needle and target.alive then
-        -- 叠加 1 层印记（刷新持续时间）
-        target.shadowNeedleStacks = math.min(
-            (target.shadowNeedleStacks or 0) + 1,
+        -- 叠加 1 层印记到塔自身（刷新持续时间）
+        tower.shadowNeedleStacks = math.min(
+            (tower.shadowNeedleStacks or 0) + 1,
             needle.maxStacks or 5
         )
-        target.shadowNeedleTimer = needle.stackDuration or 4.0
-        target.shadowNeedleTowerId = tower.id
+        tower.shadowNeedleTimer = needle.stackDuration or 4.0
 
-        -- 满层触发穿刺爆发
-        if target.shadowNeedleStacks >= (needle.maxStacks or 5) then
+        -- 满层触发穿刺爆发（对当前目标释放）
+        if tower.shadowNeedleStacks >= (needle.maxStacks or 5) then
             local HeroSkills = require("Game.HeroSkills")
             local Combat     = require("Game.Combat")
             local Enemy      = require("Game.Enemy")
@@ -42,15 +41,15 @@ function M.OnHit(tower, target, killed)
             local atk = HeroSkills.GetEffectiveAttack(tower)
             local burstDmg = atk * (needle.burstAtkPct or 2.0)
 
-            -- 穿甲：利用 armorReduceFromDot（CalcFinalDamage 已支持，单次使用后自动清 nil）
+            -- 穿甲
             target.armorReduceFromDot = needle.armorIgnore or 0.20
 
             local finalDmg, isCrit = Combat.CalcFinalDamage(tower, target, burstDmg)
             Enemy.TakeDamage(target, finalDmg)
 
             -- 消耗全部印记
-            target.shadowNeedleStacks = 0
-            target.shadowNeedleTimer = nil
+            tower.shadowNeedleStacks = 0
+            tower.shadowNeedleTimer = nil
 
             -- 飘字
             AddFloatingText({
@@ -68,46 +67,16 @@ function M.OnHit(tower, target, killed)
     end
 
     -- ================================================================
-    -- 技能2：绯瞳锁定 — 连续攻击同一目标提升暴击率
+    -- 技能2：绯瞳锁定 — 攻击获得绯瞳，停止攻击后衰减消失
     -- ================================================================
     local bloodEye = has(tower, "blood_eye")
     if bloodEye then
-        local prevTargetId = tower.bloodEyeTargetId
-
-        if target.id == prevTargetId then
-            -- 同一目标：叠层
-            tower.bloodEyeStacks = math.min(
-                (tower.bloodEyeStacks or 0) + 1,
-                bloodEye.maxCritStacks or 10
-            )
-        else
-            -- 切换目标：检查余韵
-            if tower.bloodEyeEchoTimer and tower.bloodEyeEchoTimer > 0
-               and tower.bloodEyeEchoStacks and tower.bloodEyeEchoStacks > 0 then
-                -- 继承余韵层数
-                tower.bloodEyeStacks = tower.bloodEyeEchoStacks
-                tower.bloodEyeEchoStacks = 0
-                tower.bloodEyeEchoTimer = 0
-            else
-                tower.bloodEyeStacks = 0
-            end
-            -- 本次攻击也算 1 层
-            tower.bloodEyeStacks = math.min(
-                (tower.bloodEyeStacks or 0) + 1,
-                bloodEye.maxCritStacks or 10
-            )
-        end
-
-        tower.bloodEyeTargetId = target.id
-
-        -- 击杀：启动余韵
-        if killed then
-            local echoRatio = bloodEye.echoRatio or 0.50
-            tower.bloodEyeEchoStacks = math.floor((tower.bloodEyeStacks or 0) * echoRatio)
-            tower.bloodEyeEchoTimer = bloodEye.echoDuration or 2.0
-            tower.bloodEyeTargetId = nil
-            tower.bloodEyeStacks = 0
-        end
+        -- 每次攻击（任意目标）+1层，刷新衰减计时器
+        tower.bloodEyeStacks = math.min(
+            (tower.bloodEyeStacks or 0) + 1,
+            bloodEye.maxCritStacks or 10
+        )
+        tower.bloodEyeDecayTimer = bloodEye.decayDuration or 4.0
 
         -- 更新 bonusCritRate / bonusCritDmg（供 CalcFinalDamage 使用）
         local stacks = tower.bloodEyeStacks or 0
@@ -132,31 +101,45 @@ function M.TriggerActive(tower, skill)
     local atk = HeroSkills.GetEffectiveAttack(tower)
     local baseDmg = atk * (skill.baseAtkPct or 8.0)
 
-    -- 印记加成：每层额外 stackBonusPct × ATK
-    local stacks = target.shadowNeedleStacks or 0
+    -- 绯瞳加成：每层绯瞳额外 stackBonusPct × ATK
+    local stacks = tower.bloodEyeStacks or 0
     if stacks > 0 then
         baseDmg = baseDmg + atk * (skill.stackBonusPct or 1.0) * stacks
 
-        -- 穿刺爆发的穿甲也对深渊一刺生效
+        -- 穿甲（暗影之针的穿甲也对深渊一刺生效）
         local needle = has(tower, "shadow_needle")
         if needle then
             target.armorReduceFromDot = needle.armorIgnore or 0.20
         end
 
-        -- 消耗印记
-        target.shadowNeedleStacks = 0
-        target.shadowNeedleTimer = nil
+        -- 消耗绯瞳层数
+        tower.bloodEyeStacks = 0
+        tower.bloodEyeDecayTimer = nil
+        tower.bonusCritRate = 0
+        tower.bonusCritDmg = 0
     end
 
     -- 强制暴击：临时拉高 bonusCritRate
-    local savedCritRate = tower.bonusCritRate
-    tower.bonusCritRate = (tower.bonusCritRate or 0) + 10.0
+    local savedCritRate = tower.bonusCritRate or 0
+    tower.bonusCritRate = savedCritRate + 10.0
 
     local finalDmg, isCrit = Combat.CalcFinalDamage(tower, target, baseDmg)
     Enemy.TakeDamage(target, finalDmg)
 
-    -- 恢复
+    -- 恢复暴击率临时加成
     tower.bonusCritRate = savedCritRate
+
+    -- 击杀保留一半绯瞳层数
+    if stacks > 0 and (not target.alive) then
+        local half = math.floor(stacks / 2)
+        if half > 0 then
+            local bloodEye = has(tower, "blood_eye")
+            tower.bloodEyeStacks = half
+            tower.bloodEyeDecayTimer = bloodEye and (bloodEye.decayDuration or 4.0) or 4.0
+            tower.bonusCritRate = half * (bloodEye and bloodEye.critRatePerHit or 0.03)
+            tower.bonusCritDmg  = bloodEye and (bloodEye.critDmgBonus or 0.50) or 0.50
+        end
+    end
 
     local size = target.typeDef.size or 8
 
@@ -203,26 +186,25 @@ end
 ---@param gridOffsetX number
 ---@param gridOffsetY number
 function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
-    -- 衰减所有敌人的暗影印记计时器
-    for _, e in ipairs(State.enemies) do
-        if e.alive and e.shadowNeedleTimer then
-            e.shadowNeedleTimer = e.shadowNeedleTimer - dt
-            if e.shadowNeedleTimer <= 0 then
-                e.shadowNeedleStacks = 0
-                e.shadowNeedleTimer = nil
-                e.shadowNeedleTowerId = nil
-            end
-        end
-    end
-
-    -- 衰减所有绯夜的余韵计时器
     for _, tower in ipairs(towers) do
         if tower.typeDef and tower.typeDef.id == "crimson_night" then
-            if tower.bloodEyeEchoTimer and tower.bloodEyeEchoTimer > 0 then
-                tower.bloodEyeEchoTimer = tower.bloodEyeEchoTimer - dt
-                if tower.bloodEyeEchoTimer <= 0 then
-                    tower.bloodEyeEchoStacks = 0
-                    tower.bloodEyeEchoTimer = 0
+            -- 衰减暗影印记计时器（存在塔自身）
+            if tower.shadowNeedleTimer and tower.shadowNeedleTimer > 0 then
+                tower.shadowNeedleTimer = tower.shadowNeedleTimer - dt
+                if tower.shadowNeedleTimer <= 0 then
+                    tower.shadowNeedleStacks = 0
+                    tower.shadowNeedleTimer = nil
+                end
+            end
+
+            -- 衰减绯瞳计时器（停止攻击后绯瞳消失）
+            if tower.bloodEyeDecayTimer and tower.bloodEyeDecayTimer > 0 then
+                tower.bloodEyeDecayTimer = tower.bloodEyeDecayTimer - dt
+                if tower.bloodEyeDecayTimer <= 0 then
+                    tower.bloodEyeStacks = 0
+                    tower.bloodEyeDecayTimer = nil
+                    tower.bonusCritRate = 0
+                    tower.bonusCritDmg = 0
                 end
             end
         end

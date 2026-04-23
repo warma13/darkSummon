@@ -33,13 +33,16 @@ local skillState = nil
 -- ============================================================================
 
 --- 初始化技能系统（BattleManager.Start 时调用）
-function WBS.Init()
+---@param difficultyLevel number|nil 难度等级
+function WBS.Init(difficultyLevel)
     local cfg = WB.CONFIG
+    local diffLevel = difficultyLevel or WB.GetSelectedDifficulty()
     skillState = {
         battleTimer = 0,
-        shackleCooldown = cfg.shackleFirstCast,
-        summonCooldown = cfg.summonFirstCast,
-        annihilateCooldown = cfg.annihilateFirstCast,
+        difficultyLevel = diffLevel,
+        shackleCooldown = WB.GetDifficultyCooldown(cfg.shackleFirstCast, diffLevel),
+        summonCooldown = WB.GetDifficultyCooldown(cfg.summonFirstCast, diffLevel),
+        annihilateCooldown = WB.GetDifficultyCooldown(cfg.annihilateFirstCast, diffLevel),
         summonCount = 0,
         shackledTowers = {},
         annihilateWarning = nil,
@@ -47,7 +50,7 @@ function WBS.Init()
     State.worldBossActive = true
     State.worldBossTotalDamage = 0
     State.worldBossWarning = nil
-    print("[WorldBossSkills] Initialized")
+    print("[WorldBossSkills] Initialized with difficulty level " .. diffLevel)
 end
 
 --- 清理技能系统
@@ -170,9 +173,10 @@ local function CastShackle()
     if target then
         ApplyShackle(target)
     end
-    -- 重置冷却（渐进难度：CD随时间衰减）
+    -- 重置冷却（渐进难度：CD随时间衰减 + 难度CD减少）
     local cdMult = WB.GetCDMultiplier(skillState.battleTimer)
-    skillState.shackleCooldown = cfg.shackleCooldown * cdMult
+    local baseCD = WB.GetDifficultyCooldown(cfg.shackleCooldown, skillState.difficultyLevel)
+    skillState.shackleCooldown = baseCD * cdMult
 end
 
 -- ============================================================================
@@ -215,11 +219,16 @@ local function CastSummonElite()
     -- 渐进难度：精英HP随时间增强
     local eliteHPMult = WB.GetEliteHPMultiplier(skillState.battleTimer)
 
+    -- 难度倍率（应用到精英HP和DEF）
+    local diffDef = WB.GetDifficultyDef(skillState.difficultyLevel)
+    local diffMult = diffDef and diffDef.attrMult or 1
+
     for i = 1, count do
         local roleId = availRoles[math.random(#availRoles)]
         local def = Config.BuildEnemyDef(stageNum, roleId)
         if def then
-            def.baseHP = def.baseHP * hpScale * 3.0 * eliteHPMult  -- 精英HP x3 × 渐进倍率
+            def.baseHP = def.baseHP * hpScale * 3.0 * eliteHPMult * diffMult  -- 精英HP x3 × 渐进倍率 × 难度倍率
+            def.baseDEF = (def.baseDEF or 0) * diffMult                        -- 精英DEF × 难度倍率
             def.speed = def.speed * spdScale
             def.isElite = true
             def.isDungeonEnemy = true
@@ -242,9 +251,10 @@ local function CastSummonElite()
     Toast.Show("深渊主宰召唤了" .. count .. "只精英怪！", { 255, 140, 60 })
     print("[WorldBossSkills] Summoned " .. count .. " elites (cast #" .. skillState.summonCount .. ")")
 
-    -- 重置冷却（渐进难度：CD随时间衰减）
+    -- 重置冷却（渐进难度：CD随时间衰减 + 难度CD减少）
     local cdMult = WB.GetCDMultiplier(skillState.battleTimer)
-    skillState.summonCooldown = cfg.summonCooldown * cdMult
+    local baseCD = WB.GetDifficultyCooldown(cfg.summonCooldown, skillState.difficultyLevel)
+    skillState.summonCooldown = baseCD * cdMult
 end
 
 -- ============================================================================
@@ -263,8 +273,9 @@ local function StartAnnihilateWarning()
         end
     end
 
-    -- 渐进难度：CD衰减
+    -- 渐进难度：CD衰减 + 难度CD减少
     local cdMult = WB.GetCDMultiplier(skillState.battleTimer)
+    local baseCD = WB.GetDifficultyCooldown(cfg.annihilateCooldown, skillState.difficultyLevel)
 
     if nonLeaderCount == 0 then
         -- 只剩主角，改为束缚主角
@@ -275,14 +286,14 @@ local function StartAnnihilateWarning()
                 break
             end
         end
-        skillState.annihilateCooldown = cfg.annihilateCooldown * cdMult
+        skillState.annihilateCooldown = baseCD * cdMult
         return
     end
 
     -- 选择目标（主角免疫：权重0）
     local target = SelectTargetByWeight(cfg.annihilateWeights, true, false)
     if not target then
-        skillState.annihilateCooldown = cfg.annihilateCooldown * cdMult
+        skillState.annihilateCooldown = baseCD * cdMult
         return
     end
 
@@ -317,20 +328,21 @@ local function ExecuteAnnihilate()
         end
     end
 
-    -- 渐进难度：CD衰减
+    -- 渐进难度：CD衰减 + 难度CD减少
     local cdMult = WB.GetCDMultiplier(skillState.battleTimer)
+    local baseCD = WB.GetDifficultyCooldown(WB.CONFIG.annihilateCooldown, skillState.difficultyLevel)
 
     if not targetTower then
         -- 目标已不存在（可能被合成了）
         print("[WorldBossSkills] Annihilate target gone, skipped")
-        skillState.annihilateCooldown = WB.CONFIG.annihilateCooldown * cdMult
+        skillState.annihilateCooldown = baseCD * cdMult
         return
     end
 
     -- 不能销毁主角
     if targetTower.isLeader then
         ApplyShackle(targetTower)
-        skillState.annihilateCooldown = WB.CONFIG.annihilateCooldown * cdMult
+        skillState.annihilateCooldown = baseCD * cdMult
         return
     end
 
@@ -348,7 +360,7 @@ local function ExecuteAnnihilate()
     print("[WorldBossSkills] Annihilated: " .. towerName)
 
     -- 重置冷却
-    skillState.annihilateCooldown = WB.CONFIG.annihilateCooldown * cdMult
+    skillState.annihilateCooldown = baseCD * cdMult
 end
 
 -- ============================================================================
@@ -364,10 +376,10 @@ function WBS.Update(dt)
     skillState.battleTimer = skillState.battleTimer + dt
     local elapsed = skillState.battleTimer
 
-    -- ======== 渐进难度：实时更新Boss DEF ========
+    -- ======== 渐进难度：实时更新Boss DEF（含难度倍率） ========
     local boss = State.worldBoss
     if boss and boss.alive then
-        boss.def = WB.GetScaledDEF(elapsed)
+        boss.def = WB.GetScaledDEF(elapsed, skillState.difficultyLevel)
     end
 
     -- 更新束缚计时

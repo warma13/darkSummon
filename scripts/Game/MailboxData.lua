@@ -142,6 +142,22 @@ SaveRegistry.Register("mailboxData", {
                 { type = "item", id = "nether_crystal_pack", amount = 3 },
             },
         })
+        MailboxData.SendOnce("comp_20260423_boss_difficulty", {
+            title = "世界BOSS难度系统上线补偿",
+            desc = "世界BOSS难度系统正式上线！为感谢各位召唤师的支持，附上深渊主宰挑战券×2，祝您挑战顺利！",
+            rewards = {
+                { type = "item", id = "boss_ticket", amount = 2 },
+            },
+        })
+        MailboxData.SendOnce("comp_20260423_server_compensation", {
+            title = "全服补偿",
+            desc = "亲爱的召唤师，感谢您的支持与理解，附上补偿奖励，请注意查收！",
+            rewards = {
+                { type = "currency", id = "void_pact", amount = 20 },
+                { type = "currency", id = "shadow_essence", amount = 1000 },
+                { type = "item", id = "boss_ticket", amount = 1 },
+            },
+        })
     end,
 })
 

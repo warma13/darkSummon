@@ -201,6 +201,7 @@ function GameUI.BuildHeroInfoContent(tower)
                         children = nameRowChildren,
                     },
                     ctx.UI.Label {
+                        id = "heroPanel_detail",
                         text = detailText,
                         fontSize = 11,
                         fontColor = { 180, 170, 200, 200 },
@@ -243,7 +244,7 @@ function GameUI.BuildHeroInfoContent(tower)
             ctx.UI.Panel {
                 flex = 1, gap = 3,
                 children = {
-                    StatRow("射程", tostring(math.floor(tower.range)), { 200, 180, 255, 255 }),
+                    StatRow("射程", tostring(math.floor(tower.range)), { 200, 180, 255, 255 }, "heroPanel_range"),
                 },
             },
         },
@@ -255,19 +256,19 @@ function GameUI.BuildHeroInfoContent(tower)
 
     -- 暴击率
     local critColor = effCritRate > 0 and { 255, 80, 80, 230 } or { 120, 110, 140, 180 }
-    subStatLeft[#subStatLeft + 1] = StatRow("暴击率", string.format("%.1f%%", effCritRate * 100), critColor)
+    subStatLeft[#subStatLeft + 1] = StatRow("暴击率", string.format("%.1f%%", effCritRate * 100), critColor, "heroPanel_crit")
 
     -- 暴击伤害
     local critDmgColor = effCritDmg > 0 and { 255, 100, 100, 230 } or { 120, 110, 140, 180 }
-    subStatLeft[#subStatLeft + 1] = StatRow("暴伤", string.format("%.0f%%", effCritDmg * 100), critDmgColor)
+    subStatLeft[#subStatLeft + 1] = StatRow("暴伤", string.format("%.0f%%", effCritDmg * 100), critDmgColor, "heroPanel_critDmg")
 
     -- 破甲
     local apColor = effArmorPen > 0 and { 255, 160, 80, 230 } or { 120, 110, 140, 180 }
-    subStatRight[#subStatRight + 1] = StatRow("破甲", string.format("%.1f%%", effArmorPen * 100), apColor)
+    subStatRight[#subStatRight + 1] = StatRow("破甲", string.format("%.1f%%", effArmorPen * 100), apColor, "heroPanel_armorPen")
 
     -- 伤害加成
     local dmgBonusColor = effDmgBonus > 0 and { 180, 220, 120, 230 } or { 120, 110, 140, 180 }
-    subStatRight[#subStatRight + 1] = StatRow("伤害加成", string.format("%.1f%%", effDmgBonus * 100), dmgBonusColor)
+    subStatRight[#subStatRight + 1] = StatRow("伤害加成", string.format("%.1f%%", effDmgBonus * 100), dmgBonusColor, "heroPanel_dmgBonus")
 
     result[#result + 1] = ctx.UI.Panel {
         width = "100%",
@@ -402,6 +403,63 @@ function GameUI.BuildHeroInfoContent(tower)
     end
 
     return result
+end
+
+--- 增量更新英雄信息面板的动态数值（不重建面板结构）
+--- 仅更新：等级/星级行、攻击、攻速、射程、暴击率、暴伤、破甲、伤害加成
+function GameUI.UpdateHeroInfoValues(tower, panel)
+    if not tower or not panel then return end
+
+    local tierInfo = HeroData.GetStarTierInfo(tower.typeDef.id)
+
+    -- 等级/星级行
+    local detailLabel = panel:FindById("heroPanel_detail")
+    if detailLabel then
+        local detailText = "Lv." .. tower.heroLevel
+            .. "  ★" .. tower.star
+            .. "  " .. (tierInfo and tierInfo.name or "") .. (tower.heroStar or 0) .. "星"
+        if (tower.heroAwakening or 0) > 0 then
+            detailText = detailText .. "  觉醒" .. tower.heroAwakening
+        end
+        detailLabel:SetText(detailText)
+    end
+
+    -- 主属性
+    local atkLabel = panel:FindById("heroPanel_atk")
+    if atkLabel then
+        atkLabel:SetText(FormatStat(HeroSkills.GetEffectiveAttack(tower)))
+    end
+    local spdLabel = panel:FindById("heroPanel_spd")
+    if spdLabel then
+        spdLabel:SetText(string.format("%.2f/s", 1.0 / HeroSkills.GetEffectiveSpeed(tower)))
+    end
+    local rangeLabel = panel:FindById("heroPanel_range")
+    if rangeLabel then
+        rangeLabel:SetText(tostring(math.floor(tower.range)))
+    end
+
+    -- 副属性
+    local effCritRate = HeroSkills.GetEffectiveCritRate(tower)
+    local effCritDmg = Tower.GetEffectiveCritDmg(tower)
+    local effArmorPen = Tower.GetEffectiveArmorPen(tower)
+    local effDmgBonus = Tower.GetEffectiveDmgBonus and Tower.GetEffectiveDmgBonus(tower) or (tower.dmgBonus or 0)
+
+    local critLabel = panel:FindById("heroPanel_crit")
+    if critLabel then
+        critLabel:SetText(string.format("%.1f%%", effCritRate * 100))
+    end
+    local critDmgLabel = panel:FindById("heroPanel_critDmg")
+    if critDmgLabel then
+        critDmgLabel:SetText(string.format("%.0f%%", effCritDmg * 100))
+    end
+    local apLabel = panel:FindById("heroPanel_armorPen")
+    if apLabel then
+        apLabel:SetText(string.format("%.1f%%", effArmorPen * 100))
+    end
+    local dmgLabel = panel:FindById("heroPanel_dmgBonus")
+    if dmgLabel then
+        dmgLabel:SetText(string.format("%.1f%%", effDmgBonus * 100))
+    end
 end
 
 --- 底部操作栏（圆形召唤按钮）

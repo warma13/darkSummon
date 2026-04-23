@@ -9,6 +9,23 @@ local HeroAvatar = require("Game.HeroAvatar")
 
 local HeroCard = {}
 
+-- 卡片缓存：mode -> { heroId -> { widget, index } }
+-- 用于增量更新单张卡，避免全量重建
+local cardCache = {}
+-- 网格容器缓存：mode -> gridPanel (flexWrap 容器)
+local gridContainerCache = {}
+
+--- 清除指定模式的缓存
+function HeroCard.ClearCache(mode)
+    if mode then
+        cardCache[mode] = nil
+        gridContainerCache[mode] = nil
+    else
+        cardCache = {}
+        gridContainerCache = {}
+    end
+end
+
 --- 获取排序后的英雄列表（排除主角）
 --- 排序优先级：已上阵 → 已解锁（按品质高→低） → 未解锁（按品质高→低）
 ---@param ctx table  HeroUI 模块
@@ -163,26 +180,66 @@ function HeroCard.CreateHeroGrid(ctx, mode)
     local UI = ctx.GetUI()
     local sortedHeroes = HeroCard.GetSortedHeroes(ctx)
     local cards = {}
-    for _, heroDef in ipairs(sortedHeroes) do
-        cards[#cards + 1] = HeroCard.CreateHeroCard(ctx, heroDef, mode)
+    local cache = {}
+    for i, heroDef in ipairs(sortedHeroes) do
+        local card = HeroCard.CreateHeroCard(ctx, heroDef, mode)
+        cards[#cards + 1] = card
+        cache[heroDef.id] = { widget = card, index = i }
     end
+    cardCache[mode] = cache
+
+    local gridPanel = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        flexWrap = "wrap",
+        justifyContent = "flex-start",
+        paddingTop = 4, paddingBottom = 10,
+        paddingLeft = 8, paddingRight = 8,
+        gap = 6,
+        children = cards,
+    }
+    gridContainerCache[mode] = gridPanel
 
     return UI.ScrollView {
         flexGrow = 1, flexBasis = 0,
         scrollY = true, width = "100%",
-        children = {
-            UI.Panel {
-                width = "100%",
-                flexDirection = "row",
-                flexWrap = "wrap",
-                justifyContent = "flex-start",
-                paddingTop = 4, paddingBottom = 10,
-                paddingLeft = 8, paddingRight = 8,
-                gap = 6,
-                children = cards,
-            },
-        },
+        children = { gridPanel },
     }
+end
+
+--- 替换网格中单张卡片（增量更新）
+--- @param ctx table  HeroUI 模块
+--- @param heroId string
+--- @param mode string|nil  "deploy"(默认) 或 "detail"
+--- @return boolean  是否成功
+function HeroCard.RefreshSingleCard(ctx, heroId, mode)
+    mode = mode or "deploy"
+    local cache = cardCache[mode]
+    local gridPanel = gridContainerCache[mode]
+    if not cache or not gridPanel then return false end
+
+    local entry = cache[heroId]
+    if not entry then return false end
+
+    -- 查找英雄定义
+    local heroDef = nil
+    for _, td in ipairs(Config.TOWER_TYPES) do
+        if td.id == heroId then heroDef = td; break end
+    end
+    if not heroDef then return false end
+
+    -- 创建新卡片
+    local newCard = HeroCard.CreateHeroCard(ctx, heroDef, mode)
+
+    -- 在网格中替换：先移除旧卡，再在同一位置插入新卡
+    local oldCard = entry.widget
+    local idx = entry.index
+    gridPanel:RemoveChild(oldCard)
+    gridPanel:InsertChild(newCard, idx)
+
+    -- 更新缓存
+    entry.widget = newCard
+    return true
 end
 
 return HeroCard

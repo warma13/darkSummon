@@ -286,25 +286,25 @@ Config.HERO_SKILLS = {
           starScale = true,
           buildDesc = function(f) return "普攻叠加暗影印记(最多5层,持续4秒);满5层触发穿刺爆发,造成ATK×" .. M(2.0, f) .. "暗影伤害,无视" .. P(0.20, f) .. "护甲" end },
         { id = "blood_eye",      name = "绯瞳锁定",
-          desc = "连续攻击同一目标,每次+3%暴击率(最多+30%),暴击伤害+50%;目标死亡后2秒内新目标继承50%暴击层数",
+          desc = "攻击获得绯瞳,每层+3%暴击率(最多+30%),暴击伤害+50%;4秒未攻击则绯瞳消失",
           type = "passive",
           critRatePerHit = 0.03, maxCritStacks = 10,
           critDmgBonus = 0.50,
-          echoRatio = 0.50, echoDuration = 2.0,
+          decayDuration = 4.0,
           starScale = true,
           buildDesc = function(f)
               local perHit = PD(0.03, f)
               local maxCrit = P(0.03 * 10, f)
               local critDmg = P(0.50, f)
-              return "连续攻击同一目标,每次+" .. perHit .. "暴击率(最多+" .. maxCrit .. "),暴击伤害+" .. critDmg .. ";目标死亡后2秒内新目标继承50%暴击层数"
+              return "攻击获得绯瞳,每层+" .. perHit .. "暴击率(最多+" .. maxCrit .. "),暴击伤害+" .. critDmg .. ";4秒未攻击则绯瞳消失"
           end },
         { id = "abyss_strike",   name = "深渊一刺",
-          desc = "对当前目标造成ATK×800%暗影伤害,必定暴击;每层暗影印记额外+100%ATK伤害并消耗印记",
+          desc = "对当前目标造成ATK×800%暗影伤害,必定暴击;每层绯瞳额外+100%ATK伤害并消耗绯瞳;击杀时保留一半绯瞳层数 (CD:14s)",
           type = "active", interval = 14,
           baseAtkPct = 8.0, stackBonusPct = 1.0,
           guaranteedCrit = true,
           starScale = true,
-          buildDesc = function(f) return "对当前目标造成ATK×" .. M(8.0, f) .. "暗影伤害,必定暴击;每层暗影印记额外+" .. M(1.0, f) .. "ATK伤害并消耗印记" end },
+          buildDesc = function(f) return "对当前目标造成ATK×" .. M(8.0, f) .. "暗影伤害,必定暴击;每层绯瞳额外+" .. M(1.0, f) .. "ATK伤害并消耗绯瞳;击杀时保留一半层数" end },
     },
 }
 

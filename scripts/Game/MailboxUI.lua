@@ -233,6 +233,22 @@ local function _BindMailItem(widget, data, index)
                 local rewardItems = {}
                 for _, r in ipairs(mail.rewards) do
                     local cdef = Config.CURRENCY[r.id]
+                    -- fallback: 道具查 InventoryData.ITEM_DEFS → icon 字段二次查 CURRENCY
+                    if not cdef and r.type == "item" then
+                        local okI, InvD = pcall(require, "Game.InventoryData")
+                        if okI and InvD.ITEM_DEFS then
+                            local itemDef = InvD.ITEM_DEFS[r.id]
+                            if itemDef then
+                                local iconKey = itemDef.icon or r.id
+                                local iconCdef = Config.CURRENCY[iconKey]
+                                cdef = {
+                                    name = itemDef.name,
+                                    image = itemDef.image or (iconCdef and iconCdef.image),
+                                    color = (iconCdef and iconCdef.color) or { 200, 170, 60 },
+                                }
+                            end
+                        end
+                    end
                     if r.type == "chest" then
                         local chestDef = Config.CHEST_TYPES_MAP and Config.CHEST_TYPES_MAP[r.id]
                         rewardItems[#rewardItems + 1] = {
@@ -384,6 +400,21 @@ function MailboxUI._ShowDetail(mail, index)
                     local rewardItems = {}
                     for _, r in ipairs(mail.rewards) do
                         local cdef = Config.CURRENCY[r.id]
+                        if not cdef and r.type == "item" then
+                            local okI, InvD = pcall(require, "Game.InventoryData")
+                            if okI and InvD.ITEM_DEFS then
+                                local itemDef = InvD.ITEM_DEFS[r.id]
+                                if itemDef then
+                                    local iconKey = itemDef.icon or r.id
+                                    local iconCdef = Config.CURRENCY[iconKey]
+                                    cdef = {
+                                        name = itemDef.name,
+                                        image = itemDef.image or (iconCdef and iconCdef.image),
+                                        color = (iconCdef and iconCdef.color) or { 200, 170, 60 },
+                                    }
+                                end
+                            end
+                        end
                         rewardItems[#rewardItems + 1] = {
                             icon = (cdef and cdef.image) or r.id,
                             name = (cdef and cdef.name) or r.id,

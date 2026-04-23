@@ -10,6 +10,8 @@ local detailPopupContentContainer = nil
 --- 页面重建时清理局部状态
 function CollectionPopup.OnPageClear()
     detailPopupContentContainer = nil
+    local HeroCardMod = require("Game.HeroUI.HeroCard")
+    HeroCardMod.ClearCache("detail")
 end
 
 --- 刷新英雄收藏弹出层内容
@@ -19,6 +21,7 @@ function CollectionPopup.RefreshCollectionDetailContent(ctx)
     local S = ctx.GetS()
     local HeroCardMod = require("Game.HeroUI.HeroCard")
 
+    HeroCardMod.ClearCache("detail")
     detailPopupContentContainer:ClearChildren()
 
     -- 标题栏
@@ -118,6 +121,8 @@ function CollectionPopup.HideCollectionDetailPopup(ctx)
         pageRoot:RemoveChild(overlay)
         ctx.SetCollectionDetailOverlay(nil)
         detailPopupContentContainer = nil
+        local HeroCardMod = require("Game.HeroUI.HeroCard")
+        HeroCardMod.ClearCache("detail")
     end
 end
 

@@ -363,29 +363,42 @@ function ChestUI.CreateChestDisplay()
     }
 end
 
---- 开箱按钮
+--- 开箱按钮（横排三个：×1 / ×10 / ×100）
 function ChestUI.CreateOpenButton()
     local count = ChestData.GetCount(selectedChest)
-    local canOpen = count > 0
-    local openCount = count >= 10 and 10 or 1
+
+    local function MakeBtn(n)
+        local canOpen = count >= n
+        return UI.Button {
+            text = "×" .. n,
+            fontSize = 15,
+            fontWeight = "bold",
+            variant = "primary",
+            disabled = not canOpen,
+            flex = 1,
+            height = 44,
+            onClick = function(self)
+                if not canOpen then return end
+                ChestUI.DoOpen(selectedChest, n)
+            end,
+        }
+    end
 
     return UI.Panel {
         width = "100%",
-        paddingLeft = 40, paddingRight = 40,
+        paddingLeft = 16, paddingRight = 16,
         paddingTop = 4, paddingBottom = 8,
-        alignItems = "center",
         flexShrink = 0,
         children = {
-            UI.Button {
-                text = canOpen and ("打开" .. openCount .. "个宝箱") or "宝箱不足",
-                fontSize = 16,
-                variant = canOpen and "primary" or "ghost",
+            UI.Panel {
                 width = "100%",
-                height = 48,
-                onClick = function(self)
-                    if not canOpen then return end
-                    ChestUI.DoOpen(selectedChest, openCount)
-                end,
+                flexDirection = "row",
+                gap = 10,
+                children = {
+                    MakeBtn(1),
+                    MakeBtn(10),
+                    MakeBtn(100),
+                },
             },
         },
     }

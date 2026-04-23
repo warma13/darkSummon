@@ -149,6 +149,7 @@ ExchangeShopData.SHOP_ITEMS = {
     {
         id = "pale_jade_x800",
         name = "粹玉×800",
+        desc = "淬炼消耗材料，用于重随装备淬炼词条",
         icon = "pale_jade",
         cost = 1600,
         amount = 800,
@@ -158,10 +159,32 @@ ExchangeShopData.SHOP_ITEMS = {
     {
         id = "rainbow_jade_x1",
         name = "封魂玉×1",
+        desc = "淬炼稀有材料，锁定已有淬炼词条使其不被洗练覆盖",
         icon = "rainbow_jade",
         cost = 500,
         amount = 1,
         reward = { type = "currency", id = "rainbow_jade", amount = 1 },
+        dailyLimit = 1,
+    },
+    -- 资源类
+    {
+        id = "nether_crystal_1m",
+        name = "冥晶×100万",
+        desc = "基础升级货币，用于英雄升级和装备强化",
+        icon = "nether_crystal",
+        cost = 1000,
+        amount = 1000000,
+        reward = { type = "currency", id = "nether_crystal", amount = 1000000 },
+        dailyLimit = 1,
+    },
+    {
+        id = "ur_shard_box_x5",
+        name = "万能UR碎片箱×5",
+        desc = "打开后可自选任意UR英雄碎片",
+        icon = "ur_shard_box",
+        cost = 1500,
+        amount = 5,
+        reward = { type = "item", id = "ur_shard_box", amount = 5 },
         dailyLimit = 1,
     },
 }
