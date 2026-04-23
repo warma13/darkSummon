@@ -57,7 +57,7 @@ end
 
 --- 刷新特权加成面板（按当前 _privilegeIdx 更新内容）
 local function RefreshPrivilegePanel()
-    local cards = PrivilegeData.CARDS
+    local cards = PrivilegeData.TIER_CARDS
     local idx = _privilegeIdx
     local card = cards[idx]
     if not card then return end
@@ -358,7 +358,7 @@ local function CreatePrivilegePanel()
 
     -- 等级节点指示器（6 个带标签的小圆点）
     local tierDots = {}
-    for i, card in ipairs(PrivilegeData.CARDS) do
+    for i, card in ipairs(PrivilegeData.TIER_CARDS) do
         local c = card.color
         local isUnlocked = (i <= curTier)
         local dotBg = isUnlocked and { c[1], c[2], c[3], 255 } or { 50, 45, 65, 180 }
@@ -414,7 +414,7 @@ local function CreatePrivilegePanel()
         }
     end
 
-    local n = #PrivilegeData.CARDS
+    local n = #PrivilegeData.TIER_CARDS
     local panel = UI.Panel {
         width = "100%",
         backgroundColor = { 20, 18, 38, 240 },
