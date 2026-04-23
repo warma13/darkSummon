@@ -213,6 +213,9 @@ function ARD.UseTicket()
     if (d.tickets or 0) <= 0 then return false end
     d.tickets = d.tickets - 1
     HeroData.Save()
+    -- 走 AdTracker 统一计数（成就、每日任务、减负todayAds 等全部生效）
+    local ok, AdTracker = pcall(require, "Game.AdTracker")
+    if ok and AdTracker then AdTracker.Record() end
     print("[AdRelief] UseTicket: remaining=" .. d.tickets)
     return true
 end

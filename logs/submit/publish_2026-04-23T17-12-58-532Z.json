@@ -1,0 +1,32 @@
+{
+  "startTime": "2026-04-23T17:12:58.532Z",
+  "endTime": "2026-04-23T17:13:36.927Z",
+  "duration": "38395ms",
+  "result": {
+    "success": false,
+    "error": "assets 缺少 icon 字段。\n游戏图标是发布到 TapTap 的必需资源，请在 assets 中配置 icon 路径。"
+  },
+  "steps": [
+    {
+      "time": "2026-04-23T17:12:58.542Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "start"
+      }
+    },
+    {
+      "time": "2026-04-23T17:13:36.923Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "done"
+      }
+    },
+    {
+      "time": "2026-04-23T17:13:36.923Z",
+      "stage": "network_config",
+      "data": {
+        "env": "production"
+      }
+    }
+  ]
+}
