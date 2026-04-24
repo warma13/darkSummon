@@ -443,12 +443,12 @@ function ServerSelectUI.ShowAnnouncementPopup()
                                 gap = 6,
                                 children = {
                                     UI.Label {
-                                        text = "招募周开启，达成招募目标获得奖励。",
+                                        text = "憎恨之地开启。",
                                         fontSize = 13,
                                         fontColor = { 200, 200, 220, 220 },
                                     },
                                     UI.Label {
-                                        text = "限定池「苍华极脉」已于4月22日开放。",
+                                        text = "进行了一些优化。修复了一些bug。",
                                         fontSize = 13,
                                         fontColor = { 200, 200, 220, 220 },
                                     },

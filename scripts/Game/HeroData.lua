@@ -26,7 +26,7 @@ local _advMultCache = {}        -- advanceLevel(0-20) → multiplier
 HeroData.SAVE_VERSION = 2
 
 -- 英雄数据存储
-HeroData.heroes = {}       -- heroId -> { unlocked, fragments, level, star, awakening }
+HeroData.heroes = {}       -- heroId -> { unlocked, fragments, level, star }
 HeroData.deployed = {}     -- 已上阵随从英雄ID列表（最多 MAX_DEPLOYED 个，不含主角）
 -- 快照函数（存档时调用，返回明文 table）
 local currencySnapshot = nil
@@ -128,7 +128,6 @@ function HeroData._InitCoreDefaults()
             fragments = 0,
             level = 1,
             star = 0,
-            awakening = 0,
             advanceLevel = 0,
         }
     end
@@ -141,13 +140,12 @@ function HeroData._InitCoreDefaults()
         end
     end
 
-    -- 初始化主角英雄（始终解锁，无星级/觉醒/碎片）
+    -- 初始化主角英雄（始终解锁，无碎片）
     HeroData.heroes[Config.LEADER_HERO.id] = {
         unlocked = true,
         fragments = 0,
         level = 1,
         star = 0,
-        awakening = 0,
         advanceLevel = 0,
     }
 
@@ -232,7 +230,6 @@ function HeroData._MigrateCore(saveData)
         for heroId, h in pairs(heroes) do
             if h.rank and not h.star then
                 h.star = rankToStar[h.rank] or 0
-                h.awakening = 0
                 h.rank = nil
                 print("[HeroData] Migrated " .. heroId .. " rank→star=" .. h.star)
             end
@@ -324,11 +321,10 @@ function HeroData._DeserializeCore(_saved, saveData)
         if not HeroData.heroes[towerDef.id] then
             HeroData.heroes[towerDef.id] = {
                 unlocked = false, fragments = 0, level = 1,
-                star = 0, awakening = 0, advanceLevel = 0,
+                star = 0, advanceLevel = 0,
             }
         end
         local h = HeroData.heroes[towerDef.id]
-        if h.awakening == nil then h.awakening = 0 end
         if h.star == nil then h.star = 0 end
         if h.advanceLevel == nil then h.advanceLevel = 0 end
     end
@@ -337,7 +333,7 @@ function HeroData._DeserializeCore(_saved, saveData)
     if not HeroData.heroes[Config.LEADER_HERO.id] then
         HeroData.heroes[Config.LEADER_HERO.id] = {
             unlocked = true, fragments = 0, level = 1,
-            star = 0, awakening = 0, advanceLevel = 0,
+            star = 0, advanceLevel = 0,
         }
         print("[HeroData] Migrated: added leader hero")
     else
@@ -778,6 +774,34 @@ function HeroData.SwapDeployed(idx1, idx2)
     HeroData.Save()
 end
 
+--- 无损交换：交换两个英雄的等级和装备等级
+---@param heroId1 string
+---@param heroId2 string
+---@return boolean success
+---@return string msg
+function HeroData.SwapProgression(heroId1, heroId2)
+    if heroId1 == heroId2 then return false, "不能与自己交换" end
+    local h1 = HeroData.heroes[heroId1]
+    local h2 = HeroData.heroes[heroId2]
+    if not h1 or not h1.unlocked then return false, "英雄未解锁" end
+    if not h2 or not h2.unlocked then return false, "英雄未解锁" end
+
+    -- 交换英雄等级和进阶等级
+    h1.level, h2.level = h2.level, h1.level
+    h1.advanceLevel, h2.advanceLevel = (h2.advanceLevel or 0), (h1.advanceLevel or 0)
+
+    -- 交换装备数据
+    if not HeroData.equipData then HeroData.equipData = {} end
+    local EquipData = require("Game.EquipData")
+    local eq1 = EquipData.GetHeroEquips(heroId1)
+    local eq2 = EquipData.GetHeroEquips(heroId2)
+    HeroData.equipData[heroId1], HeroData.equipData[heroId2] = eq2, eq1
+
+    HeroData.Save(true)
+    print("[HeroData] SwapProgression " .. heroId1 .. "(Lv" .. h1.level .. ") <-> " .. heroId2 .. "(Lv" .. h2.level .. ")")
+    return true, "交换成功"
+end
+
 -- ============================================================================
 -- 升星系统
 -- ============================================================================
@@ -879,9 +903,6 @@ function HeroData.StarUp(heroId)
     h.fragments = h.fragments - cost
     h.star = h.star + 1
 
-    -- 检查觉醒
-    HeroData.CheckAwakening(heroId)
-
     HeroData.Save()
 
     local tierInfo = HeroData.GetStarTierInfo(heroId)
@@ -933,28 +954,6 @@ function HeroData.GetStarMultiplier(heroId)
 
     _starMultCache[star] = mult
     return mult
-end
-
--- ============================================================================
--- 觉醒系统
--- ============================================================================
-
---- 根据星级检查并更新觉醒等级
----@param heroId string
-function HeroData.CheckAwakening(heroId)
-    local h = HeroData.heroes[heroId]
-    if not h then return end
-    local oldAwaken = h.awakening or 0
-    local newAwaken = 0
-    for i, threshold in ipairs(Config.AWAKENING_STAR_THRESHOLDS) do
-        if h.star >= threshold then
-            newAwaken = i
-        end
-    end
-    if newAwaken > oldAwaken then
-        h.awakening = newAwaken
-        print("[HeroData] " .. heroId .. " awakened to level " .. newAwaken .. "!")
-    end
 end
 
 -- ============================================================================

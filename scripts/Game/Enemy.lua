@@ -13,6 +13,17 @@ local Tower     = require("Game.Tower")
 
 local F = require("Game.FormulaLib")
 
+-- 热路径 math 函数本地缓存（避免每次全局表查找）
+local mfloor  = math.floor
+local mrandom = math.random
+local mmin    = math.min
+local mmax    = math.max
+local msin    = math.sin
+local mcos    = math.cos
+local mabs    = math.abs
+local msqrt   = math.sqrt
+local mpi     = math.pi
+
 local Enemy = {}
 
 -- 粒子/飘字安全添加（带数量上限），共享定义在 State.lua
@@ -79,7 +90,7 @@ end
 
 --- 从全局波次号反推 HP/速度缩放（避免循环依赖 Wave.lua）
 local function CalcScalesFromGlobalWave(globalWave)
-    local stageNum = math.floor((globalWave - 1) / Config.WAVES_PER_STAGE) + 1
+    local stageNum = mfloor((globalWave - 1) / Config.WAVES_PER_STAGE) + 1
     local waveInStage = globalWave - (stageNum - 1) * Config.WAVES_PER_STAGE
     if waveInStage < 1 then waveInStage = 1 end
 
@@ -87,7 +98,7 @@ local function CalcScalesFromGlobalWave(globalWave)
     local waveScale = 1.0 + Config.WAVE_HP_PER_WAVE * (waveInStage - 1)
     local hpScale = stageScale * waveScale
 
-    local speedScale = 1.0 + math.min(
+    local speedScale = 1.0 + mmin(
         (stageNum - 1) * Config.STAGE_SPEED_PER_STAGE,
         Config.STAGE_SPEED_CAP - 1.0)
 
@@ -105,7 +116,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
 
     -- DEF 成长: baseDEF × hpScale × 比率（与 HP 同源缩放，破甲全程有效）
     local baseDEF = typeDef.baseDEF or 0
-    local totalDEF = math.floor(baseDEF * hpScale * Config.ENEMY_DEF_HP_RATIO)
+    local totalDEF = mfloor(baseDEF * hpScale * Config.ENEMY_DEF_HP_RATIO)
 
     local enemy = {
         id = nextEnemyId,
@@ -190,7 +201,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
 
     -- 怪物防御属性（随关卡成长，对抗英雄各乘区）
     do
-        local stageNum = math.floor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+        local stageNum = mfloor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1
         local es = Config.ENEMY_SCALING
         if es then
             enemy.critDmgReduce   = F.Piecewise4(es.critDmgReduce,   stageNum)
@@ -326,7 +337,7 @@ function Enemy.CreateSplitChild(typeId, waveNum, progress, hpScale, speedScale)
     if not typeDef then return nil end
 
     local enemy = CreateBase(typeDef, waveNum, hpScale * 0.4, speedScale)
-    enemy.progress = progress + (math.random() - 0.5) * 0.02  -- 微小偏移
+    enemy.progress = progress + (mrandom() - 0.5) * 0.02  -- 微小偏移
     if enemy.progress < 0 then enemy.progress = 0 end
 
     AddEnemy(enemy)
@@ -338,7 +349,7 @@ function Enemy.CreateSplitChildFromDef(typeDef, waveNum, progress, hpScale, spee
     if not typeDef then return nil end
 
     local enemy = CreateBase(typeDef, waveNum, hpScale * 0.4, speedScale)
-    enemy.progress = progress + (math.random() - 0.5) * 0.02
+    enemy.progress = progress + (mrandom() - 0.5) * 0.02
     if enemy.progress < 0 then enemy.progress = 0 end
 
     AddEnemy(enemy)
@@ -399,10 +410,10 @@ local function HandleEnemyDeath(enemy)
     -- 冥晶（紫色）→ 掉落物
     local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
     if crystalBase > 0 then
-        local crystalAmt = math.floor(crystalBase * dropScale)
+        local crystalAmt = mfloor(crystalBase * dropScale)
         -- 神裔降临：冥晶加成（周末磐古自动 ×1.5 / 工作日选择磐古时 ×1.5）
         local crystalMulti = DivineBlessDB.GetBuffValue("crystal_multi")
-        if crystalMulti > 1.0 then crystalAmt = math.floor(crystalAmt * crystalMulti) end
+        if crystalMulti > 1.0 then crystalAmt = mfloor(crystalAmt * crystalMulti) end
         if crystalAmt > 0 then
             LootDrop.Spawn("nether_crystal", crystalAmt, enemy.x, enemy.y)
         end
@@ -411,10 +422,10 @@ local function HandleEnemyDeath(enemy)
     -- 噬魂石（绿色，精英/BOSS）→ 掉落物
     local stoneBase = Config.KILL_DROP.stone[enemyTier] or 0
     if stoneBase > 0 then
-        local stoneAmt = math.floor(stoneBase * dropScale)
+        local stoneAmt = mfloor(stoneBase * dropScale)
         -- 神裔降临：噬魂石加成
         local stoneMulti = DivineBlessDB.GetBuffValue("stone_multi")
-        if stoneMulti > 1.0 then stoneAmt = math.floor(stoneAmt * stoneMulti) end
+        if stoneMulti > 1.0 then stoneAmt = mfloor(stoneAmt * stoneMulti) end
         if stoneAmt > 0 then
             LootDrop.Spawn("devour_stone", stoneAmt, enemy.x, enemy.y)
         end
@@ -423,10 +434,10 @@ local function HandleEnemyDeath(enemy)
     -- 锻魂铁（蓝白色，仅BOSS）→ 掉落物
     local ironBase = Config.KILL_DROP.iron[enemyTier] or 0
     if ironBase > 0 then
-        local ironAmt = math.floor(ironBase * dropScale)
+        local ironAmt = mfloor(ironBase * dropScale)
         -- 神裔降临：锻魂铁加成
         local ironMulti = DivineBlessDB.GetBuffValue("iron_multi")
-        if ironMulti > 1.0 then ironAmt = math.floor(ironAmt * ironMulti) end
+        if ironMulti > 1.0 then ironAmt = mfloor(ironAmt * ironMulti) end
         if ironAmt > 0 then
             LootDrop.Spawn("forge_iron", ironAmt, enemy.x, enemy.y)
         end
@@ -435,16 +446,16 @@ local function HandleEnemyDeath(enemy)
     -- 死亡粒子
     local particleCount = enemy.isBoss and 16 or 8
     for i = 1, particleCount do
-        local angle = math.random() * math.pi * 2
-        local spd = 30 + math.random() * 50
+        local angle = mrandom() * mpi * 2
+        local spd = 30 + mrandom() * 50
         AddParticle({
             x = enemy.x, y = enemy.y,
-            vx = math.cos(angle) * spd,
-            vy = math.sin(angle) * spd,
-            life = 0.6 + math.random() * 0.4,
+            vx = mcos(angle) * spd,
+            vy = msin(angle) * spd,
+            life = 0.6 + mrandom() * 0.4,
             maxLife = 1.0,
             color = enemy.typeDef.color,
-            size = 3 + math.random() * 3,
+            size = 3 + mrandom() * 3,
         })
     end
 
@@ -454,7 +465,7 @@ local function HandleEnemyDeath(enemy)
         local hpScale, speedScale = CalcScalesFromGlobalWave(enemy.waveNum)
         if enemy.typeDef.splitRole then
             -- 新系统：按 role 分裂，用同主题的对应角色
-            local stageNum = math.floor((enemy.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+            local stageNum = mfloor((enemy.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
             local splitDef = Config.BuildEnemyDef(stageNum, enemy.typeDef.splitRole)
             if splitDef then
                 for i = 1, count do
@@ -517,10 +528,10 @@ function Enemy.TakeDamage(enemy, damage)
     if enemy.auraDodgeBoost then
         dodgeChance = dodgeChance + enemy.auraDodgeBoost
     end
-    if dodgeChance > 0 and math.random() < dodgeChance then
+    if dodgeChance > 0 and mrandom() < dodgeChance then
         AddFloatingText({
             text = "闪避",
-            x = enemy.x + (math.random() - 0.5) * 10,
+            x = enemy.x + (mrandom() - 0.5) * 10,
             y = enemy.y - (enemy.typeDef.size or 8) - 5,
             life = 0.6,
             color = { 140, 180, 220, 255 },
@@ -562,12 +573,18 @@ function Enemy.TakeDamage(enemy, damage)
     -- 受击反馈：闪白 + 抖动
     enemy.hitFlash = 0.12            -- 闪白持续时间
     enemy.hitShakeTimer = 0.1        -- 抖动持续时间
-    enemy.hitShakeIntensity = math.min(damage / enemy.maxHP * 8, 4)  -- 按伤害比例抖动，上限4px
+    enemy.hitShakeIntensity = mmin(damage / enemy.maxHP * 8, 4)  -- 按伤害比例抖动，上限4px
     EnemyAnim.OnHit(enemy)           -- 受击后退动画
 
     enemy.hp = enemy.hp - damage
     if enemy.hp <= 0 then
         enemy.hp = 0
+        -- 世界BOSS/憎恨化身兜底：HP归零不走死亡，直接触发战斗结算
+        if enemy.isWorldBoss then
+            print("[Enemy] World boss HP reached 0, triggering battle end")
+            State.bossTimer = 0
+            return
+        end
         return HandleEnemyDeath(enemy)
     end
 end
@@ -595,7 +612,7 @@ function Enemy.ApplySlow(enemy, duration, rate)
     if enemy.slowTimer <= 0 then
         AddFloatingText({
             text = "减速",
-            x = enemy.x + (math.random() - 0.5) * 10,
+            x = enemy.x + (mrandom() - 0.5) * 10,
             y = enemy.y - (enemy.typeDef.size or 8) - 16,
             life = 0.5,
             color = { 60, 200, 200, 255 },
@@ -603,7 +620,7 @@ function Enemy.ApplySlow(enemy, duration, rate)
         })
     end
 
-    enemy.slowTimer = math.max(enemy.slowTimer, duration)
+    enemy.slowTimer = mmax(enemy.slowTimer, duration)
     enemy.speed = enemy.baseSpeed * (1 - actualRate)
 end
 
@@ -613,7 +630,7 @@ function Enemy.ApplyDOT(enemy, damage, duration)
     if Debuff.IsImmune(enemy, "dot") then return end
 
     enemy.dotDamage = damage
-    enemy.dotTimer = math.max(enemy.dotTimer, duration)
+    enemy.dotTimer = mmax(enemy.dotTimer, duration)
     enemy.dotTickTimer = 0
 end
 
@@ -641,8 +658,8 @@ function Enemy.ApplyChill(enemy, stacks, duration, towerId)
 
     local maxStacks = 5
     local oldStacks = enemy.chillStacks
-    enemy.chillStacks = math.min(enemy.chillStacks + stacks, maxStacks)
-    enemy.chillTimer = math.max(enemy.chillTimer, duration)
+    enemy.chillStacks = mmin(enemy.chillStacks + stacks, maxStacks)
+    enemy.chillTimer = mmax(enemy.chillTimer, duration)
 
     local added = enemy.chillStacks - oldStacks
 
@@ -663,7 +680,7 @@ function Enemy.ApplyChill(enemy, stacks, duration, towerId)
     if oldStacks == 0 and enemy.chillStacks > 0 then
         AddFloatingText({
             text = "寒意",
-            x = enemy.x + (math.random() - 0.5) * 10,
+            x = enemy.x + (mrandom() - 0.5) * 10,
             y = enemy.y - (enemy.typeDef.size or 8) - 16,
             life = 0.5,
             color = { 130, 210, 255, 255 },
@@ -673,7 +690,7 @@ function Enemy.ApplyChill(enemy, stacks, duration, towerId)
     elseif enemy.chillStacks >= maxStacks and oldStacks < maxStacks then
         AddFloatingText({
             text = "极寒!",
-            x = enemy.x + (math.random() - 0.5) * 10,
+            x = enemy.x + (mrandom() - 0.5) * 10,
             y = enemy.y - (enemy.typeDef.size or 8) - 16,
             life = 0.8,
             color = { 80, 180, 255, 255 },
@@ -681,11 +698,11 @@ function Enemy.ApplyChill(enemy, stacks, duration, towerId)
         })
         -- 寒意粒子
         for j = 1, 6 do
-            local angle = math.random() * math.pi * 2
+            local angle = mrandom() * mpi * 2
             AddParticle({
                 x = enemy.x, y = enemy.y,
-                vx = math.cos(angle) * 30,
-                vy = math.sin(angle) * 30,
+                vx = mcos(angle) * 30,
+                vy = msin(angle) * 30,
                 life = 0.5, maxLife = 0.6,
                 color = { 130, 210, 255 },
                 size = 3,
@@ -771,11 +788,11 @@ local function UpdateAuras(gridOffsetX, gridOffsetY)
                 local dy = tgt.y - src.y
                 if dx * dx + dy * dy <= rangeSq then
                     if aura.type == "speed" then
-                        tgt.auraSpeedBoost = math.max(tgt.auraSpeedBoost or 0, aura.value or 0)
+                        tgt.auraSpeedBoost = mmax(tgt.auraSpeedBoost or 0, aura.value or 0)
                     elseif aura.type == "slow_resist" then
-                        tgt.auraSlowResist = math.max(tgt.auraSlowResist or 0, aura.value or 0)
+                        tgt.auraSlowResist = mmax(tgt.auraSlowResist or 0, aura.value or 0)
                     elseif aura.type == "dodge_boost" then
-                        tgt.auraDodgeBoost = math.max(tgt.auraDodgeBoost or 0, aura.value or 0)
+                        tgt.auraDodgeBoost = mmax(tgt.auraDodgeBoost or 0, aura.value or 0)
                     elseif aura.type == "slow_immune" then
                         tgt.auraSlowImmune = true
                     end
@@ -812,7 +829,7 @@ local function UpdateAffixEffects(e, dt)
         for _, a in ipairs(e.affixes) do
             if a.regenRate then rate = a.regenRate end
         end
-        e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
+        e.hp = mmin(e.hp + e.maxHP * rate * dt, e.maxHP)
     end
 
     -- 铁壁词缀：每隔 N 秒增加 DEF
@@ -827,11 +844,11 @@ local function UpdateAffixEffects(e, dt)
         if e.ironWallTimer >= interval then
             e.ironWallTimer = e.ironWallTimer - interval
             e.ironWallStacks = (e.ironWallStacks or 0) + 1
-            local addDef = math.floor((e.typeDef.baseDEF or 0) * defPct)
+            local addDef = mfloor((e.typeDef.baseDEF or 0) * defPct)
             e.def = e.def + addDef
             AddFloatingText({
                 text = "铁壁+" .. e.ironWallStacks,
-                x = e.x + (math.random() - 0.5) * 10,
+                x = e.x + (mrandom() - 0.5) * 10,
                 y = e.y - (e.typeDef.size or 8) - 5,
                 life = 0.6,
                 color = { 160, 160, 180, 255 },
@@ -854,10 +871,10 @@ local function UpdateAffixEffects(e, dt)
             local lost = e.maxHP - e.hp
             if lost > 0 then
                 local heal = lost * pct
-                e.hp = math.min(e.hp + heal, e.maxHP)
+                e.hp = mmin(e.hp + heal, e.maxHP)
                 AddFloatingText({
                     text = "回春",
-                    x = e.x + (math.random() - 0.5) * 10,
+                    x = e.x + (mrandom() - 0.5) * 10,
                     y = e.y - (e.typeDef.size or 8) - 5,
                     life = 0.5,
                     color = { 100, 220, 160, 255 },
@@ -884,7 +901,7 @@ local function UpdateAffixEffects(e, dt)
                 end
             end
             if #candidates > 0 then
-                local target = candidates[math.random(1, #candidates)]
+                local target = candidates[mrandom(1, #candidates)]
                 local oldStar = target.star
                 target.star = target.star - 1
                 -- 重新计算塔的战斗属性
@@ -917,7 +934,7 @@ local function UpdateAffixEffects(e, dt)
                 end
             end
             if #candidates > 0 then
-                local target = candidates[math.random(1, #candidates)]
+                local target = candidates[mrandom(1, #candidates)]
                 local towerName = target.typeDef and target.typeDef.name or "塔"
                 local tx, ty = Grid.CellToScreen(target.col, target.row,
                     Enemy._gridOffsetX, Enemy._gridOffsetY)
@@ -930,11 +947,11 @@ local function UpdateAffixEffects(e, dt)
                 })
                 -- 毁灭粒子
                 for j = 1, 10 do
-                    local angle = math.random() * math.pi * 2
+                    local angle = mrandom() * mpi * 2
                     AddParticle({
                         x = tx, y = ty,
-                        vx = math.cos(angle) * 50,
-                        vy = math.sin(angle) * 50,
+                        vx = mcos(angle) * 50,
+                        vy = msin(angle) * 50,
                         life = 0.6, maxLife = 0.8,
                         color = { 255, 40, 40 },
                         size = 4,
@@ -979,7 +996,7 @@ local function UpdateAffixEffects(e, dt)
                             if not t.isLeader then
                                 local tx, ty = Grid.CellToScreen(t.col, t.row,
                                     Enemy._gridOffsetX, Enemy._gridOffsetY)
-                                local dist = math.sqrt((e.x - tx) ^ 2 + (e.y - ty) ^ 2)
+                                local dist = msqrt((e.x - tx) ^ 2 + (e.y - ty) ^ 2)
                                 if dist <= radius then
                                     targets[#targets + 1] = t
                                 end
@@ -992,7 +1009,7 @@ local function UpdateAffixEffects(e, dt)
                             if not t.isLeader then pool[#pool + 1] = t end
                         end
                         if #pool > 0 then
-                            targets[#targets + 1] = pool[math.random(1, #pool)]
+                            targets[#targets + 1] = pool[mrandom(1, #pool)]
                         end
                     end
 
@@ -1003,7 +1020,7 @@ local function UpdateAffixEffects(e, dt)
                             Enemy._gridOffsetX, Enemy._gridOffsetY)
                         AddFloatingText({
                             text = da.name .. (targeting == "group" and "!" or ""),
-                            x = tx + (math.random() - 0.5) * 10,
+                            x = tx + (mrandom() - 0.5) * 10,
                             y = ty - 15,
                             life = 0.8,
                             color = da.color and { da.color[1], da.color[2], da.color[3], 255 }
@@ -1074,7 +1091,7 @@ local function UpdateMonsterPassives(e, dt)
         local threshold = e.typeDef.enrageThreshold or 0.5
         local mult = e.typeDef.enrageSpeedMult or 2.0
         if e.hp / e.maxHP <= threshold then
-            e.speed = math.max(e.speed, e.baseSpeed * mult)
+            e.speed = mmax(e.speed, e.baseSpeed * mult)
         end
     end
 
@@ -1115,7 +1132,7 @@ local function UpdateMonsterPassives(e, dt)
             local hpS, spS = CalcScalesFromGlobalWave(e.waveNum)
             hpS = hpS * 0.5  -- 召唤物 HP 减半
             if e.typeDef.summonRole then
-                local stageNum = math.floor((e.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+                local stageNum = mfloor((e.waveNum - 1) / Config.WAVES_PER_STAGE) + 1
                 local summonDef = Config.BuildEnemyDef(stageNum, e.typeDef.summonRole)
                 if summonDef then
                     for j = 1, sCount do
@@ -1139,11 +1156,11 @@ local function UpdateMonsterPassives(e, dt)
             e.progress = e.progress + (e.typeDef.blinkProgress or 0.08)
             -- 闪烁粒子
             for j = 1, 5 do
-                local angle = math.random() * math.pi * 2
+                local angle = mrandom() * mpi * 2
                 AddParticle({
                     x = e.x, y = e.y,
-                    vx = math.cos(angle) * 40,
-                    vy = math.sin(angle) * 40,
+                    vx = mcos(angle) * 40,
+                    vy = msin(angle) * 40,
                     life = 0.4, maxLife = 0.5,
                     color = e.typeDef.color,
                     size = 3,
@@ -1177,11 +1194,11 @@ local function UpdateMonsterPassives(e, dt)
                 color = { 200, 60, 60, 255 },
             })
             for j = 1, 8 do
-                local angle = j * math.pi / 4
+                local angle = j * mpi / 4
                 AddParticle({
                     x = e.x, y = e.y,
-                    vx = math.cos(angle) * 60,
-                    vy = math.sin(angle) * 60,
+                    vx = mcos(angle) * 60,
+                    vy = msin(angle) * 60,
                     life = 0.6, maxLife = 0.6,
                     color = { 200, 60, 60 },
                     size = 4,
@@ -1193,7 +1210,7 @@ local function UpdateMonsterPassives(e, dt)
     -- ======== 坦克被动：regen（周期回血）========
     if e.typeDef.tankPassive == "regen" then
         local rate = e.typeDef.regenRate or 0.005
-        e.hp = math.min(e.hp + e.maxHP * rate * dt, e.maxHP)
+        e.hp = mmin(e.hp + e.maxHP * rate * dt, e.maxHP)
     end
 
     -- ======== 特殊被动 ========
@@ -1207,7 +1224,7 @@ local function UpdateMonsterPassives(e, dt)
             local pct = e.typeDef.regenLostPct or 0.05
             local lost = e.maxHP - e.hp
             if lost > 0 then
-                e.hp = math.min(e.hp + lost * pct, e.maxHP)
+                e.hp = mmin(e.hp + lost * pct, e.maxHP)
             end
         end
     end

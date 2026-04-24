@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "entries": [
+    {
+      "source": "https://tapcode-sce.spark.xd.com/videos/p_o9fd/1775908665336-rec_ff8c4928-9725-43d8-8321-51aff17337c6.mp4",
+      "source_type": "remote",
+      "video_id": 5602184,
+      "sha256": "7530ef1ff152e4812a68660fd756f2ff5475cc1862a91ad2f6d7846699144375",
+      "etag": "\"124AA8FADDD0F42B610A31A0A8F5EF24\"",
+      "last_modified": "Sat, 11 Apr 2026 11:57:48 GMT",
+      "content_length": 5829256
+    },
+    {
+      "source": "https://tapcode-sce.spark.xd.com/videos/p_o9fd/1775913072627-rec_d7c74502-0e88-4da0-811f-782e531b1728.mp4",
+      "source_type": "remote",
+      "video_id": 5602304,
+      "sha256": "5a6704ac20e83c588b6ba329e144558938df6aa3c4d1c28f11d516091205bf6d",
+      "etag": "\"2752189358CBFC8E38EFD9F62C0D13B4\"",
+      "last_modified": "Sat, 11 Apr 2026 13:11:13 GMT",
+      "content_length": 4673136
+    },
+    {
+      "source": "./assets/video/1776716196913-rec_a52d5a44-347a-42d5-92ce-6fc9f3da0b89.mp4",
+      "source_type": "local",
+      "video_id": 5618968,
+      "sha256": "5e08e29d20b03f08b75b6702ca700d699a9880f15b3e1788c0067e3a375e14c2"
+    },
+    {
+      "source": "https://tapcode-sce.spark.xd.com/videos/p_o9fd/1776868958547-rec_8a5468f1-2627-43ea-a92f-db4bff98cb01.mp4",
+      "source_type": "remote",
+      "video_id": 5620816,
+      "sha256": "6146e8e4b08f1b8d53ee46312e1660160f8bb6a852b592ba50cc52899754ca4e",
+      "etag": "\"A9C8ED20869A63433ECBF0E7BA8278AA\"",
+      "last_modified": "Wed, 22 Apr 2026 14:42:40 GMT",
+      "content_length": 8505810
+    }
+  ]
+}

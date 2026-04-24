@@ -45,13 +45,17 @@ Config.RELIC_SLOTS = {
 
 Config.RELIC_SLOT_IDS = { "power", "heart", "eye", "will" }
 
--- 碎片资源ID映射
+-- 碎片资源ID映射（已废弃，保留兼容旧存档迁移）
 Config.RELIC_SHARD_IDS = {
     power = "power_shard",
     heart = "heart_shard",
     eye   = "eye_shard",
     will  = "will_shard",
 }
+
+-- 碎片模式：per-relic（每件遗物独立碎片）
+-- shards 存储结构: { [relicId] = count, ... }
+Config.RELIC_SHARD_MODE = "per_relic"
 
 -- ============================================================================
 -- 遗物定义（4 部位 × 5 遗物 = 20 件）
@@ -72,10 +76,11 @@ Config.RELICS = {
         minQuality = "green",
         hasCharge = true,
         params = {
-            damageMult = 2.50,       -- 最高ATK × V(2.50) 伤害倍率
-            armorPenBonus = 0.15,    -- 额外破甲率 V(0.15)
-            armorPenCap = 0.80,      -- 破甲上限
+            damageMult = 2.50,
+            armorPenBonus = 0.15,
+            armorPenCap = 0.80,
         },
+        starEffect = { type = "chargeReduce", max = 15, halfStar = 4, desc = "★充能需求-{v}" },
     },
     void_pulse = {
         id = "void_pulse",
@@ -83,59 +88,54 @@ Config.RELICS = {
         desc = "全体英雄攻击力+{atkBonus}；每{pulseInterval}秒释放脉冲，基于全体英雄平均攻击力造成{pulseDamageMult}倍伤害",
         slot = "power",
         minQuality = "blue",
-        hasCharge = false,           -- 不使用充能，定时触发
+        hasCharge = false,
         params = {
-            atkBonus = 0.08,         -- 全体攻击力 +V(0.08)
-            pulseInterval = 10.0,    -- 脉冲间隔(秒)
-            pulseDamageMult = 0.50,  -- 平均ATK × V(0.50) 脉冲伤害
+            atkBonus = 0.08,
+            pulseInterval = 10.0,
+            pulseDamageMult = 0.50,
         },
+        starEffect = { type = "intervalReduce", max = 3.0, halfStar = 3, desc = "★脉冲间隔-{v}秒" },
     },
     annihilation_storm = {
         id = "annihilation_storm",
         name = "湮灭风暴",
-        desc = "充能满后释放风暴，基于最强英雄攻击力造成{damageMult}倍范围伤害；联动战意之核时伤害×1.3",
+        desc = "充能满后释放风暴，基于最强英雄攻击力造成{damageMult}倍范围伤害",
         slot = "power",
         minQuality = "purple",
         hasCharge = true,
         params = {
-            damageMult = 1.80,       -- 最高ATK × V(1.80) AoE伤害
+            damageMult = 1.80,
         },
-        linkSlot = "heart",
-        linkRelic = "war_core",
-        linkBonus = 1.30,            -- 联动：伤害 ×1.30
+        starEffect = { type = "chargeReduce", max = 15, halfStar = 4, desc = "★充能需求-{v}" },
     },
     fate_reaper = {
         id = "fate_reaper",
         name = "命运收割",
-        desc = "充能满后收割目标：生命值低于{executeThreshold}时直接斩杀，否则基于最强英雄攻击力造成{nonExecuteDmg}倍伤害；联动因果之瞳时斩杀线+5%",
+        desc = "充能满后收割目标：生命值低于{executeThreshold}时直接斩杀，否则基于最强英雄攻击力造成{nonExecuteDmg}倍伤害",
         slot = "power",
         minQuality = "orange",
         hasCharge = true,
         params = {
-            executeThreshold = 0.10,  -- 斩杀线 V(0.10)
-            executeCap = 0.35,        -- 斩杀线硬上限
-            nonExecuteDmg = 3.00,     -- 非斩杀时伤害倍率 V(3.00)
+            executeThreshold = 0.10,
+            executeCap = 0.35,
+            nonExecuteDmg = 3.00,
         },
-        linkSlot = "eye",
-        linkRelic = "causality_eye",
-        linkBonus = 0.05,             -- 联动：斩杀线 +5%
+        starEffect = { type = "chargeReduce", max = 15, halfStar = 4, desc = "★充能需求-{v}" },
     },
     end_light = {
         id = "end_light",
         name = "终焉之光",
-        desc = "充能满后释放终焉之光，基于最强英雄攻击力造成{trueDamageMult}倍真实伤害，并附加{burnTotalMult}倍灼烧（{burnDuration}秒{burnTicks}跳）；联动永恒意志时伤害×2",
+        desc = "充能满后释放终焉之光，基于最强英雄攻击力造成{trueDamageMult}倍真实伤害，并附加{burnTotalMult}倍灼烧（{burnDuration}秒{burnTicks}跳）",
         slot = "power",
         minQuality = "red",
         hasCharge = true,
         params = {
-            trueDamageMult = 4.00,    -- 真实伤害倍率 V(4.00)
-            burnTotalMult = 1.20,     -- 灼烧总伤害倍率 V(1.20)
-            burnDuration = 3.0,       -- 灼烧持续秒数
-            burnTicks = 6,            -- 灼烧跳数
+            trueDamageMult = 4.00,
+            burnTotalMult = 1.20,
+            burnDuration = 3.0,
+            burnTicks = 6,
         },
-        linkSlot = "will",
-        linkRelic = "eternal_will",
-        linkBonus = 2.0,              -- 联动：伤害 ×2.0
+        starEffect = { type = "chargeReduce", max = 15, halfStar = 4, desc = "★充能需求-{v}" },
     },
 
     -- ==================== 神之心 (heart) ====================
@@ -147,8 +147,9 @@ Config.RELICS = {
         minQuality = "green",
         hasCharge = false,
         params = {
-            atkBonus = 0.10,          -- 全体攻击力 +V(0.10)
+            atkBonus = 0.10,
         },
+        starEffect = { type = "critDmg", max = 0.20, halfStar = 4, desc = "★暴击伤害+{v}" },
     },
     war_core = {
         id = "war_core",
@@ -158,20 +159,22 @@ Config.RELICS = {
         minQuality = "blue",
         hasCharge = false,
         params = {
-            spdBonus = 0.08,          -- 全体攻速 +V(0.08)
+            spdBonus = 0.08,
         },
+        starEffect = { type = "critRate", max = 0.10, halfStar = 4, desc = "★暴击率+{v}" },
     },
     shadow_focus = {
         id = "shadow_focus",
         name = "暗影凝聚",
-        desc = "暗影聚焦于攻击力最高的英雄，额外攻击+{topAtkBonus}；其余英雄获得其1/3加成",
+        desc = "暗影聚焦于攻击力最高的英雄，额外攻击+{topAtkBonus}；其余英雄获得其{otherAtkRatio}加成",
         slot = "heart",
         minQuality = "purple",
         hasCharge = false,
         params = {
-            topAtkBonus = 0.15,       -- 最高攻击英雄额外 +V(0.15)
-            otherAtkRatio = 1/3,      -- 其余英雄为 topAtkBonus / 3
+            topAtkBonus = 0.15,
+            otherAtkRatio = 1/3,
         },
+        starEffect = { type = "shareRatio", max = 0.30, halfStar = 3, desc = "★分配比+{v}" },
     },
     immortal_flame = {
         id = "immortal_flame",
@@ -181,10 +184,11 @@ Config.RELICS = {
         minQuality = "orange",
         hasCharge = false,
         params = {
-            atkBonus = 0.12,          -- 全体攻击 +V(0.12)
-            postCastSpdBonus = 0.15,  -- 力部位释放后全体攻速 +15%
-            postCastDuration = 3.0,   -- 持续3秒
+            atkBonus = 0.12,
+            postCastSpdBonus = 0.15,
+            postCastDuration = 3.0,
         },
+        starEffect = { type = "durationAdd", max = 5.0, halfStar = 4, desc = "★持续+{v}秒" },
     },
     unity_of_all = {
         id = "unity_of_all",
@@ -194,11 +198,12 @@ Config.RELICS = {
         minQuality = "red",
         hasCharge = false,
         params = {
-            atkBonus = 0.10,           -- 攻击 +V(0.10)
-            spdBonus = 0.08,           -- 攻速 +V(0.08)
-            critDmgBonus = 0.15,       -- 暴击伤害 +V(0.15)
-            redRelicBonusPer = 0.03,   -- 每件红色遗物 +3%
+            atkBonus = 0.10,
+            spdBonus = 0.08,
+            critDmgBonus = 0.15,
+            redRelicBonusPer = 0.03,
         },
+        starEffect = { type = "redBonus", max = 0.08, halfStar = 3, desc = "★神话加成+{v}" },
     },
 
     -- ==================== 神之眼 (eye) ====================
@@ -210,10 +215,11 @@ Config.RELICS = {
         minQuality = "green",
         hasCharge = false,
         params = {
-            markInterval = 8.0,        -- 标记间隔(秒)
-            markDmgBonus = 0.10,       -- 标记目标受伤 +V(0.10)
-            markDuration = 5.0,        -- 标记持续(秒)
+            markInterval = 8.0,
+            markDmgBonus = 0.10,
+            markDuration = 5.0,
         },
+        starEffect = { type = "durationAdd", max = 5.0, halfStar = 4, desc = "★标记持续+{v}秒" },
     },
     weakness_break = {
         id = "weakness_break",
@@ -223,9 +229,10 @@ Config.RELICS = {
         minQuality = "blue",
         hasCharge = false,
         params = {
-            defReduce = 0.10,          -- 标记目标防御 -V(0.10)
-            autoMarkInterval = 8.0,    -- 无其他标记时自动标记间隔
+            defReduce = 0.10,
+            autoMarkInterval = 8.0,
         },
+        starEffect = { type = "intervalReduce", max = 3.0, halfStar = 3, desc = "★标记间隔-{v}秒" },
     },
     chain_mark = {
         id = "chain_mark",
@@ -235,8 +242,9 @@ Config.RELICS = {
         minQuality = "purple",
         hasCharge = false,
         params = {
-            markDmgBonus = 0.08,       -- 标记目标伤害 +V(0.08)
+            markDmgBonus = 0.08,
         },
+        starEffect = { type = "spreadCount", max = 3, halfStar = 2, desc = "★传递次数+{v}" },
     },
     causality_eye = {
         id = "causality_eye",
@@ -246,8 +254,9 @@ Config.RELICS = {
         minQuality = "orange",
         hasCharge = false,
         params = {
-            deathExplosionPct = 0.08,  -- 死亡爆炸：最大HP × V(0.08)
+            deathExplosionPct = 0.08,
         },
+        starEffect = { type = "explosionRange", max = 0.5, halfStar = 3, desc = "★爆炸范围+{v}" },
     },
     omniscient_eye = {
         id = "omniscient_eye",
@@ -257,10 +266,11 @@ Config.RELICS = {
         minQuality = "red",
         hasCharge = false,
         params = {
-            markCount = 3,              -- 同时标记数
-            markDmgBonus = 0.12,        -- 标记伤害 +V(0.12)
-            markAtkBonusPer = 0.02,     -- 每个标记全体攻击 +2%
+            markCount = 3,
+            markDmgBonus = 0.12,
+            markAtkBonusPer = 0.02,
         },
+        starEffect = { type = "markCount", max = 3, halfStar = 5, desc = "★标记数+{v}" },
     },
 
     -- ==================== 神之意志 (will) ====================
@@ -272,9 +282,10 @@ Config.RELICS = {
         minQuality = "green",
         hasCharge = false,
         params = {
-            powerDmgBonus = 0.15,       -- 力部位技能伤害 +V(0.15)
-            fallbackAtkBonus = 0.075,   -- 无力部位伤害技能时攻击 +V(0.075)
+            powerDmgBonus = 0.15,
+            fallbackAtkBonus = 0.075,
         },
+        starEffect = { type = "fallbackAdd", max = 0.05, halfStar = 3, desc = "★后备攻击+{v}" },
     },
     rapid_charge = {
         id = "rapid_charge",
@@ -284,9 +295,10 @@ Config.RELICS = {
         minQuality = "blue",
         hasCharge = false,
         params = {
-            chargeReduce = 15,          -- 力部位充能需求 -V(15) 次
-            fallbackSpdBonus = 0.08,    -- 无充能时攻速 +V(0.08)
+            chargeReduce = 15,
+            fallbackSpdBonus = 0.08,
         },
+        starEffect = { type = "chargeReduce", max = 10, halfStar = 3, desc = "★额外充能-{v}" },
     },
     overload_burst = {
         id = "overload_burst",
@@ -296,9 +308,10 @@ Config.RELICS = {
         minQuality = "purple",
         hasCharge = false,
         params = {
-            postCastDmgBonus = 0.20,    -- 释放后5秒全体伤害 +V(0.20)
-            postCastDuration = 5.0,     -- 持续秒数
+            postCastDmgBonus = 0.20,
+            postCastDuration = 5.0,
         },
+        starEffect = { type = "durationAdd", max = 5.0, halfStar = 4, desc = "★持续+{v}秒" },
     },
     double_cast = {
         id = "double_cast",
@@ -308,10 +321,11 @@ Config.RELICS = {
         minQuality = "orange",
         hasCharge = false,
         params = {
-            doubleCastChance = 0.20,     -- V(0.20) 概率双重释放
-            secondCastMult = 0.50,       -- 第二次伤害 50%
-            doubleCastCap = 0.80,        -- 概率上限
+            doubleCastChance = 0.20,
+            secondCastMult = 0.50,
+            doubleCastCap = 0.80,
         },
+        starEffect = { type = "chanceAdd", max = 0.25, halfStar = 4, desc = "★触发概率+{v}" },
     },
     eternal_will = {
         id = "eternal_will",
@@ -321,8 +335,9 @@ Config.RELICS = {
         minQuality = "red",
         hasCharge = false,
         params = {
-            globalAmplify = 0.10,       -- 所有其他遗物数值 +V(0.10)
+            globalAmplify = 0.10,
         },
+        starEffect = { type = "amplifyAdd", max = 0.15, halfStar = 3, desc = "★增幅+{v}" },
     },
 }
 

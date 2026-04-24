@@ -63,7 +63,6 @@ function Tower.Create(typeIndex, star, col, row)
     local heroInfo = HeroData.Get(heroId)
     local heroLevel = heroInfo and heroInfo.level or 1
     local heroStar = heroInfo and heroInfo.star or 0
-    local heroAwakening = heroInfo and heroInfo.awakening or 0
 
     -- 获取英雄完整战斗属性（含破甲/暴击/暴伤）
     local heroStats = HeroData.GetHeroStats(heroId)
@@ -103,7 +102,6 @@ function Tower.Create(typeIndex, star, col, row)
         -- 局外信息（用于显示和技能）
         heroLevel = heroLevel,
         heroStar = heroStar,
-        heroAwakening = heroAwakening,
         -- 战斗子属性（来自英雄等级成长 + 装备/符文 + 遗物被动）
         armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
         critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
@@ -161,7 +159,6 @@ function Tower.CreateLeader(col, row)
     local heroInfo = HeroData.Get(heroId)
     local heroLevel = heroInfo and heroInfo.level or 1
     local heroStar = heroInfo and heroInfo.star or 0
-    local heroAwakening = heroInfo and heroInfo.awakening or 0
     local heroStats = HeroData.GetHeroStats(heroId)
 
     -- 获取装备加成（含淬炼+符文）
@@ -198,7 +195,6 @@ function Tower.CreateLeader(col, row)
         spawnTime = 0,
         heroLevel = heroLevel,
         heroStar = heroStar,
-        heroAwakening = heroAwakening,
         armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
         critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
         critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
@@ -707,8 +703,6 @@ function Tower.RefreshAllStats()
         local heroInfo = HeroData.Get(heroId)
         tower.heroLevel = heroInfo and heroInfo.level or 1
         tower.heroStar = heroInfo and heroInfo.star or 0
-        tower.heroAwakening = heroInfo and heroInfo.awakening or 0
-
         tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0)
         tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + DivineBlessDB.GetBuffValue("crit_pct")
         tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct

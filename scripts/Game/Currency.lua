@@ -272,9 +272,6 @@ function Currency.ExchangeEssence(exchangeIndex)
     if exchange.type == "universal_shard" then
         Currency.GrantReward({ type = "universal_shard", id = exchange.rarity, amount = exchange.amount }, "EssenceExchange")
         return true, "获得" .. exchange.rarity .. "万能碎片×" .. exchange.amount
-    elseif exchange.type == "awakening_mat" then
-        Currency.GrantReward({ type = "awakening_mat", amount = exchange.amount }, "EssenceExchange")
-        return true, "获得觉醒材料×" .. exchange.amount
     end
 
     return false, "未知兑换类型"
@@ -316,7 +313,6 @@ function Currency.EnsureFields()
         forge_iron = 0,
         void_pact = 0,
         shadow_essence = 0,
-        awakening_mat = 0,
         pale_jade = 0,
         rainbow_jade = 0,
         frost_pact = 0,
@@ -419,7 +415,6 @@ end
 --- fragment       → HeroData.AddFragments
 --- costume        → CostumeData.Unlock
 --- universal_shard → Currency.AddUniversalShards (id = 品质字符串)
---- awakening_mat  → HeroData.currencies.awakening_mat 累加
 ---@param reward {type:string, id:string, amount:number}
 ---@param source? string  发放来源标识，用于审计日志
 ---@return boolean success
@@ -452,13 +447,6 @@ function Currency.GrantReward(reward, source)
     elseif reward.type == "universal_shard" then
         if not id then return false end
         Currency.AddUniversalShards(id, amount)
-    elseif reward.type == "awakening_mat" then
-        local delta = math.floor(amount)
-        HeroData.currencies.awakening_mat = (HeroData.currencies.awakening_mat or 0) + delta
-        EventBus.emit(EventBus.EVENT.CURRENCY_CHANGED, {
-            type = "awakening_mat", delta = delta,
-            balance = HeroData.currencies.awakening_mat,
-        })
     else
         print("[Currency.GrantReward] Unknown reward type: " .. tostring(reward.type))
         return false

@@ -82,7 +82,12 @@ function RelicEffects.Init()
         local willReduction = 0
         local willRelic = RD.GetEquipped("will")
         if willRelic and willRelic.id == "rapid_charge" then
-            willReduction = RelicCalc.V(willRelic, Config.RELICS.rapid_charge.params.chargeReduce)
+            local rcDef = Config.RELICS.rapid_charge
+            willReduction = RelicCalc.V(willRelic, rcDef.params.chargeReduce)
+            -- 急速充能自身星级额外减少（渐进值）
+            if rcDef.starEffect and rcDef.starEffect.type == "chargeReduce" then
+                willReduction = willReduction + RelicCalc.StarValue(willRelic.star, rcDef.starEffect)
+            end
         end
         _charge.max = RelicCalc.GetEffectiveChargeMax(powerRelic, willReduction)
     end
@@ -215,9 +220,14 @@ local function TriggerPostCastEffects()
     local heartRelic = RD.GetEquipped("heart")
     if heartRelic and heartRelic.id == "immortal_flame" then
         local def = Config.RELICS.immortal_flame
+        local duration = def.params.postCastDuration
+        -- 星级效果：持续时间延长
+        if def.starEffect and def.starEffect.type == "durationAdd" then
+            duration = duration + RelicCalc.StarValue(heartRelic.star, def.starEffect)
+        end
         _postCastBuff = {
             id = "immortal_flame_spd",
-            remaining = def.params.postCastDuration,
+            remaining = duration,
             value = def.params.postCastSpdBonus,
         }
     end
@@ -227,15 +237,14 @@ local function TriggerPostCastEffects()
     if willRelic and willRelic.id == "overload_burst" then
         local def = Config.RELICS.overload_burst
         local dmgVal = RelicCalc.V(willRelic, def.params.postCastDmgBonus)
-        -- 永恒意志增幅
-        local amp = 1
-        if willRelic.id ~= "eternal_will" then
-            local ewRelic = RD.GetEquipped("will")  -- 已经是 will
-            -- overload_burst 自身在 will 槽，不和 eternal_will 共存，跳过
+        local duration = def.params.postCastDuration
+        -- 星级效果：持续时间延长
+        if def.starEffect and def.starEffect.type == "durationAdd" then
+            duration = duration + RelicCalc.StarValue(willRelic.star, def.starEffect)
         end
         _postCastBuff = {
             id = "overload_burst_dmg",
-            remaining = def.params.postCastDuration,
+            remaining = duration,
             value = dmgVal,
         }
     end
@@ -299,13 +308,8 @@ _castHandlers.annihilation_storm = function(relic, relicDef)
     local damageMult = RelicCalc.V(relic, relicDef.params.damageMult)
     local baseDmg = maxAtk * damageMult
 
-    -- 联动检查：装备战意之核(heart)
-    local RD = GetRelicData()
-    if RD.HasRelic("heart", "war_core") then
-        baseDmg = baseDmg * (relicDef.linkBonus or 1.30)
-    end
-
     -- 狂热信念（意志·绿）伤害增幅
+    local RD = GetRelicData()
     local willRelic = RD.GetEquipped("will")
     if willRelic and willRelic.id == "fervent_faith" then
         local faithDef = Config.RELICS.fervent_faith
@@ -344,11 +348,7 @@ _castHandlers.fate_reaper = function(relic, relicDef)
     local RD = GetRelicData()
 
     -- 计算斩杀线
-    local executeThreshold = RelicCalc.V(relic, relicDef.params.executeThreshold)
-    -- 联动：因果之瞳(eye)
-    if RD.HasRelic("eye", "causality_eye") then
-        executeThreshold = executeThreshold + (relicDef.linkBonus or 0.05)
-    end
+    local executeThreshold = relicDef.params.executeThreshold
     executeThreshold = math.min(executeThreshold, relicDef.params.executeCap)
 
     local maxAtk = GetMaxTowerATK()
@@ -375,16 +375,29 @@ _castHandlers.fate_reaper = function(relic, relicDef)
     local executeCount = 0
     local damageCount = 0
 
+    local BOSS_EXECUTE_ATK_MULT = 15  -- BOSS免疫斩杀，改为ATK×15固定伤害
+
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
             local hpRatio = e.hp / (e.maxHP or e.hp)
-            if hpRatio <= executeThreshold and e.maxHP ~= math.maxinteger then
-                -- 直接斩杀
-                local killed = GetEnemy().TakeDamage(e, e.hp + 1)
-                GetDamageStats().Record(bestTower, e.maxHP or 0, false, true, e.isBoss)
-                ShowRelicDamageText(e, 0, COLOR_EXECUTE, 18, "处决!")
-                executeCount = executeCount + 1
-                if killed then RelicEffects.OnEnemyKilled() end
+            if hpRatio <= executeThreshold then
+                if e.isBoss then
+                    -- BOSS兜底：免疫斩杀，改为固定倍率伤害
+                    local baseDmg = bestAtk * BOSS_EXECUTE_ATK_MULT
+                    local finalDmg, isCrit = Combat.CalcFinalDamage(bestTower, e, baseDmg)
+                    local killed = GetEnemy().TakeDamage(e, finalDmg)
+                    GetDamageStats().Record(bestTower, finalDmg, isCrit, killed, e.isBoss)
+                    ShowRelicDamageText(e, finalDmg, COLOR_EXECUTE, 14, "审判!")
+                    damageCount = damageCount + 1
+                    if killed then RelicEffects.OnEnemyKilled() end
+                else
+                    -- 普通怪：直接斩杀
+                    local killed = GetEnemy().TakeDamage(e, e.hp + 1)
+                    GetDamageStats().Record(bestTower, e.maxHP or 0, false, true, e.isBoss)
+                    ShowRelicDamageText(e, 0, COLOR_EXECUTE, 18, "处决!")
+                    executeCount = executeCount + 1
+                    if killed then RelicEffects.OnEnemyKilled() end
+                end
             else
                 -- 正常伤害
                 local finalDmg, isCrit = Combat.CalcFinalDamage(bestTower, e, nonExecBaseDmg)
@@ -408,15 +421,9 @@ _castHandlers.end_light = function(relic, relicDef)
     local RD = GetRelicData()
     local maxAtk = GetMaxTowerATK()
 
-    -- 联动：永恒意志(will) 伤害翻倍
-    local linkMult = 1.0
-    if RD.HasRelic("will", "eternal_will") then
-        linkMult = relicDef.linkBonus or 2.0
-    end
-
     -- 真实伤害
     local trueDmgMult = RelicCalc.V(relic, relicDef.params.trueDamageMult)
-    local baseTrueDmg = maxAtk * trueDmgMult * linkMult
+    local baseTrueDmg = maxAtk * trueDmgMult
 
     -- 狂热信念增幅
     local willRelic = RD.GetEquipped("will")
@@ -447,7 +454,7 @@ _castHandlers.end_light = function(relic, relicDef)
 
     -- 灼烧 DOT
     if target.alive then
-        local burnTotalMult = RelicCalc.V(relic, relicDef.params.burnTotalMult) * linkMult
+        local burnTotalMult = RelicCalc.V(relic, relicDef.params.burnTotalMult)
         local totalBurnDmg = maxAtk * burnTotalMult
         local ticks = relicDef.params.burnTicks
         local tickDmg = totalBurnDmg / ticks
@@ -522,7 +529,11 @@ local function DoCast(relic, relicDef)
     local willRelic = RD.GetEquipped("will")
     if willRelic and willRelic.id == "double_cast" then
         local dcDef = Config.RELICS.double_cast
-        local chance = RelicCalc.V(willRelic, dcDef.params.doubleCastChance)
+        local chance = dcDef.params.doubleCastChance
+        -- 星级效果：触发概率增加（渐进值）
+        if dcDef.starEffect and dcDef.starEffect.type == "chanceAdd" then
+            chance = chance + RelicCalc.StarValue(willRelic.star, dcDef.starEffect)
+        end
         chance = math.min(chance, dcDef.params.doubleCastCap)
         if math.random() < chance then
             print("[RelicEffects] double_cast triggered!")
@@ -567,9 +578,14 @@ local function UpdatePulse(dt)
     if not relic or relic.id ~= "void_pulse" then return end
 
     local def = Config.RELICS.void_pulse
+    -- 星级效果：脉冲间隔减少（渐进值）
+    local interval = def.params.pulseInterval
+    if def.starEffect and def.starEffect.type == "intervalReduce" then
+        interval = math.max(2.0, interval - RelicCalc.StarValue(relic.star, def.starEffect))
+    end
     _pulseTimer = _pulseTimer + dt
-    if _pulseTimer >= def.params.pulseInterval then
-        _pulseTimer = _pulseTimer - def.params.pulseInterval
+    if _pulseTimer >= interval then
+        _pulseTimer = _pulseTimer - interval
 
         local avgAtk = GetAvgTowerATK()
         local pulseDmgMult = RelicCalc.V(relic, def.params.pulseDamageMult)
@@ -583,10 +599,14 @@ local function UpdatePulse(dt)
             baseDmg = baseDmg * (1 + dmgBoost)
         end
 
-        -- 永恒意志增幅
+        -- 永恒意志增幅（含星级 amplifyAdd）
         local ewRelic = RD.GetEquipped("will")
         if ewRelic and ewRelic.id == "eternal_will" then
-            local amp = RelicCalc.V(ewRelic, Config.RELICS.eternal_will.params.globalAmplify)
+            local ewDef = Config.RELICS.eternal_will
+            local amp = RelicCalc.V(ewRelic, ewDef.params.globalAmplify)
+            if ewDef.starEffect and ewDef.starEffect.type == "amplifyAdd" then
+                amp = amp + RelicCalc.StarValue(ewRelic.star, ewDef.starEffect)
+            end
             baseDmg = baseDmg * (1 + amp)
         end
 

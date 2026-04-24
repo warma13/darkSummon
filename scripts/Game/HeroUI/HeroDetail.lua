@@ -1256,18 +1256,45 @@ local function BuildRelicTab(ctx, heroId)
     end
 
     -- 格式化 desc 模板：将 {paramKey} 替换为缩放后的实际数值
+    -- 不应被 V() 缩放的机制参数（概率、上限、间隔、持续时间、次数、比率）
+    local FIXED_KEYS = {
+        armorPenCap = true, executeCap = true, doubleCastCap = true,
+        doubleCastChance = true, executeThreshold = true,
+        pulseInterval = true, postCastDuration = true,
+        burnDuration = true, burnTicks = true,
+        markInterval = true, markDuration = true, autoMarkInterval = true,
+        markCount = true, otherAtkRatio = true,
+    }
+    -- 固定参数 → 对应的星级效果类型（用于将星级加成合并显示到描述中）
+    local PARAM_STAR_MAP = {
+        doubleCastChance = "chanceAdd",
+        pulseInterval = "intervalReduce",
+        postCastDuration = "durationAdd",
+        markDuration = "durationAdd",
+        autoMarkInterval = "intervalReduce",
+    }
     local function FormatRelicDesc(relic, def)
         if not def or not def.desc then return "" end
         return (def.desc:gsub("{(%w+)}", function(key)
             local base = def.params and def.params[key]
             if not base then return "{" .. key .. "}" end
-            local scaled = RelicCalc.V(relic, base)
-            if scaled < 1 then
-                return string.format("%.0f%%", scaled * 100)
-            elseif scaled == math.floor(scaled) then
-                return string.format("%d", scaled)
+            local val = FIXED_KEYS[key] and base or RelicCalc.V(relic, base)
+            -- 将星级加成合并到固定参数的显示值中
+            local starType = PARAM_STAR_MAP[key]
+            if starType and def.starEffect and def.starEffect.type == starType then
+                local sv = RelicCalc.StarValue(relic.star, def.starEffect)
+                if starType == "intervalReduce" then
+                    val = val - sv
+                else
+                    val = val + sv
+                end
+            end
+            if val < 1 then
+                return string.format("%.0f%%", val * 100)
+            elseif val == math.floor(val) then
+                return string.format("%d", val)
             else
-                return string.format("%.1f", scaled)
+                return string.format("%.1f", val)
             end
         end))
     end
@@ -1279,12 +1306,13 @@ local function BuildRelicTab(ctx, heroId)
 
         -- 判断当前预览的是否就是已装备的遗物
         local isViewingEquipped = eqRelic and eqRelic.id == viewId
-        -- 用于显示的遗物数据（已装备用真实数据，未装备用基础数据）
+        -- 用于显示的遗物数据（已装备用真实数据，未装备从 progress 读取）
         local viewRelic
         if isViewingEquipped then
             viewRelic = eqRelic
         else
-            viewRelic = { id = viewId, quality = viewQuality, level = 1, star = 0 }
+            local pLv, pStar = RelicData.GetProgress(viewId)
+            viewRelic = { id = viewId, quality = viewQuality, level = pLv, star = pStar }
         end
 
         local qColor = Config.RELIC_QUALITY_COLOR[viewRelic.quality] or S.gold
@@ -1298,15 +1326,23 @@ local function BuildRelicTab(ctx, heroId)
                 fontSize = 15, fontColor = qColor, fontWeight = "bold",
             },
         }
+        local isViewOwned = RelicData.IsOwned(viewId)
         if isViewingEquipped then
             descChildren[#descChildren + 1] = UI.Label {
                 text = qName .. " · Lv." .. viewRelic.level .. " · ★" .. viewRelic.star,
                 fontSize = 11, fontColor = { 200, 180, 160 }, marginBottom = 4,
             }
-        else
+        elseif isViewOwned then
             descChildren[#descChildren + 1] = UI.Label {
-                text = qName .. " · 未装备",
+                text = qName .. " · Lv." .. viewRelic.level .. " · ★" .. viewRelic.star .. " · 未装备",
                 fontSize = 11, fontColor = { 160, 140, 120 }, marginBottom = 4,
+            }
+        else
+            local viewShards = RelicData.GetShards(viewId)
+            local viewSynthCost = Config.RELIC_SYNTH_COST[viewDef and viewDef.minQuality or "green"] or 80
+            descChildren[#descChildren + 1] = UI.Label {
+                text = "未拥有 · 碎片 " .. viewShards .. "/" .. viewSynthCost,
+                fontSize = 11, fontColor = { 120, 110, 90 }, marginBottom = 4,
             }
         end
         descChildren[#descChildren + 1] = UI.Label {
@@ -1315,51 +1351,63 @@ local function BuildRelicTab(ctx, heroId)
             lineHeight = 1.4,
         }
 
-        -- 右侧：按钮列（升级 / 升星 / 卸下或装备）
+        -- 星级效果描述
+        if viewDef and viewDef.starEffect then
+            local starVal = RelicCalc.FormatStarValue(viewRelic.star, viewDef.starEffect)
+            local starDesc = viewDef.starEffect.desc:gsub("{v}", function() return starVal end)
+            descChildren[#descChildren + 1] = UI.Label {
+                text = starDesc,
+                fontSize = 11, fontColor = { 255, 220, 100 },
+                marginTop = 4,
+            }
+        end
+
+        -- 右侧：按钮列（升级 / 升星 / 卸下或装备）—— 仅已拥有时显示
+        local btnChildren = {}
         local upgradeCost = RelicCalc.GetUpgradeCost(viewRelic.level)
         local essence = HeroData.currencies.relic_essence or 0
-        local canUpgrade = isViewingEquipped and essence >= upgradeCost
+        local canUpgrade = isViewOwned and essence >= upgradeCost
         local starCost = RelicCalc.GetStarUpShardCost(viewRelic.star)
-        local shards = RelicData.GetShards(selectedRelicSlot)
-        local canStarUp = isViewingEquipped and shards >= starCost
+        local shards = RelicData.GetShards(viewId)
+        local canStarUp = isViewOwned and shards >= starCost
 
-        local btnChildren = {}
+        if not isViewOwned then
+            -- 未拥有：不显示任何按钮
+        else
         -- 升级
         btnChildren[#btnChildren + 1] = UI.Panel {
             width = "100%",
             paddingTop = 7, paddingBottom = 7,
-            borderRadius = 8,
+            borderRadius = 8, overflow = "visible",
             backgroundColor = canUpgrade and { 60, 140, 100, 240 } or { 60, 55, 50, 200 },
             justifyContent = "center", alignItems = "center",
             onClick = function(self)
-                if not isViewingEquipped then ShowToast("请先装备此遗物") return end
                 if not canUpgrade then ShowToast("遗物精华不足") return end
-                local ok, msg = RelicData.Upgrade(selectedRelicSlot)
+                local ok, msg = RelicData.UpgradeByRelicId(viewId)
                 ShowToast(msg)
-                ctx.ShowHeroDetail(heroId)
+                if ctx._refreshTab then ctx._refreshTab() else ctx.ShowHeroDetail(heroId) end
             end,
             children = {
                 UI.Label { text = "升级", fontSize = 12, fontColor = canUpgrade and { 255, 255, 255 } or { 120, 110, 100 }, fontWeight = "bold" },
-                UI.Label { text = FormatBigNum(upgradeCost) .. "精华", fontSize = 9, fontColor = canUpgrade and { 200, 240, 200 } or { 100, 90, 80 } },
+                UI.Label { text = FormatBigNum(upgradeCost) .. "精华", fontSize = 9, numberOfLines = 1, fontColor = canUpgrade and { 200, 240, 200 } or { 100, 90, 80 } },
             },
         }
         -- 升星
         btnChildren[#btnChildren + 1] = UI.Panel {
             width = "100%",
             paddingTop = 7, paddingBottom = 7,
-            borderRadius = 8,
+            borderRadius = 8, overflow = "visible",
             backgroundColor = canStarUp and { 180, 140, 40, 240 } or { 60, 55, 50, 200 },
             justifyContent = "center", alignItems = "center",
             onClick = function(self)
-                if not isViewingEquipped then ShowToast("请先装备此遗物") return end
                 if not canStarUp then ShowToast("碎片不足") return end
-                local ok, msg = RelicData.StarUp(selectedRelicSlot)
+                local ok, msg = RelicData.StarUpByRelicId(viewId)
                 ShowToast(msg)
-                ctx.ShowHeroDetail(heroId)
+                if ctx._refreshTab then ctx._refreshTab() else ctx.ShowHeroDetail(heroId) end
             end,
             children = {
                 UI.Label { text = "升星", fontSize = 12, fontColor = canStarUp and { 255, 255, 255 } or { 120, 110, 100 }, fontWeight = "bold" },
-                UI.Label { text = shards .. "/" .. starCost .. "碎片", fontSize = 9, fontColor = canStarUp and { 255, 240, 180 } or { 100, 90, 80 } },
+                UI.Label { text = FormatBigNum(shards) .. "/" .. FormatBigNum(starCost) .. "碎片", fontSize = 9, numberOfLines = 1, fontColor = canStarUp and { 255, 240, 180 } or { 100, 90, 80 } },
             },
         }
         -- 卸下 / 装备
@@ -1402,6 +1450,7 @@ local function BuildRelicTab(ctx, heroId)
                 },
             }
         end
+        end -- if isViewOwned
 
         local btnCol = UI.Panel {
             width = 72, gap = 5,
@@ -1444,8 +1493,19 @@ local function BuildRelicTab(ctx, heroId)
 
     -- ── Section 4: 遗物背包网格（横排，点击预览） ──────────────────────────
     local slotRelics = Config.RELICS_BY_SLOT[selectedRelicSlot] or {}
+    -- 按品质排序：已拥有按品质降序靠前，未拥有按最低品质降序靠后
+    local sortedRelics = {}
+    for _, rDef in ipairs(slotRelics) do sortedRelics[#sortedRelics + 1] = rDef end
+    table.sort(sortedRelics, function(a, b)
+        local aOwned = RelicData.IsOwned(a.id) and 1 or 0
+        local bOwned = RelicData.IsOwned(b.id) and 1 or 0
+        if aOwned ~= bOwned then return aOwned > bOwned end
+        local aQ = Config.RELIC_QUALITY_INDEX[RelicData.GetOwnedQuality(a.id) or a.minQuality] or 1
+        local bQ = Config.RELIC_QUALITY_INDEX[RelicData.GetOwnedQuality(b.id) or b.minQuality] or 1
+        return aQ > bQ
+    end)
     local catalogCells = {}
-    for _, rDef in ipairs(slotRelics) do
+    for _, rDef in ipairs(sortedRelics) do
         local isOwned = RelicData.IsOwned(rDef.id)
         local ownedQuality = RelicData.GetOwnedQuality(rDef.id)
         local isEquipped = eqRelic and eqRelic.id == rDef.id
@@ -1478,12 +1538,20 @@ local function BuildRelicTab(ctx, heroId)
 
         -- 底部标签
         local bottomLabel
+        local cardLv, cardStar = RelicData.GetProgress(rDef.id)
         if isEquipped then
-            bottomLabel = UI.Label { text = "已装备", fontSize = 8, fontColor = { 100, 200, 100 }, fontWeight = "bold" }
+            bottomLabel = UI.Label { text = "Lv." .. cardLv .. " ★" .. cardStar, fontSize = 8, fontColor = { 100, 200, 100 }, fontWeight = "bold" }
         elseif isOwned then
-            bottomLabel = UI.Label { text = qName, fontSize = 8, fontColor = qColor }
+            bottomLabel = UI.Label { text = "Lv." .. cardLv .. " ★" .. cardStar, fontSize = 8, fontColor = qColor }
         else
-            bottomLabel = UI.Label { text = "未拥有", fontSize = 8, fontColor = { 80, 70, 60 } }
+            -- 未拥有：显示碎片数量
+            local shardCount = RelicData.GetShards(rDef.id)
+            local synthCost = Config.RELIC_SYNTH_COST[rDef.minQuality] or 80
+            local shardColor = shardCount >= synthCost and { 100, 220, 100 } or { 120, 110, 90 }
+            bottomLabel = UI.Label {
+                text = "碎片 " .. shardCount .. "/" .. synthCost,
+                fontSize = 8, fontColor = shardColor,
+            }
         end
 
         catalogCells[#catalogCells + 1] = UI.Panel {
@@ -1496,11 +1564,11 @@ local function BuildRelicTab(ctx, heroId)
             borderWidth = cellBorderW,
             borderColor = cellBorder,
             backgroundColor = cellBg,
-            onClick = isOwned and function(self)
-                -- 点击切换预览，只有已拥有才能操作
-                selectedRelicView = { id = rDef.id, quality = ownedQuality }
+            onClick = function(self)
+                -- 点击切换预览（已拥有和未拥有均可查看详情）
+                selectedRelicView = { id = rDef.id, quality = ownedQuality or rDef.minQuality }
                 ctx.ShowHeroDetail(heroId)
-            end or nil,
+            end,
             children = {
                 UI.Label { text = rDef.name, fontSize = 10, fontColor = qColor, fontWeight = isOwned and "bold" or "normal", textAlign = "center" },
                 bottomLabel,
@@ -1508,21 +1576,14 @@ local function BuildRelicTab(ctx, heroId)
         }
     end
 
-    -- ── Section 5: 底部货币栏 ────────────────────────────────────────────────
+    -- ── Section 5: 底部货币栏（仅精华） ─────────────────────────────────────
     local essenceAmt = HeroData.currencies.relic_essence or 0
-    local shardAmt = RelicData.GetShards(selectedRelicSlot)
-    local slotDef = nil
-    for _, sd in ipairs(Config.RELIC_SLOTS) do
-        if sd.id == selectedRelicSlot then slotDef = sd break end
-    end
-    local slotName = slotDef and slotDef.name or selectedRelicSlot
 
     local currencyBar = UI.Panel {
         width = "100%", marginTop = 4,
         flexDirection = "row",
-        justifyContent = "center", alignItems = "center",
-        gap = 16,
-        paddingTop = 8, paddingBottom = 8,
+        justifyContent = "flex-end", alignItems = "center",
+        paddingTop = 8, paddingBottom = 8, paddingRight = 12,
         backgroundColor = { 35, 26, 18, 200 },
         borderRadius = 8,
         children = {
@@ -1531,13 +1592,6 @@ local function BuildRelicTab(ctx, heroId)
                 children = {
                     Currency.IconWidget(UI, "relic_essence", 16),
                     UI.Label { text = FormatBigNum(essenceAmt), fontSize = 12, fontColor = { 255, 215, 100 } },
-                },
-            },
-            UI.Panel {
-                flexDirection = "row", alignItems = "center", gap = 4,
-                children = {
-                    UI.Label { text = slotName .. "碎片", fontSize = 11, fontColor = { 180, 160, 140 } },
-                    UI.Label { text = tostring(shardAmt), fontSize = 12, fontColor = { 200, 180, 140 }, fontWeight = "bold" },
                 },
             },
         },
@@ -2152,6 +2206,11 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
 
     -- 填充内容
     RefreshDetailContent(ctx, heroId, heroDef)
+
+    -- 轻量刷新：仅重建当前标签页内容（不重建头部和框架）
+    ctx._refreshTab = function()
+        RefreshDetailContent(ctx, heroId, heroDef)
+    end
 
     -- 半透明遮罩
     local oldOverlay = ctx.GetHeroDetailOverlay()

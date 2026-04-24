@@ -124,7 +124,7 @@ function HL.CreateBossDef()
     local cfg = HL.CONFIG
     local bossDef = Config.BuildHatredBoss(1, 1.0)
     -- 覆盖为无限HP
-    bossDef.baseHP = math.maxinteger
+    bossDef.baseHP = math.huge
     bossDef.baseDEF = cfg.bossDEF
     bossDef.speed = 12
     bossDef.size = 28
@@ -373,17 +373,23 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
         HeroData.currencies.relic_essence = (HeroData.currencies.relic_essence or 0) + calc.essence
     end
 
-    -- 发放随机部位碎片
+    -- 发放随机遗物碎片（per-relic 模式）
     local RelicData = require("Game.RelicData")
-    local slotIds = Config.RELIC_SLOT_IDS or { "power", "heart", "eye", "will" }
-    local shardDetail = {}
+    local shardDetail = {}  -- { [relicId] = count }
     if calc.shards > 0 then
-        for i = 1, calc.shards do
-            local slot = slotIds[math.random(1, #slotIds)]
-            shardDetail[slot] = (shardDetail[slot] or 0) + 1
+        -- 构建全遗物池
+        local allRelicIds = {}
+        for _, slot in ipairs(Config.RELIC_SLOT_IDS) do
+            for _, rDef in ipairs(Config.RELICS_BY_SLOT[slot] or {}) do
+                allRelicIds[#allRelicIds + 1] = rDef.id
+            end
         end
-        for slot, count in pairs(shardDetail) do
-            RelicData.Decompose(slot, count)
+        for i = 1, calc.shards do
+            local relicId = allRelicIds[math.random(1, #allRelicIds)]
+            shardDetail[relicId] = (shardDetail[relicId] or 0) + 1
+        end
+        for relicId, count in pairs(shardDetail) do
+            RelicData.Decompose(relicId, count)
         end
     end
 
@@ -396,6 +402,12 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
     end
 
     HeroData.Save(true)
+
+    -- 排行榜上传（按难度每日榜）
+    local ok_lb, LBMod = pcall(require, "Game.LeaderboardData")
+    if ok_lb and LBMod.UploadHatredLandDiffDaily then
+        LBMod.UploadHatredLandDiffDaily(totalDamage, difficultyLevel)
+    end
 
     if hasReward then
         local synInfo = ""

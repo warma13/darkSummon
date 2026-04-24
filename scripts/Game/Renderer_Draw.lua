@@ -17,6 +17,19 @@ local DrawMobImage            = ctx.DrawMobImage
 local EmitDebuffParticles     = ctx.EmitDebuffParticles
 local DrawEnemyDebuffParticles = ctx.DrawEnemyDebuffParticles
 
+-- 避免在每帧绘制函数中 require（Lua require 有表查找开销）
+local Enemy        = require("Game.Enemy")
+local RelicEffects  = require("Game.RelicEffects")
+local RelicData     = require("Game.RelicData")
+local WorldBossData = require("Game.WorldBossData")
+
+-- BattleManager 延迟 require（避免循环依赖：Combat→HatredBossSkills→Renderer→BM→Combat）
+local _BM
+local function GetBM()
+    if not _BM then _BM = require("Game.BattleManager") end
+    return _BM
+end
+
 -- NanoVG 文本缓存（仅值变化时重新格式化）
 local nvgTextCache = {
     overloadRemain = nil, overloadStr = nil,
@@ -24,6 +37,12 @@ local nvgTextCache = {
     nextWaveSec = nil, nextWaveStr = nil,
     bossPct = nil, bossName = nil, bossHpStr = nil,
     bossRemainSec = nil, bossTimeStr = nil,
+    -- 世界Boss技能渲染缓存
+    shackleTough = nil, shackleMax = nil, shackleStr = nil,
+    shackleTimer = nil, shackleTimerStr = nil,
+    destTough = nil, destMax = nil, destStr = nil,
+    destTimer = nil, destTimerStr = nil,
+    destRadius = nil, destAreaStr = nil, destInfoStr = nil,
 }
 
 local function DrawEnemyShape(vg, x, y, size, shape, r, g, b, alpha)
@@ -233,7 +252,7 @@ function Renderer.DrawEnemies(vg)
             nvgFillColor(vg, rgba(Config.COLORS.hpBarBg))
             nvgFill(vg)
 
-            local hpRatio = e.hp / e.maxHP
+            local hpRatio = (e.maxHP == math.huge) and 1.0 or (e.hp / e.maxHP)
             if hpRatio > 0 then
                 nvgBeginPath(vg)
                 nvgRoundedRect(vg, barX, barY, barW * hpRatio, barH, 1)
@@ -267,11 +286,15 @@ function Renderer.DrawEnemies(vg)
 
             -- 词缀名称标签（血条上方，拼接显示）
             if e.affixes and #e.affixes > 0 and Renderer.fontId >= 0 then
-                local parts = {}
-                for _, a in ipairs(e.affixes) do
-                    parts[#parts + 1] = a.name or a.id
+                -- 词缀列表不变，缓存拼接结果到敌人上
+                if not e._affixStr then
+                    local parts = {}
+                    for _, a in ipairs(e.affixes) do
+                        parts[#parts + 1] = a.name or a.id
+                    end
+                    e._affixStr = table.concat(parts, "·")
                 end
-                local affixStr = table.concat(parts, "·")
+                local affixStr = e._affixStr
                 local affixY = barY - (e.isBoss and 14 or 2)
                 nvgFontFaceId(vg, Renderer.fontId)
                 nvgFontSize(vg, 8)
@@ -445,10 +468,9 @@ end
 
 --- 绘制怪物数量指示器 + 倒计时（路径上方）
 function Renderer.DrawEnemyCount(vg, ox, oy)
-    local Enemy = require("Game.Enemy")
-    local BM = require("Game.BattleManager")
     local count = Enemy.GetAliveCount()
-    local max = (BM.IsActive() and BM.config.overloadLimit) or Config.MAX_ENEMIES
+    local bm = GetBM()
+    local max = (bm.IsActive() and bm.config.overloadLimit) or Config.MAX_ENEMIES
 
     -- 路径顶部中央位置
     local centerX = ox + Config.GRID_COLS * Config.CELL_SIZE * 0.5
@@ -653,7 +675,7 @@ function Renderer.DrawBossBar(vg, w)
     nvgFill(vg)
 
     if boss then
-        local hpRatio = math.max(0, boss.hp / boss.maxHP)
+        local hpRatio = (boss.maxHP == math.huge) and 1.0 or math.max(0, boss.hp / boss.maxHP)
 
         -- 血条填充（渐变红色）
         local hpFillW = hpAreaW * hpRatio
@@ -726,8 +748,7 @@ function Renderer.DrawBossBar(vg, w)
         -- 血条下方右侧：伤害计数器（带背景底板）
         local dmgY = barY + barH + 3
         local totalDmg = State.worldBossTotalDamage or 0
-        local WB = require("Game.WorldBossData")
-        local dmgStr = "伤害 " .. WB.FormatDamage(totalDmg)
+        local dmgStr = "伤害 " .. WorldBossData.FormatDamage(totalDmg)
 
         -- 底板背景
         local dmgBgW = 90
@@ -1074,19 +1095,30 @@ function Renderer.DrawHatredBossSkillFX(vg, w, h)
         nvgStrokeWidth(vg, 1)
         nvgStroke(vg)
 
-        -- 韧性文字
+        -- 韧性文字（缓存）
+        local sTough = sc.toughness or 0
+        local sMax = sc.maxToughness or 0
+        if sTough ~= nvgTextCache.shackleTough or sMax ~= nvgTextCache.shackleMax then
+            nvgTextCache.shackleTough = sTough
+            nvgTextCache.shackleMax = sMax
+            nvgTextCache.shackleStr = "韧性 " .. sTough .. "/" .. sMax
+        end
         nvgFontFace(vg, "sans")
         nvgFontSize(vg, 10)
         nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
         nvgFillColor(vg, nvgRGBA(255, 220, 60, 220))
-        nvgText(vg, barX + barW * 0.5, barY - 1,
-            string.format("韧性 %d/%d", sc.toughness or 0, sc.maxToughness or 0))
+        nvgText(vg, barX + barW * 0.5, barY - 1, nvgTextCache.shackleStr)
 
-        -- 倒计时文字
+        -- 倒计时文字（缓存到 0.1s 精度）
+        local sTimerKey = math.floor((sc.timer or 0) * 10)
+        if sTimerKey ~= nvgTextCache.shackleTimer then
+            nvgTextCache.shackleTimer = sTimerKey
+            nvgTextCache.shackleTimerStr = string.format("%.1f", math.max(0, sTimerKey * 0.1))
+        end
         nvgFontSize(vg, 14)
         nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
         nvgFillColor(vg, nvgRGBA(255, 80, 80, math.floor(180 + 60 * pulse)))
-        nvgText(vg, cx, cy, string.format("%.1f", math.max(0, sc.timer or 0)))
+        nvgText(vg, cx, cy, nvgTextCache.shackleTimerStr)
     end
 
     -- ======== 2. 终焉毁灭固定区域 + 韧性条 + 倒计时 ========
@@ -1121,12 +1153,17 @@ function Renderer.DrawHatredBossSkillFX(vg, w, h)
         nvgFillColor(vg, nvgRGBA(255, 20, 20, 200))
         nvgFill(vg)
 
-        -- 中心倒计时文字
+        -- 中心倒计时文字（缓存到 0.1s 精度）
+        local dTimerKey = math.floor(math.max(0, timer) * 10)
+        if dTimerKey ~= nvgTextCache.destTimer then
+            nvgTextCache.destTimer = dTimerKey
+            nvgTextCache.destTimerStr = string.format("%.1f", dTimerKey * 0.1)
+        end
         nvgFontFace(vg, "sans")
         nvgFontSize(vg, 16)
         nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
         nvgFillColor(vg, nvgRGBA(255, 255, 255, math.floor(200 + 55 * pulse)))
-        nvgText(vg, dcx, dcy, string.format("%.1f", math.max(0, timer)))
+        nvgText(vg, dcx, dcy, nvgTextCache.destTimerStr)
 
         -- 韧性条（屏幕顶部居中显示）
         local barW = 200
@@ -1158,21 +1195,31 @@ function Renderer.DrawHatredBossSkillFX(vg, w, h)
         nvgStrokeWidth(vg, 1.5)
         nvgStroke(vg)
 
-        -- 韧性文字
+        -- 韧性文字（缓存）
+        local dTough = dest.toughness or 0
+        local dMax = dest.maxToughness or 0
+        if dTough ~= nvgTextCache.destTough or dMax ~= nvgTextCache.destMax then
+            nvgTextCache.destTough = dTough
+            nvgTextCache.destMax = dMax
+            nvgTextCache.destStr = "终焉毁灭 韧性 " .. dTough .. "/" .. dMax
+        end
         nvgFontFace(vg, "sans")
         nvgFontSize(vg, 12)
         nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
         nvgFillColor(vg, nvgRGBA(255, 220, 60, 240))
-        nvgText(vg, w * 0.5, barY - 2,
-            string.format("终焉毁灭 韧性 %d/%d", dest.toughness or 0, dest.maxToughness or 0))
+        nvgText(vg, w * 0.5, barY - 2, nvgTextCache.destStr)
 
-        -- 区域大小+倒计时文字
+        -- 区域大小+倒计时文字（缓存）
+        if radius ~= nvgTextCache.destRadius or dTimerKey ~= nvgTextCache.destTimer then
+            nvgTextCache.destRadius = radius
+            local side = radius * 2 + 1
+            nvgTextCache.destInfoStr = "毁灭区域: " .. side .. "x" .. side ..
+                "  倒计时: " .. (nvgTextCache.destTimerStr or "0.0") .. "s"
+        end
         nvgFontSize(vg, 11)
         nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_TOP)
         nvgFillColor(vg, nvgRGBA(255, 100, 100, 200))
-        local areaStr = string.format("%dx%d", radius * 2 + 1, radius * 2 + 1)
-        nvgText(vg, w * 0.5, barY + barH + 2,
-            string.format("毁灭区域: %s  倒计时: %.1fs", areaStr, math.max(0, timer)))
+        nvgText(vg, w * 0.5, barY + barH + 2, nvgTextCache.destInfoStr)
     end
 
     -- ======== 3. 施法边框（通用，复用 Emerald 风格） ========
@@ -1260,8 +1307,6 @@ local _relicChargeImgCache = {}
 local _relicChargeGlowTime = 0
 
 function Renderer.DrawRelicChargeBar(vg, ox, oy)
-    local RelicEffects = require("Game.RelicEffects")
-    local RelicData    = require("Game.RelicData")
 
     local charge = RelicEffects.GetChargeState()
     if not charge or charge.max <= 0 then return end

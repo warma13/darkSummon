@@ -170,9 +170,6 @@ function GameUI.BuildHeroInfoContent(tower)
     local detailText = "Lv." .. tower.heroLevel
         .. "  ★" .. tower.star
         .. "  " .. (tierInfo and tierInfo.name or "") .. (tower.heroStar or 0) .. "星"
-    if (tower.heroAwakening or 0) > 0 then
-        detailText = detailText .. "  觉醒" .. tower.heroAwakening
-    end
 
     result[#result + 1] = ctx.UI.Panel {
         width = "100%",
@@ -428,9 +425,6 @@ function GameUI.UpdateHeroInfoValues(tower, panel)
         local detailText = "Lv." .. tower.heroLevel
             .. "  ★" .. tower.star
             .. "  " .. (tierInfo and tierInfo.name or "") .. (tower.heroStar or 0) .. "星"
-        if (tower.heroAwakening or 0) > 0 then
-            detailText = detailText .. "  觉醒" .. tower.heroAwakening
-        end
         detailLabel:SetText(detailText)
     end
 

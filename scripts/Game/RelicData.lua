@@ -25,13 +25,9 @@ local function EnsureData()
             eye   = nil,
             will  = nil,
         },
-        shards = {
-            power = 0,
-            heart = 0,
-            eye   = 0,
-            will  = 0,
-        },
+        shards = {},  -- { [relicId] = count } 每件遗物独立碎片
         owned = {},  -- { [relicId] = quality } 已拥有的遗物及其品质
+        progress = {},  -- { [relicId] = { level, star } } 遗物升级进度（换装时保留）
     }
     HeroData.relicData, relicSnapshot = SafeTable.CreateDeep(data)
 end
@@ -44,10 +40,57 @@ function RelicData.SetData(data)
         data.equipped = data.equipped or {}
         data.shards = data.shards or {}
         data.owned = data.owned or {}
-        for _, slotId in ipairs(Config.RELIC_SLOT_IDS) do
-            if data.shards[slotId] == nil then
-                data.shards[slotId] = 0
+        data.progress = data.progress or {}
+        -- 旧存档兼容：从已装备遗物中恢复 progress
+        for _, sid in ipairs(Config.RELIC_SLOT_IDS) do
+            local eq = data.equipped[sid]
+            if eq and eq.id and ((eq.level or 1) > 1 or (eq.star or 0) > 0) then
+                if not data.progress[eq.id] then
+                    data.progress[eq.id] = { level = eq.level or 1, star = eq.star or 0 }
+                end
             end
+        end
+        -- 旧存档迁移：部位碎片 → 遗物碎片
+        -- 检测旧格式（shards key 为 slotId 如 "power"/"heart"）
+        local needMigrate = false
+        for _, slotId in ipairs(Config.RELIC_SLOT_IDS) do
+            if data.shards[slotId] and type(data.shards[slotId]) == "number" and data.shards[slotId] > 0 then
+                needMigrate = true
+                break
+            end
+        end
+        if needMigrate then
+            local oldShards = {}
+            for _, slotId in ipairs(Config.RELIC_SLOT_IDS) do
+                oldShards[slotId] = data.shards[slotId] or 0
+                data.shards[slotId] = nil  -- 清除旧 key
+            end
+            -- 将部位碎片平均分配给该部位下未拥有的遗物
+            for slotId, count in pairs(oldShards) do
+                if count > 0 then
+                    local slotRelics = Config.RELICS_BY_SLOT[slotId] or {}
+                    local unowned = {}
+                    for _, rDef in ipairs(slotRelics) do
+                        if not data.owned[rDef.id] then
+                            unowned[#unowned + 1] = rDef.id
+                        end
+                    end
+                    if #unowned > 0 then
+                        local perRelic = math.floor(count / #unowned)
+                        local remainder = count - perRelic * #unowned
+                        for i, relicId in ipairs(unowned) do
+                            data.shards[relicId] = (data.shards[relicId] or 0) + perRelic + (i == 1 and remainder or 0)
+                        end
+                    else
+                        -- 全部已拥有，分配给第一个遗物
+                        local firstRelic = (Config.RELICS_BY_SLOT[slotId] or {})[1]
+                        if firstRelic then
+                            data.shards[firstRelic.id] = (data.shards[firstRelic.id] or 0) + count
+                        end
+                    end
+                end
+            end
+            print("[RelicData] Migrated old slot-shards to per-relic shards")
         end
         -- 旧存档兼容：已装备的遗物自动标记为拥有
         for _, slotId in ipairs(Config.RELIC_SLOT_IDS) do
@@ -101,12 +144,45 @@ function RelicData.HasRelic(slotId, relicId)
     return r ~= nil and r.id == relicId
 end
 
---- 获取指定部位碎片数量
----@param slotId string
+--- 获取指定遗物的碎片数量
+---@param relicId string 遗物 id（如 "judgment_spear"）
 ---@return number
-function RelicData.GetShards(slotId)
+function RelicData.GetShards(relicId)
     EnsureData()
-    return HeroData.relicData.shards[slotId] or 0
+    return HeroData.relicData.shards[relicId] or 0
+end
+
+--- 获取遗物的升级进度（已装备/未装备通用）
+---@param relicId string
+---@return number level, number star
+function RelicData.GetProgress(relicId)
+    EnsureData()
+    -- 优先从装备槽读取（装备中的遗物是最新数据）
+    for _, sid in ipairs(Config.RELIC_SLOT_IDS) do
+        local eq = HeroData.relicData.equipped[sid]
+        if eq and eq.id == relicId then
+            return eq.level or 1, eq.star or 0
+        end
+    end
+    -- 未装备：从 progress 读取
+    local saved = HeroData.relicData.progress[relicId]
+    if saved then
+        return saved.level or 1, saved.star or 0
+    end
+    return 1, 0
+end
+
+--- 获取指定部位下所有遗物的碎片总数
+---@param slotId string "power"/"heart"/"eye"/"will"
+---@return number
+function RelicData.GetSlotShards(slotId)
+    EnsureData()
+    local total = 0
+    local slotRelics = Config.RELICS_BY_SLOT[slotId] or {}
+    for _, rDef in ipairs(slotRelics) do
+        total = total + (HeroData.relicData.shards[rDef.id] or 0)
+    end
+    return total
 end
 
 --- 统计已装备的红色品质遗物数量
@@ -159,10 +235,10 @@ function RelicData.GetOwnedBySlot(slotId)
     return result
 end
 
---- 处理一次遗物掉落（纯碎片模式）
---- 掉落 → 获得对应部位碎片（数量按品质）；碎片达到合成阈值时自动合成遗物
+--- 处理一次遗物掉落（per-relic 碎片模式）
+--- 掉落 → 获得具体遗物碎片（数量按品质）；碎片达到合成阈值时自动合成遗物
 ---@param drop table { slotId, relicId, quality } 由 RollDrop 生成
----@return table { slotId, shards, synthResult: table|nil }
+---@return table { slotId, relicId, relicName, shards, synthResult: table|nil }
 function RelicData.ProcessDrop(drop)
     EnsureData()
 
@@ -170,46 +246,51 @@ function RelicData.ProcessDrop(drop)
     local qIdx = Config.RELIC_QUALITY_INDEX[drop.quality] or 1
     local shardCount = qIdx  -- 精良1 稀有2 史诗3 传说4 神话5
 
-    HeroData.relicData.shards[drop.slotId] = (HeroData.relicData.shards[drop.slotId] or 0) + shardCount
-    print("[RelicData] Drop → +" .. shardCount .. " " .. drop.slotId .. " shards (quality=" .. drop.quality .. ")")
+    -- 给具体遗物加碎片
+    HeroData.relicData.shards[drop.relicId] = (HeroData.relicData.shards[drop.relicId] or 0) + shardCount
+    local relicDef = Config.RELICS[drop.relicId]
+    local relicName = relicDef and relicDef.name or drop.relicId
+    print("[RelicData] Drop → +" .. shardCount .. " " .. relicName .. " shards (quality=" .. drop.quality .. ")")
 
-    -- 检查自动合成：尝试从高品质到低品质合成
-    local synthResult = RelicData.TrySynthesize(drop.slotId)
+    -- 检查自动合成：该遗物碎片是否达到合成阈值
+    local synthResult = RelicData.TrySynthesize(drop.relicId)
 
     HeroData.Save()
     return {
         slotId = drop.slotId,
+        relicId = drop.relicId,
+        relicName = relicName,
         shards = shardCount,
         synthResult = synthResult,  -- nil 表示未触发合成
     }
 end
 
---- 尝试自动合成：检查指定部位碎片是否达到某个品质的合成阈值
---- 优先合成未拥有的最低品质遗物
----@param slotId string
+--- 尝试自动合成：检查指定遗物碎片是否达到合成阈值
+--- 碎片足够且未拥有时自动合成
+---@param relicId string 遗物 id
 ---@return table|nil { relicId, relicName, quality, cost }
-function RelicData.TrySynthesize(slotId)
+function RelicData.TrySynthesize(relicId)
     EnsureData()
-    local shards = HeroData.relicData.shards[slotId] or 0
-    local slotRelics = Config.RELICS_BY_SLOT[slotId] or {}
+    -- 已拥有则不合成
+    if HeroData.relicData.owned[relicId] then return nil end
 
-    -- 从低品质到高品质遍历，找第一个未拥有且碎片够的
-    for _, rDef in ipairs(slotRelics) do
-        if not HeroData.relicData.owned[rDef.id] then
-            local cost = Config.RELIC_SYNTH_COST[rDef.minQuality] or 80
-            if shards >= cost then
-                -- 扣碎片、标记拥有
-                HeroData.relicData.shards[slotId] = shards - cost
-                HeroData.relicData.owned[rDef.id] = rDef.minQuality
-                print("[RelicData] SYNTH " .. rDef.name .. " (" .. rDef.minQuality .. ") cost " .. cost .. " " .. slotId .. " shards")
-                return {
-                    relicId = rDef.id,
-                    relicName = rDef.name,
-                    quality = rDef.minQuality,
-                    cost = cost,
-                }
-            end
-        end
+    local rDef = Config.RELICS[relicId]
+    if not rDef then return nil end
+
+    local shards = HeroData.relicData.shards[relicId] or 0
+    local cost = Config.RELIC_SYNTH_COST[rDef.minQuality] or 80
+
+    if shards >= cost then
+        -- 扣碎片、标记拥有
+        HeroData.relicData.shards[relicId] = shards - cost
+        HeroData.relicData.owned[relicId] = rDef.minQuality
+        print("[RelicData] SYNTH " .. rDef.name .. " (" .. rDef.minQuality .. ") cost " .. cost .. " " .. relicId .. " shards")
+        return {
+            relicId = rDef.id,
+            relicName = rDef.name,
+            quality = rDef.minQuality,
+            cost = cost,
+        }
     end
     return nil
 end
@@ -249,15 +330,29 @@ function RelicData.Equip(slotId, relicId, quality)
     -- 使用拥有时获得的品质
     quality = HeroData.relicData.owned[relicId]
 
+    -- 保存当前槽位旧遗物的升级进度（如果有）
+    local oldRelic = HeroData.relicData.equipped[slotId]
+    if oldRelic and oldRelic.id then
+        HeroData.relicData.progress[oldRelic.id] = {
+            level = oldRelic.level or 1,
+            star = oldRelic.star or 0,
+        }
+    end
+
+    -- 从 progress 恢复新遗物的升级进度（如果曾经升级过）
+    local saved = HeroData.relicData.progress[relicId]
+    local restoredLevel = (saved and saved.level) or 1
+    local restoredStar = (saved and saved.star) or 0
+
     HeroData.relicData.equipped[slotId] = {
         id = relicId,
         quality = quality,
-        level = 1,
-        star = 0,
+        level = restoredLevel,
+        star = restoredStar,
     }
 
     HeroData.Save()
-    print("[RelicData] Equipped " .. def.name .. " (" .. quality .. ") at " .. slotId)
+    print("[RelicData] Equipped " .. def.name .. " (" .. quality .. ") Lv." .. restoredLevel .. " ★" .. restoredStar .. " at " .. slotId)
     return true, "装备成功"
 end
 
@@ -266,8 +361,16 @@ end
 ---@return boolean, string
 function RelicData.Unequip(slotId)
     EnsureData()
-    if not HeroData.relicData.equipped[slotId] then
+    local relic = HeroData.relicData.equipped[slotId]
+    if not relic then
         return false, "该部位无遗物"
+    end
+    -- 卸下前保存升级进度
+    if relic.id then
+        HeroData.relicData.progress[relic.id] = {
+            level = relic.level or 1,
+            star = relic.star or 0,
+        }
     end
     HeroData.relicData.equipped[slotId] = nil
     HeroData.Save()
@@ -294,6 +397,8 @@ function RelicData.Upgrade(slotId)
 
     HeroData.currencies.relic_essence = essence - cost
     relic.level = relic.level + 1
+    -- 同步更新 progress 保底记录
+    HeroData.relicData.progress[relic.id] = { level = relic.level, star = relic.star or 0 }
     HeroData.Save()
     print("[RelicData] Upgrade " .. slotId .. " to Lv." .. relic.level)
     return true, "升级成功 Lv." .. relic.level
@@ -321,6 +426,8 @@ function RelicData.UpgradeMulti(slotId, maxCount)
     end
 
     if upgraded > 0 then
+        -- 同步更新 progress 保底记录
+        HeroData.relicData.progress[relic.id] = { level = relic.level, star = relic.star or 0 }
         HeroData.Save()
         print("[RelicData] UpgradeMulti " .. slotId .. " +" .. upgraded .. " levels")
     end
@@ -331,42 +438,116 @@ end
 -- 升星
 -- ============================================================================
 
---- 用碎片升星
----@param slotId string
+--- 用碎片升星（消耗该遗物自身的碎片）
+---@param slotId string 部位 id
 ---@return boolean, string
 function RelicData.StarUp(slotId)
     EnsureData()
     local relic = HeroData.relicData.equipped[slotId]
     if not relic then return false, "该部位无遗物" end
 
+    local relicId = relic.id
     local shardCost = RelicCalc.GetStarUpShardCost(relic.star)
-    local shards = HeroData.relicData.shards[slotId] or 0
+    local shards = HeroData.relicData.shards[relicId] or 0
     if shards < shardCost then
         return false, "碎片不足(需" .. shardCost .. "，当前" .. shards .. ")"
     end
 
-    HeroData.relicData.shards[slotId] = shards - shardCost
+    HeroData.relicData.shards[relicId] = shards - shardCost
     relic.star = relic.star + 1
+    -- 同步更新 progress 保底记录
+    HeroData.relicData.progress[relicId] = { level = relic.level or 1, star = relic.star }
     HeroData.Save()
-    print("[RelicData] StarUp " .. slotId .. " to ★" .. relic.star)
+    print("[RelicData] StarUp " .. relicId .. " to ★" .. relic.star)
     return true, "升星成功 ★" .. relic.star
+end
+
+--- 按遗物 ID 升级（支持未装备遗物，操作 progress 表）
+---@param relicId string
+---@return boolean, string
+function RelicData.UpgradeByRelicId(relicId)
+    EnsureData()
+    if not RelicData.IsOwned(relicId) then return false, "未拥有该遗物" end
+
+    -- 如果该遗物正装备着，委托给原有按槽位的 Upgrade
+    for _, sid in ipairs(Config.RELIC_SLOT_IDS) do
+        local eq = HeroData.relicData.equipped[sid]
+        if eq and eq.id == relicId then
+            return RelicData.Upgrade(sid)
+        end
+    end
+
+    -- 未装备：操作 progress
+    local prog = HeroData.relicData.progress[relicId] or { level = 1, star = 0 }
+    local cost = RelicCalc.GetUpgradeCost(prog.level)
+    local essence = HeroData.currencies.relic_essence or 0
+    if essence < cost then
+        return false, "遗物精华不足(需" .. cost .. ")"
+    end
+
+    HeroData.currencies.relic_essence = essence - cost
+    prog.level = prog.level + 1
+    HeroData.relicData.progress[relicId] = prog
+    HeroData.Save()
+    print("[RelicData] UpgradeByRelicId " .. relicId .. " to Lv." .. prog.level)
+    return true, "升级成功 Lv." .. prog.level
+end
+
+--- 按遗物 ID 升星（支持未装备遗物，操作 progress 表）
+---@param relicId string
+---@return boolean, string
+function RelicData.StarUpByRelicId(relicId)
+    EnsureData()
+    if not RelicData.IsOwned(relicId) then return false, "未拥有该遗物" end
+
+    -- 如果该遗物正装备着，委托给原有按槽位的 StarUp
+    for _, sid in ipairs(Config.RELIC_SLOT_IDS) do
+        local eq = HeroData.relicData.equipped[sid]
+        if eq and eq.id == relicId then
+            return RelicData.StarUp(sid)
+        end
+    end
+
+    -- 未装备：操作 progress
+    local prog = HeroData.relicData.progress[relicId] or { level = 1, star = 0 }
+    local shardCost = RelicCalc.GetStarUpShardCost(prog.star)
+    local shards = HeroData.relicData.shards[relicId] or 0
+    if shards < shardCost then
+        return false, "碎片不足(需" .. shardCost .. "，当前" .. shards .. ")"
+    end
+
+    HeroData.relicData.shards[relicId] = shards - shardCost
+    prog.star = prog.star + 1
+    HeroData.relicData.progress[relicId] = prog
+    HeroData.Save()
+    print("[RelicData] StarUpByRelicId " .. relicId .. " to ★" .. prog.star)
+    return true, "升星成功 ★" .. prog.star
 end
 
 -- ============================================================================
 -- 分解（重复遗物 → 碎片）
 -- ============================================================================
 
---- 分解一件遗物为碎片
----@param slotId string 遗物所属部位
+--- 增加指定遗物的碎片（分解/奖励通用）
+---@param relicId string 遗物 id
 ---@param shardCount number 获得的碎片数（默认1）
 ---@return boolean, string
-function RelicData.Decompose(slotId, shardCount)
+function RelicData.Decompose(relicId, shardCount)
     EnsureData()
     shardCount = shardCount or 1
-    HeroData.relicData.shards[slotId] = (HeroData.relicData.shards[slotId] or 0) + shardCount
+    HeroData.relicData.shards[relicId] = (HeroData.relicData.shards[relicId] or 0) + shardCount
+
+    -- 碎片增加后检查自动合成
+    local synthResult = RelicData.TrySynthesize(relicId)
+
     HeroData.Save()
-    print("[RelicData] Decompose +%d %s shards", shardCount, slotId)
-    return true, "分解获得 " .. shardCount .. " 个碎片"
+    local relicDef = Config.RELICS[relicId]
+    local name = relicDef and relicDef.name or relicId
+    print("[RelicData] Decompose +" .. shardCount .. " " .. name .. " shards")
+    if synthResult then
+        return true, "分解获得 " .. shardCount .. " 个" .. name .. "碎片，并合成了 " .. synthResult.relicName
+    end
+    return true, "分解获得 " .. shardCount .. " 个" .. name .. "碎片"
 end
 
 -- ============================================================================
@@ -439,7 +620,12 @@ function RelicData.GetPassiveBonus()
     local globalAmp = 0
     local willRelic = HeroData.relicData.equipped.will
     if willRelic and willRelic.id == "eternal_will" then
-        globalAmp = RelicCalc.V(willRelic, Config.RELICS.eternal_will.params.globalAmplify)
+        local ewDef = Config.RELICS.eternal_will
+        globalAmp = RelicCalc.V(willRelic, ewDef.params.globalAmplify)
+        -- 星级效果：增幅提高（渐进值）
+        if ewDef.starEffect and ewDef.starEffect.type == "amplifyAdd" then
+            globalAmp = globalAmp + RelicCalc.StarValue(willRelic.star, ewDef.starEffect)
+        end
     end
     local ampMult = 1 + globalAmp
 
@@ -458,10 +644,22 @@ function RelicData.GetPassiveBonus()
             if p.critDmgBonus then
                 bonus.critDmgPct = bonus.critDmgPct + RelicCalc.V(heartRelic, p.critDmgBonus) * ampMult
             end
+            -- 星级效果：critDmg (生命洪流)
+            if hDef.starEffect and hDef.starEffect.type == "critDmg" then
+                bonus.critDmgPct = bonus.critDmgPct + RelicCalc.StarValue(heartRelic.star, hDef.starEffect)
+            end
+            -- 星级效果：critRate (战意之核)
+            if hDef.starEffect and hDef.starEffect.type == "critRate" then
+                bonus.critRatePct = (bonus.critRatePct or 0) + RelicCalc.StarValue(heartRelic.star, hDef.starEffect)
+            end
             -- 万象归一: 红色遗物额外加成
             if heartRelic.id == "unity_of_all" then
                 local redCount = RelicData.CountRedRelics()
                 local extraPct = p.redRelicBonusPer * redCount
+                -- 星级效果：redBonus 提高每件神话遗物的加成
+                if hDef.starEffect and hDef.starEffect.type == "redBonus" then
+                    extraPct = extraPct + RelicCalc.StarValue(heartRelic.star, hDef.starEffect) * redCount
+                end
                 bonus.atkPct = bonus.atkPct + extraPct * ampMult
                 bonus.spdPct = bonus.spdPct + extraPct * ampMult
                 bonus.critDmgPct = bonus.critDmgPct + extraPct * ampMult
@@ -487,7 +685,11 @@ function RelicData.GetPassiveBonus()
                 bonus.spdPct = bonus.spdPct + RelicCalc.V(willR, wDef.params.fallbackSpdBonus) * ampMult
             end
             if willR.id == "fervent_faith" and (not powerRelic or powerRelic.id == "void_pulse") then
-                bonus.atkPct = bonus.atkPct + RelicCalc.V(willR, wDef.params.fallbackAtkBonus) * ampMult
+                local fbAtk = RelicCalc.V(willR, wDef.params.fallbackAtkBonus)
+                if wDef.starEffect and wDef.starEffect.type == "fallbackAdd" then
+                    fbAtk = fbAtk + RelicCalc.StarValue(willR.star, wDef.starEffect)
+                end
+                bonus.atkPct = bonus.atkPct + fbAtk * ampMult
             end
         end
     end
@@ -507,17 +709,26 @@ function RelicData.GetShadowFocusBonus(tower, isTopAtk)
     local def = Config.RELICS.shadow_focus
     local topBonus = RelicCalc.V(heartRelic, def.params.topAtkBonus)
 
-    -- 永恒意志增幅
+    -- 永恒意志增幅（含星级 amplifyAdd）
     local globalAmp = 0
     local willRelic = HeroData.relicData.equipped.will
     if willRelic and willRelic.id == "eternal_will" then
-        globalAmp = RelicCalc.V(willRelic, Config.RELICS.eternal_will.params.globalAmplify)
+        local ewDef = Config.RELICS.eternal_will
+        globalAmp = RelicCalc.V(willRelic, ewDef.params.globalAmplify)
+        if ewDef.starEffect and ewDef.starEffect.type == "amplifyAdd" then
+            globalAmp = globalAmp + RelicCalc.StarValue(willRelic.star, ewDef.starEffect)
+        end
     end
 
     if isTopAtk then
         return topBonus * (1 + globalAmp)
     else
-        return topBonus * def.params.otherAtkRatio * (1 + globalAmp)
+        -- 星级效果：shareRatio 提高其余英雄分配比
+        local ratio = def.params.otherAtkRatio
+        if def.starEffect and def.starEffect.type == "shareRatio" then
+            ratio = ratio + RelicCalc.StarValue(heartRelic.star, def.starEffect)
+        end
+        return topBonus * ratio * (1 + globalAmp)
     end
 end
 

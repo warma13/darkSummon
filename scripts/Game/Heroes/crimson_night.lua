@@ -112,11 +112,7 @@ function M.TriggerActive(tower, skill)
             target.armorReduceFromDot = needle.armorIgnore or 0.20
         end
 
-        -- 消耗绯瞳层数
-        tower.bloodEyeStacks = 0
-        tower.bloodEyeDecayTimer = nil
-        tower.bonusCritRate = 0
-        tower.bonusCritDmg = 0
+        -- 暂存绯瞳层数，释放后保留一半
     end
 
     -- 强制暴击：临时拉高 bonusCritRate
@@ -129,15 +125,20 @@ function M.TriggerActive(tower, skill)
     -- 恢复暴击率临时加成
     tower.bonusCritRate = savedCritRate
 
-    -- 击杀保留一半绯瞳层数
-    if stacks > 0 and (not target.alive) then
+    -- 保留一半绯瞳层数（击杀和非击杀均保留）
+    if stacks > 0 then
         local half = math.floor(stacks / 2)
+        local bloodEye = has(tower, "blood_eye")
         if half > 0 then
-            local bloodEye = has(tower, "blood_eye")
             tower.bloodEyeStacks = half
             tower.bloodEyeDecayTimer = bloodEye and (bloodEye.decayDuration or 4.0) or 4.0
             tower.bonusCritRate = half * (bloodEye and bloodEye.critRatePerHit or 0.03)
             tower.bonusCritDmg  = bloodEye and (bloodEye.critDmgBonus or 0.50) or 0.50
+        else
+            tower.bloodEyeStacks = 0
+            tower.bloodEyeDecayTimer = nil
+            tower.bonusCritRate = 0
+            tower.bonusCritDmg = 0
         end
     end
 
@@ -188,23 +189,36 @@ end
 function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
     for _, tower in ipairs(towers) do
         if tower.typeDef and tower.typeDef.id == "crimson_night" then
-            -- 衰减暗影印记计时器（存在塔自身）
+            -- 衰减暗影印记计时器（逐层衰减，每1.5秒减1层）
             if tower.shadowNeedleTimer and tower.shadowNeedleTimer > 0 then
                 tower.shadowNeedleTimer = tower.shadowNeedleTimer - dt
                 if tower.shadowNeedleTimer <= 0 then
-                    tower.shadowNeedleStacks = 0
-                    tower.shadowNeedleTimer = nil
+                    tower.shadowNeedleStacks = (tower.shadowNeedleStacks or 0) - 1
+                    if tower.shadowNeedleStacks <= 0 then
+                        tower.shadowNeedleStacks = 0
+                        tower.shadowNeedleTimer = nil
+                    else
+                        tower.shadowNeedleTimer = 1.5  -- 下一层1.5秒后衰减
+                    end
                 end
             end
 
-            -- 衰减绯瞳计时器（停止攻击后绯瞳消失）
+            -- 衰减绯瞳计时器（逐层衰减，每1秒减1层）
             if tower.bloodEyeDecayTimer and tower.bloodEyeDecayTimer > 0 then
                 tower.bloodEyeDecayTimer = tower.bloodEyeDecayTimer - dt
                 if tower.bloodEyeDecayTimer <= 0 then
-                    tower.bloodEyeStacks = 0
-                    tower.bloodEyeDecayTimer = nil
-                    tower.bonusCritRate = 0
-                    tower.bonusCritDmg = 0
+                    tower.bloodEyeStacks = (tower.bloodEyeStacks or 0) - 1
+                    if tower.bloodEyeStacks <= 0 then
+                        tower.bloodEyeStacks = 0
+                        tower.bloodEyeDecayTimer = nil
+                        tower.bonusCritRate = 0
+                        tower.bonusCritDmg = 0
+                    else
+                        tower.bloodEyeDecayTimer = 1.0  -- 下一层1秒后衰减
+                        local bloodEye = has(tower, "blood_eye")
+                        tower.bonusCritRate = tower.bloodEyeStacks * (bloodEye and bloodEye.critRatePerHit or 0.03)
+                        tower.bonusCritDmg  = bloodEye and (bloodEye.critDmgBonus or 0.50) or 0.50
+                    end
                 end
             end
         end

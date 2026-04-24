@@ -22,6 +22,14 @@ local DEFAULT_TABS = {
           { level = 0, label = "普通", color = { 150, 220, 150 }, getKey = function() return LB.GetWorldBossDiffDailyKey(0) end },
       },
     },
+    { key = "hl_diff_combined", label = "憎恨", format = _fmtBoss,
+      combined = {
+          { level = 9, label = "地狱", color = { 255, 80, 80 },   getKey = function() return LB.GetHatredLandDiffDailyKey(9) end },
+          { level = 3, label = "噩梦", color = { 255, 160, 80 },  getKey = function() return LB.GetHatredLandDiffDailyKey(3) end },
+          { level = 1, label = "困难", color = { 255, 220, 100 }, getKey = function() return LB.GetHatredLandDiffDailyKey(1) end },
+          { level = 0, label = "普通", color = { 150, 220, 150 }, getKey = function() return LB.GetHatredLandDiffDailyKey(0) end },
+      },
+    },
     { key = LB.KEY_COSTUME,  label = "时装", format = function(s) return LB.FormatCostume(s) end,
       onActivate = function()
           local ok, CD = pcall(require, "Game.CostumeData")

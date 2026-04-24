@@ -158,6 +158,15 @@ SaveRegistry.Register("mailboxData", {
                 { type = "item", id = "boss_ticket", amount = 1 },
             },
         })
+        MailboxData.SendOnce("comp_20260425_v1063", {
+            title = "v1.0.63 更新补偿",
+            desc = "亲爱的召唤师，本次更新修复了遗物和憎恨之地相关问题，附上补偿奖励，感谢您的支持！",
+            rewards = {
+                { type = "item", id = "hatred_ticket", amount = 2 },
+                { type = "currency", id = "shadow_essence", amount = 1000 },
+                { type = "item", id = "recruit_ticket_select_box", amount = 10 },
+            },
+        })
     end,
 })
 

@@ -357,6 +357,26 @@ function HatredLand._BuildChallengeButton(UI, S, ctx, remaining)
         onClick = function() HatredLand.OnSweep(UI, S, ctx) end,
     }
 
+    actionChildren[#actionChildren + 1] = UI.Button {
+        text = "🏆 排行", fontSize = 13,
+        width = 76, height = 46, borderRadius = 8, variant = "outline",
+        onClick = function()
+            local LeaderboardUI = require("Game.LeaderboardUI")
+            local LBData = require("Game.LeaderboardData")
+            local diffTabs = {
+                { key = LBData.GetHatredLandDiffDailyKey(0), label = "普通",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+                { key = LBData.GetHatredLandDiffDailyKey(1), label = "困难",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+                { key = LBData.GetHatredLandDiffDailyKey(3), label = "噩梦",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+                { key = LBData.GetHatredLandDiffDailyKey(9), label = "地狱",
+                  format = function(s) return LBData.FormatWorldBoss(s) end },
+            }
+            LeaderboardUI.ShowWithTabs(diffTabs, 1)
+        end,
+    }
+
     return UI.Panel {
         width = "100%", flexDirection = "row", alignItems = "center",
         paddingLeft = 12, paddingRight = 12, paddingTop = 10, paddingBottom = 10,
@@ -441,24 +461,26 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
                     borderColor = { 200, 150, 255, 200 },
                 }
             end
-            if rewards.shards > 0 then
-                rewardItems[#rewardItems + 1] = {
-                    icon = "",
-                    name = "部位碎片",
-                    amount = rewards.shards,
-                    borderColor = { 150, 200, 255, 200 },
-                }
+            -- 遗物碎片明细（shardDetail 已改为 { [relicId] = count }）
+            if rewards.shardDetail then
+                for relicId, count in pairs(rewards.shardDetail) do
+                    local rDef = Config.RELICS[relicId]
+                    local rName = rDef and rDef.name or relicId
+                    rewardItems[#rewardItems + 1] = {
+                        icon = "",
+                        name = rName .. "碎片",
+                        amount = count,
+                        borderColor = { 150, 200, 255, 200 },
+                    }
+                end
             end
-            -- 遗物碎片掉落
+            -- 额外遗物碎片掉落（品质加成）
             if rewards.relicDrop then
                 local rd = rewards.relicDrop
-                local slotName = ""
-                for _, s in ipairs(Config.RELIC_SLOTS) do
-                    if s.id == rd.slotId then slotName = s.name; break end
-                end
+                local rdName = rd.relicName or rd.relicId or ""
                 rewardItems[#rewardItems + 1] = {
                     icon = "",
-                    name = slotName .. "碎片",
+                    name = rdName .. "碎片",
                     amount = rd.shards,
                     borderColor = { 150, 200, 255, 200 },
                 }

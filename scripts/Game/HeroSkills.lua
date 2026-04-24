@@ -84,57 +84,15 @@ local function getmod(tower)
 end
 
 -- ============================================================================
--- 技能等级计算
+-- 星级缩放系数
 -- ============================================================================
 
+--- 根据英雄星级计算缩放系数：0星→10%，满星→100%
 ---@param heroStar number  0-30
----@return number  1-7
-function HeroSkills.GetPassiveSkillLevel(heroStar)
-    local level = 1
-    for _, threshold in ipairs(Config.PASSIVE_UPGRADE_STARS) do
-        if heroStar >= threshold then level = level + 1 end
-    end
-    return level
-end
-
----@param advanceLevel number  0-20
----@return number  1-5
-function HeroSkills.GetActiveSkillLevel(advanceLevel)
-    local level = 1
-    for _, threshold in ipairs(Config.ACTIVE_UPGRADE_GATES) do
-        if advanceLevel >= threshold then level = level + 1 end
-    end
-    return level
-end
-
----@param passiveLevel number  1-7
----@return number
-function HeroSkills.GetPassiveMultiplier(passiveLevel)
-    local mult = 1.0
-    for i = 1, passiveLevel - 1 do
-        mult = mult * (Config.PASSIVE_UPGRADE_MULTS[i] or 1.0)
-    end
-    return mult
-end
-
----@param activeLevel number  1-5
----@return number
-function HeroSkills.GetActiveMultiplier(activeLevel)
-    local mult = 1.0
-    for i = 1, activeLevel - 1 do
-        mult = mult * (Config.ACTIVE_UPGRADE_MULTS[i] or 1.0)
-    end
-    return mult
-end
-
----@param activeLevel number  1-5
----@return number
-function HeroSkills.GetActiveCDMultiplier(activeLevel)
-    local mult = 1.0
-    for i = 1, activeLevel - 1 do
-        mult = mult * (Config.ACTIVE_UPGRADE_CD_MULTS[i] or 1.0)
-    end
-    return mult
+---@return number  0.10 ~ 1.00
+function HeroSkills.GetStarScaleFactor(heroStar)
+    local maxStar = Config.MAX_HERO_STAR or 30
+    return 0.10 + 0.90 * math.sqrt(math.min(heroStar, maxStar) / maxStar)
 end
 
 -- ============================================================================
@@ -171,21 +129,8 @@ local NUMERIC_KEYS = {
     "spreadRatio", "bossExtraDmg",
 }
 
-local function ApplySkillMult(skill, mult)
-    if mult <= 1.0 then return end
-    for _, key in ipairs(NUMERIC_KEYS) do
-        if skill[key] then skill[key] = skill[key] * mult end
-    end
-    if skill.chance then
-        skill.chance = math.min(skill.chance, skill.maxChance or 0.80)
-    end
-    if skill.interval and mult > 1.0 then
-        skill.interval = skill.interval / mult
-    end
-end
-
---- 星级缩放：0星→10%，满星→100%，线性插值
---- 与 ApplySkillMult 不同：即使 factor < 1.0 也应用，且不影响 interval
+--- 星级缩放：0星→10%，满星→100%
+--- 配置值（Config_Meta.lua）= 30星满值，低星按此系数缩放
 ---@param skill table  克隆后的技能
 ---@param factor number  0.10 ~ 1.00
 local function ApplyStarScale(skill, factor)
@@ -209,48 +154,19 @@ function HeroSkills.InitTowerSkills(tower)
 
     local heroInfo     = HeroData.Get(heroId)
     local heroStar     = (heroInfo and heroInfo.star)         or 0
-    local advanceLevel = (heroInfo and heroInfo.advanceLevel) or 0
-    local awaken       = (heroInfo and heroInfo.awakening)    or 0
-    local awakenDefs   = Config.HERO_AWAKENING[heroId]
-
-    local passiveLevel  = HeroSkills.GetPassiveSkillLevel(heroStar)
-    local activeLevel   = HeroSkills.GetActiveSkillLevel(advanceLevel)
-    local passiveMult   = HeroSkills.GetPassiveMultiplier(passiveLevel)
-    local activeDmgMult = HeroSkills.GetActiveMultiplier(activeLevel)
-    local activeCdMult  = HeroSkills.GetActiveCDMultiplier(activeLevel)
 
     -- 星级缩放系数：0星→10%，满星→100%
+    -- 配置值 = 30星满值，通过 starScaleFactor 缩放到当前星级
     local maxStar = Config.MAX_HERO_STAR or 30
     local starScaleFactor = 0.10 + 0.90 * math.sqrt(math.min(heroStar, maxStar) / maxStar)
 
     tower.skills      = {}
-    tower.skillLevels = { passive = passiveLevel, active = activeLevel }
 
     for i, skillDef in ipairs(baseSkills) do
         local skill = CloneSkill(skillDef)
-        -- 先应用星级缩放（基础值 × 星级系数）
-        ApplyStarScale(skill, starScaleFactor)
-        -- 再叠加技能等级倍率
-        if skill.type == "passive" then
-            ApplySkillMult(skill, passiveMult)
-        elseif skill.type == "active" then
-            ApplySkillMult(skill, activeDmgMult)
-            if skill.interval then
-                skill.interval = skill.interval * activeCdMult
-            end
-        end
-        if awaken > 0 and awakenDefs then
-            for a = 1, math.min(awaken, #awakenDefs) do
-                local node = awakenDefs[a]
-                if node then
-                    if node.skillIdx == i then
-                        ApplySkillMult(skill, node.mult or 1.5)
-                    end
-                    if node.allMult and a <= awaken and not node.skillIdx then
-                        ApplySkillMult(skill, node.allMult)
-                    end
-                end
-            end
+        -- 星级缩放（配置满值 × 星级系数）
+        if not skill.starScale then
+            ApplyStarScale(skill, starScaleFactor)
         end
         tower.skills[#tower.skills + 1] = skill
     end
@@ -260,6 +176,18 @@ function HeroSkills.InitTowerSkills(tower)
     for _, skill in ipairs(tower.skills) do
         if skill.type == "active" and skill.interval then
             tower.skillTimers[skill.id] = skill.interval
+        end
+    end
+
+    -- 被动技能属性（如暴击率/暴击伤害）应用到塔面板
+    for _, skill in ipairs(tower.skills) do
+        if skill.type == "passive" then
+            if skill.critRate then
+                tower.critRate = (tower.critRate or 0) + skill.critRate
+            end
+            if skill.critDmg then
+                tower.critDmg = (tower.critDmg or 0) + skill.critDmg
+            end
         end
     end
 

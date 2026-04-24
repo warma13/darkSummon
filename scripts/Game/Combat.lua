@@ -20,6 +20,7 @@ local Tower = require("Game.Tower")
 local LootDrop = require("Game.LootDrop")
 local DamageStats = require("Game.DamageStats")
 local HatredBossSkills = require("Game.HatredBossSkills")
+local Grid = require("Game.Grid")
 
 -- 延迟 require 遗物战斗效果（避免循环依赖）
 local _RelicEffects
@@ -593,10 +594,16 @@ local function OnProjectileHit(proj)
         dotDmg = HeroSkills.ModifyDotDamage(tower, dotDmg, target)
         Enemy.ApplyDOT(target, dotDmg, typeDef.dotDuration or 2.0)
     elseif typeDef.special == "amp_damage" and target.alive then
-        -- 增伤标记（首次施加时飘字）
+        -- 增伤标记（优先读取技能升级后的 ampRate，fallback 到 typeDef）
+        local skillAmpRate = typeDef.ampRate or 0.08
+        if tower.skills then
+            for _, s in ipairs(tower.skills) do
+                if s.ampRate then skillAmpRate = s.ampRate; break end
+            end
+        end
         local isFirst = not Debuff.Has(target, "amp_damage")
         Debuff.Apply(target, "amp_damage", {
-            value    = typeDef.ampRate or 0.08,
+            value    = skillAmpRate,
             duration = typeDef.ampDuration or 3.0,
         })
         if isFirst then
@@ -626,9 +633,19 @@ local function OnProjectileHit(proj)
             })
         end
     elseif typeDef.special == "aoe_control" and target.alive then
-        -- AOE控制（眩晕）
-        if typeDef.stunChance and math.random() < typeDef.stunChance then
-            HeroSkills.ApplyStun(target, typeDef.stunDuration or 1.0)
+        -- AOE控制（眩晕）—— 从技能实例读取（受星级和技能等级缩放）
+        local stunChance = typeDef.stunChance or 0
+        local stunDuration = typeDef.stunDuration or 1.0
+        if tower.skills then
+            for _, s in ipairs(tower.skills) do
+                if s.stunChance then stunChance = s.stunChance; break end
+            end
+            for _, s in ipairs(tower.skills) do
+                if s.stunDuration then stunDuration = s.stunDuration; break end
+            end
+        end
+        if stunChance > 0 and math.random() < stunChance then
+            HeroSkills.ApplyStun(target, stunDuration)
         end
         if typeDef.slowRate then
             local slowRate = typeDef.slowRate
@@ -679,7 +696,6 @@ end
 
 --- 更新战斗系统
 function Combat.Update(dt, gridOffsetX, gridOffsetY)
-    local Grid = require("Game.Grid")
 
     -- 更新光环系统
     HeroSkills.UpdateAuras(State.towers, gridOffsetX, gridOffsetY)

@@ -7,6 +7,13 @@ local State = require("Game.State")
 local Enemy = require("Game.Enemy")
 local Currency = require("Game.Currency")
 
+-- 热路径 math 函数本地缓存
+local mfloor  = math.floor
+local mrandom = math.random
+local mmin    = math.min
+local mmax    = math.max
+local mceil   = math.ceil
+
 local Wave = {}
 
 -- ============================================================================
@@ -63,7 +70,7 @@ local function PickRandom(list, n)
     for i, v in ipairs(list) do copy[i] = v end
     local result = {}
     for i = 1, n do
-        local idx = math.random(1, #copy)
+        local idx = mrandom(1, #copy)
         result[i] = copy[idx]
         table.remove(copy, idx)
     end
@@ -82,7 +89,7 @@ local function PickAffixes(globalWave, stageNum)
         count = 2
     end
 
-    local level = math.max(1, math.floor(stageNum / 10))
+    local level = mmax(1, mfloor(stageNum / 10))
     return Config.PickAffixes(globalWave, count, level)
 end
 
@@ -100,7 +107,7 @@ end
 
 --- 计算速度缩放倍率
 local function GetSpeedScale(stageNum)
-    return 1.0 + math.min(
+    return 1.0 + mmin(
         (stageNum - 1) * Config.STAGE_SPEED_PER_STAGE,
         Config.STAGE_SPEED_CAP - 1.0
     )
@@ -108,7 +115,7 @@ end
 
 --- 计算 BOSS 阶数（每10关升一阶）
 local function GetBossTier(stageNum)
-    return math.ceil(stageNum / 10)
+    return mceil(stageNum / 10)
 end
 
 -- ============================================================================
@@ -118,21 +125,21 @@ end
 --- 生成普通波
 local function GenerateNormalWave(stageNum, waveInStage)
     local roleIds, roleDefs = GetUnlockedRoles(stageNum)
-    local typeCount = math.min(2, #roleIds)
-    if stageNum >= 3 then typeCount = math.min(3, #roleIds) end
+    local typeCount = mmin(2, #roleIds)
+    if stageNum >= 3 then typeCount = mmin(3, #roleIds) end
     local picked = PickRandom(roleIds, typeCount)
 
-    local totalCount = math.min(
-        math.floor(Config.WAVE_BASE_COUNT + waveInStage * Config.WAVE_COUNT_GROWTH + stageNum * 0.5),
+    local totalCount = mmin(
+        mfloor(Config.WAVE_BASE_COUNT + waveInStage * Config.WAVE_COUNT_GROWTH + stageNum * 0.5),
         Config.WAVE_MAX_COUNT
     )
 
     local queue = {}
-    local perType = math.max(1, math.floor(totalCount / #picked))
+    local perType = mmax(1, mfloor(totalCount / #picked))
     for _, roleId in ipairs(picked) do
         local def = roleDefs[roleId]
         local count = perType
-        if roleId == "minion" then count = math.floor(count * 1.5) end
+        if roleId == "minion" then count = mfloor(count * 1.5) end
         local interval = 1.0
         if def and def.speed >= 60 then interval = 0.5 end
         for j = 1, count do
@@ -155,7 +162,7 @@ local function GenerateEliteWave(stageNum, waveInStage)
     local queue = GenerateNormalWave(stageNum, waveInStage)
 
     local roleIds, roleDefs = GetUnlockedRoles(stageNum)
-    local eliteRoleId = roleIds[math.random(1, #roleIds)]
+    local eliteRoleId = roleIds[mrandom(1, #roleIds)]
     local eliteDef = roleDefs[eliteRoleId]
     -- local affixes = PickAffixes(globalWave, stageNum)
 
@@ -164,7 +171,7 @@ local function GenerateEliteWave(stageNum, waveInStage)
     if stageNum >= 5 then eliteCount = 2 end
     if stageNum >= 10 then eliteCount = 3 end
 
-    local insertPos = math.max(1, math.floor(#queue * 0.4))
+    local insertPos = mmax(1, mfloor(#queue * 0.4))
     for i = 1, eliteCount do
         table.insert(queue, insertPos + i, {
             type = eliteDef.id,
@@ -185,9 +192,9 @@ local function GenerateBossWave(stageNum)
 
     -- 前置杂兵：从当前主题的已解锁角色中选
     local roleIds, roleDefs = GetUnlockedRoles(stageNum)
-    local minionRoleId = roleIds[math.random(1, #roleIds)]
+    local minionRoleId = roleIds[mrandom(1, #roleIds)]
     local minionDef = roleDefs[minionRoleId]
-    local minionCount = math.min(4 + stageNum, 10)
+    local minionCount = mmin(4 + stageNum, 10)
     for i = 1, minionCount do
         queue[#queue + 1] = {
             type = minionDef.id,
@@ -226,9 +233,9 @@ local function GenerateBossWave(stageNum)
             type = "__pause",
             delay = 3.0,
         }
-        local reinforceCount = math.min(2 + math.floor(stageNum / 3), 8)
+        local reinforceCount = mmin(2 + mfloor(stageNum / 3), 8)
         for i = 1, reinforceCount do
-            local rId = roleIds[math.random(1, #roleIds)]
+            local rId = roleIds[mrandom(1, #roleIds)]
             local rDef = roleDefs[rId]
             queue[#queue + 1] = {
                 type = rDef.id,

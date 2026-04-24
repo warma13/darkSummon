@@ -90,9 +90,6 @@ function RC.BuildEntry(def)
     elseif def.type == "universal_shard" then
         name = (id or "?") .. "万能碎片"
 
-    elseif def.type == "awakening_mat" then
-        name = "觉醒材料"
-
     else
         name = id or ""
     end

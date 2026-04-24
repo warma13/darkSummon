@@ -1,23 +1,52 @@
 {
   "$schema": "../schemas/project.schema.json",
-  "project_id": "p_nmxd",
+  "project_id": "p_o9fd",
   "author": {
-    "id": "1564171575"
+    "id": "1779057459"
   },
   "entry": "main.lua",
-  "version": "1.0.2",
+  "version": "1.0.63",
   "taptap_publish": {
-    "title": "<game title, required>",
-    "description": "<game description>",
-    "category": "<game category: rpg, casual, action, strategy, simulation, trivia, arcade, adventure, card, sports, racing, puzzle, educational, music, word, board>",
-    "screen_orientation": "landscape",
+    "title": "暗影召唤师",
+    "description": "暗黑风格的合并塔防游戏，招募英雄、合成升级、挑战副本",
+    "category": "strategy",
+    "screen_orientation": "portrait",
     "collection_type": "sce",
-    "trial_note": "<developer's note>",
-    "app_platforms": "1,2"
+    "trial_note": "v1.0.63更新：新增无损换阵功能（交换两个英雄的等级、进阶和装备）。修复了遗物相关bug。修复了憎恨之地相关bug。",
+    "app_platforms": "1,2",
+    "developer_id": 264371,
+    "app_id": 839258,
+    "miniapp_id": "tapmcnrtnmm2wpzqtw",
+    "gameplay_demo_video_source": "https://tapcode-sce.spark.xd.com/videos/p_o9fd/1776868958547-rec_8a5468f1-2627-43ea-a92f-db4bff98cb01.mp4"
   },
   "assets": {
-    "icon": "",
-    "screenshots": [],
-    "promotional_image": ""
+    "icon": "./game_material/ICON_2026-04-12T12-02-38_01.png",
+    "screenshots": [
+      "./game_material/SCREENSHOT_2026-04-11T12-59-30_01.png",
+      "./game_material/SCREENSHOT_2026-04-11T12-59-30_02.png",
+      "./game_material/SCREENSHOT_2026-04-11T12-59-30_03.png"
+    ],
+    "promotional_image": "./game_material/PROMO_2026-04-11T12-59-30_01.jpg",
+    "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/ICON_2026-04-12T12-02-38_01.png",
+    "screenshot_urls": [
+      "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/SCREENSHOT_2026-04-11T12-59-30_01.png",
+      "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/SCREENSHOT_2026-04-11T12-59-30_02.png",
+      "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/SCREENSHOT_2026-04-11T12-59-30_03.png"
+    ],
+    "promotional_image_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/PROMO_2026-04-11T12-59-30_01.jpg",
+    "cover_vertical": "./.project/game_material/COVER_VERTICAL_2026-04-11T13-11-46_01.png",
+    "cover_vertical_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/COVER_VERTICAL_2026-04-11T13-11-46_01.png",
+    "cover_horizontal": "./.project/game_material/COVER_HORIZONTAL_2026-04-11T13-11-46_01.png",
+    "cover_horizontal_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/COVER_HORIZONTAL_2026-04-11T13-11-46_01.png",
+    "square_promotional_image": "./game_material/SQUARE_PROMO_2026-04-11T14-11-19_01.jpg",
+    "square_promotional_image_url": "https://tapcode-sce.spark.xd.com/assets/game_material/暗影召唤师/SQUARE_PROMO_2026-04-11T14-11-19_01.jpg"
+  },
+  "test_qrcode": {
+    "url": "https://tapcode-sce.spark.xd.com/qrcode/p_o9fd_1775600465726.png",
+    "generated_at": "2026-04-07T22:21:05.824Z"
+  },
+  "metadata": {
+    "updated_at": "2026-04-12T12:02:40.157Z",
+    "promo_dependent_hash": "8c2ee63725337dc3263f0c486d3069ec"
   }
 }
