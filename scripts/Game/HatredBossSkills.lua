@@ -1,5 +1,5 @@
 -- Game/HatredBossSkills.lua
--- 憎恨之躯 BOSS 技能系统
+-- 憎恨化身 BOSS 技能系统
 -- 技能组：召唤精英、护盾+防御翻倍、嘲讽（攻速叠层降低）、3x3锁定降星（带韧性条可打断）
 -- 状态机驱动：IDLE -> CASTING -> EXECUTE -> COOLDOWN -> IDLE
 
@@ -72,7 +72,7 @@ local function TowerScreenPos(tower)
     return Grid.CellToScreen(tower.col, tower.row, Renderer.gridOffsetX, Renderer.gridOffsetY)
 end
 
---- 查找存活的憎恨之躯 BOSS
+--- 查找存活的憎恨化身 BOSS
 ---@return table|nil
 local function FindBoss()
     for _, e in ipairs(State.enemies) do
@@ -216,7 +216,7 @@ local function ExecuteSummon(boss)
     -- BOSS 周围粒子
     BurstParticles(boss.x, boss.y, SKILL_COLORS.summon, 15, 35)
 
-    Toast.Show("憎恨之躯召唤了" .. count .. "只精英怪！", SKILL_COLORS.summon)
+    Toast.Show("憎恨化身召唤了" .. count .. "只精英怪！", SKILL_COLORS.summon)
     print(string.format("[HatredBoss] Summon cast #%d count=%d statMult=%.1f", castNum, count, statMult))
 end
 
@@ -247,7 +247,7 @@ local function ExecuteFortress(boss)
     BurstParticles(boss.x, boss.y, SKILL_COLORS.fortress, 20, 30)
 
     local stackCount = skillState.fortressCastCount
-    Toast.Show("憎恨之躯获得护盾，防御×" .. defMult .. "（第" .. stackCount .. "层）", SKILL_COLORS.fortress)
+    Toast.Show("憎恨化身获得护盾，防御×" .. defMult .. "（第" .. stackCount .. "层）", SKILL_COLORS.fortress)
     print(string.format("[HatredBoss] Fortress: shield=%.0f def=%.0f stacks=%d",
         shieldHP, boss.def, stackCount))
 end
@@ -271,7 +271,7 @@ local function ExecuteTaunt(boss)
     -- BOSS 周围红色粒子
     BurstParticles(boss.x, boss.y, SKILL_COLORS.taunt, 15, 30)
 
-    Toast.Show("憎恨之躯释放了嘲讽，攻击它将降低攻速！", SKILL_COLORS.taunt)
+    Toast.Show("憎恨化身释放了嘲讽，攻击它将降低攻速！", SKILL_COLORS.taunt)
     print("[HatredBoss] Taunt active for " .. duration .. "s")
 end
 
@@ -373,7 +373,7 @@ local function StartStarCrush(boss)
     }
 
     -- 提示
-    Toast.Show("⚠ 憎恨之躯正在凝聚毁灭之力！", { 255, 40, 40 })
+    Toast.Show("⚠ 憎恨化身正在凝聚毁灭之力！", { 255, 40, 40 })
 
     -- 区域高亮粒子
     local cx, cy = Grid.CellToScreen(centerCol, centerRow, Renderer.gridOffsetX, Renderer.gridOffsetY)
@@ -413,7 +413,7 @@ function HBS.DamageToughness()
             State.hatredBossSkill.starCrush = nil
         end
 
-        Toast.Show("憎恨之躯的吟唱被打断了！", { 100, 255, 100 })
+        Toast.Show("憎恨化身的吟唱被打断了！", { 100, 255, 100 })
         print("[HatredBoss] StarCrush interrupted! Toughness broken.")
     end
 end

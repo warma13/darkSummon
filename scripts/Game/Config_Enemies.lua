@@ -747,12 +747,12 @@ Config.WAVE_COUNT_GROWTH = 0.15
 Config.WAVE_MAX_COUNT = 16
 
 -- ============================================================================
--- 深渊 BOSS：憎恨之躯（独立定义，供无尽深渊/副本系统使用）
+-- 深渊 BOSS：憎恨化身（独立定义，供无尽深渊/副本系统使用）
 -- ============================================================================
 
 Config.HATRED_BOSS = {
     id = "hatred_body",
-    name = "憎恨之躯",
+    name = "憎恨化身",
     color = { 180, 40, 60 },
     baseHP = 5000,
     baseDEF = 80,
@@ -803,7 +803,7 @@ Config.HATRED_BOSS = {
     },
 }
 
---- 构建憎恨之躯 BOSS 定义（带数值缩放）
+--- 构建憎恨化身 BOSS 定义（带数值缩放）
 ---@param wave number 当前波次
 ---@param hpScale? number HP 缩放倍率（默认 1.0）
 ---@return table bossDef

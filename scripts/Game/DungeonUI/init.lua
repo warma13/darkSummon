@@ -138,7 +138,7 @@ local DUNGEON_DEFS = {
     {
         key = "hatred_land",
         name = "憎恨之地",
-        desc = "击破憎恨之躯，获取暗噬精华与魂器碎片",
+        desc = "击破憎恨化身，获取暗噬精华与魂器碎片",
         accentColor = { 160, 40, 50, 255 },
         available = true,
         cover = "image/dungeon_hatred_land_20260424045354.png",

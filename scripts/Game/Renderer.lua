@@ -43,6 +43,9 @@ function Renderer.Render(vg, width, height)
     -- 3. 网格
     Renderer.DrawGrid(vg, ox, oy)
 
+    -- 3.5 遗物充能条（网格下方）
+    Renderer.DrawRelicChargeBar(vg, ox, oy)
+
     -- 4. 怪物数量指示器（网格上方）
     Renderer.DrawEnemyCount(vg, ox, oy)
 
@@ -76,7 +79,7 @@ function Renderer.Render(vg, width, height)
     -- 11.5 翠影秘境 BOSS 技能特效（施法描边、沉默冲击环、护盾光环）
     Renderer.DrawEmeraldBossSkillFX(vg, width, height)
 
-    -- 11.6 憎恨之躯 BOSS 技能特效（3×3践踏区域、韧性条、嘲讽/壁垒光环）
+    -- 11.6 憎恨化身 BOSS 技能特效（3×3践踏区域、韧性条、嘲讽/壁垒光环）
     Renderer.DrawHatredBossSkillFX(vg, width, height)
 
     -- 12. BOSS 倒计时 + 血条（HUD 层）

@@ -21,6 +21,16 @@ local LootDrop = require("Game.LootDrop")
 local DamageStats = require("Game.DamageStats")
 local HatredBossSkills = require("Game.HatredBossSkills")
 
+-- 延迟 require 遗物战斗效果（避免循环依赖）
+local _RelicEffects
+local function GetRelicEffects()
+    if not _RelicEffects then
+        local ok, mod = pcall(require, "Game.RelicEffects")
+        if ok then _RelicEffects = mod end
+    end
+    return _RelicEffects
+end
+
 local Combat = {}
 
 -- 模块级 enemyById 查找表（Combat.Update 中构建，OnProjectileHit 中复用）
@@ -323,7 +333,7 @@ local function SpatialQuery(px, py, rangeSq, range, hitSet)
 end
 
 --- 寻找塔攻击范围内最近的敌人（空间网格加速）
---- 嘲讽激活时：优先攻击范围内的憎恨之躯 BOSS
+--- 嘲讽激活时：优先攻击范围内的憎恨化身 BOSS
 local function FindTarget(tower, towerX, towerY)
     local effectiveRange = HeroSkills.ModifyRange(tower, tower.range)
     local rangeSq = effectiveRange * effectiveRange
@@ -407,7 +417,7 @@ local function TowerAttack(tower, towerX, towerY, target)
     end
 end
 
---- 憎恨之躯 BOSS 受击钩子（嘲讽叠层 + 韧性条伤害）
+--- 憎恨化身 BOSS 受击钩子（嘲讽叠层 + 韧性条伤害）
 local function CheckHatredBossHit(tower, target, damage)
     if not target.isHatredBoss then return end
     if not HatredBossSkills.IsActive() then return end
@@ -506,6 +516,13 @@ local function OnProjectileHit(proj)
         HeroSkills.OnHit(tower, target, killed)
         CheckHatredBossHit(tower, target, finalDmg)
 
+        -- 遗物充能钩子
+        local RE = GetRelicEffects()
+        if RE then
+            RE.OnTowerAttack(tower, target, isCrit)
+            if killed then RE.OnEnemyKilled() end
+        end
+
         -- 链式弹跳
         HandleChainAttack(tower, target, proj.damage)
 
@@ -529,6 +546,13 @@ local function OnProjectileHit(proj)
                     if isCrit then HeroSkills.CheckCritSplash(tower, e, finalDmg) end
                     HeroSkills.OnHit(tower, e, killed)
                     CheckHatredBossHit(tower, e, finalDmg)
+
+                    -- 遗物充能钩子
+                    local RE = GetRelicEffects()
+                    if RE then
+                        RE.OnTowerAttack(tower, e, isCrit)
+                        if killed then RE.OnEnemyKilled() end
+                    end
                 end
             end
         end
@@ -544,6 +568,13 @@ local function OnProjectileHit(proj)
         if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
         HeroSkills.OnHit(tower, target, killed)
         CheckHatredBossHit(tower, target, finalDmg)
+
+        -- 遗物充能钩子
+        local RE = GetRelicEffects()
+        if RE then
+            RE.OnTowerAttack(tower, target, isCrit)
+            if killed then RE.OnEnemyKilled() end
+        end
     end
 
     -- === 特殊效果 ===
@@ -641,6 +672,9 @@ end
 function Combat.Reset()
     lastAttackSfxTime = 0
     lastHitSfxTime = 0
+    -- 重置遗物战斗效果
+    local RE = GetRelicEffects()
+    if RE then RE.Init() end
 end
 
 --- 更新战斗系统
@@ -659,6 +693,10 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
     -- 英雄专属帧更新（凛冬君王寒意 + 翎嫣自然光环等，统一调度）
     -- 必须在 UpdateAuras 之后调用（自然光环叠加渐近线buff）
     HeroSkills.UpdateFrame(State.towers, dt, gridOffsetX, gridOffsetY)
+
+    -- 遗物战斗效果更新（充能/脉冲/灼烧/后释放buff）
+    local RE = GetRelicEffects()
+    if RE then RE.Update(dt) end
 
     -- 符文套装: 铁壁 set3 — 致命伤害免疫（冷却计时器递减）
     for _, tower in ipairs(State.towers) do
@@ -814,6 +852,14 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         State.skillFlash.timer = State.skillFlash.timer - dt
         if State.skillFlash.timer <= 0 then
             State.skillFlash = nil
+        end
+    end
+
+    -- 更新遗物释放爆发特效
+    if State.relicCastFX then
+        State.relicCastFX.timer = State.relicCastFX.timer - dt
+        if State.relicCastFX.timer <= 0 then
+            State.relicCastFX = nil
         end
     end
 

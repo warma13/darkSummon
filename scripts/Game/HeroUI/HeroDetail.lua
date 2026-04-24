@@ -5,6 +5,8 @@ local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
+local RelicData = require("Game.RelicData")
+local RelicCalc = require("Game.RelicCalc")
 
 local HeroDetail = {}
 
@@ -18,6 +20,11 @@ local detailTab = "info"
 ---@type any
 local detailContentContainer = nil
 
+--- 遗物标签页：当前选中的槽位
+local selectedRelicSlot = "power"
+--- 遗物标签页：当前预览的遗物 { id, quality } 或 nil
+local selectedRelicView = nil
+
 --- 英雄标签页定义（普通英雄）
 local DETAIL_TABS = {
     { key = "info",    label = "信息" },
@@ -30,12 +37,15 @@ local DETAIL_TABS = {
 local LEADER_TABS = {
     { key = "info",    label = "信息" },
     { key = "costume", label = "时装" },
+    { key = "relic",   label = "遗物" },
 }
 
 --- 页面重建时清理局部状态
 function HeroDetail.OnPageClear()
     detailContentContainer = nil
     detailHeroId = nil
+    selectedRelicSlot = "power"
+    selectedRelicView = nil
 end
 
 local function ShowToast(msg)
@@ -1162,6 +1172,421 @@ local function BuildCostumeTab(ctx, heroId)
 end
 
 -- ============================================================================
+-- 神圣遗物标签页
+-- ============================================================================
+
+--- 构建神圣遗物标签页（仅主角可用）
+---@param ctx table
+---@param heroId string
+---@return any UI.Panel
+local function BuildRelicTab(ctx, heroId)
+    local UI = ctx.GetUI()
+    local S = ctx.GetS()
+    local FormatBigNum = ctx.FormatBigNum
+
+    local children = {}
+
+    -- ── Section 1: 横排 4 个 1:1 装备槽 ──────────────────────────────────────
+    local slotPanels = {}
+    for _, slotDef in ipairs(Config.RELIC_SLOTS) do
+        local slotId = slotDef.id
+        local equipped = RelicData.GetEquipped(slotId)
+        local isSelected = (selectedRelicSlot == slotId)
+
+        -- 槽内内容：顶部名称 + 中间图标 + 底部等级
+        local titleText, titleColor
+        if equipped then
+            local def = Config.RELICS[equipped.id]
+            titleText = def and def.name or equipped.id
+            titleColor = Config.RELIC_QUALITY_COLOR[equipped.quality] or S.gold
+        else
+            titleText = slotDef.name
+            titleColor = { 120, 100, 80 }
+        end
+
+        local innerChildren = {
+            -- 顶部名称
+            UI.Label {
+                text = titleText, fontSize = 9, fontColor = titleColor,
+                fontWeight = "bold", textAlign = "center",
+            },
+            -- 中间图标（带阴影）
+            UI.Panel {
+                width = 32, height = 32,
+                backgroundImage = slotDef.icon, backgroundSize = "contain",
+                opacity = equipped and 1.0 or 0.3,
+            },
+        }
+        if equipped then
+            innerChildren[#innerChildren + 1] = UI.Label {
+                text = "Lv." .. equipped.level .. " ★" .. equipped.star,
+                fontSize = 8, fontColor = { 200, 180, 160 },
+            }
+        end
+
+        slotPanels[#slotPanels + 1] = UI.Panel {
+            flex = 1,
+            aspectRatio = 1,
+            margin = 3,
+            alignItems = "center", justifyContent = "center",
+            gap = 2,
+            borderRadius = 8,
+            borderWidth = isSelected and 2 or 1,
+            borderColor = isSelected and S.gold or { 70, 55, 40, 150 },
+            backgroundColor = isSelected and { 70, 55, 35, 240 } or { 50, 38, 28, 200 },
+            onClick = function(self)
+                selectedRelicSlot = slotId
+                selectedRelicView = nil -- 切换槽位时重置预览
+                ctx.ShowHeroDetail(heroId)
+            end,
+            children = innerChildren,
+        }
+    end
+    children[#children + 1] = UI.Panel {
+        width = "100%", flexDirection = "row",
+        children = slotPanels,
+    }
+
+    -- ── Section 3: 遗物详情面板（始终显示） ──────────────────────────────────
+    local eqRelic = RelicData.GetEquipped(selectedRelicSlot)
+
+    -- 确定当前预览的遗物：优先 selectedRelicView，否则显示已装备
+    if not selectedRelicView and eqRelic then
+        selectedRelicView = { id = eqRelic.id, quality = eqRelic.quality }
+    end
+
+    -- 格式化 desc 模板：将 {paramKey} 替换为缩放后的实际数值
+    local function FormatRelicDesc(relic, def)
+        if not def or not def.desc then return "" end
+        return (def.desc:gsub("{(%w+)}", function(key)
+            local base = def.params and def.params[key]
+            if not base then return "{" .. key .. "}" end
+            local scaled = RelicCalc.V(relic, base)
+            if scaled < 1 then
+                return string.format("%.0f%%", scaled * 100)
+            elseif scaled == math.floor(scaled) then
+                return string.format("%d", scaled)
+            else
+                return string.format("%.1f", scaled)
+            end
+        end))
+    end
+
+    if selectedRelicView then
+        local viewId = selectedRelicView.id
+        local viewQuality = selectedRelicView.quality
+        local viewDef = Config.RELICS[viewId]
+
+        -- 判断当前预览的是否就是已装备的遗物
+        local isViewingEquipped = eqRelic and eqRelic.id == viewId
+        -- 用于显示的遗物数据（已装备用真实数据，未装备用基础数据）
+        local viewRelic
+        if isViewingEquipped then
+            viewRelic = eqRelic
+        else
+            viewRelic = { id = viewId, quality = viewQuality, level = 1, star = 0 }
+        end
+
+        local qColor = Config.RELIC_QUALITY_COLOR[viewRelic.quality] or S.gold
+        local qName = Config.RELIC_QUALITY_NAME[viewRelic.quality] or "?"
+
+        -- 左侧：遗物描述
+        local descText = FormatRelicDesc(viewRelic, viewDef)
+        local descChildren = {
+            UI.Label {
+                text = (viewDef and viewDef.name or viewId),
+                fontSize = 15, fontColor = qColor, fontWeight = "bold",
+            },
+        }
+        if isViewingEquipped then
+            descChildren[#descChildren + 1] = UI.Label {
+                text = qName .. " · Lv." .. viewRelic.level .. " · ★" .. viewRelic.star,
+                fontSize = 11, fontColor = { 200, 180, 160 }, marginBottom = 4,
+            }
+        else
+            descChildren[#descChildren + 1] = UI.Label {
+                text = qName .. " · 未装备",
+                fontSize = 11, fontColor = { 160, 140, 120 }, marginBottom = 4,
+            }
+        end
+        descChildren[#descChildren + 1] = UI.Label {
+            text = descText,
+            fontSize = 11, fontColor = { 200, 195, 180 },
+            lineHeight = 1.4,
+        }
+
+        -- 右侧：按钮列（升级 / 升星 / 卸下或装备）
+        local upgradeCost = RelicCalc.GetUpgradeCost(viewRelic.level)
+        local essence = HeroData.currencies.relic_essence or 0
+        local canUpgrade = isViewingEquipped and essence >= upgradeCost
+        local starCost = RelicCalc.GetStarUpShardCost(viewRelic.star)
+        local shards = RelicData.GetShards(selectedRelicSlot)
+        local canStarUp = isViewingEquipped and shards >= starCost
+
+        local btnChildren = {}
+        -- 升级
+        btnChildren[#btnChildren + 1] = UI.Panel {
+            width = "100%",
+            paddingTop = 7, paddingBottom = 7,
+            borderRadius = 8,
+            backgroundColor = canUpgrade and { 60, 140, 100, 240 } or { 60, 55, 50, 200 },
+            justifyContent = "center", alignItems = "center",
+            onClick = function(self)
+                if not isViewingEquipped then ShowToast("请先装备此遗物") return end
+                if not canUpgrade then ShowToast("遗物精华不足") return end
+                local ok, msg = RelicData.Upgrade(selectedRelicSlot)
+                ShowToast(msg)
+                ctx.ShowHeroDetail(heroId)
+            end,
+            children = {
+                UI.Label { text = "升级", fontSize = 12, fontColor = canUpgrade and { 255, 255, 255 } or { 120, 110, 100 }, fontWeight = "bold" },
+                UI.Label { text = FormatBigNum(upgradeCost) .. "精华", fontSize = 9, fontColor = canUpgrade and { 200, 240, 200 } or { 100, 90, 80 } },
+            },
+        }
+        -- 升星
+        btnChildren[#btnChildren + 1] = UI.Panel {
+            width = "100%",
+            paddingTop = 7, paddingBottom = 7,
+            borderRadius = 8,
+            backgroundColor = canStarUp and { 180, 140, 40, 240 } or { 60, 55, 50, 200 },
+            justifyContent = "center", alignItems = "center",
+            onClick = function(self)
+                if not isViewingEquipped then ShowToast("请先装备此遗物") return end
+                if not canStarUp then ShowToast("碎片不足") return end
+                local ok, msg = RelicData.StarUp(selectedRelicSlot)
+                ShowToast(msg)
+                ctx.ShowHeroDetail(heroId)
+            end,
+            children = {
+                UI.Label { text = "升星", fontSize = 12, fontColor = canStarUp and { 255, 255, 255 } or { 120, 110, 100 }, fontWeight = "bold" },
+                UI.Label { text = shards .. "/" .. starCost .. "碎片", fontSize = 9, fontColor = canStarUp and { 255, 240, 180 } or { 100, 90, 80 } },
+            },
+        }
+        -- 卸下 / 装备
+        if isViewingEquipped then
+            btnChildren[#btnChildren + 1] = UI.Panel {
+                width = "100%",
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 8,
+                backgroundColor = { 120, 50, 50, 220 },
+                justifyContent = "center", alignItems = "center",
+                onClick = function(self)
+                    RelicData.Unequip(selectedRelicSlot)
+                    selectedRelicView = nil
+                    ShowToast("已卸下")
+                    ctx.ShowHeroDetail(heroId)
+                end,
+                children = {
+                    UI.Label { text = "卸下", fontSize = 11, fontColor = { 255, 180, 160 } },
+                },
+            }
+        else
+            btnChildren[#btnChildren + 1] = UI.Panel {
+                width = "100%",
+                paddingTop = 6, paddingBottom = 6,
+                borderRadius = 8,
+                backgroundColor = { 60, 140, 100, 240 },
+                justifyContent = "center", alignItems = "center",
+                onClick = function(self)
+                    local ok, msg = RelicData.Equip(selectedRelicSlot, viewId, viewQuality)
+                    if ok then
+                        selectedRelicView = { id = viewId, quality = viewQuality }
+                        ShowToast((viewDef and viewDef.name or viewId) .. " 装备成功")
+                    else
+                        ShowToast(msg)
+                    end
+                    ctx.ShowHeroDetail(heroId)
+                end,
+                children = {
+                    UI.Label { text = "装备", fontSize = 11, fontColor = { 255, 255, 255 }, fontWeight = "bold" },
+                },
+            }
+        end
+
+        local btnCol = UI.Panel {
+            width = 72, gap = 5,
+            justifyContent = "center",
+            children = btnChildren,
+        }
+
+        children[#children + 1] = UI.Panel {
+            width = "100%", marginTop = 8,
+            paddingTop = 10, paddingBottom = 10,
+            paddingLeft = 10, paddingRight = 10,
+            backgroundColor = { 45, 34, 24, 230 },
+            borderRadius = 10,
+            borderWidth = 1,
+            borderColor = qColor,
+            flexDirection = "row", gap = 10,
+            children = {
+                UI.Panel {
+                    flex = 1, gap = 2,
+                    children = descChildren,
+                },
+                btnCol,
+            },
+        }
+    else
+        -- 没有选中任何遗物时的空状态提示
+        children[#children + 1] = UI.Panel {
+            width = "100%", marginTop = 8,
+            paddingTop = 16, paddingBottom = 16,
+            backgroundColor = { 45, 34, 24, 230 },
+            borderRadius = 10,
+            borderWidth = 1,
+            borderColor = { 70, 55, 40, 150 },
+            justifyContent = "center", alignItems = "center",
+            children = {
+                UI.Label { text = "点击下方遗物查看详情", fontSize = 12, fontColor = { 140, 120, 100 } },
+            },
+        }
+    end
+
+    -- ── Section 4: 遗物背包网格（横排，点击预览） ──────────────────────────
+    local slotRelics = Config.RELICS_BY_SLOT[selectedRelicSlot] or {}
+    local catalogCells = {}
+    for _, rDef in ipairs(slotRelics) do
+        local isOwned = RelicData.IsOwned(rDef.id)
+        local ownedQuality = RelicData.GetOwnedQuality(rDef.id)
+        local isEquipped = eqRelic and eqRelic.id == rDef.id
+        local isViewing = selectedRelicView and selectedRelicView.id == rDef.id
+
+        -- 已拥有用实际品质颜色，未拥有用灰色
+        local displayQuality = ownedQuality or rDef.minQuality
+        local qColor = isOwned and (Config.RELIC_QUALITY_COLOR[displayQuality] or { 180, 180, 180 }) or { 80, 70, 60 }
+        local qName = Config.RELIC_QUALITY_NAME[displayQuality] or "?"
+
+        -- 高亮优先级：正在预览 > 已装备 > 已拥有 > 未拥有(锁定)
+        local cellBorder, cellBg, cellBorderW
+        if isViewing and isOwned then
+            cellBorder = S.gold
+            cellBg = { 65, 52, 30, 240 }
+            cellBorderW = 2
+        elseif isEquipped then
+            cellBorder = { 100, 200, 100, 180 }
+            cellBg = { 55, 48, 32, 230 }
+            cellBorderW = 2
+        elseif isOwned then
+            cellBorder = { 70, 55, 40, 150 }
+            cellBg = { 50, 38, 28, 200 }
+            cellBorderW = 1
+        else
+            cellBorder = { 40, 35, 30, 120 }
+            cellBg = { 30, 25, 20, 180 }
+            cellBorderW = 1
+        end
+
+        -- 底部标签
+        local bottomLabel
+        if isEquipped then
+            bottomLabel = UI.Label { text = "已装备", fontSize = 8, fontColor = { 100, 200, 100 }, fontWeight = "bold" }
+        elseif isOwned then
+            bottomLabel = UI.Label { text = qName, fontSize = 8, fontColor = qColor }
+        else
+            bottomLabel = UI.Label { text = "未拥有", fontSize = 8, fontColor = { 80, 70, 60 } }
+        end
+
+        catalogCells[#catalogCells + 1] = UI.Panel {
+            width = "23%",
+            aspectRatio = 1,
+            margin = "1%",
+            alignItems = "center", justifyContent = "center",
+            gap = 2,
+            borderRadius = 8,
+            borderWidth = cellBorderW,
+            borderColor = cellBorder,
+            backgroundColor = cellBg,
+            onClick = isOwned and function(self)
+                -- 点击切换预览，只有已拥有才能操作
+                selectedRelicView = { id = rDef.id, quality = ownedQuality }
+                ctx.ShowHeroDetail(heroId)
+            end or nil,
+            children = {
+                UI.Label { text = rDef.name, fontSize = 10, fontColor = qColor, fontWeight = isOwned and "bold" or "normal", textAlign = "center" },
+                bottomLabel,
+            },
+        }
+    end
+
+    -- ── Section 5: 底部货币栏 ────────────────────────────────────────────────
+    local essenceAmt = HeroData.currencies.relic_essence or 0
+    local shardAmt = RelicData.GetShards(selectedRelicSlot)
+    local slotDef = nil
+    for _, sd in ipairs(Config.RELIC_SLOTS) do
+        if sd.id == selectedRelicSlot then slotDef = sd break end
+    end
+    local slotName = slotDef and slotDef.name or selectedRelicSlot
+
+    local currencyBar = UI.Panel {
+        width = "100%", marginTop = 4,
+        flexDirection = "row",
+        justifyContent = "center", alignItems = "center",
+        gap = 16,
+        paddingTop = 8, paddingBottom = 8,
+        backgroundColor = { 35, 26, 18, 200 },
+        borderRadius = 8,
+        children = {
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 4,
+                children = {
+                    Currency.IconWidget(UI, "relic_essence", 16),
+                    UI.Label { text = FormatBigNum(essenceAmt), fontSize = 12, fontColor = { 255, 215, 100 } },
+                },
+            },
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 4,
+                children = {
+                    UI.Label { text = slotName .. "碎片", fontSize = 11, fontColor = { 180, 160, 140 } },
+                    UI.Label { text = tostring(shardAmt), fontSize = 12, fontColor = { 200, 180, 140 }, fontWeight = "bold" },
+                },
+            },
+        },
+    }
+
+    -- ── 组装：上部固定 + 中部背包可滚动 + 底部货币栏固定 ────────────────────
+    -- children 目前包含：槽位栏(Section1) + 详情面板(Section3)，都固定不动
+    local fixedTop = UI.Panel {
+        width = "100%", gap = 4,
+        flexShrink = 0,
+        children = children,
+    }
+
+    local inventoryScroll = UI.ScrollView {
+        flexGrow = 1, flexBasis = 0,
+        scrollY = true,
+        width = "100%",
+        pointerEvents = "auto",
+        children = {
+            UI.Panel {
+                width = "100%", gap = 2,
+                paddingBottom = 6,
+                children = {
+                    UI.Label { text = "可用遗物", fontSize = 12, fontColor = S.gold, fontWeight = "bold", marginBottom = 2 },
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        flexWrap = "wrap",
+                        children = catalogCells,
+                    },
+                },
+            },
+        },
+    }
+
+    return UI.Panel {
+        width = "100%",
+        minHeight = "100%",
+        flexGrow = 1,
+        gap = 4,
+        children = {
+            fixedTop,
+            inventoryScroll,
+            currencyBar,
+        },
+    }
+end
+
+-- ============================================================================
 -- 详情面板刷新
 -- ============================================================================
 
@@ -1184,6 +1609,8 @@ local function RefreshDetailContent(ctx, heroId, heroDef)
         content = BuildSkinTab(ctx, heroId, heroDef)
     elseif detailTab == "costume" then
         content = BuildCostumeTab(ctx, heroId)
+    elseif detailTab == "relic" then
+        content = BuildRelicTab(ctx, heroId)
     end
 
     if content then

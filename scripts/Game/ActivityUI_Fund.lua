@@ -242,6 +242,12 @@ local function BuildFundContent()
         return item
     end
 
+    -- 局部刷新：只重绑 VirtualList 可见项，不重建页面
+    local vlist  -- forward declaration, assigned after VirtualList creation
+    local function refreshFundList()
+        if vlist then vlist:Refresh() end
+    end
+
     -- bindItem: 根据 kind 绑定不同的数据
     local function bindFundItem(widget, data, index)
         if data.kind == "group_header" then
@@ -272,7 +278,7 @@ local function BuildFundContent()
                         local AdHelper = require("Game.AdHelper")
                         AdHelper.ShowRewardAd(function()
                             FundData.RecordAdWatch(fundId, g)
-                            ctx.RefreshContent()
+                            refreshFundList()
                         end)
                     end,
                     children = {
@@ -337,10 +343,10 @@ local function BuildFundContent()
                         if success and AudioManager then AudioManager.PlayChestOpen() end
                         RC.ShowCurrency(ctx.UI, ctx.pageRoot,
                             rewardDef.id, rewardDef.amount, "基金奖励",
-                            function() ctx.RefreshContent() end)
+                            function() refreshFundList() end)
                     else
                         Toast.Show(msg, { 255, 100, 80 })
-                        ctx.RefreshContent()
+                        refreshFundList()
                     end
                 end
             else
@@ -374,7 +380,7 @@ local function BuildFundContent()
         flexGrow = 1, flexShrink = 1,
         flexBasis = 0,
     }
-    local vlist = ctx.UI.VirtualList {
+    vlist = ctx.UI.VirtualList {
         width = "100%",
         height = "100%",
         data = flatData,

@@ -12,6 +12,23 @@ local EquipData = require("Game.EquipData")
 local HeroAnim = require("Game.HeroAnim")
 local DivineBlessDB = require("Game.DivineBlessData")
 
+-- 延迟 require 遗物模块（避免循环依赖）
+local _RelicData, _RelicEffects
+local function GetRelicData()
+    if not _RelicData then
+        local ok, mod = pcall(require, "Game.RelicData")
+        if ok then _RelicData = mod end
+    end
+    return _RelicData
+end
+local function GetRelicEffects()
+    if not _RelicEffects then
+        local ok, mod = pcall(require, "Game.RelicEffects")
+        if ok then _RelicEffects = mod end
+    end
+    return _RelicEffects
+end
+
 local Tower = {}
 
 local nextTowerId = 1
@@ -58,6 +75,16 @@ function Tower.Create(typeIndex, star, col, row)
     local spdPctBonus = equipBonus.spd_pct or 0
     local rangeBonus = equipBonus.range or 0
 
+    -- 遗物被动加成（独立乘区）
+    local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
+    local RD = GetRelicData()
+    if RD then
+        local relicBonus = RD.GetPassiveBonus()
+        relicAtkPct = relicBonus.atkPct or 0
+        relicSpdPct = relicBonus.spdPct or 0
+        relicCritDmgPct = relicBonus.critDmgPct or 0
+    end
+
     local tower = {
         id = nextTowerId,
         typeIndex = typeIndex,
@@ -65,10 +92,10 @@ function Tower.Create(typeIndex, star, col, row)
         star = star,
         col = col,
         row = row,
-        -- 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比)
-        attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus),
+        -- 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比) × (1 + 遗物攻击加成)
+        attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus) * (1 + relicAtkPct),
         range = typeDef.baseRange + starRange + levelRange + rangeBonus,
-        speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus),
+        speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + relicSpdPct),
         cooldown = 0,
         target = nil,
         animTime = 0,
@@ -77,10 +104,10 @@ function Tower.Create(typeIndex, star, col, row)
         heroLevel = heroLevel,
         heroStar = heroStar,
         heroAwakening = heroAwakening,
-        -- 战斗子属性（来自英雄等级成长 + 装备/符文）
+        -- 战斗子属性（来自英雄等级成长 + 装备/符文 + 遗物被动）
         armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
         critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
-        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0),
+        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
         dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
         elemDmgBonus = heroStats.elemDmgBonus or {},
         -- 技能
@@ -144,6 +171,16 @@ function Tower.CreateLeader(col, row)
     local spdPctBonus = equipBonus.spd_pct or 0
     local rangeBonus = equipBonus.range or 0
 
+    -- 遗物被动加成（独立乘区）
+    local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
+    local RD = GetRelicData()
+    if RD then
+        local relicBonus = RD.GetPassiveBonus()
+        relicAtkPct = relicBonus.atkPct or 0
+        relicSpdPct = relicBonus.spdPct or 0
+        relicCritDmgPct = relicBonus.critDmgPct or 0
+    end
+
     local tower = {
         id = nextTowerId,
         typeIndex = -1,          -- 非常规塔，用 -1 标记
@@ -152,9 +189,9 @@ function Tower.CreateLeader(col, row)
         col = col,
         row = row,
         isLeader = true,         -- 主角标记
-        attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus),
+        attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus) * (1 + relicAtkPct),
         range = typeDef.baseRange + levelRange + rangeBonus,
-        speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus),
+        speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + relicSpdPct),
         cooldown = 0,
         target = nil,
         animTime = 0,
@@ -164,7 +201,7 @@ function Tower.CreateLeader(col, row)
         heroAwakening = heroAwakening,
         armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
         critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
-        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0),
+        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
         dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
         elemDmgBonus = heroStats.elemDmgBonus or {},
         skills = {},
@@ -360,21 +397,40 @@ function Tower.GetEffectiveStat(tower, statName, baseValue)
     return math.max(0, result)
 end
 
---- 便捷：获取有效攻击力（外部调用 Tower.GetEffectiveAttack(t) 代替 t.attack）
+--- 便捷：获取有效攻击力（含 debuff + 遗物战斗增伤）
 function Tower.GetEffectiveAttack(tower)
-    return Tower.GetEffectiveStat(tower, "attack", tower.attack)
-end
-
---- 便捷：获取有效攻速（值越大越慢，debuff 增加间隔）
-function Tower.GetEffectiveSpeed(tower)
-    if not tower.debuffs then return tower.speed end
-    local slowMult = 1.0
-    for _, db in ipairs(tower.debuffs) do
-        if db.stat == "speed" then
-            slowMult = slowMult + db.value  -- speed debuff 增加攻击间隔
+    local base = Tower.GetEffectiveStat(tower, "attack", tower.attack)
+    -- 遗物施法后增伤 buff（独立乘区）
+    local RE = GetRelicEffects()
+    if RE then
+        local dmgBuff = RE.GetDamageBuff()
+        if dmgBuff > 0 then
+            base = base * (1 + dmgBuff)
         end
     end
-    return tower.speed * slowMult
+    return base
+end
+
+--- 便捷：获取有效攻速（值越大越慢，debuff 增加间隔，遗物增速减少间隔）
+function Tower.GetEffectiveSpeed(tower)
+    local slowMult = 1.0
+    if tower.debuffs then
+        for _, db in ipairs(tower.debuffs) do
+            if db.stat == "speed" then
+                slowMult = slowMult + db.value  -- speed debuff 增加攻击间隔
+            end
+        end
+    end
+    local result = tower.speed * slowMult
+    -- 遗物施法后增速 buff（缩短攻击间隔）
+    local RE = GetRelicEffects()
+    if RE then
+        local spdBuff = RE.GetSpeedBuff()
+        if spdBuff > 0 then
+            result = result / (1 + spdBuff)
+        end
+    end
+    return result
 end
 
 --- 便捷：获取有效暴击率
@@ -627,14 +683,24 @@ function Tower.RefreshAllStats()
         local divineAtkPct = DivineBlessDB.GetBuffValue("atk_pct")
         local divineSpdPct = DivineBlessDB.GetBuffValue("spd_pct")
 
+        -- 遗物被动加成（独立乘区）
+        local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
+        local RD = GetRelicData()
+        if RD then
+            local relicBonus = RD.GetPassiveBonus()
+            relicAtkPct = relicBonus.atkPct or 0
+            relicSpdPct = relicBonus.spdPct or 0
+            relicCritDmgPct = relicBonus.critDmgPct or 0
+        end
+
         if tower.isLeader then
-            tower.attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus + divineAtkPct)
+            tower.attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct)
             tower.range = typeDef.baseRange + levelRange + rangeBonus
-            tower.speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct)
+            tower.speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct)
         else
-            tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct)
+            tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct)
             tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
-            tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct)
+            tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct)
         end
 
         -- 更新英雄信息
@@ -645,7 +711,7 @@ function Tower.RefreshAllStats()
 
         tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0)
         tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + DivineBlessDB.GetBuffValue("crit_pct")
-        tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0)
+        tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct
         tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0)
         tower.elemDmgBonus = heroStats.elemDmgBonus or {}
         -- 装备元素伤害加成：加到英雄对应元素上

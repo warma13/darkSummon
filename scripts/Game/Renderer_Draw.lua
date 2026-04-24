@@ -587,6 +587,20 @@ function Renderer.DrawSkillFlash(vg, w, h)
         nvgRect(vg, 0, 0, w, h)
         nvgFillColor(vg, nvgRGBAf(0.8, 0.05, 0.05, alpha * 0.20))
         nvgFill(vg)
+    elseif sf.type == "relic_cast" then
+        -- 全屏金紫闪光（遗物释放）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.55, 0.3, 0.8, alpha * 0.22))
+        nvgFill(vg)
+        -- 中心向外扩散的亮线
+        local spread = (1.0 - alpha) * math.max(w, h) * 0.6
+        local cx, cy = w * 0.5, h * 0.5
+        nvgBeginPath(vg)
+        nvgCircle(vg, cx, cy, spread)
+        nvgStrokeColor(vg, nvgRGBAf(0.9, 0.75, 1.0, alpha * 0.35))
+        nvgStrokeWidth(vg, 3.0 * alpha)
+        nvgStroke(vg)
     end
 end
 
@@ -977,7 +991,7 @@ function Renderer.DrawEmeraldBossSkillFX(vg, w, h)
     end
 end
 
---- 憎恨之躯 BOSS 技能特效
+--- 憎恨化身 BOSS 技能特效
 function Renderer.DrawHatredBossSkillFX(vg, w, h)
     local hk = State.hatredBossSkill
     if not hk then return end
@@ -1238,6 +1252,160 @@ function Renderer.DrawHatredBossSkillFX(vg, w, h)
     end
 end
 
---- 主渲染函数
+-- ============================================================================
+-- 遗物充能条（棋盘下方）
+-- ============================================================================
+
+local _relicChargeImgCache = {}
+local _relicChargeGlowTime = 0
+
+function Renderer.DrawRelicChargeBar(vg, ox, oy)
+    local RelicEffects = require("Game.RelicEffects")
+    local RelicData    = require("Game.RelicData")
+
+    local charge = RelicEffects.GetChargeState()
+    if not charge or charge.max <= 0 then return end
+
+    -- 检查是否有力量遗物装备且有充能
+    local powerRelic = RelicData.GetEquipped("power")
+    if not powerRelic then return end
+    local relicDef = Config.RELICS and Config.RELICS[powerRelic.id]
+    if not relicDef or not relicDef.hasCharge then return end
+
+    local gridW = Config.GRID_COLS * Config.CELL_SIZE
+    local gridH = Config.GRID_ROWS * Config.CELL_SIZE
+
+    -- 图标尺寸和位置：棋盘正下方居中
+    local iconSize = 36
+    local gap = 6
+    local cx = ox + gridW * 0.5        -- 水平居中
+    local ty = oy + gridH + gap        -- 棋盘下方
+    local iconX = cx - iconSize * 0.5
+    local iconY = ty
+
+    -- 加载槽位图标
+    local slotIcon = "image/relic_slot_power_20260424084412.png"
+    for _, s in ipairs(Config.RELIC_SLOTS) do
+        if s.id == "power" then slotIcon = s.icon; break end
+    end
+    local img = EnsureMobImage(vg, slotIcon)
+
+    -- 背景暗框
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, 6)
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 160))
+    nvgFill(vg)
+
+    -- 绘制遗物图标（变暗作为底）
+    if img > 0 then
+        local paint = nvgImagePattern(vg, iconX, iconY, iconSize, iconSize, 0, img, 0.3)
+        nvgBeginPath(vg)
+        nvgRoundedRect(vg, iconX, iconY, iconSize, iconSize, 4)
+        nvgFillPaint(vg, paint)
+        nvgFill(vg)
+    end
+
+    -- 充能填充（从下往上）
+    local pct = math.min(charge.current / charge.max, 1.0)
+    local fillH = math.floor(iconSize * pct)
+    local fillY = iconY + iconSize - fillH
+
+    if fillH > 0 then
+        -- 裁剪区域：只显示下方填充部分
+        nvgSave(vg)
+        nvgScissor(vg, iconX, fillY, iconSize, fillH)
+
+        -- 亮色图标（被裁剪为充能部分）
+        if img > 0 then
+            local paint = nvgImagePattern(vg, iconX, iconY, iconSize, iconSize, 0, img, 1.0)
+            nvgBeginPath(vg)
+            nvgRoundedRect(vg, iconX, iconY, iconSize, iconSize, 4)
+            nvgFillPaint(vg, paint)
+            nvgFill(vg)
+        end
+
+        -- 充能色调覆盖
+        nvgBeginPath(vg)
+        nvgRoundedRect(vg, iconX, iconY, iconSize, iconSize, 4)
+        nvgFillColor(vg, nvgRGBA(180, 120, 255, 40))
+        nvgFill(vg)
+
+        nvgRestore(vg)
+
+        -- 充能液面线（发光分界线）
+        nvgBeginPath(vg)
+        nvgMoveTo(vg, iconX + 2, fillY)
+        nvgLineTo(vg, iconX + iconSize - 2, fillY)
+        nvgStrokeColor(vg, nvgRGBA(200, 160, 255, 180))
+        nvgStrokeWidth(vg, 1.5)
+        nvgStroke(vg)
+    end
+
+    -- 满充能发光效果
+    if charge.ready then
+        _relicChargeGlowTime = _relicChargeGlowTime + 1.0 / 60.0
+        local pulse = 0.5 + 0.5 * math.sin(_relicChargeGlowTime * 4.0)
+        local glowAlpha = math.floor(80 + 120 * pulse)
+
+        -- 外发光
+        nvgBeginPath(vg)
+        nvgRoundedRect(vg, iconX - 4, iconY - 4, iconSize + 8, iconSize + 8, 8)
+        nvgStrokeColor(vg, nvgRGBA(220, 180, 255, glowAlpha))
+        nvgStrokeWidth(vg, 2.5)
+        nvgStroke(vg)
+    else
+        _relicChargeGlowTime = 0
+    end
+
+    -- 边框
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, 5)
+    nvgStrokeColor(vg, nvgRGBA(150, 120, 200, charge.ready and 255 or 120))
+    nvgStrokeWidth(vg, 1.2)
+    nvgStroke(vg)
+
+    -- 充能数字
+    nvgFontFace(vg, "sans")
+    nvgFontSize(vg, 10)
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_TOP)
+    nvgFillColor(vg, nvgRGBA(200, 180, 255, charge.ready and 255 or 180))
+    nvgText(vg, cx, iconY + iconSize + 3,
+        charge.ready and "MAX" or (math.floor(charge.current) .. "/" .. math.floor(charge.max)))
+
+    -- 释放爆发特效（冲击波 + 闪光）
+    local castFX = State.relicCastFX
+    if castFX and castFX.timer > 0 then
+        local progress = 1.0 - (castFX.timer / castFX.maxTimer)  -- 0→1
+        local fadeOut = math.max(0, castFX.timer / castFX.maxTimer)  -- 1→0
+
+        -- 扩散冲击波环
+        local maxRadius = iconSize * 2.5
+        local ringRadius = iconSize * 0.5 + maxRadius * progress
+        local ringAlpha = math.floor(200 * fadeOut)
+        nvgBeginPath(vg)
+        nvgCircle(vg, cx, iconY + iconSize * 0.5, ringRadius)
+        nvgStrokeColor(vg, nvgRGBA(220, 180, 255, ringAlpha))
+        nvgStrokeWidth(vg, 2.5 * fadeOut)
+        nvgStroke(vg)
+
+        -- 第二层内环（稍快扩散）
+        local innerRadius = iconSize * 0.3 + maxRadius * 0.7 * progress
+        local innerAlpha = math.floor(140 * fadeOut)
+        nvgBeginPath(vg)
+        nvgCircle(vg, cx, iconY + iconSize * 0.5, innerRadius)
+        nvgStrokeColor(vg, nvgRGBA(180, 140, 255, innerAlpha))
+        nvgStrokeWidth(vg, 1.5 * fadeOut)
+        nvgStroke(vg)
+
+        -- 图标区域强闪光（前半段）
+        if progress < 0.4 then
+            local flashAlpha = math.floor(180 * (1.0 - progress / 0.4))
+            nvgBeginPath(vg)
+            nvgRoundedRect(vg, iconX - 3, iconY - 3, iconSize + 6, iconSize + 6, 7)
+            nvgFillColor(vg, nvgRGBA(255, 230, 255, flashAlpha))
+            nvgFill(vg)
+        end
+    end
+end
 
 end

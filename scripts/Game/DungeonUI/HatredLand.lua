@@ -77,9 +77,8 @@ function HatredLand.BuildDetailView(ctx)
                             UI.Panel {
                                 flexDirection = "row", alignItems = "center", gap = 6,
                                 children = {
-                                    UI.Label { text = "👹", fontSize = 20, pointerEvents = "none" },
                                     UI.Label {
-                                        text = "憎恨之躯", fontSize = 18, fontWeight = "bold",
+                                        text = "憎恨化身", fontSize = 18, fontWeight = "bold",
                                         fontColor = { 180, 40, 60 }, pointerEvents = "none",
                                     },
                                 },
@@ -145,7 +144,7 @@ function HatredLand.BuildDetailView(ctx)
                     pointerEvents = "none",
                 },
                 UI.Label {
-                    text = isUnlocked and ("Lv." .. d.level) or "🔒",
+                    text = isUnlocked and ("Lv." .. d.level) or "锁定",
                     fontSize = 9, fontColor = isSelected and color or S.dim,
                     pointerEvents = "none",
                 },
@@ -232,16 +231,15 @@ function HatredLand.BuildDetailView(ctx)
         width = "100%", flexDirection = "row", alignItems = "center", justifyContent = "space-between", paddingBottom = 4,
         children = {
             UI.Label { text = "累计伤害", fontSize = 12, fontWeight = "bold", fontColor = S.white, pointerEvents = "none" },
-            UI.Label { text = "招募自选包", fontSize = 12, fontWeight = "bold", fontColor = { 130, 210, 255 }, pointerEvents = "none" },
+            UI.Label { text = "遗物奖励", fontSize = 12, fontWeight = "bold", fontColor = { 255, 215, 100 }, pointerEvents = "none" },
         },
     }
 
-    local adjustedTiers = HL.GetAdjustedRewardTiers(selectedDiff)
-    local cumReward = 0
-    for i, tier in ipairs(adjustedTiers) do
-        local threshold = tier[1]
-        local amount = tier[2]
-        cumReward = cumReward + amount
+    local samplePoints = HL.GetRewardSamplePoints(selectedDiff)
+    for i, pt in ipairs(samplePoints) do
+        local threshold = pt[1]
+        local essenceAmt = pt[2]
+        local shardAmt = pt[3]
         local reached = bestDamage >= threshold
 
         tierRows[#tierRows + 1] = UI.Panel {
@@ -253,24 +251,41 @@ function HatredLand.BuildDetailView(ctx)
                 UI.Panel {
                     flexDirection = "row", alignItems = "center", gap = 4,
                     children = {
-                        UI.Label { text = reached and "✓" or ("Lv." .. i), fontSize = 10, fontColor = reached and S.green or S.dim, pointerEvents = "none" },
+                        UI.Label { text = reached and "V" or "", fontSize = 10, fontColor = reached and S.green or S.dim, fontWeight = reached and "bold" or "normal", width = 12, pointerEvents = "none" },
                         UI.Label { text = HL.FormatDamage(threshold), fontSize = 12, fontColor = reached and S.green or S.white, pointerEvents = "none" },
                     },
                 },
                 UI.Panel {
-                    flexDirection = "row", alignItems = "center", gap = 3,
+                    flexDirection = "row", alignItems = "center", gap = 6,
                     children = {
-                        Currency.IconWidget(UI, "recruit_ticket_select_box", 12),
-                        UI.Label {
-                            text = "×" .. amount .. " (累计" .. cumReward .. ")",
-                            fontSize = 11, fontColor = reached and { 130, 210, 255 } or S.dim,
-                            pointerEvents = "none",
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = 2,
+                            children = {
+                                Currency.IconWidget(UI, "relic_essence", 12),
+                                UI.Label { text = tostring(essenceAmt), fontSize = 11, fontColor = reached and { 255, 215, 100 } or S.dim, pointerEvents = "none" },
+                            },
+                        },
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = 2,
+                            children = {
+                                UI.Label { text = "碎片", fontSize = 10, fontColor = reached and { 180, 160, 220 } or S.dim, pointerEvents = "none" },
+                                UI.Label { text = "x" .. shardAmt, fontSize = 11, fontColor = reached and { 180, 160, 220 } or S.dim, pointerEvents = "none" },
+                            },
                         },
                     },
                 },
             },
         }
     end
+
+    -- 公式说明
+    tierRows[#tierRows + 1] = UI.Panel {
+        width = "100%", paddingTop = 4, flexDirection = "column", gap = 2,
+        children = {
+            UI.Label { text = "伤害越高奖励越多，增速逐渐放缓", fontSize = 10, fontColor = S.dim, pointerEvents = "none" },
+            UI.Label { text = "达标后每次额外掉落随机部位遗物碎片，集满可合成遗物", fontSize = 10, fontColor = { 150, 200, 255, 180 }, pointerEvents = "none" },
+        },
+    }
 
     contentChildren[#contentChildren + 1] = UI.Panel {
         width = "100%", paddingLeft = 12, paddingRight = 12, paddingTop = 6, flexShrink = 0,
@@ -306,7 +321,7 @@ function HatredLand._BuildChallengeButton(UI, S, ctx, remaining)
 
     if freeRemaining > 0 then
         actionChildren[#actionChildren + 1] = UI.Button {
-            text = "挑战憎恨之躯", fontSize = 15,
+            text = "挑战憎恨化身", fontSize = 15,
             flex = 1, height = 46, borderRadius = 8, variant = "primary",
             onClick = function() HatredLand.OnChallenge(UI, S, ctx, false) end,
         }
@@ -330,14 +345,14 @@ function HatredLand._BuildChallengeButton(UI, S, ctx, remaining)
 
     if adRemaining > 0 then
         actionChildren[#actionChildren + 1] = UI.Button {
-            text = "📺 领券(" .. adRemaining .. ")", fontSize = 12,
+            text = "📺领券(" .. adRemaining .. ")", fontSize = 12,
             width = 90, height = 46, borderRadius = 8, variant = "outline",
             onClick = function() HatredLand.OnAdGetTicket(UI, S, ctx) end,
         }
     end
 
     actionChildren[#actionChildren + 1] = UI.Button {
-        text = "🔄 扫荡", fontSize = 13,
+        text = "扫荡", fontSize = 13,
         width = 80, height = 46, borderRadius = 8, variant = "outline",
         onClick = function() HatredLand.OnSweep(UI, S, ctx) end,
     }
@@ -407,7 +422,7 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
         },
     }
 
-    local label = "憎恨之地 · 憎恨之躯" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
+    local label = "憎恨之地 · 憎恨化身" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
 
     local function handleResult(result, isExit)
         HatredBossSkills.Cleanup()
@@ -416,14 +431,49 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
 
         local rewards = HL.ClaimReward(totalDamage, challengeDifficulty)
         local rewardItems = {}
-        if rewards and rewards.recruit_ticket_select_box then
-            local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
-            rewardItems[#rewardItems + 1] = {
-                icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
-                name = itemDef and itemDef.name or "招募券自选包",
-                amount = rewards.recruit_ticket_select_box,
-                borderColor = { 200, 150, 255, 200 },
-            }
+        if rewards then
+            if rewards.essence > 0 then
+                local essenceDef = Config.CURRENCY["relic_essence"]
+                rewardItems[#rewardItems + 1] = {
+                    icon = essenceDef and essenceDef.image or "",
+                    name = essenceDef and essenceDef.name or "遗物精华",
+                    amount = rewards.essence,
+                    borderColor = { 200, 150, 255, 200 },
+                }
+            end
+            if rewards.shards > 0 then
+                rewardItems[#rewardItems + 1] = {
+                    icon = "",
+                    name = "部位碎片",
+                    amount = rewards.shards,
+                    borderColor = { 150, 200, 255, 200 },
+                }
+            end
+            -- 遗物碎片掉落
+            if rewards.relicDrop then
+                local rd = rewards.relicDrop
+                local slotName = ""
+                for _, s in ipairs(Config.RELIC_SLOTS) do
+                    if s.id == rd.slotId then slotName = s.name; break end
+                end
+                rewardItems[#rewardItems + 1] = {
+                    icon = "",
+                    name = slotName .. "碎片",
+                    amount = rd.shards,
+                    borderColor = { 150, 200, 255, 200 },
+                }
+                -- 自动合成通知
+                if rd.synthResult then
+                    local sr = rd.synthResult
+                    local qColor = Config.RELIC_QUALITY_COLOR[sr.quality] or { 180, 180, 180 }
+                    rewardItems[#rewardItems + 1] = {
+                        icon = "",
+                        name = "合成: " .. sr.relicName .. " (" .. (Config.RELIC_QUALITY_NAME[sr.quality] or "?") .. ")",
+                        amount = 1,
+                        borderColor = { qColor[1], qColor[2], qColor[3], 200 },
+                    }
+                end
+            end
         end
 
         local title = label .. (isExit and " 退出" or " 挑战结束") .. "\n伤害: " .. HL.FormatDamage(totalDamage)
@@ -505,34 +555,56 @@ function HatredLand.OnSweep(UI, S, ctx)
         sweepLabel = "最高伤害",
         sweepValue = HL.FormatDamage(bestDamage),
         previewFn = function(count)
-            local pact = HL.CalcRewards(bestDamage, selectedDiff)
+            local calc = HL.CalcRewards(bestDamage, selectedDiff)
             local items = {}
-            if pact > 0 then
-                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
-                items[#items + 1] = {
-                    icon = itemDef and itemDef.image or "🎫",
-                    name = itemDef and itemDef.name or "招募券自选包",
-                    amount = pact * count,
-                    color = { 200, 150, 255 },
-                }
+            if calc.essence > 0 or calc.shards > 0 then
+                if calc.essence > 0 then
+                    local essenceDef = Config.CURRENCY["relic_essence"]
+                    items[#items + 1] = {
+                        icon = essenceDef and essenceDef.image or "",
+                        name = essenceDef and essenceDef.name or "遗物精华",
+                        amount = calc.essence * count,
+                        color = { 200, 150, 255 },
+                    }
+                end
+                if calc.shards > 0 then
+                    items[#items + 1] = {
+                        icon = "",
+                        name = "部位碎片",
+                        amount = calc.shards * count,
+                        color = { 150, 200, 255 },
+                    }
+                end
             else
                 items[#items + 1] = {
-                    icon = "⚠", name = "伤害未达奖励阈值", amount = 0, color = S.dim,
+                    icon = "", name = "伤害未达奖励阈值", amount = 0, color = S.dim,
                 }
             end
             return items
         end,
         onConfirm = function(count)
             local successCount = 0
-            local totalPact = 0
+            local totalEssence = 0
+            local totalShards = 0
+            local slotShards = {}   -- { [slotId] = totalShardCount }
+            local synthResults = {} -- 合成结果列表
             for i = 1, count do
                 if not HL.ConsumeTicket() then
                     Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
                     break
                 end
                 local rewards = HL.ClaimReward(bestDamage, selectedDiff)
-                if rewards and rewards.recruit_ticket_select_box then
-                    totalPact = totalPact + rewards.recruit_ticket_select_box
+                if rewards then
+                    totalEssence = totalEssence + (rewards.essence or 0)
+                    totalShards = totalShards + (rewards.shards or 0)
+                    -- 汇总遗物碎片掉落
+                    if rewards.relicDrop then
+                        local rd = rewards.relicDrop
+                        slotShards[rd.slotId] = (slotShards[rd.slotId] or 0) + rd.shards
+                        if rd.synthResult then
+                            synthResults[#synthResults + 1] = rd.synthResult
+                        end
+                    end
                 end
                 successCount = successCount + 1
             end
@@ -540,22 +612,62 @@ function HatredLand.OnSweep(UI, S, ctx)
             local ok2, DTD = pcall(require, "Game.DailyTaskData")
             if ok2 and DTD then DTD.AddProgress("boss", successCount) end
 
-            if successCount > 0 and totalPact > 0 then
-                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
-                RewardDisplay.Show(UI, root, {
-                    title = "憎恨之地 扫荡 ×" .. successCount .. " 完成！\n伤害: " .. HL.FormatDamage(bestDamage) .. " / 次",
-                    rewards = {
-                        {
-                            icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
-                            name = itemDef and itemDef.name or "招募券自选包",
-                            amount = totalPact,
-                            borderColor = { 200, 150, 255, 200 },
-                        },
-                    },
-                    onClose = function() ctx.Refresh() end,
-                })
+            if successCount > 0 then
+                local rewardItems = {}
+                if totalEssence > 0 then
+                    local essenceDef = Config.CURRENCY["relic_essence"]
+                    rewardItems[#rewardItems + 1] = {
+                        icon = essenceDef and essenceDef.image or "",
+                        name = essenceDef and essenceDef.name or "遗物精华",
+                        amount = totalEssence,
+                        borderColor = { 200, 150, 255, 200 },
+                    }
+                end
+                if totalShards > 0 then
+                    rewardItems[#rewardItems + 1] = {
+                        icon = "",
+                        name = "部位碎片",
+                        amount = totalShards,
+                        borderColor = { 150, 200, 255, 200 },
+                    }
+                end
+                -- 各部位遗物碎片
+                for slotId, cnt in pairs(slotShards) do
+                    local slotName = ""
+                    for _, s in ipairs(Config.RELIC_SLOTS) do
+                        if s.id == slotId then slotName = s.name; break end
+                    end
+                    rewardItems[#rewardItems + 1] = {
+                        icon = "",
+                        name = slotName .. "碎片",
+                        amount = cnt,
+                        borderColor = { 150, 200, 255, 200 },
+                    }
+                end
+                -- 合成通知
+                for _, sr in ipairs(synthResults) do
+                    local qColor = Config.RELIC_QUALITY_COLOR[sr.quality] or { 180, 180, 180 }
+                    local qName = Config.RELIC_QUALITY_NAME[sr.quality] or "?"
+                    rewardItems[#rewardItems + 1] = {
+                        icon = "",
+                        name = "合成: " .. sr.relicName .. " (" .. qName .. ")",
+                        amount = 1,
+                        borderColor = { qColor[1], qColor[2], qColor[3], 200 },
+                    }
+                end
+
+                if #rewardItems > 0 then
+                    RewardDisplay.Show(UI, root, {
+                        title = "憎恨之地 扫荡 x" .. successCount .. " 完成!\n伤害: " .. HL.FormatDamage(bestDamage) .. " / 次",
+                        rewards = rewardItems,
+                        onClose = function() ctx.Refresh() end,
+                    })
+                else
+                    Toast.Show("扫荡完成 x" .. successCount .. "（未达奖励阈值）", S.dim)
+                    ctx.Refresh()
+                end
             else
-                Toast.Show("扫荡完成 ×" .. successCount .. "（未达奖励阈值）", S.dim)
+                Toast.Show("扫荡失败", S.dim)
                 ctx.Refresh()
             end
         end,

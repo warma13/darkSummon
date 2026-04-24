@@ -8,5 +8,6 @@ require("Game.Config_Enemies")(Config)
 require("Game.Config_Heroes")(Config)
 require("Game.Config_Meta")(Config)
 require("Game.Config_Balance")(Config)
+require("Game.Config_Relics")(Config)
 
 return Config

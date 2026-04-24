@@ -42,6 +42,7 @@ HeroData.currencies = {    -- 局外货币（新体系）- 运行时会被 SafeT
     void_pact = 0,          -- 虚空契约（招募用）
     shadow_essence = 0,     -- 暗影精华（兑换用）
     dark_soul = 0,          -- 暗魂（战斗内掉落）
+    relic_essence = 0,      -- 遗物精华（遗物升级/升星用）
     -- 兼容旧存档字段
     gold = 0,
     diamonds = 0,
@@ -71,6 +72,7 @@ HeroData.weeklyActivityData = nil -- 单周活动数据（由 WeeklyActivityData
 HeroData.mailboxData = nil        -- 邮件数据（由 MailboxData 模块管理）
 HeroData.welfareData = nil        -- 限时福利数据（由 WelfareData 模块管理）
 HeroData.costumeSignInData = nil  -- 14天时装签到数据（由 CostumeSignInData 模块管理）
+HeroData.relicData = nil          -- 遗物系统数据（由 RelicData 模块管理）
 
 --- 初始化默认数据（新玩家）
 --- 现在由 SaveRegistry.InitAllDefaults() 统一调度
@@ -93,6 +95,7 @@ function HeroData._InitCoreDefaults()
         void_pact = 0,
         shadow_essence = 0,
         dark_soul = 0,
+        relic_essence = 0,
         -- 旧字段置零
         gold = 0, diamonds = 0, advanceStones = 0, recruitTokens = 0,
     })
@@ -163,6 +166,7 @@ function HeroData._InitCoreDefaults()
     HeroData.runeData = nil
     HeroData.towerData = nil
     HeroData.limitedBanner = nil
+    HeroData.relicData = nil
 
     print("[HeroData] Core defaults initialized")
 end
@@ -284,6 +288,7 @@ function HeroData._DeserializeCore(_saved, saveData)
     if rawCurrencies.void_pact == nil then rawCurrencies.void_pact = Config.RECRUIT_INITIAL_TOKENS end
     if rawCurrencies.shadow_essence == nil then rawCurrencies.shadow_essence = 0 end
     if rawCurrencies.dark_soul == nil then rawCurrencies.dark_soul = 0 end
+    if rawCurrencies.relic_essence == nil then rawCurrencies.relic_essence = 0 end
     HeroData.currencies = rawCurrencies
 
     -- stats

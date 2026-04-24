@@ -1,5 +1,5 @@
 -- Game/HatredLandData.lua
--- 憎恨之地数据模块：挑战憎恨之躯BOSS，按累计伤害发放奖励
+-- 憎恨之地数据模块：挑战憎恨化身BOSS，按累计伤害发放奖励
 
 local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
@@ -16,14 +16,10 @@ local HL = {}
 -- ============================================================================
 
 HL.DIFFICULTY_LEVELS = {
-    { level = 0, label = "普通",   attrMult = 1,           scoreMult = 1,   cdReduction = 0, darkSoulBonus = 0,
-      rewardBonuses = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } },
-    { level = 1, label = "困难",   attrMult = 100,         scoreMult = 5,   cdReduction = 1, darkSoulBonus = 10,
-      rewardBonuses = { 0, 0, 1, 0, 1, 0, 1, 0, 1, 1 } },
-    { level = 3, label = "噩梦",   attrMult = 100000,      scoreMult = 25,  cdReduction = 3, darkSoulBonus = 20,
-      rewardBonuses = { 0, 1, 1, 1, 1, 1, 1, 1, 1, 2 } },
-    { level = 9, label = "地狱",   attrMult = 10000000000, scoreMult = 100, cdReduction = 9, darkSoulBonus = 30,
-      rewardBonuses = { 1, 1, 1, 1, 2, 2, 2, 2, 2, 1 } },
+    { level = 0, label = "普通",   attrMult = 1,           scoreMult = 1,   cdReduction = 0, darkSoulBonus = 0,  rewardMult = 1 },
+    { level = 1, label = "困难",   attrMult = 100,         scoreMult = 5,   cdReduction = 1, darkSoulBonus = 10, rewardMult = 2 },
+    { level = 3, label = "噩梦",   attrMult = 100000,      scoreMult = 25,  cdReduction = 3, darkSoulBonus = 20, rewardMult = 4 },
+    { level = 9, label = "地狱",   attrMult = 10000000000, scoreMult = 100, cdReduction = 9, darkSoulBonus = 30, rewardMult = 8 },
 }
 
 function HL.GetDifficultyDef(level)
@@ -67,14 +63,14 @@ function HL.MarkDifficultyCleared(level)
     HeroData.Save()
 end
 
-function HL.GetAdjustedRewardTiers(level)
-    level = level or HL.GetSelectedDifficulty()
-    local diff = HL.GetDifficultyDef(level)
-    local bonuses = diff and diff.rewardBonuses or {}
+--- 公式计算奖励预览采样点（用于 UI 显示）
+--- 返回 { {damage, essence, shards}, ... }
+function HL.GetRewardSamplePoints(level)
+    local sampleDamages = HL.REWARD_SAMPLE_DAMAGES
     local result = {}
-    for i, tier in ipairs(HL.CONFIG.rewardTiers) do
-        local bonus = bonuses[i] or 0
-        result[#result + 1] = { tier[1], tier[2] + bonus }
+    for _, dmg in ipairs(sampleDamages) do
+        local calc = HL.CalcRewardsRaw(dmg, level)
+        result[#result + 1] = { dmg, calc.essence, calc.shards }
     end
     return result
 end
@@ -93,18 +89,27 @@ HL.CONFIG = {
     cdDecayRate = 1/600,
     cdMinMult = 0.5,
 
-    rewardTiers = {
-        { 5000000,         1 },
-        { 10000000,        1 },
-        { 50000000,        1 },
-        { 250000000,       1 },
-        { 500000000,       2 },
-        { 1000000000,      2 },
-        { 2500000000,      2 },
-        { 5000000000,      4 },
-        { 10000000000,     4 },
-        { 25000000000,     4 },
+    --- 奖励公式参数 (幂函数 + 边际递减)
+    --- essence = floor(essenceScale * (damage / essenceBase) ^ essenceExp * rewardMult)
+    --- shards  = max(1, floor(essence / shardsPerEssence))
+    rewardFormula = {
+        essenceScale = 5,           -- 基础系数
+        essenceBase  = 1000000,     -- 归一化基准（百万）
+        essenceExp   = 0.4,         -- 指数 <1 → 边际递减
+        minDamage    = 10000000,    -- 最低伤害门槛（千万）
+        shardsPerEssence = 300,     -- 每 300 精华产出 1 碎片
     },
+}
+
+--- UI 预览采样伤害点
+HL.REWARD_SAMPLE_DAMAGES = {
+    50000000,           -- 5000万
+    500000000,          -- 5亿
+    5000000000,         -- 50亿
+    50000000000,        -- 500亿
+    500000000000,       -- 5000亿
+    5000000000000,      -- 5兆
+    50000000000000,     -- 50兆
 }
 
 HL.DAILY_ATTEMPTS    = 4
@@ -128,7 +133,7 @@ function HL.CreateBossDef()
     bossDef.isWorldBoss = true   -- 走世界BOSS流程
     bossDef.isHatredBoss = true
     bossDef.themeId = "void"
-    bossDef.spriteSheet = "hatred_boss"  -- 使用憎恨之躯专属精灵图
+    bossDef.spriteSheet = "hatred_boss"  -- 使用憎恨化身专属精灵图
     return bossDef
 end
 
@@ -302,21 +307,52 @@ function HL.FormatDamage(damage)
     end
 end
 
-function HL.CalcRewards(totalDamage, difficultyLevel)
-    local tiers = HL.GetAdjustedRewardTiers(difficultyLevel)
-    local total = 0
-    for _, tier in ipairs(tiers) do
-        if totalDamage >= tier[1] then total = total + tier[2] end
+--- 公式计算奖励（内部，不含难度倍率）
+--- @param totalDamage number
+--- @return {essence: number, shards: number}
+function HL.CalcRewardsBase(totalDamage)
+    local f = HL.CONFIG.rewardFormula
+    if totalDamage < f.minDamage then
+        return { essence = 0, shards = 0 }
     end
-    return total
+    local rawEssence = f.essenceScale * (totalDamage / f.essenceBase) ^ f.essenceExp
+    local essence = math.floor(rawEssence)
+    local shards = math.max(1, math.floor(essence / f.shardsPerEssence))
+    return { essence = essence, shards = shards }
 end
+
+--- 公式计算奖励（含难度倍率），用于指定伤害值预览
+function HL.CalcRewardsRaw(totalDamage, difficultyLevel)
+    local base = HL.CalcRewardsBase(totalDamage)
+    if base.essence == 0 then return base end
+    local diff = HL.GetDifficultyDef(difficultyLevel or 0)
+    local mult = diff and diff.rewardMult or 1
+    return {
+        essence = math.floor(base.essence * mult),
+        shards = math.max(1, math.floor(base.essence * mult / HL.CONFIG.rewardFormula.shardsPerEssence)),
+    }
+end
+
+--- 计算奖励总量: 返回 { essence=总精华, shards=总碎片 }
+function HL.CalcRewards(totalDamage, difficultyLevel)
+    return HL.CalcRewardsRaw(totalDamage, difficultyLevel)
+end
+
+-- 难度等级 → 掉落权重 key 的映射
+local DIFF_TO_DROP_KEY = {
+    [0] = "normal",
+    [1] = "hard",
+    [3] = "nightmare",
+    [9] = "hell",
+}
 
 function HL.ClaimReward(totalDamage, difficultyLevel)
     difficultyLevel = difficultyLevel or HL.GetSelectedDifficulty()
     local data = HL.GetData()
 
     if not data.bestDiffDamage then data.bestDiffDamage = {} end
-    local prevBestDiff = data.bestDiffDamage[difficultyLevel] or 0
+    local prevBestDiff = data.bestDiffDamage[difficultyLevel]
+        or data.bestDiffDamage[tostring(difficultyLevel)] or 0
     if totalDamage > prevBestDiff then
         data.bestDiffDamage[difficultyLevel] = totalDamage
     end
@@ -324,23 +360,63 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
         data.bestDamage = totalDamage
     end
 
-    local maxThreshold = HL.CONFIG.rewardTiers[#HL.CONFIG.rewardTiers][1]
-    if totalDamage >= maxThreshold then
+    local maxSample = HL.REWARD_SAMPLE_DAMAGES[#HL.REWARD_SAMPLE_DAMAGES]
+    if totalDamage >= maxSample then
         HL.MarkDifficultyCleared(difficultyLevel)
     end
 
-    local frostPact = HL.CalcRewards(totalDamage, difficultyLevel)
-    if frostPact > 0 then
-        InventoryData.Add("recruit_ticket_select_box", frostPact)
+    local calc = HL.CalcRewards(totalDamage, difficultyLevel)
+    local hasReward = calc.essence > 0 or calc.shards > 0
+
+    -- 发放遗物精华
+    if calc.essence > 0 then
+        HeroData.currencies.relic_essence = (HeroData.currencies.relic_essence or 0) + calc.essence
+    end
+
+    -- 发放随机部位碎片
+    local RelicData = require("Game.RelicData")
+    local slotIds = Config.RELIC_SLOT_IDS or { "power", "heart", "eye", "will" }
+    local shardDetail = {}
+    if calc.shards > 0 then
+        for i = 1, calc.shards do
+            local slot = slotIds[math.random(1, #slotIds)]
+            shardDetail[slot] = (shardDetail[slot] or 0) + 1
+        end
+        for slot, count in pairs(shardDetail) do
+            RelicData.Decompose(slot, count)
+        end
+    end
+
+    -- 遗物碎片掉落：需达到伤害门槛才触发
+    local relicDropResult = nil
+    if hasReward then
+        local dropKey = DIFF_TO_DROP_KEY[difficultyLevel] or "normal"
+        local drop = RelicData.RollDrop(dropKey)
+        relicDropResult = RelicData.ProcessDrop(drop)
     end
 
     HeroData.Save(true)
 
-    print("[HatredLand] Claimed reward: damage=" .. totalDamage
-        .. " diff=" .. difficultyLevel
-        .. " recruit_ticket_select_box=" .. frostPact)
+    if hasReward then
+        local synInfo = ""
+        if relicDropResult and relicDropResult.synthResult then
+            synInfo = " SYNTH=" .. relicDropResult.synthResult.relicName
+        end
+        print("[HatredLand] Claimed reward: damage=" .. totalDamage
+            .. " diff=" .. difficultyLevel
+            .. " essence=" .. calc.essence .. " shards=" .. calc.shards
+            .. " relicShards=+" .. (relicDropResult and relicDropResult.shards or 0)
+            .. synInfo)
+    end
 
-    return frostPact > 0 and { recruit_ticket_select_box = frostPact } or nil
+    if not hasReward then return nil end
+
+    return {
+        essence = calc.essence,
+        shards = calc.shards,
+        shardDetail = shardDetail,
+        relicDrop = relicDropResult,
+    }
 end
 
 -- ============================================================================
