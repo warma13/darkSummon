@@ -94,6 +94,7 @@ function AdHelper.ShowRewardAd(onSuccess, onFail)
     local ok, ARD = pcall(require, "Game.AdReliefData")
     if ok and ARD and ARD.IsAdFreeToday() then
         Toast.Show("免广卡生效，已跳过广告", { 100, 220, 180 })
+        AdTracker.Record()  -- 计入广告观看次数（成就/任务等）
         if onSuccess then onSuccess() end
         return
     end

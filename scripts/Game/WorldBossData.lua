@@ -78,7 +78,8 @@ function WB.IsDifficultyUnlocked(level)
         end
     end
     if prevLevel == nil then return true end  -- 没有前置难度
-    return cleared[tostring(prevLevel)] == true
+    -- 兼容：旧存档可能用 string key，新存档用 number key（DeepNormalizeIntKeys 会转为 number）
+    return cleared[prevLevel] == true or cleared[tostring(prevLevel)] == true
 end
 
 --- 标记某个难度已通关
@@ -88,7 +89,7 @@ function WB.MarkDifficultyCleared(level)
     if not data.clearedDifficulties then
         data.clearedDifficulties = {}
     end
-    data.clearedDifficulties[tostring(level)] = true
+    data.clearedDifficulties[level] = true
     HeroData.Save()
 end
 
@@ -468,9 +469,20 @@ end
 
 --- 获取最高伤害
 ---@return number
-function WB.GetBestDamage()
+function WB.GetBestDamage(difficultyLevel)
     local data = WB.GetData()
-    return data.bestDamage or 0
+    -- 按难度独立记录
+    if difficultyLevel ~= nil and data.bestDiffDamage then
+        return data.bestDiffDamage[difficultyLevel] or data.bestDiffDamage[tostring(difficultyLevel)] or 0
+    end
+    -- 未指定难度：返回当前选择难度的最高伤害
+    local sel = data.selectedDifficulty or 0
+    if data.bestDiffDamage then
+        local v = data.bestDiffDamage[sel] or data.bestDiffDamage[tostring(sel)] or 0
+        if v > 0 then return v end
+    end
+    -- 兼容旧存档：旧数据只有全局 bestDamage，归入难度 0
+    return sel == 0 and (data.bestDamage or 0) or 0
 end
 
 --- 消耗免费次数
@@ -564,7 +576,13 @@ function WB.ClaimReward(totalDamage, difficultyLevel)
     difficultyLevel = difficultyLevel or WB.GetSelectedDifficulty()
     local data = WB.GetData()
 
-    -- 更新最高纪录（原始伤害）
+    -- 更新最高纪录（按难度独立记录）
+    if not data.bestDiffDamage then data.bestDiffDamage = {} end
+    local prevBestDiff = data.bestDiffDamage[difficultyLevel] or 0
+    if totalDamage > prevBestDiff then
+        data.bestDiffDamage[difficultyLevel] = totalDamage
+    end
+    -- 兼容：同时更新全局 bestDamage（取所有难度最大值）
     if totalDamage > (data.bestDamage or 0) then
         data.bestDamage = totalDamage
     end

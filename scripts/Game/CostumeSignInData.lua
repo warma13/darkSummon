@@ -227,6 +227,21 @@ SaveRegistry.Register("costumeSignInData", {
         end
         HeroData.costumeSignInData = _data
     end,
+    validate = function()
+        -- 云存档恢复后，补偿已领取但本地文件丢失的时装解锁
+        if not _data or not _data.claimedDays then return end
+        for _, day in ipairs(_data.claimedDays) do
+            local reward = M.REWARDS[day]
+            if reward and reward.type == "costume" and reward.id then
+                local ok, CostumeData = pcall(require, "Game.CostumeData")
+                if ok and CostumeData and not CostumeData.IsOwned(reward.id) then
+                    print("[CostumeSignInData] validate: re-unlocking costume '"
+                        .. reward.id .. "' for claimed day " .. day)
+                    CostumeData.Unlock(reward.id)
+                end
+            end
+        end
+    end,
 })
 
 return M

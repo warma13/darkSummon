@@ -714,6 +714,36 @@ function Tower.AutoDeploy(gridOffsetX, gridOffsetY)
     local towers = State.towers
     if #towers < 2 then return false end
 
+    -- 收集 BOSS 技能危险区域（毁灭践踏 3x3 / 终焉毁灭 NxN）
+    local dangerZones = {}  -- { {col, row, radius} }
+    local bossSkill = State.hatredBossSkill
+    if bossSkill then
+        if bossSkill.starCrush then
+            dangerZones[#dangerZones + 1] = {
+                col = bossSkill.starCrush.centerCol,
+                row = bossSkill.starCrush.centerRow,
+                radius = 1,  -- 3x3 → 切比雪夫半径 1
+            }
+        end
+        if bossSkill.destruction then
+            dangerZones[#dangerZones + 1] = {
+                col = bossSkill.destruction.centerCol,
+                row = bossSkill.destruction.centerRow,
+                radius = bossSkill.destruction.radius or 1,
+            }
+        end
+    end
+
+    --- 判断格子是否在危险区内
+    local function IsInDanger(c, r)
+        for _, zone in ipairs(dangerZones) do
+            if math.max(math.abs(c - zone.col), math.abs(r - zone.row)) <= zone.radius then
+                return true
+            end
+        end
+        return false
+    end
+
     -- 收集所有可放置格子，计算评分
     local cells = {}
     for c = 1, Config.GRID_COLS do
@@ -727,13 +757,13 @@ function Tower.AutoDeploy(gridOffsetX, gridOffsetY)
                     local d = (sx - px) ^ 2 + (sy - py) ^ 2
                     if d < minDist2 then minDist2 = d end
                 end
-                -- 附近敌人密度
+                -- 附近敌人密度（使用平滑衰减，避免只有最近格子拿到极高分）
                 local enemyScore = 0
                 for _, e in ipairs(State.enemies) do
                     if e.alive then
                         local d = math.sqrt((sx - e.x) ^ 2 + (sy - e.y) ^ 2)
-                        if d < 200 then
-                            enemyScore = enemyScore + (200 - d)
+                        if d < 400 then
+                            enemyScore = enemyScore + (400 - d) / 400
                         end
                     end
                 end
@@ -741,28 +771,65 @@ function Tower.AutoDeploy(gridOffsetX, gridOffsetY)
                     col = c, row = r,
                     pathDist = math.sqrt(minDist2),
                     enemyScore = enemyScore,
+                    danger = IsInDanger(c, r),
                 }
             end
         end
     end
 
-    -- 综合评分：靠近路径 + 靠近敌人
+    -- 对 enemyScore 做归一化，避免敌人集中时单个格子分数爆炸
+    local maxES = 0
     for _, cell in ipairs(cells) do
-        cell.score = 1000 / (cell.pathDist + 1) + cell.enemyScore * 0.5
+        if cell.enemyScore > maxES then maxES = cell.enemyScore end
     end
-    -- 按评分降序（最佳位置在前）
-    table.sort(cells, function(a, b) return a.score > b.score end)
 
-    -- 按攻击范围升序（短程优先分配最佳位置）
+    -- 综合评分：靠近路径 + 靠近敌人（归一化后的敌人分数，上限与路径分同量级）
+    for _, cell in ipairs(cells) do
+        local normEnemy = (maxES > 0) and (cell.enemyScore / maxES * 500) or 0
+        cell.score = 1000 / (cell.pathDist + 1) + normEnemy
+    end
+
+    -- 将格子分为安全区和危险区，各自按评分降序
+    local safeCells = {}
+    local dangerCells = {}
+    for _, cell in ipairs(cells) do
+        if cell.danger then
+            dangerCells[#dangerCells + 1] = cell
+        else
+            safeCells[#safeCells + 1] = cell
+        end
+    end
+    table.sort(safeCells, function(a, b) return a.score > b.score end)
+    table.sort(dangerCells, function(a, b) return a.score > b.score end)
+
+    -- 有危险区时：按攻击力降序（高攻优先安全区）；无危险区：按范围升序（短程优先好位）
     local sorted = {}
     for _, t in ipairs(towers) do sorted[#sorted + 1] = t end
-    table.sort(sorted, function(a, b) return a.range < b.range end)
+    if #dangerZones > 0 then
+        -- 高攻英雄优先分到安全格子
+        table.sort(sorted, function(a, b) return a.attack > b.attack end)
+    else
+        table.sort(sorted, function(a, b) return a.range < b.range end)
+    end
+
+    -- 分配：优先安全格子，安全格子用完再用危险格子
+    local finalCells = {}
+    local si, di = 1, 1
+    for _ = 1, #sorted do
+        if si <= #safeCells then
+            finalCells[#finalCells + 1] = safeCells[si]
+            si = si + 1
+        elseif di <= #dangerCells then
+            finalCells[#finalCells + 1] = dangerCells[di]
+            di = di + 1
+        end
+    end
 
     -- 检查是否有任何塔需要移动
     local anyChange = false
     for i, tower in ipairs(sorted) do
-        if i <= #cells then
-            if tower.col ~= cells[i].col or tower.row ~= cells[i].row then
+        if i <= #finalCells then
+            if tower.col ~= finalCells[i].col or tower.row ~= finalCells[i].row then
                 anyChange = true
                 break
             end
@@ -775,12 +842,12 @@ function Tower.AutoDeploy(gridOffsetX, gridOffsetY)
         State.grid[t.col][t.row] = nil
     end
 
-    -- 分配：第 i 个塔 → 第 i 个最佳格子
+    -- 分配：第 i 个塔 → 第 i 个格子（高攻→安全，低攻→危险/剩余）
     for i, tower in ipairs(sorted) do
-        if i <= #cells then
-            tower.col = cells[i].col
-            tower.row = cells[i].row
-            State.grid[cells[i].col][cells[i].row] = tower
+        if i <= #finalCells then
+            tower.col = finalCells[i].col
+            tower.row = finalCells[i].row
+            State.grid[finalCells[i].col][finalCells[i].row] = tower
         end
     end
 

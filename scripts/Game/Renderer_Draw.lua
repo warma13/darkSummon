@@ -557,6 +557,36 @@ function Renderer.DrawSkillFlash(vg, w, h)
         nvgRect(vg, 0, 0, w, h)
         nvgFillColor(vg, nvgRGBAf(0.4, 0.45, 0.15, alpha * 0.1))
         nvgFill(vg)
+    elseif sf.type == "hatred_summon" then
+        -- 全屏橙色闪光（深渊召唤）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.7, 0.35, 0.1, alpha * 0.12))
+        nvgFill(vg)
+    elseif sf.type == "hatred_fortress" then
+        -- 全屏蓝色闪光（憎恨壁垒）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.15, 0.35, 0.7, alpha * 0.12))
+        nvgFill(vg)
+    elseif sf.type == "hatred_taunt" then
+        -- 全屏深红闪光（怨恨嘲讽）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.6, 0.08, 0.08, alpha * 0.15))
+        nvgFill(vg)
+    elseif sf.type == "hatred_star_crush" then
+        -- 全屏紫红闪光（毁灭践踏）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.5, 0.1, 0.6, alpha * 0.18))
+        nvgFill(vg)
+    elseif sf.type == "hatred_destruction" then
+        -- 全屏深红闪光（终焉毁灭扩散）
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, h)
+        nvgFillColor(vg, nvgRGBAf(0.8, 0.05, 0.05, alpha * 0.20))
+        nvgFill(vg)
     end
 end
 
@@ -944,6 +974,267 @@ function Renderer.DrawEmeraldBossSkillFX(vg, w, h)
             nvgStrokeWidth(vg, 1.5)
             nvgStroke(vg)
         end
+    end
+end
+
+--- 憎恨之躯 BOSS 技能特效
+function Renderer.DrawHatredBossSkillFX(vg, w, h)
+    local hk = State.hatredBossSkill
+    if not hk then return end
+
+    local CELL = Config.CELL_SIZE
+    local ox = Renderer.gridOffsetX or 0
+    local oy = Renderer.gridOffsetY or 0
+
+    -- ======== 1. 毁灭践踏 3×3 区域高亮 + 韧性条 ========
+    local sc = hk.starCrush
+    if sc then
+        local cx, cy = Grid.CellToScreen(sc.centerCol, sc.centerRow, ox, oy)
+        local halfArea = CELL * 1.5  -- 3 格的一半
+        local areaX = cx - halfArea
+        local areaY = cy - halfArea
+        local areaSize = CELL * 3
+
+        local progress = 1.0 - math.max(0, (sc.timer or 0) / (sc.totalTime or 3.0))
+        local pulse = 0.5 + 0.5 * math.abs(math.sin((sc.timer or 0) * 5))
+
+        -- 区域底色（脉动红/紫）
+        nvgBeginPath(vg)
+        nvgRect(vg, areaX, areaY, areaSize, areaSize)
+        nvgFillColor(vg, nvgRGBA(160, 30, 60, math.floor(40 + 30 * pulse)))
+        nvgFill(vg)
+
+        -- 区域网格线
+        nvgStrokeColor(vg, nvgRGBA(200, 60, 80, math.floor(100 * pulse)))
+        nvgStrokeWidth(vg, 1)
+        for i = 0, 3 do
+            nvgBeginPath(vg)
+            nvgMoveTo(vg, areaX + i * CELL, areaY)
+            nvgLineTo(vg, areaX + i * CELL, areaY + areaSize)
+            nvgStroke(vg)
+            nvgBeginPath(vg)
+            nvgMoveTo(vg, areaX, areaY + i * CELL)
+            nvgLineTo(vg, areaX + areaSize, areaY + i * CELL)
+            nvgStroke(vg)
+        end
+
+        -- 区域边框（进度越高越亮）
+        nvgBeginPath(vg)
+        nvgRect(vg, areaX, areaY, areaSize, areaSize)
+        nvgStrokeColor(vg, nvgRGBA(220, 50, 70, math.floor(120 + 100 * progress)))
+        nvgStrokeWidth(vg, 2)
+        nvgStroke(vg)
+
+        -- 进度填充（从下往上）
+        local fillH = areaSize * progress
+        nvgBeginPath(vg)
+        nvgRect(vg, areaX, areaY + areaSize - fillH, areaSize, fillH)
+        nvgFillColor(vg, nvgRGBA(180, 20, 50, math.floor(50 + 40 * pulse)))
+        nvgFill(vg)
+
+        -- 韧性条（区域上方）
+        local barW = areaSize
+        local barH = 6
+        local barX = areaX
+        local barY = areaY - barH - 4
+        local tRatio = math.max(0, (sc.toughness or 0) / math.max(1, sc.maxToughness or 1))
+
+        -- 背景
+        nvgBeginPath(vg)
+        nvgRect(vg, barX, barY, barW, barH)
+        nvgFillColor(vg, nvgRGBA(30, 30, 30, 180))
+        nvgFill(vg)
+
+        -- 韧性值（橙黄色）
+        if tRatio > 0 then
+            nvgBeginPath(vg)
+            nvgRect(vg, barX, barY, barW * tRatio, barH)
+            nvgFillColor(vg, nvgRGBA(240, 180, 40, 220))
+            nvgFill(vg)
+        end
+
+        -- 韧性条边框
+        nvgBeginPath(vg)
+        nvgRect(vg, barX, barY, barW, barH)
+        nvgStrokeColor(vg, nvgRGBA(200, 160, 30, 180))
+        nvgStrokeWidth(vg, 1)
+        nvgStroke(vg)
+
+        -- 韧性文字
+        nvgFontFace(vg, "sans")
+        nvgFontSize(vg, 10)
+        nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
+        nvgFillColor(vg, nvgRGBA(255, 220, 60, 220))
+        nvgText(vg, barX + barW * 0.5, barY - 1,
+            string.format("韧性 %d/%d", sc.toughness or 0, sc.maxToughness or 0))
+
+        -- 倒计时文字
+        nvgFontSize(vg, 14)
+        nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+        nvgFillColor(vg, nvgRGBA(255, 80, 80, math.floor(180 + 60 * pulse)))
+        nvgText(vg, cx, cy, string.format("%.1f", math.max(0, sc.timer or 0)))
+    end
+
+    -- ======== 2. 终焉毁灭固定区域 + 韧性条 + 倒计时 ========
+    local dest = hk.destruction
+    if dest then
+        local dcx, dcy = Grid.CellToScreen(dest.centerCol, dest.centerRow, ox, oy)
+        local radius = dest.radius or 1
+        local pulse = 0.5 + 0.5 * math.abs(math.sin(os.clock() * 3))
+        local timer = dest.timer or 0
+        local totalTime = dest.totalTime or 5.0
+        local timerRatio = math.max(0, timer / math.max(0.01, totalTime))
+
+        -- 覆盖区域（深红半透明方块，用切比雪夫距离 radius 格）
+        local coveredSize = radius * CELL
+        nvgBeginPath(vg)
+        nvgRect(vg, dcx - coveredSize, dcy - coveredSize, coveredSize * 2, coveredSize * 2)
+        local urgencyAlpha = math.floor(40 + 40 * (1 - timerRatio) + 20 * pulse)
+        nvgFillColor(vg, nvgRGBA(180, 10, 10, urgencyAlpha))
+        nvgFill(vg)
+
+        -- 区域边框（随倒计时越来越亮）
+        nvgBeginPath(vg)
+        nvgRect(vg, dcx - coveredSize, dcy - coveredSize, coveredSize * 2, coveredSize * 2)
+        local borderAlpha = math.floor(140 + 100 * (1 - timerRatio) * pulse)
+        nvgStrokeColor(vg, nvgRGBA(255, 30, 30, math.min(255, borderAlpha)))
+        nvgStrokeWidth(vg, 2 + (1 - timerRatio))
+        nvgStroke(vg)
+
+        -- 中心标记
+        nvgBeginPath(vg)
+        nvgCircle(vg, dcx, dcy, 6 + 2 * pulse)
+        nvgFillColor(vg, nvgRGBA(255, 20, 20, 200))
+        nvgFill(vg)
+
+        -- 中心倒计时文字
+        nvgFontFace(vg, "sans")
+        nvgFontSize(vg, 16)
+        nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+        nvgFillColor(vg, nvgRGBA(255, 255, 255, math.floor(200 + 55 * pulse)))
+        nvgText(vg, dcx, dcy, string.format("%.1f", math.max(0, timer)))
+
+        -- 韧性条（屏幕顶部居中显示）
+        local barW = 200
+        local barH = 10
+        local barX = (w - barW) * 0.5
+        local barY = 50
+        local tRatio = math.max(0, (dest.toughness or 0) / math.max(1, dest.maxToughness or 1))
+
+        -- 背景
+        nvgBeginPath(vg)
+        nvgRoundedRect(vg, barX, barY, barW, barH, 3)
+        nvgFillColor(vg, nvgRGBA(30, 30, 30, 200))
+        nvgFill(vg)
+
+        -- 韧性值（红黄渐变）
+        if tRatio > 0 then
+            nvgBeginPath(vg)
+            nvgRoundedRect(vg, barX, barY, barW * tRatio, barH, 3)
+            local paint = nvgLinearGradient(vg, barX, barY, barX + barW * tRatio, barY,
+                nvgRGBA(255, 60, 20, 230), nvgRGBA(255, 200, 40, 230))
+            nvgFillPaint(vg, paint)
+            nvgFill(vg)
+        end
+
+        -- 边框
+        nvgBeginPath(vg)
+        nvgRoundedRect(vg, barX, barY, barW, barH, 3)
+        nvgStrokeColor(vg, nvgRGBA(255, 80, 40, 200))
+        nvgStrokeWidth(vg, 1.5)
+        nvgStroke(vg)
+
+        -- 韧性文字
+        nvgFontFace(vg, "sans")
+        nvgFontSize(vg, 12)
+        nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
+        nvgFillColor(vg, nvgRGBA(255, 220, 60, 240))
+        nvgText(vg, w * 0.5, barY - 2,
+            string.format("终焉毁灭 韧性 %d/%d", dest.toughness or 0, dest.maxToughness or 0))
+
+        -- 区域大小+倒计时文字
+        nvgFontSize(vg, 11)
+        nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_TOP)
+        nvgFillColor(vg, nvgRGBA(255, 100, 100, 200))
+        local areaStr = string.format("%dx%d", radius * 2 + 1, radius * 2 + 1)
+        nvgText(vg, w * 0.5, barY + barH + 2,
+            string.format("毁灭区域: %s  倒计时: %.1fs", areaStr, math.max(0, timer)))
+    end
+
+    -- ======== 3. 施法边框（通用，复用 Emerald 风格） ========
+    local casting = hk.casting
+    if casting and casting.phase then
+        local c = casting.color or { 180, 40, 60 }
+        local t = casting.timer or 0
+        local pulse = 0.3 + 0.7 * math.abs(math.sin(t * 6))
+        local a = math.floor(pulse * 150)
+        local borderW = 3
+
+        nvgSave(vg)
+        local shakeX = math.sin(t * 30) * 1.5
+        local shakeY = math.cos(t * 25) * 1.0
+        nvgTranslate(vg, shakeX, shakeY)
+
+        -- 四边
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, 0, w, borderW)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, h - borderW, w, borderW)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+        nvgBeginPath(vg)
+        nvgRect(vg, 0, borderW, borderW, h - borderW * 2)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+        nvgBeginPath(vg)
+        nvgRect(vg, w - borderW, borderW, borderW, h - borderW * 2)
+        nvgFillColor(vg, nvgRGBA(c[1], c[2], c[3], a))
+        nvgFill(vg)
+
+        nvgRestore(vg)
+    end
+
+    -- ======== 4. BOSS 身上的光环指示器 ========
+    local bx = hk.bossX
+    local by = hk.bossY
+    local bSize = hk.bossSize or 22
+    if bx and by then
+        local halfS = bSize * 0.5
+
+        -- 嘲讽光环（红色脉动圆环，画在精灵图中心）
+        if hk.tauntActive then
+            local imgSize = bSize * 2.8
+            local centerY = by - imgSize * 0.5  -- 精灵图中心
+            local tPulse = 0.5 + 0.5 * math.abs(math.sin(os.clock() * 4))
+            nvgBeginPath(vg)
+            nvgCircle(vg, bx, centerY, halfS + 4 + tPulse * 3)
+            nvgStrokeColor(vg, nvgRGBA(220, 40, 40, math.floor(120 + 80 * tPulse)))
+            nvgStrokeWidth(vg, 2)
+            nvgStroke(vg)
+
+            -- 嘲讽图标（小三角朝内）
+            local iconR = halfS + 10
+            for i = 0, 3 do
+                local angle = (i * math.pi * 0.5) + os.clock() * 0.8
+                local ix = bx + math.cos(angle) * iconR
+                local iy = centerY + math.sin(angle) * iconR
+                nvgBeginPath(vg)
+                local triSize = 4
+                nvgMoveTo(vg, ix + math.cos(angle + math.pi) * triSize,
+                              iy + math.sin(angle + math.pi) * triSize)
+                nvgLineTo(vg, ix + math.cos(angle + math.pi * 0.5 + math.pi) * triSize * 0.6,
+                              iy + math.sin(angle + math.pi * 0.5 + math.pi) * triSize * 0.6)
+                nvgLineTo(vg, ix + math.cos(angle - math.pi * 0.5 + math.pi) * triSize * 0.6,
+                              iy + math.sin(angle - math.pi * 0.5 + math.pi) * triSize * 0.6)
+                nvgClosePath(vg)
+                nvgFillColor(vg, nvgRGBA(255, 60, 60, math.floor(160 + 60 * tPulse)))
+                nvgFill(vg)
+            end
+        end
+
+        -- 壁垒护盾：无额外绘制（仅数值减伤效果）
     end
 end
 

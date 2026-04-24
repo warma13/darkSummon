@@ -511,7 +511,8 @@ function RD.IsDifficultyUnlocked(level)
         end
     end
     if prevLevel == nil then return true end  -- 没有前置难度
-    return cleared[tostring(prevLevel)] == true
+    -- 兼容：旧存档可能用 string key，新存档用 number key（DeepNormalizeIntKeys 会转为 number）
+    return cleared[prevLevel] == true or cleared[tostring(prevLevel)] == true
 end
 
 --- 标记某难度已通关（解锁下一难度）
@@ -521,7 +522,7 @@ function RD.MarkDifficultyCleared(level)
     if not data.clearedDifficulties then
         data.clearedDifficulties = {}
     end
-    data.clearedDifficulties[tostring(level)] = true
+    data.clearedDifficulties[level] = true
     HeroData.Save()
     print("[ResourceDungeon] Difficulty " .. level .. " cleared, next unlocked")
 end

@@ -337,12 +337,22 @@ function GameUI.BuildHeroInfoContent(tower)
         result[#result + 1] = ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 80, 60, 140, 80 } }
         result[#result + 1] = ctx.UI.Label { text = "技能", fontSize = 11, fontColor = { 180, 170, 200, 220 }, fontWeight = "bold" }
 
+        -- 星级缩放系数：用于动态技能描述
+        local heroStar = tower.heroStar or 0
+        local maxStar  = Config.MAX_HERO_STAR or 30
+        local starScale = 0.10 + 0.90 * math.sqrt(math.min(heroStar, maxStar) / maxStar)
+
         for i, sk in ipairs(skills) do
             local typeTag = sk.type == "active" and "[主动]" or "[被动]"
             local typeColor = sk.type == "active" and { 255, 180, 80, 255 } or { 120, 200, 255, 255 }
 
-            -- 技能描述：主动技能补充冷却信息
-            local descText = sk.desc or ""
+            -- 技能描述：优先使用 buildDesc 动态描述（随星级变化）
+            local descText
+            if sk.buildDesc then
+                descText = sk.buildDesc(starScale)
+            else
+                descText = sk.desc or ""
+            end
             if sk.type == "active" and sk.interval then
                 descText = descText .. " (CD:" .. sk.interval .. "s)"
             end

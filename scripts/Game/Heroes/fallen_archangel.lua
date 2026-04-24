@@ -25,10 +25,10 @@ function M.UpdateAura(source, towers)
 
     for _, t in ipairs(towers) do
         if t ~= source then
-            local dx = t._sx - sx
-            local dy = t._sy - sy
+            local dx = (t._sx or 0) - (sx or 0)
+            local dy = (t._sy or 0) - (sy or 0)
             if dx * dx + dy * dy <= auraRangeSq then
-                t.auraCritRateBuff = t.auraCritRateBuff + critBuff
+                t.auraCritRateBuff = (t.auraCritRateBuff or 0) + critBuff
             end
         end
     end

@@ -9,6 +9,7 @@ local RD = require("Game.ResourceDungeonData")
 local WB = require("Game.WorldBossData")
 local AbyssRift = require("Game.AbyssRiftDungeon")
 local EmeraldDungeonData = require("Game.EmeraldDungeonData")
+local HLData = require("Game.HatredLandData")
 local FormatNum = require("Game.FormatUtil").FormatNum
 
 local LB = require("Game.LeaderboardData")
@@ -19,6 +20,7 @@ local ResourceDungeon
 local WorldBoss
 local AbyssRiftMod
 local EmeraldDungeonMod
+local HatredLandMod
 
 local DungeonUI = {}
 
@@ -28,7 +30,7 @@ local UI = nil
 local pageRoot = nil
 
 -- 当前视图状态
-local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "abyss_rift_detail" | "emerald_dungeon_detail"
+local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "hatred_land_detail" | "abyss_rift_detail" | "emerald_dungeon_detail"
 local currentResourceKey = nil  -- 当前选中的资源副本 key
 
 -- 严格点击判定：拖动超过阈值不触发 onClick
@@ -134,6 +136,15 @@ local DUNGEON_DEFS = {
         unlockFloor = 20,
     },
     {
+        key = "hatred_land",
+        name = "憎恨之地",
+        desc = "击破憎恨之躯，获取暗噬精华与魂器碎片",
+        accentColor = { 160, 40, 50, 255 },
+        available = true,
+        cover = "image/dungeon_hatred_land_20260424045354.png",
+        unlockFloor = 20,
+    },
+    {
         key = "abyss_rift",
         name = "深渊裂隙",
         desc = "探索裂隙深处，获取符文与洗练材料",
@@ -182,6 +193,7 @@ function DungeonUI.CreatePage(uiModule)
         WorldBoss = require("Game.DungeonUI.WorldBoss")
         AbyssRiftMod = require("Game.DungeonUI.AbyssRift")
         EmeraldDungeonMod = require("Game.DungeonUI.EmeraldDungeon")
+        HatredLandMod = require("Game.DungeonUI.HatredLand")
     end
 
     pageRoot = UI.Panel {
@@ -216,6 +228,8 @@ function DungeonUI.Refresh()
         AbyssRiftMod.BuildDetailView(DungeonUI)
     elseif currentView == "emerald_dungeon_detail" then
         EmeraldDungeonMod.BuildDetailView(DungeonUI)
+    elseif currentView == "hatred_land_detail" then
+        HatredLandMod.BuildDetailView(DungeonUI)
     end
 end
 
@@ -296,9 +310,27 @@ function DungeonUI.BuildListView()
         },
     })
 
+    -- 两列副本 key 集合（世界BOSS + 憎恨之地并排显示）
+    local twoColKeys = { world_boss = true, hatred_land = true }
+
     local cards = {}
+    local twoColBuf = {}  -- 收集需要两列显示的定义
+
     for _, def in ipairs(DUNGEON_DEFS) do
-        cards[#cards + 1] = DungeonUI.BuildDungeonCard(def)
+        if twoColKeys[def.key] then
+            twoColBuf[#twoColBuf + 1] = def
+        else
+            -- 先把已收集的两列卡片输出
+            if #twoColBuf > 0 then
+                cards[#cards + 1] = DungeonUI.BuildTwoColRow(twoColBuf)
+                twoColBuf = {}
+            end
+            cards[#cards + 1] = DungeonUI.BuildDungeonCard(def)
+        end
+    end
+    -- 尾部残留的两列卡片
+    if #twoColBuf > 0 then
+        cards[#cards + 1] = DungeonUI.BuildTwoColRow(twoColBuf)
     end
 
     pageRoot:AddChild(UI.ScrollView {
@@ -317,6 +349,146 @@ function DungeonUI.BuildListView()
     })
 end
 
+-- ============================================================================
+-- 两列布局（世界BOSS + 憎恨之地）
+-- ============================================================================
+
+--- 构建两列行容器
+function DungeonUI.BuildTwoColRow(defs)
+    local children = {}
+    for _, def in ipairs(defs) do
+        children[#children + 1] = DungeonUI.BuildCompactCard(def)
+    end
+    return UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        gap = 8,
+        children = children,
+    }
+end
+
+--- 构建紧凑版副本卡片（用于两列布局）
+function DungeonUI.BuildCompactCard(def)
+    local isAvailable = def.available
+
+    if def.key == "world_boss" or def.key == "hatred_land" then
+        local State = require("Game.State")
+        if (State.currentStage or 1) < (def.unlockFloor or 20) then
+            isAvailable = false
+        end
+    end
+
+    -- 进度信息
+    local progressText = ""
+    local progressColor = S.dim
+    if def.key == "world_boss" and isAvailable then
+        local remaining = WB.GetRemainingAttempts()
+        progressText = remaining .. "/" .. WB.DAILY_ATTEMPTS
+        progressColor = remaining > 0 and S.green or S.red
+    elseif def.key == "hatred_land" and isAvailable then
+        local remaining = HLData.GetRemainingAttempts()
+        progressText = remaining .. "/" .. HLData.DAILY_ATTEMPTS
+        progressColor = remaining > 0 and S.green or S.red
+    elseif not isAvailable then
+        progressText = "第" .. (def.unlockFloor or 20) .. "关解锁"
+        progressColor = S.comingSoon
+    end
+
+    local accentColor = isAvailable and def.accentColor or S.comingSoon
+
+    -- 点击目标视图
+    local targetView = def.key == "world_boss" and "world_boss_detail" or "hatred_land_detail"
+
+    return UI.Panel {
+        flex = 1,
+        aspectRatio = 3 / 4,
+        flexDirection = "column",
+        backgroundColor = isAvailable and S.cardBg or { 25, 20, 38, 180 },
+        backgroundImage = def.cover,
+        backgroundFit = def.cover and "cover" or nil,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = isAvailable and S.cardBorder or { 50, 42, 65, 80 },
+        overflow = "hidden",
+        onPointerDown = isAvailable and function(event)
+            _tapPressX = event.x
+            _tapPressY = event.y
+        end or nil,
+        onPointerUp = isAvailable and function(event)
+            local dx = event.x - _tapPressX
+            local dy = event.y - _tapPressY
+            if dx * dx + dy * dy <= TAP_THRESHOLD * TAP_THRESHOLD then
+                currentView = targetView
+                DungeonUI.Refresh()
+            end
+        end or nil,
+        children = {
+            -- 顶部信息区（半透明遮罩）
+            UI.Panel {
+                width = "100%",
+                flexDirection = "column",
+                paddingLeft = 10, paddingRight = 10,
+                paddingTop = 8, paddingBottom = 10,
+                gap = 4,
+                backgroundColor = { 15, 12, 25, 200 },
+                children = {
+                    -- 标题行
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        alignSelf = "flex-start",
+                        gap = 4,
+                        paddingLeft = 6, paddingRight = 8,
+                        paddingTop = 3, paddingBottom = 3,
+                        borderRadius = 5,
+                        backgroundColor = { accentColor[1], accentColor[2], accentColor[3], isAvailable and 180 or 80 },
+                        children = {
+                            UI.Label {
+                                text = def.name,
+                                fontSize = 14,
+                                fontWeight = "bold",
+                                fontColor = isAvailable and { 255, 255, 255, 255 } or S.dim,
+                                pointerEvents = "none",
+                            },
+                        },
+                    },
+                    -- 进度 badge
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = 4,
+                        children = {
+                            UI.Panel {
+                                paddingLeft = 6, paddingRight = 6,
+                                paddingTop = 2, paddingBottom = 2,
+                                borderRadius = 8,
+                                backgroundColor = { progressColor[1], progressColor[2], progressColor[3], 40 },
+                                children = {
+                                    UI.Label {
+                                        text = progressText,
+                                        fontSize = 10,
+                                        fontColor = progressColor,
+                                        pointerEvents = "none",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    -- 简要描述
+                    UI.Label {
+                        text = def.desc,
+                        fontSize = 10,
+                        fontColor = S.dim,
+                        pointerEvents = "none",
+                    },
+                },
+            },
+            -- 底部留白让背景图展示
+            UI.Panel { flex = 1 },
+        },
+    }
+end
+
 --- 构建单个副本卡片
 function DungeonUI.BuildDungeonCard(def)
     local isAvailable = def.available
@@ -330,6 +502,13 @@ function DungeonUI.BuildDungeonCard(def)
 
     if def.key == "abyss_rift" then
         if not AbyssRift.IsUnlocked() then
+            isAvailable = false
+        end
+    end
+
+    if def.key == "hatred_land" then
+        local State = require("Game.State")
+        if (State.currentStage or 1) < (def.unlockFloor or 20) then
             isAvailable = false
         end
     end
@@ -378,6 +557,10 @@ function DungeonUI.BuildDungeonCard(def)
         local remaining = AbyssRift.GetRemaining()
         progressText = "今日 " .. remaining .. "/" .. AbyssRift.DAILY_FREE
         progressColor = remaining > 0 and S.green or S.red
+    elseif def.key == "hatred_land" and isAvailable then
+        local remaining = HLData.GetRemainingAttempts()
+        progressText = "今日 " .. remaining .. "/" .. HLData.DAILY_ATTEMPTS
+        progressColor = remaining > 0 and S.green or S.red
     elseif def.key == "emerald_dungeon" and isAvailable then
         local tickets = EmeraldDungeonData.GetTickets()
         local adLeft = EmeraldDungeonData.GetAdRemaining()
@@ -386,6 +569,8 @@ function DungeonUI.BuildDungeonCard(def)
         progressColor = tickets > 0 and S.green or (adLeft > 0 and S.gold or S.red)
     elseif not isAvailable then
         if def.key == "world_boss" then
+            progressText = "主线第" .. (def.unlockFloor or 20) .. "关解锁"
+        elseif def.key == "hatred_land" then
             progressText = "主线第" .. (def.unlockFloor or 20) .. "关解锁"
         elseif def.key == "abyss_rift" then
             progressText = "主线第" .. (def.unlockStage or 100) .. "关解锁"
@@ -446,6 +631,14 @@ function DungeonUI.BuildDungeonCard(def)
             Currency.IconWidget(UI, "rune_seal", 13),
             UI.Label { text = "符文封印", fontSize = 11, fontColor = { 40, 200, 160 }, pointerEvents = "none" },
         }
+    elseif def.key == "hatred_land" and isAvailable then
+        rewardChildren = {
+            Currency.IconWidget(UI, "dark_essence", 13),
+            UI.Label { text = "暗噬精华", fontSize = 11, fontColor = { 200, 80, 80 }, pointerEvents = "none" },
+            UI.Label { text = " + ", fontSize = 10, fontColor = S.dim, pointerEvents = "none" },
+            Currency.IconWidget(UI, "soul_vessel_shard", 13),
+            UI.Label { text = "魂器碎片", fontSize = 11, fontColor = { 180, 120, 220 }, pointerEvents = "none" },
+        }
     elseif def.key == "emerald_dungeon" and isAvailable then
         rewardChildren = {
             UI.Panel {
@@ -490,6 +683,9 @@ function DungeonUI.BuildDungeonCard(def)
                     DungeonUI.Refresh()
                 elseif def.key == "world_boss" then
                     currentView = "world_boss_detail"
+                    DungeonUI.Refresh()
+                elseif def.key == "hatred_land" then
+                    currentView = "hatred_land_detail"
                     DungeonUI.Refresh()
                 elseif def.key == "abyss_rift" then
                     currentView = "abyss_rift_detail"

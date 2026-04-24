@@ -4,6 +4,8 @@
 local M = {}
 
 local SAVE_FILE = "costume_equipped.json"
+local HeroData     = require("Game.HeroData")
+local SaveRegistry = require("Game.SaveRegistry")
 
 -- ============================================================================
 -- 时装定义
@@ -170,6 +172,9 @@ function M.Save()
     if not f then return end
     f:WriteString(cjson.encode({ equipped = _equipped, unlocked = _unlockedExtra }))
     f:Close()
+    -- 同步到云端
+    HeroData.costumeData = { equipped = _equipped, unlocked = _unlockedExtra }
+    HeroData.Save()
 end
 
 function M.Load()
@@ -211,7 +216,63 @@ function M.Load()
     end
 end
 
--- 初始化时加载
+-- ============================================================================
+-- 内部：将 _unlockedExtra 同步到 def.owned
+-- ============================================================================
+local function ApplyUnlocked()
+    for id, _ in pairs(_unlockedExtra) do
+        for _, slot in ipairs(M.SLOTS) do
+            if slot.costumes then
+                for _, def in ipairs(slot.costumes) do
+                    if def.id == id then def.owned = true end
+                end
+            end
+        end
+    end
+    -- 校验已装备时装是否拥有，未拥有则卸下
+    for slotId, costumeId in pairs(_equipped) do
+        if costumeId and not M.IsOwned(costumeId) then
+            _equipped[slotId] = nil
+        end
+    end
+end
+
+-- ============================================================================
+-- SaveRegistry 注册（云端持久化）
+-- ============================================================================
+SaveRegistry.Register("costumeData", {
+    group = "meta_game",
+    order = 57,  -- 在 costumeSignInData(56) 之后
+    initDefault = function()
+        _equipped = { wing = nil }
+        _unlockedExtra = {}
+        HeroData.costumeData = nil
+    end,
+    serialize = function()
+        return { equipped = _equipped, unlocked = _unlockedExtra }
+    end,
+    deserialize = function(saved)
+        if saved and type(saved) == "table" then
+            -- 从云端恢复
+            if saved.equipped then
+                for k, v in pairs(saved.equipped) do _equipped[k] = v end
+            end
+            if type(saved.unlocked) == "table" then
+                for id, _ in pairs(saved.unlocked) do
+                    _unlockedExtra[id] = true
+                end
+            end
+        end
+        -- 兼容：如果云端没数据，从本地文件加载
+        if not saved or (not saved.equipped and not saved.unlocked) then
+            M.Load()
+        end
+        ApplyUnlocked()
+        HeroData.costumeData = { equipped = _equipped, unlocked = _unlockedExtra }
+    end,
+})
+
+-- 初始化时加载（非 SaveRegistry 流程的兼容路径）
 M.Load()
 
 return M

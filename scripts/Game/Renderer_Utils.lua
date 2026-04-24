@@ -194,6 +194,11 @@ SpriteSheet.Register("emerald_boss", {
     path = "image/emerald_boss_spritesheet.png",
     cols = 3,   -- 0=idle, 1=cast, 2=attack
 })
+-- 注册憎恨之躯BOSS精灵图
+SpriteSheet.Register("hatred_boss", {
+    path = "image/mobs/hatred_boss.png",
+    cols = 3,   -- 0=idle, 1=cast, 2=attack
+})
 
 -- ========== Debuff 粒子系统 ==========
 

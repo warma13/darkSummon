@@ -19,6 +19,7 @@ local SFX_HIT_INTERVAL = 0.12      -- 命中音效最小间隔
 local Tower = require("Game.Tower")
 local LootDrop = require("Game.LootDrop")
 local DamageStats = require("Game.DamageStats")
+local HatredBossSkills = require("Game.HatredBossSkills")
 
 local Combat = {}
 
@@ -322,9 +323,26 @@ local function SpatialQuery(px, py, rangeSq, range, hitSet)
 end
 
 --- 寻找塔攻击范围内最近的敌人（空间网格加速）
+--- 嘲讽激活时：优先攻击范围内的憎恨之躯 BOSS
 local function FindTarget(tower, towerX, towerY)
     local effectiveRange = HeroSkills.ModifyRange(tower, tower.range)
-    return SpatialQuery(towerX, towerY, effectiveRange * effectiveRange, effectiveRange, nil)
+    local rangeSq = effectiveRange * effectiveRange
+
+    -- 嘲讽激活时，优先攻击范围内的 BOSS
+    if HatredBossSkills.IsTauntActive() then
+        for _, e in ipairs(State.enemies) do
+            if e.alive and e.isHatredBoss then
+                local dx = e.x - towerX
+                local dy = e.y - towerY
+                if dx * dx + dy * dy <= rangeSq then
+                    return e
+                end
+                break
+            end
+        end
+    end
+
+    return SpatialQuery(towerX, towerY, rangeSq, effectiveRange, nil)
 end
 
 --- 寻找链式攻击的下一个目标（空间网格加速）
@@ -389,6 +407,23 @@ local function TowerAttack(tower, towerX, towerY, target)
     end
 end
 
+--- 憎恨之躯 BOSS 受击钩子（嘲讽叠层 + 韧性条伤害）
+local function CheckHatredBossHit(tower, target, damage)
+    if not target.isHatredBoss then return end
+    if not HatredBossSkills.IsActive() then return end
+    -- 嘲讽回调：叠加攻速减益
+    if HatredBossSkills.IsTauntActive() then
+        HatredBossSkills.OnTowerHitBoss(tower)
+    end
+    -- 韧性条命中（每次攻击计 1 次，与伤害数值无关）
+    if HatredBossSkills.GetStarCrushState() then
+        HatredBossSkills.DamageToughness()
+    end
+    if HatredBossSkills.GetDestructionState() then
+        HatredBossSkills.DamageDestructionToughness()
+    end
+end
+
 --- 处理链式攻击命中
 ---@param tower table
 ---@param firstTarget table
@@ -419,6 +454,7 @@ local function HandleChainAttack(tower, firstTarget, damage)
         if isCrit then HeroSkills.CheckCritSplash(tower, nextTarget, finalDmg) end
 
         HeroSkills.OnHit(tower, nextTarget, killed)
+        CheckHatredBossHit(tower, nextTarget, finalDmg)
 
         -- 链式特殊效果
         if typeDef.special == "slow" and nextTarget.alive then
@@ -468,6 +504,7 @@ local function OnProjectileHit(proj)
         ShowDamageText(target, finalDmg, isCrit, elemColor)
         if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
         HeroSkills.OnHit(tower, target, killed)
+        CheckHatredBossHit(tower, target, finalDmg)
 
         -- 链式弹跳
         HandleChainAttack(tower, target, proj.damage)
@@ -491,6 +528,7 @@ local function OnProjectileHit(proj)
                     ShowDamageText(e, finalDmg, isCrit, elemColor)
                     if isCrit then HeroSkills.CheckCritSplash(tower, e, finalDmg) end
                     HeroSkills.OnHit(tower, e, killed)
+                    CheckHatredBossHit(tower, e, finalDmg)
                 end
             end
         end
@@ -505,6 +543,7 @@ local function OnProjectileHit(proj)
         ShowDamageText(target, finalDmg, isCrit, elemColor)
         if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
         HeroSkills.OnHit(tower, target, killed)
+        CheckHatredBossHit(tower, target, finalDmg)
     end
 
     -- === 特殊效果 ===

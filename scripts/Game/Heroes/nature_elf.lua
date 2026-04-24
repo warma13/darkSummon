@@ -99,14 +99,6 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                     local bonus = math.floor((td.activeForce or 30) * starScale)
                     t.naturalForce      = (t.naturalForce or 0) + bonus
                     t.naturalForceTimer = natForceDuration
-                    State.AddFloatingText({
-                        text     = "+" .. bonus .. " 自然之力",
-                        x        = t._sx + (math.random() - 0.5) * 20,
-                        y        = t._sy - 22,
-                        life     = 1.2,
-                        color    = { 80, 220, 120, 255 },
-                        fontSize = 12,
-                    })
                 end
             end
         end

@@ -6,6 +6,7 @@ return function(GameUI, ctx)
 local Config   = require("Game.Config")
 local State    = require("Game.State")
 local Tower    = require("Game.Tower")
+local Grid     = require("Game.Grid")
 local Wave     = require("Game.Wave")
 local Currency = require("Game.Currency")
 local HeroData = require("Game.HeroData")
@@ -18,19 +19,58 @@ local FormatNum = ctx.FormatNum
 
 function GameUI.AutoMerge()
     local merged = false
+
+    -- 检查棋盘是否已满（所有非路径格都有塔）
+    local totalSlots = 0
+    for c = 1, Config.GRID_COLS do
+        for r = 1, Config.GRID_ROWS do
+            if not Grid.IsPathCell(c, r) then
+                totalSlots = totalSlots + 1
+            end
+        end
+    end
+    local boardFull = (#State.towers >= totalSlots)
+
+    -- 找到场上攻击力最高的英雄（最高输出）
+    local topAtk = 0
+    local topTypeIndex, topStar = nil, nil
+    for _, t in ipairs(State.towers) do
+        if t.attack > topAtk then
+            topAtk = t.attack
+            topTypeIndex = t.typeIndex
+            topStar = t.star
+        end
+    end
+
+    -- 统计最高输出英雄的同类型同星级数量
+    local topCount = 0
+    if topTypeIndex then
+        for _, t in ipairs(State.towers) do
+            if t.typeIndex == topTypeIndex and t.star == topStar then
+                topCount = topCount + 1
+            end
+        end
+    end
+
     -- 从低星开始找第一个可合成的配对
     for star = 1, Config.MAX_STAR - 1 do
         for i = 1, #State.towers do
             local t1 = State.towers[i]
             if t1 and t1.star == star and t1.star < Config.MAX_STAR then
-                for j = i + 1, #State.towers do
-                    local t2 = State.towers[j]
-                    if t2 and t2.typeIndex == t1.typeIndex and t2.star == t1.star then
-                        if Tower.CanMerge(t1, t2) then
-                            local result = Tower.Merge(t1, t2)
-                            if result then
-                                merged = true
-                                break
+                -- 如果这对是最高输出英雄，检查保护条件
+                local isTopOutput = (t1.typeIndex == topTypeIndex and t1.star == topStar)
+                if isTopOutput and topCount < 3 and not boardFull then
+                    -- 跳过：保留最高输出，除非有3个以上或棋盘满
+                else
+                    for j = i + 1, #State.towers do
+                        local t2 = State.towers[j]
+                        if t2 and t2.typeIndex == t1.typeIndex and t2.star == t1.star then
+                            if Tower.CanMerge(t1, t2) then
+                                local result = Tower.Merge(t1, t2)
+                                if result then
+                                    merged = true
+                                    break
+                                end
                             end
                         end
                     end
@@ -519,6 +559,16 @@ local REDEEM_CODES = {
         reward = function()
             local TTD = require("Game.TrialTowerData")
             TTD.AddTickets(1000)
+        end,
+    },
+    {
+        code = "VIP1564171575D",
+        desc = "专属奖励：憎恨之地挑战券 ×100",
+        color = { 160, 40, 50 },
+        allowedUser = 1564171575,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("hatred_ticket", 100)
         end,
     },
     {

@@ -5,7 +5,7 @@
     "id": "1564171575"
   },
   "entry": "main.lua",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "taptap_publish": {
     "title": "<game title, required>",
     "description": "<game description>",

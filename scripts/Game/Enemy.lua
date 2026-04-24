@@ -137,6 +137,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
         isElite = false,
         isBoss = typeDef.isBoss or false,
         isWorldBoss = typeDef.isWorldBoss or false,
+        isHatredBoss = typeDef.isHatredBoss or false,
         affixes = {},
         affixIds = {},    -- 用于快速查询
 

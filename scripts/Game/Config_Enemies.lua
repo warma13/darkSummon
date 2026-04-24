@@ -746,6 +746,97 @@ Config.WAVE_BASE_COUNT = 4
 Config.WAVE_COUNT_GROWTH = 0.15
 Config.WAVE_MAX_COUNT = 16
 
+-- ============================================================================
+-- 深渊 BOSS：憎恨之躯（独立定义，供无尽深渊/副本系统使用）
+-- ============================================================================
+
+Config.HATRED_BOSS = {
+    id = "hatred_body",
+    name = "憎恨之躯",
+    color = { 180, 40, 60 },
+    baseHP = 5000,
+    baseDEF = 80,
+    speed = 18,
+    size = 26,
+    icon = "image/mobs/hatred_boss.png",
+    passive = "immune_cc",
+
+    -- 技能组配置（传入 HatredBossSkills.Init）
+    bossSkills = {
+        summon = {
+            interval = 20.0,
+            maxCount = 10,            -- 最多召唤10个
+            baseCount = 1,            -- 首次召唤1个，每次+1
+            hpMult = 3.0,
+            hpScale = 1.0,
+            statGrowth = 1.5,         -- 每次召唤属性指数增长倍率
+        },
+        fortress = {
+            interval = 25.0,
+            baseShield = 2000,        -- 初始护盾值，每次释放翻倍
+            defMult = 2.0,
+            permanent = true,         -- 永久生效，可无限叠加
+        },
+        taunt = {
+            interval = 15.0,
+            duration = 10.0,
+            maxStacks = 5,
+            spdPerStack = 0.08,
+            stackDuration = 6.0,
+        },
+        star_crush = {
+            interval = 30.0,
+            channelTime = 3.0,
+            toughnessDefDiv = 100000, -- 韧性次数 = ceil(boss.def / 此值)，与防御成正比
+            toughnessMin = 20,        -- 最低韧性次数
+            starReduction = 1,
+        },
+        destruction = {
+            interval = 45.0,          -- 释放间隔
+            channelTime = 5.0,        -- 引导时间，未打断则执行毁灭
+            baseRadius = 1,           -- 初始半径（3x3）
+            radiusGrowth = 1,         -- 每次成功释放 +1 半径
+            maxRadius = 3,            -- 最大半径（覆盖5x6英雄棋盘）
+            toughnessDefDiv = 100000, -- 韧性次数 = ceil(boss.def / 此值)，与防御成正比
+            toughnessMin = 20,        -- 最低韧性次数
+        },
+    },
+}
+
+--- 构建憎恨之躯 BOSS 定义（带数值缩放）
+---@param wave number 当前波次
+---@param hpScale? number HP 缩放倍率（默认 1.0）
+---@return table bossDef
+function Config.BuildHatredBoss(wave, hpScale)
+    hpScale = hpScale or 1.0
+
+    local src = Config.HATRED_BOSS
+    local def = {}
+    for k, v in pairs(src) do
+        if k ~= "bossSkills" then
+            def[k] = v
+        end
+    end
+
+    def.baseHP = src.baseHP * hpScale
+    def.isBoss = true
+    def.isHatredBoss = true
+    def.reward = 50
+    def.liveCost = 3
+    def.shape = "diamond"
+
+    -- 深拷贝技能配置
+    local skills = {}
+    for sk, cfg in pairs(src.bossSkills) do
+        local c = {}
+        for ck, cv in pairs(cfg) do c[ck] = cv end
+        skills[sk] = c
+    end
+    def.bossSkills = skills
+
+    return def
+end
+
 end
 
 return apply

@@ -373,6 +373,15 @@ InventoryData.ITEM_DEFS = {
         rarity = "SR",
         stackable = true,
     },
+    -- 憎恨之地挑战券
+    hatred_ticket = {
+        id = "hatred_ticket",
+        name = "憎恨之地挑战券",
+        desc = "可在憎恨之地消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "SR",
+        stackable = true,
+    },
     -- 货币福袋
     nether_crystal_pack = {
         id = "nether_crystal_pack",
