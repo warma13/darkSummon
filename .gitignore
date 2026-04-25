@@ -1,2 +1,6 @@
 .build/
 dist/
+.tmp/
+logs/
+darkSummon/
+.emmylua/
