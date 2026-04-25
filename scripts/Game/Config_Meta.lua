@@ -729,7 +729,6 @@ Config.TEMPER_UNLOCK_STAGE = 3001       -- 主线关卡 >= 3001
 Config.TEMPER_UNLOCK_LEVEL = 4000       -- 装备等级 = 4000（红色满级）
 Config.TEMPER_UNLOCK_COST = 2000        -- 暗影精粹解锁费用（按件）
 Config.TEMPER_COST_JADE = 100           -- 每次淬炼消耗白玉
-Config.TEMPER_SUCCESS_RATE = 0.40       -- 淬炼成功率 40%
 Config.TEMPER_MAX_SLOTS = 5             -- 最大孔位数
 
 -- 孔位解锁条件（累计淬炼次数）

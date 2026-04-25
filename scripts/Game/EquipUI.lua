@@ -428,14 +428,92 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         local canUnlock = TemperData.CanUnlock(selectedHero, slotDef.id)
         btnVariant = canUnlock and "primary" or "outline"
         btnClick = function(self)
-            local ok, msg = TemperData.Unlock(selectedHero, slotDef.id)
-            local Toast = require("Game.Toast")
-            if ok then
-                Toast.Show("淬炼已解锁!", { 180, 140, 255 })
-            else
+            if not canUnlock then
+                local _, msg = TemperData.CanUnlock(selectedHero, slotDef.id)
+                local Toast = require("Game.Toast")
                 Toast.Show(msg, { 255, 100, 80 })
+                return
             end
-            EquipUI.Refresh()
+            -- 确认弹窗
+            local old = pageRoot:FindById("equipUnlockConfirm")
+            if old then pageRoot:RemoveChild(old) end
+            local confirmPanel
+            confirmPanel = UI.Panel {
+                id = "equipUnlockConfirm",
+                position = "absolute",
+                top = 0, left = 0, right = 0, bottom = 0,
+                backgroundColor = { 0, 0, 0, 180 },
+                justifyContent = "center",
+                alignItems = "center",
+                pointerEvents = "auto",
+                zIndex = 80,
+                onClick = function()
+                    pageRoot:RemoveChild(confirmPanel)
+                end,
+                children = {
+                    UI.Panel {
+                        width = 260,
+                        backgroundColor = { 30, 20, 50, 250 },
+                        borderRadius = 12,
+                        borderWidth = 1,
+                        borderColor = { 160, 120, 255, 160 },
+                        paddingTop = 20, paddingBottom = 16,
+                        paddingLeft = 20, paddingRight = 20,
+                        gap = 14,
+                        alignItems = "center",
+                        pointerEvents = "auto",
+                        onClick = function() end,
+                        children = {
+                            UI.Label {
+                                text = "确认解锁淬炼",
+                                fontSize = 17,
+                                fontColor = Config.COLORS.textGold,
+                                fontWeight = "bold",
+                            },
+                            UI.Label {
+                                text = "消耗 " .. Config.TEMPER_UNLOCK_COST .. " 暗影精粹\n为 " .. slotDef.name .. " 开启淬炼",
+                                fontSize = 13,
+                                fontColor = { 200, 190, 220, 220 },
+                                textAlign = "center",
+                            },
+                            UI.Panel {
+                                flexDirection = "row",
+                                gap = 16,
+                                paddingTop = 6,
+                                children = {
+                                    UI.Button {
+                                        text = "取消",
+                                        fontSize = 14,
+                                        width = 90, height = 38,
+                                        variant = "ghost",
+                                        onClick = function()
+                                            pageRoot:RemoveChild(confirmPanel)
+                                        end,
+                                    },
+                                    UI.Button {
+                                        text = "确认",
+                                        fontSize = 14,
+                                        width = 90, height = 38,
+                                        variant = "primary",
+                                        onClick = function()
+                                            pageRoot:RemoveChild(confirmPanel)
+                                            local ok, msg = TemperData.Unlock(selectedHero, slotDef.id)
+                                            local Toast = require("Game.Toast")
+                                            if ok then
+                                                Toast.Show("淬炼已解锁!", { 180, 140, 255 })
+                                            else
+                                                Toast.Show(msg, { 255, 100, 80 })
+                                            end
+                                            EquipUI.Refresh()
+                                        end,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }
+            pageRoot:AddChild(confirmPanel)
         end
         costWidget = UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 2,

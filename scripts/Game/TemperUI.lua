@@ -73,26 +73,45 @@ local function CreateHeader()
             UI.Panel {
                 flex = 1,
                 gap = 2,
-                children = {
-                    UI.Label {
-                        text = info.fullName,
-                        fontSize = 16,
-                        fontColor = tier.color,
-                        fontWeight = "bold",
-                    },
-                    UI.Label {
-                        text = info.slotDef.statName .. " +" .. (info.slotDef.fmt == "pct"
-                            and string.format("%.1f%%", info.statBonus * 100)
-                            or FormatNumber(info.statBonus)),
-                        fontSize = 13,
-                        fontColor = Config.COLORS.textGold,
-                    },
-                    UI.Label {
+                children = (function()
+                    local headerChildren = {
+                        UI.Label {
+                            text = info.fullName,
+                            fontSize = 16,
+                            fontColor = tier.color,
+                            fontWeight = "bold",
+                        },
+                        UI.Label {
+                            text = info.slotDef.statName .. " +" .. (info.slotDef.fmt == "pct"
+                                and string.format("%.1f%%", info.statBonus * 100)
+                                or FormatNumber(info.statBonus)),
+                            fontSize = 13,
+                            fontColor = Config.COLORS.textGold,
+                        },
+                    }
+                    -- 淬炼主属性加成：每次淬炼 +1% 每级基础成长
+                    if temper and temper.totalAttempts > 0 then
+                        local mainBonus = TemperData.GetTemperMainStatBonus(curHero, curSlot)
+                        if mainBonus > 0 then
+                            local slotDef = nil
+                            for _, s in ipairs(Config.EQUIP_SLOTS) do
+                                if s.id == curSlot then slotDef = s; break end
+                            end
+                            local statName = slotDef and slotDef.statName or "属性"
+                            headerChildren[#headerChildren + 1] = UI.Label {
+                                text = "淬炼加成: " .. statName .. " +" .. string.format("%.3f%%", mainBonus * 100),
+                                fontSize = 11,
+                                fontColor = { 100, 255, 100, 220 },
+                            }
+                        end
+                    end
+                    headerChildren[#headerChildren + 1] = UI.Label {
                         text = "累计淬炼: " .. attempts .. "次",
                         fontSize = 11,
                         fontColor = { 150, 140, 170, 180 },
-                    },
-                },
+                    }
+                    return headerChildren
+                end)(),
             },
             -- 关闭按钮
             UI.Button {
@@ -133,7 +152,17 @@ local function CreateSlotRow(slotIdx, slotData, unlocked, nextThreshold)
                 },
                 UI.Panel { flex = 1 },
                 UI.Label {
-                    text = nextThreshold and ("累计" .. nextThreshold .. "次解锁") or "",
+                    text = (function()
+                        if not nextThreshold then return "" end
+                        local temper = TemperData.GetTemper(curHero, curSlot)
+                        local current = temper and temper.totalAttempts or 0
+                        local remaining = nextThreshold - current
+                        if remaining > 0 then
+                            return remaining .. "次后解锁"
+                        else
+                            return "可解锁"
+                        end
+                    end)(),
                     fontSize = 11,
                     fontColor = { 100, 90, 120, 120 },
                 },
@@ -168,6 +197,17 @@ local function CreateSlotRow(slotIdx, slotData, unlocked, nextThreshold)
     local tierColor = slotData.tierColor or { 200, 200, 200 }
     local lockIcon = slotData.locked and "🔒" or "🔓"
     local valueText = TemperData.FormatSlotValue(slotData, curSlot)
+    local quality = TemperData.GetSlotQuality(slotData, curSlot)
+
+    -- 品质百分比颜色：越高越亮
+    local qualityColor
+    if quality >= 80 then
+        qualityColor = { 255, 200, 50, 255 }   -- 金色
+    elseif quality >= 50 then
+        qualityColor = { 180, 160, 220, 200 }   -- 淡紫
+    else
+        qualityColor = { 130, 120, 150, 160 }   -- 灰色
+    end
 
     return UI.Panel {
         width = "100%",
@@ -203,19 +243,42 @@ local function CreateSlotRow(slotIdx, slotData, unlocked, nextThreshold)
                 fontSize = 13,
                 fontColor = { 240, 235, 250, 255 },
                 fontWeight = "bold",
-                flex = 1,
+                flexShrink = 1,
             },
-            -- 锁定按钮
+            -- 品质百分比
+            UI.Label {
+                text = "(" .. quality .. "%)",
+                fontSize = 12,
+                fontColor = qualityColor,
+                flexShrink = 0,
+            },
+            UI.Panel { flex = 1 },
+            -- 锁定开关（自定义样式）
             UI.Button {
-                text = lockIcon,
-                fontSize = 14,
-                width = 36, height = 32,
-                variant = slotData.locked and "primary" or "ghost",
-                borderRadius = 6,
+                width = 44, height = 24,
+                borderRadius = 12,
+                backgroundColor = slotData.locked
+                    and { tierColor[1], tierColor[2], tierColor[3], 200 }
+                    or { 60, 55, 80, 180 },
+                paddingLeft = slotData.locked and 22 or 2,
+                paddingTop = 2,
+                flexShrink = 0,
+                variant = "ghost",
+                children = {
+                    UI.Panel {
+                        width = 20, height = 20,
+                        borderRadius = 10,
+                        backgroundColor = slotData.locked
+                            and { 255, 255, 255, 255 }
+                            or { 140, 130, 160, 200 },
+                    },
+                },
                 onClick = function()
                     local ok, msg = TemperData.ToggleLock(curHero, curSlot, slotIdx)
-                    if ok then
-                        print("[TemperUI] " .. msg)
+                    if not ok then
+                        resultMsg = msg
+                        resultColor = { 255, 180, 60, 255 }
+                        resultTimer = 2.0
                     end
                     TemperUI.Rebuild()
                 end,
@@ -286,6 +349,134 @@ local function CreateBottomPanel()
         }
     end
 
+    -- 动态构建 children，避免 nil 空洞
+    local bottomChildren = {}
+
+    -- 结果提示（可能为 nil）
+    if resultWidget then
+        bottomChildren[#bottomChildren + 1] = resultWidget
+    end
+
+    -- 货币显示
+    bottomChildren[#bottomChildren + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        justifyContent = "center",
+        gap = 20,
+        children = {
+            -- 白玉
+            UI.Panel {
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 4,
+                children = {
+                    Currency.IconWidget(UI, "pale_jade", 16),
+                    UI.Label {
+                        text = FormatNumber(Currency.Get("pale_jade")),
+                        fontSize = 13,
+                        fontColor = Config.CURRENCY.pale_jade.color,
+                    },
+                },
+            },
+            -- 彩玉
+            UI.Panel {
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 4,
+                children = {
+                    Currency.IconWidget(UI, "rainbow_jade", 16),
+                    UI.Label {
+                        text = FormatNumber(Currency.Get("rainbow_jade")),
+                        fontSize = 13,
+                        fontColor = Config.CURRENCY.rainbow_jade.color,
+                    },
+                },
+            },
+        },
+    }
+
+    -- 费用提示（内部也避免 nil 空洞）
+    local costChildren = {
+        UI.Panel {
+            flexDirection = "row", alignItems = "center", gap = 3,
+            children = {
+                UI.Label {
+                    text = "消耗: ",
+                    fontSize = 12,
+                    fontColor = { 150, 140, 170, 180 },
+                },
+                Currency.IconWidget(UI, "pale_jade", 12),
+                UI.Label {
+                    text = tostring(jadeCost),
+                    fontSize = 12,
+                    fontColor = hasJade and { 220, 240, 255, 255 } or { 255, 80, 60, 255 },
+                },
+            },
+        },
+    }
+    if lockedCount > 0 then
+        costChildren[#costChildren + 1] = UI.Panel {
+            flexDirection = "row", alignItems = "center", gap = 3,
+            children = {
+                UI.Label { text = "+", fontSize = 12, fontColor = { 150, 140, 170, 180 } },
+                Currency.IconWidget(UI, "rainbow_jade", 12),
+                UI.Label {
+                    text = tostring(rainbowCost),
+                    fontSize = 12,
+                    fontColor = hasRainbow and { 255, 120, 220, 255 } or { 255, 80, 60, 255 },
+                },
+                UI.Label {
+                    text = "(锁定)",
+                    fontSize = 10,
+                    fontColor = { 150, 140, 170, 150 },
+                },
+            },
+        }
+    end
+
+    bottomChildren[#bottomChildren + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        justifyContent = "center",
+        alignItems = "center",
+        gap = 12,
+        children = costChildren,
+    }
+
+    -- 淬炼按钮
+    bottomChildren[#bottomChildren + 1] = UI.Button {
+        text = "淬  炼",
+        fontSize = 18,
+        fontWeight = "bold",
+        width = "100%",
+        height = 48,
+        variant = canTemper and "primary" or "ghost",
+        onClick = function()
+            if not canTemper then return end
+            local ok, msg, result = TemperData.DoTemper(curHero, curSlot)
+            if ok and result and result.refreshed then
+                local count = #result.refreshed
+                resultMsg = "刷新了 " .. count .. " 个词条"
+                resultColor = { 100, 255, 100, 255 }
+                local AudioManager = require("Game.AudioManager")
+                AudioManager.PlayUpgrade()
+            elseif not ok then
+                resultMsg = msg
+                resultColor = { 255, 80, 60, 255 }
+            end
+            resultTimer = 2.0
+            TemperUI.Rebuild()
+        end,
+    }
+
+    -- 提示：所有未锁定词条同时刷新
+    bottomChildren[#bottomChildren + 1] = UI.Label {
+        text = "所有未锁定词条同时刷新",
+        fontSize = 11,
+        fontColor = { 120, 110, 140, 150 },
+        textAlign = "center",
+    }
+
     return UI.Panel {
         width = "100%",
         flexShrink = 0,
@@ -293,126 +484,7 @@ local function CreateBottomPanel()
         paddingLeft = 16, paddingRight = 16,
         paddingTop = 4, paddingBottom = 12,
         gap = 6,
-        children = {
-            -- 结果提示
-            resultWidget,
-            -- 货币显示
-            UI.Panel {
-                width = "100%",
-                flexDirection = "row",
-                justifyContent = "center",
-                gap = 20,
-                children = {
-                    -- 白玉
-                    UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 4,
-                        children = {
-                            Currency.IconWidget(UI, "pale_jade", 16),
-                            UI.Label {
-                                text = FormatNumber(Currency.Get("pale_jade")),
-                                fontSize = 13,
-                                fontColor = Config.CURRENCY.pale_jade.color,
-                            },
-                        },
-                    },
-                    -- 彩玉
-                    UI.Panel {
-                        flexDirection = "row",
-                        alignItems = "center",
-                        gap = 4,
-                        children = {
-                            Currency.IconWidget(UI, "rainbow_jade", 16),
-                            UI.Label {
-                                text = FormatNumber(Currency.Get("rainbow_jade")),
-                                fontSize = 13,
-                                fontColor = Config.CURRENCY.rainbow_jade.color,
-                            },
-                        },
-                    },
-                },
-            },
-            -- 费用提示
-            UI.Panel {
-                width = "100%",
-                flexDirection = "row",
-                justifyContent = "center",
-                alignItems = "center",
-                gap = 12,
-                children = {
-                    UI.Panel {
-                        flexDirection = "row", alignItems = "center", gap = 3,
-                        children = {
-                            UI.Label {
-                                text = "消耗: ",
-                                fontSize = 12,
-                                fontColor = { 150, 140, 170, 180 },
-                            },
-                            Currency.IconWidget(UI, "pale_jade", 12),
-                            UI.Label {
-                                text = tostring(jadeCost),
-                                fontSize = 12,
-                                fontColor = hasJade and { 220, 240, 255, 255 } or { 255, 80, 60, 255 },
-                            },
-                        },
-                    },
-                    lockedCount > 0 and UI.Panel {
-                        flexDirection = "row", alignItems = "center", gap = 3,
-                        children = {
-                            UI.Label { text = "+", fontSize = 12, fontColor = { 150, 140, 170, 180 } },
-                            Currency.IconWidget(UI, "rainbow_jade", 12),
-                            UI.Label {
-                                text = tostring(rainbowCost),
-                                fontSize = 12,
-                                fontColor = hasRainbow and { 255, 120, 220, 255 } or { 255, 80, 60, 255 },
-                            },
-                            UI.Label {
-                                text = "(锁定)",
-                                fontSize = 10,
-                                fontColor = { 150, 140, 170, 150 },
-                            },
-                        },
-                    } or nil,
-                },
-            },
-            -- 淬炼按钮
-            UI.Button {
-                text = "淬  炼",
-                fontSize = 18,
-                fontWeight = "bold",
-                width = "100%",
-                height = 48,
-                variant = canTemper and "primary" or "ghost",
-                onClick = function()
-                    if not canTemper then return end
-                    local ok, msg, result = TemperData.DoTemper(curHero, curSlot)
-                    if ok then
-                        if result and result.hit then
-                            resultMsg = "✦ 淬炼成功！"
-                            resultColor = { 100, 255, 100, 255 }
-                            local AudioManager = require("Game.AudioManager")
-                            AudioManager.PlayUpgrade()
-                        else
-                            resultMsg = "淬炼失败，属性未变"
-                            resultColor = { 255, 160, 80, 200 }
-                        end
-                    else
-                        resultMsg = msg
-                        resultColor = { 255, 80, 60, 255 }
-                    end
-                    resultTimer = 2.0
-                    TemperUI.Rebuild()
-                end,
-            },
-            -- 成功率提示
-            UI.Label {
-                text = "成功率 " .. math.floor(Config.TEMPER_SUCCESS_RATE * 100) .. "%",
-                fontSize = 11,
-                fontColor = { 120, 110, 140, 150 },
-                textAlign = "center",
-            },
-        },
+        children = bottomChildren,
     }
 end
 
@@ -573,8 +645,8 @@ function TemperUI.Rebuild()
             UI.Panel {
                 width = "92%",
                 maxWidth = 400,
-                height = "80%",
-                maxHeight = 520,
+                height = "85%",
+                maxHeight = 620,
                 flexDirection = "column",
                 backgroundColor = { 20, 16, 35, 250 },
                 borderRadius = 16,

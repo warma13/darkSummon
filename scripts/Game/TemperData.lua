@@ -8,6 +8,10 @@ local Currency = require("Game.Currency")
 
 local TemperData = {}
 
+--- 精度因子：SafeTable 使用 math.floor() 截断浮点数，
+--- 因此将属性值乘以此因子存为整数，读取/显示时再除回来。
+local VALUE_SCALE = 1000000
+
 -- ============================================================================
 -- 内部工具
 -- ============================================================================
@@ -54,21 +58,20 @@ local function CalcTemperValue(attrDef, tierDef, slotId)
 
     if attrDef.id == "atk" then
         -- "攻击力"词条: 加成该部位自身属性的1级基础值 × 档位倍率
+        -- 所有部位属性均为百分比，不做取整
         local slotDef = GetSlotDef(slotId)
         if not slotDef then return 0, "atk" end
-        local base = Config.EQUIP_STAT_BASE[slotDef.stat] or 10
+        local base = Config.EQUIP_STAT_BASE[slotDef.stat] or 0.002
         local value = base * mult
-        -- 武器(atk)取整，其他百分比属性保留精度
-        if slotDef.stat == "atk" then
-            value = math.floor(value + 0.5)
-        end
-        return value, slotDef.stat
+        -- 乘以精度因子存为整数，避免 SafeTable 的 math.floor 截断
+        return math.floor(value * VALUE_SCALE + 0.5), slotDef.stat
     else
         -- 通用属性: maxValue × 档位比例
         -- 将 valueMin~valueMax (0.5~1.5) 映射到属性值范围
         -- 实际值 = maxValue × (mult / 1.5) 使红档上限 = maxValue
         local value = attrDef.maxValue * (mult / 1.5)
-        return value, attrDef.id
+        -- 乘以精度因子存为整数，避免 SafeTable 的 math.floor 截断
+        return math.floor(value * VALUE_SCALE + 0.5), attrDef.id
     end
 end
 
@@ -123,21 +126,17 @@ function TemperData.CanUnlock(heroId, slotId)
         return false, "淬炼已解锁"
     end
 
-    -- 检查等级
-    if e.level < Config.TEMPER_UNLOCK_LEVEL then
-        return false, "装备需达到Lv." .. Config.TEMPER_UNLOCK_LEVEL
-    end
-
-    -- 检查品质（必须红色=tierIdx 5）
-    if e.tierIdx < #Config.EQUIP_TIERS then
-        return false, "装备需达到红色品质"
-    end
-
-    -- 检查主线关卡
-    local bestStage = HeroData.bestStage or 0
-    if bestStage < Config.TEMPER_UNLOCK_STAGE then
-        return false, "需通过第" .. Config.TEMPER_UNLOCK_STAGE .. "关"
-    end
+    -- [TEST] 以下检查已临时关闭，用于测试
+    -- if e.level < Config.TEMPER_UNLOCK_LEVEL then
+    --     return false, "装备需达到Lv." .. Config.TEMPER_UNLOCK_LEVEL
+    -- end
+    -- if e.tierIdx < #Config.EQUIP_TIERS then
+    --     return false, "装备需达到红色品质"
+    -- end
+    -- local bestStage = HeroData.bestStage or 0
+    -- if bestStage < Config.TEMPER_UNLOCK_STAGE then
+    --     return false, "需通过第" .. Config.TEMPER_UNLOCK_STAGE .. "关"
+    -- end
 
     -- 检查暗影精粹
     if not Currency.Has("shadow_essence", Config.TEMPER_UNLOCK_COST) then
@@ -177,12 +176,12 @@ end
 -- 淬炼核心逻辑
 -- ============================================================================
 
---- 执行一次淬炼
+--- 执行一次淬炼（一次刷新所有未锁定孔位，100%成功）
 ---@param heroId string
 ---@param slotId string
----@return boolean success  是否操作成功（不是淬炼是否成功）
+---@return boolean success  是否操作成功
 ---@return string msg
----@return table|nil result  { hit=bool, slotIdx, attrDef, tierDef, value, statKey }
+---@return table|nil result  { refreshed = { {slotIdx, attrDef, tierDef, value, statKey}, ... } }
 function TemperData.DoTemper(heroId, slotId)
     local temper = TemperData.GetTemper(heroId, slotId)
     if not temper then
@@ -193,6 +192,20 @@ function TemperData.DoTemper(heroId, slotId)
     local lockedCount = 0
     for _, slot in pairs(temper.slots) do
         if slot.locked then lockedCount = lockedCount + 1 end
+    end
+
+    -- 找出所有已解锁且未锁定的孔位
+    local unlockedSlots = TemperData.GetUnlockedSlotCount(temper)
+    local candidates = {}
+    for i = 1, unlockedSlots do
+        local s = temper.slots[i]
+        if not s or not s.locked then
+            candidates[#candidates + 1] = i
+        end
+    end
+
+    if #candidates == 0 then
+        return false, "所有孔位已锁定，请先解锁至少一个词条", nil
     end
 
     -- 计算费用
@@ -216,58 +229,35 @@ function TemperData.DoTemper(heroId, slotId)
     -- 累计次数+1
     temper.totalAttempts = temper.totalAttempts + 1
 
-    -- 判定成功/失败
-    local hit = math.random() < Config.TEMPER_SUCCESS_RATE
-    if not hit then
-        HeroData.Save()
-        return true, "淬炼失败，属性未变化", { hit = false }
+    -- 刷新所有未锁定孔位（100%成功，同步刷新）
+    local refreshed = {}
+    for _, idx in ipairs(candidates) do
+        local attrDef = RollAttribute()
+        local tierDef = RollTier()
+        local value, statKey = CalcTemperValue(attrDef, tierDef, slotId)
+
+        temper.slots[idx] = {
+            attrId = attrDef.id,
+            attrName = attrDef.name,
+            statKey = statKey,
+            value = value,
+            tierId = tierDef.id,
+            tierName = tierDef.name,
+            tierColor = tierDef.color,
+            locked = false,
+        }
+
+        refreshed[#refreshed + 1] = {
+            slotIdx = idx,
+            attrDef = attrDef,
+            tierDef = tierDef,
+            value = value,
+            statKey = statKey,
+        }
     end
 
-    -- 淬炼成功：随机选一个未锁定的孔位刷新
-    local unlockedSlots = TemperData.GetUnlockedSlotCount(temper)
-    local candidates = {}
-    for i = 1, unlockedSlots do
-        local s = temper.slots[i]
-        if not s or not s.locked then
-            candidates[#candidates + 1] = i
-        end
-    end
-
-    if #candidates == 0 then
-        -- 所有孔位都锁了（理论上不应该，因为费用已扣）
-        HeroData.Save()
-        return true, "所有孔位已锁定", { hit = true }
-    end
-
-    -- 随机选目标孔位
-    local targetIdx = candidates[math.random(1, #candidates)]
-
-    -- 随机属性和档位
-    local attrDef = RollAttribute()
-    local tierDef = RollTier()
-    local value, statKey = CalcTemperValue(attrDef, tierDef, slotId)
-
-    -- 写入孔位
-    temper.slots[targetIdx] = {
-        attrId = attrDef.id,
-        attrName = attrDef.name,
-        statKey = statKey,      -- 实际作用的属性key
-        value = value,
-        tierId = tierDef.id,
-        tierName = tierDef.name,
-        tierColor = tierDef.color,
-        locked = false,
-    }
-
-    HeroData.Save(true)  -- 淬炼成功消耗货币，立即云端保存
-    return true, "淬炼成功!", {
-        hit = true,
-        slotIdx = targetIdx,
-        attrDef = attrDef,
-        tierDef = tierDef,
-        value = value,
-        statKey = statKey,
-    }
+    HeroData.Save()
+    return true, "淬炼完成!", { refreshed = refreshed }
 end
 
 -- ============================================================================
@@ -288,6 +278,25 @@ function TemperData.ToggleLock(heroId, slotId, slotIdx)
     local slot = temper.slots[slotIdx]
     if not slot then
         return false, "该孔位尚无属性"
+    end
+
+    -- 如果是要锁定（当前未锁定），检查锁定上限
+    if not slot.locked then
+        local unlockedSlots = TemperData.GetUnlockedSlotCount(temper)
+        local lockedCount = 0
+        local attrCount = 0
+        for i = 1, unlockedSlots do
+            if temper.slots[i] then
+                attrCount = attrCount + 1
+                if temper.slots[i].locked then
+                    lockedCount = lockedCount + 1
+                end
+            end
+        end
+        -- 至少保留 1 个未锁定词条可供刷新
+        if lockedCount >= attrCount - 1 then
+            return false, "至少保留一个未锁定词条"
+        end
     end
 
     -- 切换锁定
@@ -316,7 +325,8 @@ function TemperData.GetSlotBonus(heroId, slotId)
 
     for _, slot in pairs(temper.slots) do
         if slot and slot.statKey and slot.value then
-            result[slot.statKey] = (result[slot.statKey] or 0) + slot.value
+            -- 还原缩放后的整数为实际浮点值
+            result[slot.statKey] = (result[slot.statKey] or 0) + (slot.value / VALUE_SCALE)
         end
     end
     return result
@@ -332,8 +342,27 @@ function TemperData.GetTotalBonus(heroId)
         for k, v in pairs(bonus) do
             total[k] = (total[k] or 0) + v
         end
+        -- 淬炼主属性加成：每次淬炼 +1% 的每级基础成长
+        local mainBonus = TemperData.GetTemperMainStatBonus(heroId, slotDef.id)
+        if mainBonus > 0 then
+            total[slotDef.stat] = (total[slotDef.stat] or 0) + mainBonus
+        end
     end
     return total
+end
+
+--- 获取淬炼对装备主属性的额外加成
+--- 每次淬炼 +1% 的每级基础成长（EQUIP_STAT_BASE × 0.01 × 淬炼次数）
+---@param heroId string
+---@param slotId string
+---@return number  实际加成值（百分比形式，如 0.0006 = 0.06%）
+function TemperData.GetTemperMainStatBonus(heroId, slotId)
+    local temper = TemperData.GetTemper(heroId, slotId)
+    if not temper or temper.totalAttempts == 0 then return 0 end
+    local slotDef = GetSlotDef(slotId)
+    if not slotDef then return 0 end
+    local base = Config.EQUIP_STAT_BASE[slotDef.stat] or 0.002
+    return base * 0.01 * temper.totalAttempts
 end
 
 -- ============================================================================
@@ -356,11 +385,37 @@ function TemperData.FormatSlotValue(slot, slotId)
         end
     end
 
-    -- 武器的攻击力是固定值，其他都是百分比
-    if slot.statKey == "atk" then
-        return "+" .. tostring(math.floor(slot.value)) .. " " .. displayName
+    -- 从 SafeTable 读出的是缩放后的整数，需除以 VALUE_SCALE 还原
+    local realValue = slot.value / VALUE_SCALE
+    -- 所有属性均为百分比
+    return string.format("+%.1f%% %s", realValue * 100, displayName)
+end
+
+--- 计算词条品质百分比（当前值占最大值的比例）
+---@param slot table  孔位数据
+---@param slotId string  部位ID
+---@return number  0~100 的百分比
+function TemperData.GetSlotQuality(slot, slotId)
+    if not slot or not slot.value then return 0 end
+    local realValue = slot.value / VALUE_SCALE
+
+    if slot.attrId == "atk" then
+        -- 攻击力词条：最大值 = 部位基础值 × 红档上限倍率(1.5)
+        local slotDef = GetSlotDef(slotId)
+        if not slotDef then return 0 end
+        local base = Config.EQUIP_STAT_BASE[slotDef.stat] or 0.002
+        local maxVal = base * 1.5
+        if maxVal <= 0 then return 0 end
+        return math.floor(realValue / maxVal * 100 + 0.5)
     else
-        return string.format("+%.2f%% %s", slot.value * 100, displayName)
+        -- 通用属性：最大值 = attrDef.maxValue（红档上限 mult=1.5 → maxValue×1.5/1.5=maxValue）
+        for _, attr in ipairs(Config.TEMPER_ATTRIBUTES) do
+            if attr.id == slot.attrId then
+                if attr.maxValue <= 0 then return 0 end
+                return math.floor(realValue / attr.maxValue * 100 + 0.5)
+            end
+        end
+        return 0
     end
 end
 

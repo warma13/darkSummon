@@ -480,15 +480,40 @@ local function BuildEquipTab(ctx, heroId, heroDef)
                     UI.Panel {
                         flexGrow = 1, flexShrink = 1,
                         gap = 1,
-                        children = {
-                            UI.Label { text = info.fullName, fontSize = 12, fontColor = tier.color, fontWeight = "bold" },
-                            UI.Label {
-                                text = slotDef.statName .. " +" .. (slotDef.fmt == "pct"
-                                    and string.format("%.1f%%", info.statBonus * 100)
-                                    or FormatBigNum(info.statBonus)),
-                                fontSize = 10, fontColor = S.gold,
-                            },
-                        },
+                        children = (function()
+                            local TemperData = require("Game.TemperData")
+                            local temperBonus = TemperData.GetSlotBonus(heroId, slotDef.id)
+                            local statText = slotDef.statName .. " +" .. (slotDef.fmt == "pct"
+                                and string.format("%.1f%%", info.statBonus * 100)
+                                or FormatBigNum(info.statBonus))
+                            local labelChildren = {
+                                UI.Label { text = info.fullName, fontSize = 12, fontColor = tier.color, fontWeight = "bold" },
+                                UI.Label { text = statText, fontSize = 10, fontColor = S.gold },
+                            }
+                            -- 淬炼加成汇总：显示所有词条
+                            local parts = {}
+                            for statKey, val in pairs(temperBonus) do
+                                if val > 0 then
+                                    -- 查找属性中文名
+                                    local name = statKey
+                                    for _, attr in ipairs(Config.TEMPER_ATTRIBUTES) do
+                                        if attr.id == statKey then name = attr.name; break end
+                                    end
+                                    -- atk词条映射到部位属性名
+                                    if statKey == slotDef.stat and statKey ~= "atk" then
+                                        name = slotDef.statName
+                                    end
+                                    parts[#parts + 1] = name .. "+" .. string.format("%.1f%%", val * 100)
+                                end
+                            end
+                            if #parts > 0 then
+                                labelChildren[#labelChildren + 1] = UI.Label {
+                                    text = "淬炼: " .. table.concat(parts, " "),
+                                    fontSize = 9, fontColor = { 100, 255, 100, 200 },
+                                }
+                            end
+                            return labelChildren
+                        end)(),
                     },
                     -- 操作按钮
                     UI.Panel {
