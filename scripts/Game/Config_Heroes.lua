@@ -347,7 +347,7 @@ Config.HERO_RARITY[Config.LEADER_HERO.id] = Config.LEADER_HERO.rarity
 -- 稀有度系统（含 N/UR/LR）
 -- ============================================================================
 Config.RARITY = { N = 0, R = 1, SR = 2, SSR = 3, UR = 4, LR = 5 }
-Config.RARITY_SUMMON_WEIGHT = { N = 40, R = 30, SR = 17, SSR = 8, UR = 3, LR = 1 }
+Config.RARITY_SUMMON_WEIGHT = { N = 12, R = 14, SR = 16, SSR = 20, UR = 20, LR = 18 }
 Config.RARITY_SHARD_COST = { N = 5, R = 10, SR = 20, SSR = 30, UR = 50, LR = 80 }
 
 -- 稀有度颜色（统一权威来源，RGBA 格式）

@@ -10,10 +10,10 @@ local function apply(Config)
 
 Config.RELIC_QUALITIES = {
     { id = "green",  name = "精良", color = {100, 200, 100}, mult = 1.0 },
-    { id = "blue",   name = "稀有", color = {80, 150, 255},  mult = 1.8 },
-    { id = "purple", name = "史诗", color = {180, 100, 255}, mult = 3.0 },
-    { id = "orange", name = "传说", color = {255, 180, 50},  mult = 5.0 },
-    { id = "red",    name = "神话", color = {220, 40, 40},   mult = 8.0 },
+    { id = "blue",   name = "稀有", color = {80, 150, 255},  mult = 1.5 },
+    { id = "purple", name = "史诗", color = {180, 100, 255}, mult = 2.2 },
+    { id = "orange", name = "传说", color = {255, 180, 50},  mult = 3.2 },
+    { id = "red",    name = "神话", color = {220, 40, 40},   mult = 4.5 },
 }
 
 --- 品质倍率映射（relicId → mult）
@@ -90,7 +90,7 @@ Config.RELICS = {
         minQuality = "blue",
         hasCharge = false,
         params = {
-            atkBonus = 0.08,
+            atkBonus = 0.04,
             pulseInterval = 10.0,
             pulseDamageMult = 0.50,
         },
@@ -147,7 +147,7 @@ Config.RELICS = {
         minQuality = "green",
         hasCharge = false,
         params = {
-            atkBonus = 0.10,
+            atkBonus = 0.05,
         },
         starEffect = { type = "critDmg", max = 0.20, halfStar = 4, desc = "★暴击伤害+{v}" },
     },
@@ -159,7 +159,7 @@ Config.RELICS = {
         minQuality = "blue",
         hasCharge = false,
         params = {
-            spdBonus = 0.08,
+            spdBonus = 0.04,
         },
         starEffect = { type = "critRate", max = 0.10, halfStar = 4, desc = "★暴击率+{v}" },
     },
@@ -171,7 +171,7 @@ Config.RELICS = {
         minQuality = "purple",
         hasCharge = false,
         params = {
-            topAtkBonus = 0.15,
+            topAtkBonus = 0.10,
             otherAtkRatio = 1/3,
         },
         starEffect = { type = "shareRatio", max = 0.30, halfStar = 3, desc = "★分配比+{v}" },
@@ -184,7 +184,7 @@ Config.RELICS = {
         minQuality = "orange",
         hasCharge = false,
         params = {
-            atkBonus = 0.12,
+            atkBonus = 0.05,
             postCastSpdBonus = 0.15,
             postCastDuration = 3.0,
         },
@@ -198,12 +198,12 @@ Config.RELICS = {
         minQuality = "red",
         hasCharge = false,
         params = {
-            atkBonus = 0.10,
-            spdBonus = 0.08,
-            critDmgBonus = 0.15,
-            redRelicBonusPer = 0.03,
+            atkBonus = 0.04,
+            spdBonus = 0.03,
+            critDmgBonus = 0.05,
+            redRelicBonusPer = 0.015,
         },
-        starEffect = { type = "redBonus", max = 0.08, halfStar = 3, desc = "★神话加成+{v}" },
+        starEffect = { type = "redBonus", max = 0.04, halfStar = 3, desc = "★神话加成+{v}" },
     },
 
     -- ==================== 神之眼 (eye) ====================
@@ -283,7 +283,7 @@ Config.RELICS = {
         hasCharge = false,
         params = {
             powerDmgBonus = 0.15,
-            fallbackAtkBonus = 0.075,
+            fallbackAtkBonus = 0.04,
         },
         starEffect = { type = "fallbackAdd", max = 0.05, halfStar = 3, desc = "★后备攻击+{v}" },
     },
@@ -296,7 +296,7 @@ Config.RELICS = {
         hasCharge = false,
         params = {
             chargeReduce = 15,
-            fallbackSpdBonus = 0.08,
+            fallbackSpdBonus = 0.04,
         },
         starEffect = { type = "chargeReduce", max = 10, halfStar = 3, desc = "★额外充能-{v}" },
     },
@@ -335,9 +335,9 @@ Config.RELICS = {
         minQuality = "red",
         hasCharge = false,
         params = {
-            globalAmplify = 0.10,
+            globalAmplify = 0.06,
         },
-        starEffect = { type = "amplifyAdd", max = 0.15, halfStar = 3, desc = "★增幅+{v}" },
+        starEffect = { type = "amplifyAdd", max = 0.08, halfStar = 3, desc = "★增幅+{v}" },
     },
 }
 

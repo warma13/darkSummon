@@ -4,11 +4,12 @@
 ------------------------------------------------------------------------
 local BalanceSim = {}
 
-local HeroProfile = require "Balance.HeroProfile"
-local MonsterEHP  = require "Balance.MonsterEHP"
-local HeroDPS     = require "Balance.HeroDPS"
-local Sensitivity = require "Balance.Sensitivity"
-local Report      = require "Balance.Report"
+local HeroProfile    = require "Balance.HeroProfile"
+local MonsterEHP     = require "Balance.MonsterEHP"
+local HeroDPS        = require "Balance.HeroDPS"
+local Sensitivity    = require "Balance.Sensitivity"
+local Report         = require "Balance.Report"
+local RelicAnalysis  = require "Balance.RelicAnalysis"
 
 local Config   = require "Game.Config"
 local Balance  = Config.Balance
@@ -308,6 +309,9 @@ function BalanceSim.Run()
     BalanceSim.ReportSensitivity()
     BalanceSim.ReportSoftCaps()
     BalanceSim.ReportMonsterRoles()
+
+    -- 遗物数值分析 (报告 6~11)
+    RelicAnalysis.Run()
 
     print("")
     print("================================================================")
