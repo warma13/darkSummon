@@ -17,8 +17,8 @@ end
 function M.OnHit(tower, target, killed)
     local vampInst = has(tower, "vampire_instinct")
     if vampInst and target.alive then
-        if math.random() < (vampInst.chance or 0.10) then
-            GetEnemy().ApplySlow(target, vampInst.slowDuration or 1.0, vampInst.slowRate or 0.10)
+        if math.random() < vampInst.chance then
+            GetEnemy().ApplySlow(target, vampInst.slowDuration or 1.0, vampInst.slowRate)
         end
     end
 end

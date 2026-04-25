@@ -20,7 +20,7 @@ function M.UpdateAura(source, towers)
 
     local auraRange   = glory.auraRange or 100
     local auraRangeSq = auraRange * auraRange
-    local critBuff    = glory.critRateBuff or 0.12
+    local critBuff    = glory.critRateBuff
     local sx, sy      = source._sx, source._sy
 
     for _, t in ipairs(towers) do
@@ -41,7 +41,7 @@ function M.TriggerActive(tower, skill)
     if skill.id ~= "angel_judgment" then return end
     local Enemy  = require("Game.Enemy")
     local Combat = require("Game.Combat")
-    local baseDmg = tower.attack * (skill.damagePct or 0.30)
+    local baseDmg = tower.attack * skill.damagePct
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
             local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)

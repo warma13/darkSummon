@@ -44,8 +44,14 @@ local function I(v, f) return tostring(math.floor(v * f + 0.5)) end
 
 Config.HERO_SKILLS = {
     -- ====================================================================
-    -- N 级（30星满值）
-    -- 功率参考：1个被动，效果简单。同品质总收益大致相当。
+    -- 功率预算体系（等比公比2）
+    -- N=1 → R=2 → SR=4 → SSR=8 → UR=16 → LR=32
+    -- 每个品质的总等效DPS贡献是前一品质的2倍
+    -- ====================================================================
+
+    -- ====================================================================
+    -- N 级（30星满值）— 功率预算 1×
+    -- 1个被动，效果简单。同品质总收益大致相当。
     -- skeleton_grunt: 纯攻速 → 30%攻速（约+37.5%DPS）
     -- bat_minion:     概率减速 → 40%×30%减速（控制向，DPS贡献约30%）
     -- hell_hound:     DOT倍率 → 2.0倍DOT（+100%DOT DPS）
@@ -66,8 +72,8 @@ Config.HERO_SKILLS = {
           buildDesc = function(f) return "DOT伤害+" .. P(1.0, f) end },
     },
     -- ====================================================================
-    -- R 级（30星满值）
-    -- 功率参考：2个被动，组合效果。总收益约为N级的2倍。
+    -- R 级（30星满值）— 功率预算 2×
+    -- 2个被动，组合效果。总收益约为N级的2倍。
     -- skeleton_archer: 连射+增伤 → 40%连射+25%增伤（期望DPS+35%）
     -- demon_warrior:   燃地+波次攻速 → 1.5%/波最多50%（平均+25%攻速）
     -- ghost_assassin:  标记增伤+背刺 → 20%增伤+25%双倍（期望DPS+45%）
@@ -105,8 +111,8 @@ Config.HERO_SKILLS = {
           buildDesc = function(f) return P(0.50, f) .. "概率减速周围30px内其他敌人" end },
     },
     -- ====================================================================
-    -- SR 级（30星满值）
-    -- 功率参考：2-3被动 + 0-1主动。总收益约为R级的2倍。
+    -- SR 级（30星满值）— 功率预算 4×
+    -- 2-3被动 + 0-1主动。总收益约为R级的2倍。
     -- necromancer:   减速45% + 诅咒DOT ATK×15% + 扩散（控制+持续伤害）
     -- inferno_flame: DOT×3.0 + 蔓延 + BOSS ATK×800%（DOT专精，BOSS杀手）
     -- armor_breaker: 破甲20% × 3层 + 满层+35%受伤（减防辅助）
@@ -166,150 +172,150 @@ Config.HERO_SKILLS = {
           buildDesc = function(f) return "每30秒全体塔攻击+" .. P(0.40, f) .. "持续5秒" end },
     },
     -- ====================================================================
-    -- SSR 级（30星满值）
-    -- 功率参考：2-3被动 + 1主动。总收益约为SR级的1.5倍。
-    -- shadow_mage:   35%无视护盾 + 击杀+50%×3层 + 主动全屏80%ATK（爆发向）
-    -- abyss_hunter:  BOSS额外50% + 暴击30%/80% + 主动20%HP（BOSS专精）
-    -- plague_doctor: 减甲10% + 扩散70% + 主动引爆DOT×5.0（DOT辅助）
-    -- storm_lord:    眩晕30% + 范围+30 + 主动全屏60%ATK+减速（控制+爆发）
+    -- SSR 级（30星满值）— 功率预算 8×
+    -- 2-3被动 + 1主动。总收益约为SR级的2倍。
+    -- shadow_mage:   45%无视护盾 + 击杀+65%×3层 + 主动全屏105%ATK（爆发向）
+    -- abyss_hunter:  BOSS额外65% + 暴击40%/105% + 主动25%HP（BOSS专精）
+    -- plague_doctor: 减甲13% + 扩散90% + 主动引爆DOT×650%（DOT辅助）
+    -- storm_lord:    眩晕40% + 范围+40 + 主动全屏80%ATK+减速（控制+爆发）
     -- ====================================================================
     shadow_mage = {
-        { id = "shadow_pierce",  name = "暗影穿透", desc = "攻击35%概率无视护盾",
-          type = "passive", chance = 0.35, maxChance = 0.75,
-          buildDesc = function(f) return "攻击" .. P(0.35, f) .. "概率无视护盾" end },
-        { id = "soul_reap",      name = "灵魂收割", desc = "击杀后下次攻击+50%,叠3层,攻击后清零",
-          type = "passive", killDmgBonus = 0.50, maxStacks = 3,
-          buildDesc = function(f) return "击杀后下次攻击+" .. P(0.50, f) .. ",叠3层,攻击后清零" end },
-        { id = "void_storm",     name = "虚空风暴", desc = "每15秒全屏80%攻击力伤害",
-          type = "active", interval = 15, damagePct = 0.80,
-          buildDesc = function(f) return "每15秒全屏" .. P(0.80, f) .. "攻击力伤害" end },
+        { id = "shadow_pierce",  name = "暗影穿透", desc = "攻击45%概率无视护盾",
+          type = "passive", chance = 0.45, maxChance = 0.85,
+          buildDesc = function(f) return "攻击" .. P(0.45, f) .. "概率无视护盾" end },
+        { id = "soul_reap",      name = "灵魂收割", desc = "击杀后下次攻击+65%,叠3层,攻击后清零",
+          type = "passive", killDmgBonus = 0.65, maxStacks = 3,
+          buildDesc = function(f) return "击杀后下次攻击+" .. P(0.65, f) .. ",叠3层,攻击后清零" end },
+        { id = "void_storm",     name = "虚空风暴", desc = "每15秒全屏105%攻击力伤害",
+          type = "active", interval = 15, damagePct = 1.05,
+          buildDesc = function(f) return "每15秒全屏" .. P(1.05, f) .. "攻击力伤害" end },
     },
     abyss_hunter = {
-        { id = "hunt_instinct",  name = "猎杀本能", desc = "对BOSS额外伤害提升至50%",
-          type = "passive", bossExtraDmg = 0.50,
-          buildDesc = function(f) return "对BOSS额外伤害提升至" .. P(0.50, f) end },
-        { id = "deadly_crossbow", name = "致命猎弩", desc = "暴击率+30%,暴击伤害+80%",
-          type = "passive", critRate = 0.30, critDmg = 0.80,
-          buildDesc = function(f) return "暴击率+" .. P(0.30, f) .. ",暴击伤害+" .. P(0.80, f) end },
-        { id = "abyss_arrow",    name = "深渊之箭", desc = "每12秒对最高血量敌人造成20%最大HP,BOSS上限ATK×12",
-          type = "active", interval = 12, hpPct = 0.20, bossAtkCap = 12,
-          buildDesc = function(f) return "每12秒对最高血量敌人造成" .. P(0.20, f) .. "最大HP,BOSS上限ATK×" .. I(12, f) end },
+        { id = "hunt_instinct",  name = "猎杀本能", desc = "对BOSS额外伤害提升至65%",
+          type = "passive", bossExtraDmg = 0.65,
+          buildDesc = function(f) return "对BOSS额外伤害提升至" .. P(0.65, f) end },
+        { id = "deadly_crossbow", name = "致命猎弩", desc = "暴击率+40%,暴击伤害+105%",
+          type = "passive", critRate = 0.40, critDmg = 1.05,
+          buildDesc = function(f) return "暴击率+" .. P(0.40, f) .. ",暴击伤害+" .. P(1.05, f) end },
+        { id = "abyss_arrow",    name = "深渊之箭", desc = "每12秒对最高血量敌人造成25%最大HP,BOSS上限ATK×16",
+          type = "active", interval = 12, hpPct = 0.25, bossAtkCap = 16,
+          buildDesc = function(f) return "每12秒对最高血量敌人造成" .. P(0.25, f) .. "最大HP,BOSS上限ATK×" .. I(16, f) end },
     },
     plague_doctor = {
-        { id = "toxic_miasma",   name = "剧毒瘴气", desc = "DOT期间敌人护甲抵抗-10%",
-          type = "passive", armorReduce = 0.10,
-          buildDesc = function(f) return "DOT期间敌人护甲抵抗-" .. P(0.10, f) end },
-        { id = "infection_spread", name = "感染扩散", desc = "DOT目标30px内最多2敌人感染70%DOT,不二次扩散",
-          type = "passive", spreadRange = 30, spreadMaxTargets = 2, spreadRatio = 0.70,
-          buildDesc = function(f) return "DOT目标30px内最多2敌人感染" .. P(0.70, f) .. "DOT,不二次扩散" end },
-        { id = "plague_burst",   name = "瘟疫爆发", desc = "每18秒引爆全部DOT,造成剩余DOT 500%即时伤害",
-          type = "active", interval = 18, burstMult = 5.0,
-          buildDesc = function(f) return "每18秒引爆全部DOT,造成剩余DOT " .. M(5.0, f) .. "即时伤害" end },
+        { id = "toxic_miasma",   name = "剧毒瘴气", desc = "DOT期间敌人护甲抵抗-13%",
+          type = "passive", armorReduce = 0.13,
+          buildDesc = function(f) return "DOT期间敌人护甲抵抗-" .. P(0.13, f) end },
+        { id = "infection_spread", name = "感染扩散", desc = "DOT目标30px内最多2敌人感染90%DOT,不二次扩散",
+          type = "passive", spreadRange = 30, spreadMaxTargets = 2, spreadRatio = 0.90,
+          buildDesc = function(f) return "DOT目标30px内最多2敌人感染" .. P(0.90, f) .. "DOT,不二次扩散" end },
+        { id = "plague_burst",   name = "瘟疫爆发", desc = "每18秒引爆全部DOT,造成剩余DOT 650%即时伤害",
+          type = "active", interval = 18, burstMult = 6.5,
+          buildDesc = function(f) return "每18秒引爆全部DOT,造成剩余DOT " .. M(6.5, f) .. "即时伤害" end },
     },
     storm_lord = {
-        { id = "thunder_strike", name = "雷鸣一击", desc = "眩晕概率提升至30%",
-          type = "passive", stunChance = 0.30,
-          buildDesc = function(f) return "眩晕概率提升至" .. P(0.30, f) end },
-        { id = "storm_eye",      name = "风暴之眼", desc = "攻击范围+30px",
-          type = "passive", rangeBonus = 30 },
-        { id = "divine_thunder", name = "天降雷霆", desc = "每22秒全屏60%攻击力伤害并减速50%持续2秒",
-          type = "active", interval = 22, damagePct = 0.60, slowPct = 0.50, slowDuration = 2.0,
-          buildDesc = function(f) return "每22秒全屏" .. P(0.60, f) .. "攻击力伤害并减速" .. P(0.50, f) .. "持续2秒" end },
+        { id = "thunder_strike", name = "雷鸣一击", desc = "眩晕概率提升至40%",
+          type = "passive", stunChance = 0.40,
+          buildDesc = function(f) return "眩晕概率提升至" .. P(0.40, f) end },
+        { id = "storm_eye",      name = "风暴之眼", desc = "攻击范围+40px",
+          type = "passive", rangeBonus = 40 },
+        { id = "divine_thunder", name = "天降雷霆", desc = "每22秒全屏80%攻击力伤害并减速65%持续2秒",
+          type = "active", interval = 22, damagePct = 0.80, slowPct = 0.65, slowDuration = 2.0,
+          buildDesc = function(f) return "每22秒全屏" .. P(0.80, f) .. "攻击力伤害并减速" .. P(0.65, f) .. "持续2秒" end },
     },
     -- ====================================================================
-    -- UR 级限定（30星满值）
-    -- glacial_sovereign: 独特寒意机制，满层增伤50%，数值不走NUMERIC_KEYS缩放
+    -- UR 级限定（30星满值）— 功率预算 16×
+    -- glacial_sovereign: 独特寒意机制，满层增伤95%，数值不走NUMERIC_KEYS缩放
     -- ====================================================================
     glacial_sovereign = {
-        { id = "piercing_chill",    name = "凌冽寒意", desc = "每秒对范围内敌人施加1层寒意,每层减速10%,最多5层,持续5秒;满5层受伤+50%",
+        { id = "piercing_chill",    name = "凌冽寒意", desc = "每秒对范围内敌人施加1层寒意,每层减速20%,最多5层,持续5秒;满5层受伤+95%",
           type = "passive",
-          buildDesc = function(f) return "每秒对范围内敌人施加1层寒意,每层减速" .. P(0.10, f) .. ",最多5层,持续5秒;满5层受伤+" .. P(0.50, f) end },
+          buildDesc = function(f) return "每秒对范围内敌人施加1层寒意,每层减速" .. P(0.20, f) .. ",最多5层,持续5秒;满5层受伤+" .. P(0.95, f) end },
         { id = "frost_strike",      name = "霜寒之击", desc = "普通攻击附带1层寒意",
           type = "passive" },
-        { id = "glacial_eruption",  name = "冰川爆发", desc = "每累积100层全局寒意,对全屏敌人施加5层寒意",
-          type = "passive", chillGlobalThreshold = 100, chillApplyAll = 5 },
+        { id = "glacial_eruption",  name = "冰川爆发", desc = "每累积50层全局寒意,对全屏敌人施加5层寒意",
+          type = "passive", chillGlobalThreshold = 50, chillApplyAll = 5 },
     },
     -- ====================================================================
-    -- UR 级（30星满值）
-    -- 功率参考：2-3被动 + 1主动。总收益约为SSR级的1.4倍。
-    -- fallen_archangel: 增伤35% + 暴击光环25% + 主动全屏120%ATK（辅助+爆发）
-    -- void_dragon:      DOT ATK×25% + BOSS额外50% + 主动全屏150%ATK（DOT+BOSS+爆发）
+    -- UR 级（30星满值）— 功率预算 16×
+    -- 2-3被动 + 1主动。总收益约为SSR级的2倍。
+    -- fallen_archangel: 增伤65% + 暴击光环45% + 主动全屏225%ATK（辅助+爆发）
+    -- void_dragon:      DOT ATK×45% + BOSS额外95% + 主动全屏280%ATK（DOT+BOSS+爆发）
     -- nature_elf/crimson_night: starScale=true，自管缩放
     -- ====================================================================
     fallen_archangel = {
-        { id = "divine_judgment_light", name = "神罚之光", desc = "标记增伤提升至35%",
-          type = "passive", ampRate = 0.35,
-          buildDesc = function(f) return "标记增伤提升至" .. P(0.35, f) end },
-        { id = "angel_judgment",  name = "天使审判", desc = "每15秒全屏120%攻击力伤害",
-          type = "active", interval = 15, damagePct = 1.20,
-          buildDesc = function(f) return "每15秒全屏" .. P(1.20, f) .. "攻击力伤害" end },
-        { id = "fallen_glory",   name = "堕落荣光", desc = "光环:100px内友方暴击率+25%",
-          type = "passive", auraRange = 100, critRateBuff = 0.25,
-          buildDesc = function(f) return "光环:100px内友方暴击率+" .. P(0.25, f) end },
+        { id = "divine_judgment_light", name = "神罚之光", desc = "标记增伤提升至65%",
+          type = "passive", ampRate = 0.65,
+          buildDesc = function(f) return "标记增伤提升至" .. P(0.65, f) end },
+        { id = "angel_judgment",  name = "天使审判", desc = "每15秒全屏225%攻击力伤害",
+          type = "active", interval = 15, damagePct = 2.25,
+          buildDesc = function(f) return "每15秒全屏" .. P(2.25, f) .. "攻击力伤害" end },
+        { id = "fallen_glory",   name = "堕落荣光", desc = "光环:100px内友方暴击率+45%",
+          type = "passive", auraRange = 100, critRateBuff = 0.45,
+          buildDesc = function(f) return "光环:100px内友方暴击率+" .. P(0.45, f) end },
     },
     void_dragon = {
-        { id = "dragon_breath_dot", name = "龙息灼烧", desc = "链式攻击附带ATK×25%/秒DOT,持续3秒",
-          type = "passive", dotAtkPct = 0.25, dotDuration = 3.0,
-          buildDesc = function(f) return "链式攻击附带ATK×" .. P(0.25, f) .. "/秒DOT,持续3秒" end },
-        { id = "void_tear",      name = "虚空撕裂", desc = "对BOSS额外伤害提升至50%",
-          type = "passive", bossExtraDmg = 0.50,
-          buildDesc = function(f) return "对BOSS额外伤害提升至" .. P(0.50, f) end },
-        { id = "dragon_wrath",   name = "龙王之怒", desc = "每12秒全屏150%攻击力伤害并减速30%持续3秒",
-          type = "active", interval = 12, damagePct = 1.50, slowPct = 0.30, slowDuration = 3.0,
-          buildDesc = function(f) return "每12秒全屏" .. P(1.50, f) .. "攻击力伤害并减速" .. P(0.30, f) .. "持续3秒" end },
+        { id = "dragon_breath_dot", name = "龙息灼烧", desc = "链式攻击附带ATK×45%/秒DOT,持续3秒",
+          type = "passive", dotAtkPct = 0.45, dotDuration = 3.0,
+          buildDesc = function(f) return "链式攻击附带ATK×" .. P(0.45, f) .. "/秒DOT,持续3秒" end },
+        { id = "void_tear",      name = "虚空撕裂", desc = "对BOSS额外伤害提升至95%",
+          type = "passive", bossExtraDmg = 0.95,
+          buildDesc = function(f) return "对BOSS额外伤害提升至" .. P(0.95, f) end },
+        { id = "dragon_wrath",   name = "龙王之怒", desc = "每12秒全屏280%攻击力伤害并减速55%持续3秒",
+          type = "active", interval = 12, damagePct = 2.80, slowPct = 0.55, slowDuration = 3.0,
+          buildDesc = function(f) return "每12秒全屏" .. P(2.80, f) .. "攻击力伤害并减速" .. P(0.55, f) .. "持续3秒" end },
     },
     -- ====================================================================
-    -- LR 级（30星满值）
-    -- 功率参考：3-4被动 + 1主动。总收益约为UR级的1.3倍。顶级定位。
-    -- fate_weaver:      治愈削减50% + 25%双倍伤害 + 暴击溅射80% + 主动重置CD
-    -- eternal_archfiend: 暴击40%/150% + 击杀+3%最多60% + 处决15% + 主动25%HP
+    -- LR 级（30星满值）— 功率预算 32×
+    -- 3-4被动 + 1主动。总收益约为UR级的2倍。顶级定位。
+    -- fate_weaver:      治愈削减85% + 70%双倍伤害 + 暴击溅射230% + 主动重置CD
+    -- eternal_archfiend: 暴击80%/440% + 击杀+9%最多175% + 处决30% + 主动70%HP
     -- ====================================================================
     fate_weaver = {
-        { id = "fate_thread",    name = "命运之线", desc = "光环降低敌人受治愈效果50%",
-          type = "passive", healReduction = 0.50,
-          buildDesc = function(f) return "光环降低敌人受治愈效果" .. P(0.50, f) end },
-        { id = "causality",      name = "因果律", desc = "全体友方塔25%概率双倍伤害",
-          type = "passive", doubleDmgChance = 0.25,
-          buildDesc = function(f) return "全体友方塔" .. P(0.25, f) .. "概率双倍伤害" end },
-        { id = "fate_finale",    name = "命运终章", desc = "友方致命一击时,溅射80%伤害给周围敌人",
-          type = "passive", critSplashPct = 0.80,
-          buildDesc = function(f) return "友方致命一击时,溅射" .. P(0.80, f) .. "伤害给周围敌人" end },
+        { id = "fate_thread",    name = "命运之线", desc = "光环降低敌人受治愈效果85%",
+          type = "passive", healReduction = 0.85,
+          buildDesc = function(f) return "光环降低敌人受治愈效果" .. P(0.85, f) end },
+        { id = "causality",      name = "因果律", desc = "全体友方塔70%概率双倍伤害",
+          type = "passive", doubleDmgChance = 0.70,
+          buildDesc = function(f) return "全体友方塔" .. P(0.70, f) .. "概率双倍伤害" end },
+        { id = "fate_finale",    name = "命运终章", desc = "友方致命一击时,溅射230%伤害给周围敌人",
+          type = "passive", critSplashPct = 2.30,
+          buildDesc = function(f) return "友方致命一击时,溅射" .. P(2.30, f) .. "伤害给周围敌人" end },
         { id = "time_weave",     name = "时间编织", desc = "每25秒重置全体友方塔技能CD",
           type = "active", interval = 25 },
     },
     eternal_archfiend = {
-        { id = "archfiend_strike", name = "魔君一击", desc = "暴击率+40%,暴击伤害+150%",
-          type = "passive", critRate = 0.40, critDmg = 1.50,
-          buildDesc = function(f) return "暴击率+" .. P(0.40, f) .. ",暴击伤害+" .. P(1.50, f) end },
-        { id = "eternal_power",  name = "永恒之力", desc = "击杀+3%攻击,最多+60%,每波重置",
-          type = "passive", killAtkBonus = 0.03, maxBonus = 0.60,
-          buildDesc = function(f) return "击杀+" .. PD(0.03, f) .. "攻击,最多+" .. P(0.60, f) .. ",每波重置" end },
-        { id = "final_judgment", name = "终焉审判", desc = "HP<15%处决;BOSS免疫,改为ATK×15固定伤害",
-          type = "passive", executeThreshold = 0.15, bossFixedAtkMult = 15,
-          buildDesc = function(f) return "HP<" .. P(0.15, f) .. "处决;BOSS免疫,改为ATK×" .. I(15, f) .. "固定伤害" end },
-        { id = "worldfire",      name = "灭世之炎", desc = "每10秒对最高血量敌人造成当前HP 25%,BOSS上限ATK×15",
-          type = "active", interval = 10, hpPct = 0.25, bossAtkCap = 15,
-          buildDesc = function(f) return "每10秒对最高血量敌人造成当前HP " .. P(0.25, f) .. ",BOSS上限ATK×" .. I(15, f) end },
+        { id = "archfiend_strike", name = "魔君一击", desc = "暴击率+80%,暴击伤害+440%",
+          type = "passive", critRate = 0.80, critDmg = 4.40,
+          buildDesc = function(f) return "暴击率+" .. P(0.80, f) .. ",暴击伤害+" .. P(4.40, f) end },
+        { id = "eternal_power",  name = "永恒之力", desc = "击杀+9%攻击,最多+175%,每波重置",
+          type = "passive", killAtkBonus = 0.09, maxBonus = 1.75,
+          buildDesc = function(f) return "击杀+" .. PD(0.09, f) .. "攻击,最多+" .. P(1.75, f) .. ",每波重置" end },
+        { id = "final_judgment", name = "终焉审判", desc = "HP<30%处决;BOSS免疫,改为ATK×44固定伤害",
+          type = "passive", executeThreshold = 0.30, bossFixedAtkMult = 44,
+          buildDesc = function(f) return "HP<" .. P(0.30, f) .. "处决;BOSS免疫,改为ATK×" .. I(44, f) .. "固定伤害" end },
+        { id = "worldfire",      name = "灭世之炎", desc = "每10秒对最高血量敌人造成当前HP 70%,BOSS上限ATK×44",
+          type = "active", interval = 10, hpPct = 0.70, bossAtkCap = 44,
+          buildDesc = function(f) return "每10秒对最高血量敌人造成当前HP " .. P(0.70, f) .. ",BOSS上限ATK×" .. I(44, f) end },
     },
-    -- 主角（按SSR级功率）
+    -- 主角（按SSR级功率预算 8×）
     leader = {
-        { id = "shadow_dominion", name = "暗影支配", desc = "全体友方塔攻击+15%",
-          type = "passive", globalAtkBuff = 0.15,
-          buildDesc = function(f) return "全体友方塔攻击+" .. P(0.15, f) end },
-        { id = "lord_will",      name = "君主意志", desc = "击杀时15%概率重置主动技能1秒CD",
-          type = "passive", chance = 0.15, cdResetAmount = 1.0,
-          buildDesc = function(f) return "击杀时" .. P(0.15, f) .. "概率重置主动技能1秒CD" end },
-        { id = "shadow_devour",  name = "暗影吞噬", desc = "每10秒全屏80%攻击力伤害",
-          type = "active", interval = 10, damagePct = 0.80,
-          buildDesc = function(f) return "每10秒全屏" .. P(0.80, f) .. "攻击力伤害" end },
+        { id = "shadow_dominion", name = "暗影支配", desc = "全体友方塔攻击+20%",
+          type = "passive", globalAtkBuff = 0.20,
+          buildDesc = function(f) return "全体友方塔攻击+" .. P(0.20, f) end },
+        { id = "lord_will",      name = "君主意志", desc = "击杀时20%概率重置主动技能1秒CD",
+          type = "passive", chance = 0.20, cdResetAmount = 1.0,
+          buildDesc = function(f) return "击杀时" .. P(0.20, f) .. "概率重置主动技能1秒CD" end },
+        { id = "shadow_devour",  name = "暗影吞噬", desc = "每10秒全屏105%攻击力伤害",
+          type = "active", interval = 10, damagePct = 1.05,
+          buildDesc = function(f) return "每10秒全屏" .. P(1.05, f) .. "攻击力伤害" end },
     },
     nature_elf = {
-        { id = "nature_gift",    name = "自然馈赠", desc = "每3秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+60%、攻速+40%，并额外获得翎嫣ATK×10%的固定攻击加成",
+        { id = "nature_gift",    name = "自然馈赠", desc = "每3秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+115%、攻速+75%，并额外获得翎嫣ATK×19%的固定攻击加成",
           type = "passive", starScale = true,
           buildDesc = function(f)
-              local atkPct = math.floor(60 * f + 0.5)
-              local spdPct = math.floor(40 * f + 0.5)
-              local ratPct = math.floor(10 * f * 10 + 0.5) / 10
+              local atkPct = math.floor(115 * f + 0.5)
+              local spdPct = math.floor(75 * f + 0.5)
+              local ratPct = math.floor(19 * f * 10 + 0.5) / 10
               local ratStr = ratPct % 1 == 0 and string.format("%d", ratPct) or string.format("%.1f", ratPct)
               return string.format(
                   "每3秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+%d%%、攻速+%d%%，并额外获得翎嫣ATK×%s%%的固定攻击加成",
@@ -317,11 +323,11 @@ Config.HERO_SKILLS = {
           end },
         { id = "verdant_ward",   name = "翠意庇护", desc = "当英雄自然之力≥20时触发翠意状态，持续5秒内免疫沉默、禁锢等负面效果，内置20秒冷却",
           type = "passive" },
-        { id = "wilds_call",     name = "绿野之呼", desc = "每20秒自动为所有英雄提供30点自然之力，并为攻击力最高且未持有鲜花环的英雄赠送鲜花环（+40%攻击力，持续10秒，每个英雄最多1个）",
+        { id = "wilds_call",     name = "绿野之呼", desc = "每20秒自动为所有英雄提供55点自然之力，并为攻击力最高且未持有鲜花环的英雄赠送鲜花环（+75%攻击力，持续10秒，每个英雄最多1个）",
           type = "active", interval = 20, starScale = true,
           buildDesc = function(f)
-              local force     = math.floor(30 * f)
-              local wreathPct = math.floor(40 * f + 0.5)
+              local force     = math.floor(55 * f)
+              local wreathPct = math.floor(75 * f + 0.5)
               return string.format(
                   "每20秒自动为所有英雄提供%d点自然之力，并为攻击力最高且未持有鲜花环的英雄赠送鲜花环（+%d%%攻击力，持续10秒，每个英雄最多1个）",
                   force, wreathPct)
@@ -329,32 +335,32 @@ Config.HERO_SKILLS = {
     },
     crimson_night = {
         { id = "shadow_needle",  name = "暗影之针",
-          desc = "普攻叠加暗影印记(最多5层,持续4秒);满5层触发穿刺爆发,造成ATK×200%暗影伤害,无视20%护甲",
+          desc = "普攻叠加暗影印记(最多5层,持续4秒);满5层触发穿刺爆发,造成ATK×380%暗影伤害,无视38%护甲",
           type = "passive",
           maxStacks = 5, stackDuration = 4.0,
-          burstAtkPct = 2.0, armorIgnore = 0.20,
+          burstAtkPct = 3.80, armorIgnore = 0.38,
           starScale = true,
-          buildDesc = function(f) return "普攻叠加暗影印记(最多5层,持续4秒);满5层触发穿刺爆发,造成ATK×" .. M(2.0, f) .. "暗影伤害,无视" .. P(0.20, f) .. "护甲" end },
+          buildDesc = function(f) return "普攻叠加暗影印记(最多5层,持续4秒);满5层触发穿刺爆发,造成ATK×" .. M(3.80, f) .. "暗影伤害,无视" .. P(0.38, f) .. "护甲" end },
         { id = "blood_eye",      name = "绯瞳锁定",
-          desc = "攻击获得绯瞳,每层+3%暴击率(最多+30%),暴击伤害+50%;4秒未攻击则绯瞳消失",
+          desc = "攻击获得绯瞳,每层+6%暴击率(最多+60%),暴击伤害+95%;4秒未攻击则绯瞳消失",
           type = "passive",
-          critRatePerHit = 0.03, maxCritStacks = 10,
-          critDmgBonus = 0.50,
+          critRatePerHit = 0.06, maxCritStacks = 10,
+          critDmgBonus = 0.95,
           decayDuration = 4.0,
           starScale = true,
           buildDesc = function(f)
-              local perHit = PD(0.03, f)
-              local maxCrit = P(0.03 * 10, f)
-              local critDmg = P(0.50, f)
+              local perHit = PD(0.06, f)
+              local maxCrit = P(0.06 * 10, f)
+              local critDmg = P(0.95, f)
               return "攻击获得绯瞳,每层+" .. perHit .. "暴击率(最多+" .. maxCrit .. "),暴击伤害+" .. critDmg .. ";4秒未攻击则绯瞳消失"
           end },
         { id = "abyss_strike",   name = "深渊一刺",
-          desc = "对当前目标造成ATK×800%暗影伤害,必定暴击;每层绯瞳额外+100%ATK伤害并消耗绯瞳;击杀时保留一半绯瞳层数 (CD:14s)",
+          desc = "对当前目标造成ATK×1520%暗影伤害,必定暴击;每层绯瞳额外+190%ATK伤害并消耗绯瞳;击杀时保留一半绯瞳层数 (CD:14s)",
           type = "active", interval = 14,
-          baseAtkPct = 8.0, stackBonusPct = 1.0,
+          baseAtkPct = 15.20, stackBonusPct = 1.90,
           guaranteedCrit = true,
           starScale = true,
-          buildDesc = function(f) return "对当前目标造成ATK×" .. M(8.0, f) .. "暗影伤害,必定暴击;每层绯瞳额外+" .. M(1.0, f) .. "ATK伤害并消耗绯瞳;击杀时保留一半层数" end },
+          buildDesc = function(f) return "对当前目标造成ATK×" .. M(15.20, f) .. "暗影伤害,必定暴击;每层绯瞳额外+" .. M(1.90, f) .. "ATK伤害并消耗绯瞳;击杀时保留一半层数" end },
     },
 }
 
@@ -637,7 +643,7 @@ Config.CHEST_INITIAL = {}
 
 -- 装备部位定义
 Config.EQUIP_SLOTS = {
-    { id = "weapon", name = "武器", emoji = "⚔", stat = "atk",      statName = "攻击",       fmt = "flat" },
+    { id = "weapon", name = "武器", emoji = "⚔", stat = "atk",      statName = "攻击",       fmt = "pct" },
     { id = "armor",  name = "铠甲", emoji = "🛡", stat = "dmgBonus", statName = "伤害加成",   fmt = "pct" },
     { id = "helmet", name = "头盔", emoji = "⛑", stat = "critDmg",  statName = "暴击伤害",   fmt = "pct" },
     { id = "mount",  name = "战马", emoji = "🐴", stat = "elemDmg",  statName = "元素伤害",   fmt = "pct" },
@@ -698,7 +704,7 @@ Config.EQUIP_MAX_LEVEL = 4000
 
 -- 每级属性成长（基础值 × 等级倍率）
 Config.EQUIP_STAT_BASE = {
-    atk     = 12,      -- 每级+12攻击（整数）
+    atk      = 0.002,  -- 每级+0.2%攻击（百分比，与dmgBonus对齐）
     dmgBonus = 0.002,  -- 每级+0.2%伤害加成
     critDmg  = 0.003,  -- 每级+0.3%暴击伤害
     elemDmg  = 0.002,  -- 每级+0.2%元素伤害

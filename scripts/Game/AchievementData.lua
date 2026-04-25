@@ -1,9 +1,10 @@
 -- Game/AchievementData.lua
 -- 成就系统：一次性里程碑奖励（关卡进度 + 暗影君主升级 + 累积登录 + 排行榜名次）
 
-local HeroData     = require("Game.HeroData")
-local Currency     = require("Game.Currency")
-local SaveRegistry = require("Game.SaveRegistry")
+local HeroData          = require("Game.HeroData")
+local Currency          = require("Game.Currency")
+local SaveRegistry      = require("Game.SaveRegistry")
+local AchievementToast  = require("Game.AchievementToast")
 
 local AchievementData = {}
 
@@ -718,6 +719,101 @@ function AchievementData.HasClaimable()
 end
 
 -- ============================================================================
+-- 达成检测（定时轮询，不耦合外部系统）
+-- ============================================================================
+
+local _notified = {}       -- session 级已通知集合，避免重复弹 toast
+local _initialized = false -- 首次扫描只建立快照，不弹 toast
+local _checkTimer = 0
+local CHECK_INTERVAL = 3   -- 每 3 秒检查一次
+
+--- 内部：检测单个里程碑，新达成时弹 toast
+local function _NotifyIf(key, reached, claimed, name, desc)
+    if reached and not claimed and not _notified[key] then
+        _notified[key] = true
+        if _initialized then
+            AchievementToast.Show(name, desc)
+        end
+    end
+end
+
+--- 每帧调用，内部节流
+---@param dt number
+function AchievementData.Update(dt)
+    _checkTimer = _checkTimer + dt
+    if _checkTimer < CHECK_INTERVAL then return end
+    _checkTimer = 0
+
+    if not HeroData.achievementData then return end
+    local data = AchievementData.EnsureData()
+
+    -- 关卡（每 5 关）
+    local bestStage = HeroData.stats and HeroData.stats.bestStage or 0
+    for s = STAGE_INTERVAL, bestStage, STAGE_INTERVAL do
+        _NotifyIf("s" .. s, true, data.stageClaimed[tostring(s)],
+            "通关第" .. s .. "关", "暗影精粹x" .. STAGE_REWARD.amount)
+    end
+
+    -- 暗影君主等级（每 100 级）
+    local curLevel = AchievementData.GetLeaderLevel()
+    for lv = LEVEL_MIN, math.min(curLevel, LEVEL_MAX), LEVEL_INTERVAL do
+        _NotifyIf("l" .. lv, true, data.levelClaimed[tostring(lv)],
+            "暗影君主达到" .. lv .. "级", "冥晶x" .. CalcLevelReward(lv))
+    end
+
+    -- 累积登录
+    for _, m in ipairs(LOGIN_MILESTONES) do
+        _NotifyIf("d" .. m.days, data.totalLoginDays >= m.days, data.loginClaimed[tostring(m.days)],
+            "累积登录" .. m.days .. "天", "暗影精粹x" .. m.reward)
+    end
+
+    -- 主线排名
+    if _rankCache.campaign then
+        for _, m in ipairs(RANK_MILESTONES) do
+            _NotifyIf("rc" .. m.rank, _rankCache.campaign <= m.rank, data.rankCampaignClaimed[tostring(m.rank)],
+                "主线排名前" .. m.rank, "暗影精粹x" .. m.reward)
+        end
+    end
+
+    -- 试练塔排名
+    if _rankCache.tower then
+        for _, m in ipairs(RANK_MILESTONES) do
+            _NotifyIf("rt" .. m.rank, _rankCache.tower <= m.rank, data.rankTowerClaimed[tostring(m.rank)],
+                "试练塔排名前" .. m.rank, "暗影精粹x" .. m.reward)
+        end
+    end
+
+    -- 开宝箱
+    local totalChest = data.totalChestOpened or 0
+    for _, m in ipairs(CHEST_MILESTONES) do
+        _NotifyIf("c" .. m.count, totalChest >= m.count, data.chestClaimed[tostring(m.count)],
+            "累计开启" .. m.count .. "次宝箱", "宝箱x" .. m.rewardAmt)
+    end
+
+    -- 招募
+    local totalRecruit = data.totalRecruitCount or 0
+    for _, m in ipairs(RECRUIT_MILESTONES) do
+        _NotifyIf("r" .. m.count, totalRecruit >= m.count, data.recruitClaimed[tostring(m.count)],
+            "累积招募" .. m.count .. "次", "暗影精粹x" .. m.reward)
+    end
+
+    -- 广告
+    local totalAd = AchievementData.GetTotalAdWatched()
+    for _, m in ipairs(AD_WATCH_MILESTONES) do
+        _NotifyIf("a" .. m.count, totalAd >= m.count, data.adWatchClaimed[tostring(m.count)],
+            "累积观看" .. m.count .. "次广告", "暗影精粹x" .. m.reward)
+    end
+
+    -- 隐藏成就
+    for _, h in ipairs(AchievementData.GetHiddenAchievements()) do
+        _NotifyIf("h" .. h.id, h.reached, data.hiddenClaimed[h.id],
+            h.name, h.desc)
+    end
+
+    _initialized = true
+end
+
+-- ============================================================================
 -- SaveRegistry 自注册
 -- ============================================================================
 SaveRegistry.Register("achievementData", {
@@ -728,6 +824,10 @@ SaveRegistry.Register("achievementData", {
     end,
     deserialize = function(saved, _saveData)
         HeroData.achievementData = saved or nil
+        -- 重置检测状态（新存档加载）
+        _notified = {}
+        _initialized = false
+        _checkTimer = 0
         -- 存档加载后自动标记今日登录
         AchievementData.MarkLogin()
     end,

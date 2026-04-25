@@ -16,13 +16,13 @@ function M.UpdateAura(source, towers)
     -- 命运之线：全局降低敌人治愈
     local fateThread = has(source, "fate_thread")
     if fateThread then
-        State.healReduction = math.max(State.healReduction or 0, fateThread.healReduction or 0.30)
+        State.healReduction = math.max(State.healReduction or 0, fateThread.healReduction)
     end
     -- 因果律：全体友方概率双倍伤害
     local causality = has(source, "causality")
     if causality then
         State.causalityActive = true
-        State.causalityChance = math.max(State.causalityChance or 0, causality.doubleDmgChance or 0.15)
+        State.causalityChance = math.max(State.causalityChance or 0, causality.doubleDmgChance)
     end
 end
 

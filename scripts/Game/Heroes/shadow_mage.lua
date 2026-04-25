@@ -18,7 +18,7 @@ function M.ModifyDamage(tower, target, damage)
     -- 暗影穿透
     local pierce = has(tower, "shadow_pierce")
     if pierce and target.shield and target.shield > 0 then
-        if math.random() < (pierce.chance or 0.15) then
+        if math.random() < pierce.chance then
             target.piercedThisHit = true
         end
     end
@@ -26,7 +26,7 @@ function M.ModifyDamage(tower, target, damage)
     if tower.soulReapStacks and tower.soulReapStacks > 0 then
         local reap = has(tower, "soul_reap")
         if reap then
-            damage = damage * (1 + tower.soulReapStacks * (reap.killDmgBonus or 0.30))
+            damage = damage * (1 + tower.soulReapStacks * reap.killDmgBonus)
             tower.soulReapStacks = 0
         end
     end
@@ -55,7 +55,7 @@ function M.TriggerActive(tower, skill)
     if skill.id ~= "void_storm" then return end
     local Enemy  = require("Game.Enemy")
     local Combat = require("Game.Combat")
-    local baseDmg = tower.attack * (skill.damagePct or 0.30)
+    local baseDmg = tower.attack * skill.damagePct
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
             local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)

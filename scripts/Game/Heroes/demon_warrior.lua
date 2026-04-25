@@ -14,8 +14,8 @@ function M.ModifyAttackSpeed(tower, speed)
     local fury = has(tower, "demon_fury")
     if fury then
         local bonus = math.min(
-            State.currentWave * (fury.bonusPerWave or 0.005),
-            fury.maxBonus or 0.25
+            State.currentWave * fury.bonusPerWave,
+            fury.maxBonus
         )
         speed = speed / (1 + bonus)
     end

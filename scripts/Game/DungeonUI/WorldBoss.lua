@@ -8,6 +8,7 @@ local WB = require("Game.WorldBossData")
 local WorldBossSkills = require("Game.WorldBossSkills")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
+local RC = require("Game.RewardController")
 local AdHelper = require("Game.AdHelper")
 local SweepPopup = require("Game.SweepPopup")
 
@@ -513,166 +514,92 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
     local ok2, DTD = pcall(require, "Game.DailyTaskData")
     if ok2 and DTD then DTD.AddProgress("boss", 1) end
 
-    local BM = require("Game.BattleManager")
     local GameUI = require("Game.GameUI")
     local State = require("Game.State")
 
-    local cfg = WB.CONFIG
-
     local challengeDifficulty = WB.GetSelectedDifficulty()
-    local diffDef = WB.GetDifficultyDef(challengeDifficulty)
+    local config, bossDef = WB.BuildBattleConfig(challengeDifficulty)
+    local label = config.label
 
-    local bossDef = WB.CreateWorldBossDef()
-    -- 应用难度倍率到BOSS DEF（DEF是核心战斗属性，其他属性由GetScaledDEF实时更新）
-    bossDef.baseDEF = (bossDef.baseDEF or cfg.bossDEF) * diffDef.attrMult
-    local waves = {
-        {
-            {
-                type = bossDef.id or "world_boss",
-                typeDef = bossDef,
-                delay = 0,
-                isElite = false,
-                affixes = {},
-                prescaled = true,
-            },
-        },
-    }
+    config.onStart = function()
+        WorldBossSkills.Init(challengeDifficulty)
+    end
+    config.onUpdate = function(dt)
+        WorldBossSkills.Update(dt)
+    end
 
-    local label = "世界BOSS · 深渊主宰" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
+    config.onWin = function(result)
+        WorldBossSkills.Cleanup()
+        State.worldBossActive = false
+        local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
-    GameUI.EnterDungeonBattle({
-        mode = "world_boss",
-        waves = waves,
-        totalWaves = 1,
-        stageNum = 1,
-        label = label,
-        waveInterval = 0,
-        autoAdvanceWave = false,
-        bossTimerEnabled = true,
-        overloadEnabled = false,
-        worldBossDuration = cfg.totalDuration,
-        worldBossDarkSoulDrain = cfg.darkSoulDrain + diffDef.darkSoulBonus,
-        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+        local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
+        local defs = rewards and rewards.rewardDefs or {}
+        local title = label .. " 通关!\n伤害: " .. WB.FormatDamage(totalDamage)
 
-        onStart = function()
-            WorldBossSkills.Init(challengeDifficulty)
-        end,
-        onUpdate = function(dt)
-            WorldBossSkills.Update(dt)
-        end,
-
-        onWin = function(result)
-            WorldBossSkills.Cleanup()
-            State.worldBossActive = false
-            local totalDamage = result.totalDamage or State.worldBossTotalDamage
-
-            local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
-            local rewardItems = {}
-            if rewards and rewards.recruit_ticket_select_box then
-                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
-                rewardItems[#rewardItems + 1] = {
-                    icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
-                    name = itemDef and itemDef.name or "招募券自选包",
-                    amount = rewards.recruit_ticket_select_box,
-                    borderColor = { 200, 150, 255, 200 },
-                }
+        if #defs > 0 then
+            local root = GameUI.GetUIRoot()
+            if root then
+                RC.ShowFromDefs(UI, root, defs, title, function()
+                    GameUI.ExitDungeonBattle()
+                end)
+                return
             end
+        else
+            Toast.Show("伤害: " .. WB.FormatDamage(totalDamage) .. " · 未达到奖励阈值", S.dim)
+        end
+        GameUI.ExitDungeonBattle()
+    end
 
-            local title = label .. " 通关!\n伤害: " .. WB.FormatDamage(totalDamage)
+    config.onExit = function(result)
+        WorldBossSkills.Cleanup()
+        State.worldBossActive = false
+        local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
-            if #rewardItems > 0 then
-                local root = GameUI.GetUIRoot()
-                if root then
-                    RewardDisplay.Show(UI, root, {
-                        title = title,
-                        rewards = rewardItems,
-                        onClose = function()
-                            GameUI.ExitDungeonBattle()
-                        end,
-                    })
-                    return
-                end
-            else
-                Toast.Show("伤害: " .. WB.FormatDamage(totalDamage) .. " · 未达到奖励阈值", S.dim)
+        local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
+        local defs = rewards and rewards.rewardDefs or {}
+
+        if #defs > 0 then
+            local root = GameUI.GetUIRoot()
+            if root then
+                RC.ShowFromDefs(UI, root, defs, label .. " 退出\n伤害: " .. WB.FormatDamage(totalDamage), function()
+                    GameUI.ExitDungeonBattle()
+                end)
+                return
             end
-            GameUI.ExitDungeonBattle()
-        end,
+        else
+            Toast.Show("伤害: " .. WB.FormatDamage(totalDamage), S.dim)
+        end
+        GameUI.ExitDungeonBattle()
+    end
 
-        onExit = function(result)
-            WorldBossSkills.Cleanup()
-            State.worldBossActive = false
-            local totalDamage = result.totalDamage or State.worldBossTotalDamage
+    config.onLose = function(result)
+        local BM_ = require("Game.BattleManager")
+        if BM_.config then BM_.config.onExit = nil end
 
-            local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
-            local rewardItems = {}
-            if rewards and rewards.recruit_ticket_select_box then
-                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
-                rewardItems[#rewardItems + 1] = {
-                    icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
-                    name = itemDef and itemDef.name or "招募券自选包",
-                    amount = rewards.recruit_ticket_select_box,
-                    borderColor = { 200, 150, 255, 200 },
-                }
+        WorldBossSkills.Cleanup()
+        State.worldBossActive = false
+        local totalDamage = result.totalDamage or State.worldBossTotalDamage
+
+        local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
+        local defs = rewards and rewards.rewardDefs or {}
+        local title = label .. " 挑战结束\n伤害: " .. WB.FormatDamage(totalDamage)
+
+        if #defs > 0 then
+            local root = GameUI.GetUIRoot()
+            if root then
+                RC.ShowFromDefs(UI, root, defs, title, function()
+                    GameUI.ExitDungeonBattle()
+                end)
+                return
             end
+        else
+            Toast.Show("伤害: " .. WB.FormatDamage(totalDamage) .. " · 未达到奖励阈值", S.red)
+        end
+        GameUI.ExitDungeonBattle()
+    end
 
-            if #rewardItems > 0 then
-                local root = GameUI.GetUIRoot()
-                if root then
-                    RewardDisplay.Show(UI, root, {
-                        title = label .. " 退出\n伤害: " .. WB.FormatDamage(totalDamage),
-                        rewards = rewardItems,
-                        onClose = function()
-                            GameUI.ExitDungeonBattle()
-                        end,
-                    })
-                    return
-                end
-            else
-                Toast.Show("伤害: " .. WB.FormatDamage(totalDamage), S.dim)
-            end
-            GameUI.ExitDungeonBattle()
-        end,
-
-        onLose = function(result)
-            local BM_ = require("Game.BattleManager")
-            if BM_.config then BM_.config.onExit = nil end
-
-            WorldBossSkills.Cleanup()
-            State.worldBossActive = false
-            local totalDamage = result.totalDamage or State.worldBossTotalDamage
-
-            local rewards = WB.ClaimReward(totalDamage, challengeDifficulty)
-            local rewardItems = {}
-            if rewards and rewards.recruit_ticket_select_box then
-                local itemDef = Config.CURRENCY["recruit_ticket_select_box"]
-                rewardItems[#rewardItems + 1] = {
-                    icon = itemDef and itemDef.image or "image/icon_recruit_ticket_select_box.png",
-                    name = itemDef and itemDef.name or "招募券自选包",
-                    amount = rewards.recruit_ticket_select_box,
-                    borderColor = { 200, 150, 255, 200 },
-                }
-            end
-
-            local title = label .. " 挑战结束\n伤害: " .. WB.FormatDamage(totalDamage)
-
-            if #rewardItems > 0 then
-                local root = GameUI.GetUIRoot()
-                if root then
-                    RewardDisplay.Show(UI, root, {
-                        title = title,
-                        rewards = rewardItems,
-                        onClose = function()
-                            GameUI.ExitDungeonBattle()
-                        end,
-                    })
-                    return
-                end
-            else
-                Toast.Show("伤害: " .. WB.FormatDamage(totalDamage) .. " · 未达到奖励阈值", S.red)
-            end
-            GameUI.ExitDungeonBattle()
-        end,
-    })
+    GameUI.EnterDungeonBattle(config)
 end
 
 -- ============================================================================

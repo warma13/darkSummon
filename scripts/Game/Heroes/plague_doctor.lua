@@ -17,7 +17,7 @@ end
 function M.ModifyDamage(tower, target, damage)
     local toxic = has(tower, "toxic_miasma")
     if toxic and target.dotTimer and target.dotTimer > 0 then
-        target.armorReduceFromDot = toxic.armorReduce or 0.05
+        target.armorReduceFromDot = toxic.armorReduce
     end
     return damage
 end
@@ -46,7 +46,7 @@ function M.OnHit(tower, target, killed)
             local dy = e.y - target.y
             if dx * dx + dy * dy < spreadRangeSq then
                 if not (target.isBoss and Config.BOSS_BALANCE.dotSpreadImmune) then
-                    local spreadDmg = (target.dotDamage or 0) * (spread.spreadRatio or 0.50)
+                    local spreadDmg = (target.dotDamage or 0) * spread.spreadRatio
                     Enemy.ApplyDOT(e, spreadDmg, target.dotTimer)
                     e.dotSpread = true
                     spreadCount = spreadCount + 1
@@ -64,7 +64,7 @@ function M.TriggerActive(tower, skill)
     local Enemy = require("Game.Enemy")
     for _, e in ipairs(State.enemies) do
         if e.alive and e.dotTimer and e.dotTimer > 0 then
-            local burstDmg = (e.dotDamage or 0) * e.dotTimer * (skill.burstMult or 2.0)
+            local burstDmg = (e.dotDamage or 0) * e.dotTimer * skill.burstMult
             Enemy.TakeDamage(e, burstDmg)
             e.dotTimer = 0
         end

@@ -44,6 +44,8 @@ local GameUI = {}
 local UI = nil
 ---@type any
 local uiRoot = nil
+---@type any
+local tabNavRoot = nil  -- TabNav 根面板引用，用于 ReturnToServerSelect 时清理
 
 -- 共享上下文
 local ctx = {
@@ -429,10 +431,50 @@ local function OnTabSwitch(fromKey, toKey)
     if toKey == "dungeon" then DungeonUI.Refresh() end
 end
 
---- 创建游戏 UI（多页架构）
+--- 创建预加载根容器（仅承载 ServerSelect，不创建游戏页面）
+function GameUI.CreatePreGameRoot()
+    uiRoot = UI.Panel {
+        id = "preGameRoot",
+        width = "100%",
+        height = "100%",
+        pointerEvents = "box-none",
+    }
+    ctx.uiRoot = uiRoot
+    UI.SetRoot(uiRoot)
+    print("[GameUI] PreGameRoot created (no game tabs)")
+end
+
+--- 清理 CreateUI 创建的所有子节点（ReturnToServerSelect 时调用）
+local function CleanupGameUI()
+    -- 移除 tabNavRoot
+    if tabNavRoot then
+        uiRoot:RemoveChild(tabNavRoot)
+        tabNavRoot = nil
+    end
+    -- 移除所有 overlay 引用
+    local overlayKeys = {
+        "_idleRewardPanel", "_recruitPage", "_activityPage",
+        "_launchGiftPage", "_weeklyActivityPage", "_mailboxPage",
+        "_dailyTaskPage", "_leaderboardPage", "_exchangeShopPage",
+        "_adReliefPage", "_costumeSignInPage", "_miniGamePage",
+        "_adDashboardPage", "_speedBoostDialog", "_adTicketConfirmDialog",
+        "_userIdWrap", "_versionWrap",
+    }
+    for _, key in ipairs(overlayKeys) do
+        if GameUI[key] then
+            uiRoot:RemoveChild(GameUI[key])
+            GameUI[key] = nil
+        end
+    end
+    print("[GameUI] CleanupGameUI: old nodes removed")
+end
+
+--- 创建游戏 UI（多页架构）—— 在存档加载成功后调用
 function GameUI.CreateUI()
-    -- ChestData.Load() 移至 StartGame() 中存档加载完成后调用
-    -- 此处不应在存档就绪前初始化业务数据
+    -- 如果已经创建过，先清理旧节点（防止 ReturnToServerSelect 后重复创建）
+    if tabNavRoot then
+        CleanupGameUI()
+    end
 
     local battlePage = GameUI.CreateBattlePage()
     local heroPage = HeroUI.CreatePage(UI)
@@ -440,7 +482,7 @@ function GameUI.CreateUI()
     local chestPage = ChestUI.CreatePage(UI)
     local dungeonPage = DungeonUI.CreatePage(UI)
 
-    uiRoot = TabNav.Create(UI, {
+    tabNavRoot = TabNav.Create(UI, {
         hero = heroPage,
         equip = equipPage,
         battle = battlePage,
@@ -448,7 +490,10 @@ function GameUI.CreateUI()
         chest = chestPage,
     }, OnTabSwitch)
 
-    ctx.uiRoot = uiRoot
+    -- 将 TabNav 根面板插入已有的 uiRoot（而非替换），
+    -- 这样 ServerSelect 等已添加到 uiRoot 的浮层继续有效
+    uiRoot:AddChild(tabNavRoot)
+
     GameUI.InvalidateHudCache()
 
     -- 挂机收益弹窗：放在 uiRoot 层级，确保遮罩覆盖右侧按钮
@@ -533,7 +578,12 @@ function GameUI.CreateUI()
     }
     uiRoot:AddChild(GameUI._versionWrap)
 
-    UI.SetRoot(uiRoot)
+    -- uiRoot 已在 CreatePreGameRoot() 中设为 UI root，无需再次调用 UI.SetRoot
+    -- 将 ServerSelect 重新添加到最上层（确保在 TabNav 和所有 overlay 之上）
+    if GameUI._serverSelectPage then
+        uiRoot:AddChild(GameUI._serverSelectPage)
+    end
+
     return uiRoot
 end
 
@@ -576,9 +626,12 @@ function GameUI.ReturnToServerSelect()
         State.Reset()
         Combat.Reset()
 
+        -- 清理旧的游戏 UI 节点（tabNavRoot + 所有 overlay），防止重入时累积
+        CleanupGameUI()
+
         -- 销毁旧的区服选择浮层
         if GameUI._serverSelectPage then
-            GameUI._serverSelectPage:SetVisible(false)
+            uiRoot:RemoveChild(GameUI._serverSelectPage)
             GameUI._serverSelectPage = nil
         end
 
@@ -589,8 +642,8 @@ function GameUI.ReturnToServerSelect()
         end, freshMeta)
         GameUI.ShowServerSelect(true)
 
-        -- 切到战斗标签页（确保返回后看到的是战斗页）
-        TabNav.SwitchTo("battle")
+        -- 重置 activeTab，确保下次进入时从战斗页开始
+        State.activeTab = "battle"
     end)
 end
 

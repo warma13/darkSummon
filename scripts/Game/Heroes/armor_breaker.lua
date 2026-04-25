@@ -18,7 +18,7 @@ function M.ModifyDamage(tower, target, damage)
         if stackSkill and target.armorBreakStacks >= (stackSkill.maxStacks or 3) then
             local bonus = has(tower, "fatal_weakness")
             if bonus then
-                damage = damage * (1 + (bonus.fullStackBonus or 0.20))
+                damage = damage * (1 + bonus.fullStackBonus)
             end
         end
     end
@@ -38,7 +38,7 @@ function M.OnHit(tower, target, killed)
     local stackSkill = has(tower, "armor_stack")
     local maxStacks = (stackSkill and stackSkill.maxStacks) or 1
     target.armorBreakStacks = math.min(target.armorBreakStacks, maxStacks)
-    target.armorBreakValue  = armorBreak.armorBreak or 0.12
+    target.armorBreakValue  = armorBreak.armorBreak
     target.armorBreakTimer  = armorBreak.armorBreakDuration or 5.0
 end
 

@@ -8,6 +8,7 @@ local RD = require("Game.ResourceDungeonData")
 local InventoryData = require("Game.InventoryData")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
+local RC = require("Game.RewardController")
 local AdHelper = require("Game.AdHelper")
 local SweepPopup = require("Game.SweepPopup")
 
@@ -868,184 +869,74 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
         end
     end
 
-    local BM = require("Game.BattleManager")
     local GameUI = require("Game.GameUI")
 
     local diffLevel = RD.GetSelectedDifficulty()
-    local diffDef = RD.GetDifficultyDef(diffLevel)
+    local config = RD.BuildBattleConfig(dungeonKey, diffLevel)
+    if not config then return end
 
-    local waves = {}
-    local totalWaves = RD.TOTAL_WAVES
+    local label = config.label
+    local totalWaves = config.totalWaves
 
-    for w = 1, totalWaves do
-        local enemyDefs = RD.GenerateWaveEnemies(dungeonKey, w, diffLevel)
-        waves[w] = BM.BuildSpawnQueue(enemyDefs, 0.5)
+    config.onWin = function(result)
+        local rewards = RD.ClaimReward(dungeonKey, totalWaves, diffLevel)
+        local defs = rewards and rewards.rewardDefs or {}
+        if #defs > 0 then
+            local root = GameUI.GetUIRoot()
+            if root then
+                RC.ShowFromDefs(UI, root, defs, label .. " 全部通关!", function()
+                    GameUI.ExitDungeonBattle()
+                end)
+                return
+            end
+        end
+        GameUI.ExitDungeonBattle()
     end
 
-    local diffSuffix = diffLevel > 0 and (" [" .. diffDef.label .. "]") or ""
-    local label = (def.name or dungeonKey) .. "副本" .. diffSuffix
-
-    GameUI.EnterDungeonBattle({
-        mode = "resource_dungeon",
-        waves = waves,
-        totalWaves = totalWaves,
-        stageNum = 1,
-        label = label,
-        waveInterval = 30,
-        autoAdvanceWave = true,
-        bossTimerEnabled = true,
-        overloadEnabled = true,
-        overloadLimit = 10,
-        initialDarkSoul = Config.INITIAL_DARK_SOUL,
-
-        onWin = function(result)
-            local rewards = RD.ClaimReward(dungeonKey, totalWaves, diffLevel)
-            if rewards then
-                local rewardItems = {}
-                if def.rewardCurrency == "chest" then
-                    local c = rewards.chests or {}
-                    for chestId, count in pairs(c) do
-                        if count > 0 then
-                            local ct = Config.CHEST_TYPES_MAP[chestId]
-                            rewardItems[#rewardItems + 1] = {
-                                icon = ct and ct.image or "?",
-                                name = ct and ct.name or chestId,
-                                amount = count,
-                                borderColor = ct and ct.borderColor or nil,
-                            }
-                        end
-                    end
-                else
-                    local currDef = Config.CURRENCY[def.rewardCurrency]
-                    local amount = rewards[def.rewardCurrency] or 0
-                    if amount > 0 then
-                        rewardItems[#rewardItems + 1] = {
-                            icon = currDef and currDef.image or "?",
-                            name = currDef and currDef.name or def.rewardCurrency,
-                            amount = amount,
-                        }
-                    end
-                end
-                if #rewardItems > 0 then
-                    local root = GameUI.GetUIRoot()
-                    if root then
-                        RewardDisplay.Show(UI, root, {
-                            title = label .. " 全部通关!",
-                            rewards = rewardItems,
-                            onClose = function()
-                                GameUI.ExitDungeonBattle()
-                            end,
-                        })
-                        return
-                    end
+    config.onExit = function(result)
+        local clearedWave = math.max(0, result.wave - 1)
+        if clearedWave > 0 then
+            local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
+            local defs = rewards and rewards.rewardDefs or {}
+            if #defs > 0 then
+                local root = GameUI.GetUIRoot()
+                if root then
+                    RC.ShowFromDefs(UI, root, defs, label .. " 提前退出 (第" .. clearedWave .. "波)", function()
+                        GameUI.ExitDungeonBattle()
+                    end)
+                    return
                 end
             end
-            GameUI.ExitDungeonBattle()
-        end,
+        else
+            Toast.Show(label .. " 提前退出，无奖励", S.red)
+        end
+        GameUI.ExitDungeonBattle()
+    end
 
-        onExit = function(result)
-            local clearedWave = math.max(0, result.wave - 1)
-            if clearedWave > 0 then
-                local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
-                if rewards then
-                    local rewardItems = {}
-                    if def.rewardCurrency == "chest" then
-                        local c = rewards.chests or {}
-                        for chestId, count in pairs(c) do
-                            if count > 0 then
-                                local ct = Config.CHEST_TYPES_MAP[chestId]
-                                rewardItems[#rewardItems + 1] = {
-                                    icon = ct and ct.image or "?",
-                                    name = ct and ct.name or chestId,
-                                    amount = count,
-                                    borderColor = ct and ct.borderColor or nil,
-                                }
-                            end
-                        end
-                    else
-                        local currDef = Config.CURRENCY[def.rewardCurrency]
-                        local amount = rewards[def.rewardCurrency] or 0
-                        if amount > 0 then
-                            rewardItems[#rewardItems + 1] = {
-                                icon = currDef and currDef.image or "?",
-                                name = currDef and currDef.name or def.rewardCurrency,
-                                amount = amount,
-                            }
-                        end
-                    end
-                    if #rewardItems > 0 then
-                        local root = GameUI.GetUIRoot()
-                        if root then
-                            RewardDisplay.Show(UI, root, {
-                                title = label .. " 提前退出 (第" .. clearedWave .. "波)",
-                                rewards = rewardItems,
-                                onClose = function()
-                                    GameUI.ExitDungeonBattle()
-                                end,
-                            })
-                            return
-                        end
-                    end
+    config.onLose = function(result)
+        local BM_ = require("Game.BattleManager")
+        if BM_.config then BM_.config.onExit = nil end
+
+        local clearedWave = math.max(0, result.wave - 1)
+        if clearedWave > 0 then
+            local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
+            local defs = rewards and rewards.rewardDefs or {}
+            if #defs > 0 then
+                local root = GameUI.GetUIRoot()
+                if root then
+                    RC.ShowFromDefs(UI, root, defs, label .. " 第" .. clearedWave .. "波失败", function()
+                        GameUI.ExitDungeonBattle()
+                    end)
+                    return
                 end
-            else
-                Toast.Show(label .. " 提前退出，无奖励", S.red)
             end
-            GameUI.ExitDungeonBattle()
-        end,
+        else
+            Toast.Show(label .. " 挑战失败", S.red)
+        end
+        GameUI.ExitDungeonBattle()
+    end
 
-        onLose = function(result)
-            local BM_ = require("Game.BattleManager")
-            if BM_.config then BM_.config.onExit = nil end
-
-            local clearedWave = math.max(0, result.wave - 1)
-            if clearedWave > 0 then
-                local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
-                if rewards then
-                    local rewardItems = {}
-                    if def.rewardCurrency == "chest" then
-                        local c = rewards.chests or {}
-                        for chestId, count in pairs(c) do
-                            if count > 0 then
-                                local ct = Config.CHEST_TYPES_MAP[chestId]
-                                rewardItems[#rewardItems + 1] = {
-                                    icon = ct and ct.image or "?",
-                                    name = ct and ct.name or chestId,
-                                    amount = count,
-                                    borderColor = ct and ct.borderColor or nil,
-                                }
-                            end
-                        end
-                    else
-                        local currDef = Config.CURRENCY[def.rewardCurrency]
-                        local amount = rewards[def.rewardCurrency] or 0
-                        if amount > 0 then
-                            rewardItems[#rewardItems + 1] = {
-                                icon = currDef and currDef.image or "?",
-                                name = currDef and currDef.name or def.rewardCurrency,
-                                amount = amount,
-                            }
-                        end
-                    end
-                    if #rewardItems > 0 then
-                        local root = GameUI.GetUIRoot()
-                        if root then
-                            RewardDisplay.Show(UI, root, {
-                                title = label .. " 第" .. clearedWave .. "波失败",
-                                rewards = rewardItems,
-                                onClose = function()
-                                    GameUI.ExitDungeonBattle()
-                                end,
-                            })
-                            return
-                        end
-                    end
-                end
-            else
-                Toast.Show(label .. " 挑战失败", S.red)
-            end
-            GameUI.ExitDungeonBattle()
-        end,
-    })
+    GameUI.EnterDungeonBattle(config)
 end
 
 -- ============================================================================

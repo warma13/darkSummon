@@ -6,6 +6,7 @@ local AbyssRiftData = require("Game.AbyssRiftDungeon")
 local RuneConfig = require("Game.Config_Runes")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
+local RC = require("Game.RewardController")
 local AdHelper = require("Game.AdHelper")
 local Currency = require("Game.Currency")
 local SweepPopup = require("Game.SweepPopup")
@@ -503,137 +504,56 @@ end
 
 function AbyssRift.StartBattle(UI, S, ctx, difficultyId)
     local GameUI = require("Game.GameUI")
-    local BM = require("Game.BattleManager")
     local State = require("Game.State")
-    local session = AbyssRiftData.CreateSession(difficultyId)
-    local totalWaves = AbyssRiftData.TOTAL_WAVES
 
-    local waves = {}
-    for w = 1, totalWaves do
-        local enemyDefs = AbyssRiftData.GenerateWaveEnemies(w, difficultyId)
-        waves[w] = BM.BuildSpawnQueue(enemyDefs, 0.5)
+    local config, session = AbyssRiftData.BuildBattleConfig(difficultyId)
+    if not config then return end
+
+    local label = config.label
+    local totalWaves = config.totalWaves
+
+    config.onWin = function(result)
+        for w = 1, totalWaves do
+            session.currentWave = w
+            AbyssRiftData.CompleteWave(session)
+        end
+        local endResult = AbyssRiftData.EndSession(session)
+        local LeaderboardData = require("Game.LeaderboardData")
+        LeaderboardData.UploadAbyss(difficultyId, totalWaves)
+        local root = GameUI.GetUIRoot()
+        if root then
+            RC.ShowFromDefs(UI, root, endResult.rewardDefs, label .. " 通关", function()
+                ctx.SetView("abyss_rift_detail")
+                GameUI.ExitDungeonBattle()
+            end)
+        else
+            GameUI.ExitDungeonBattle()
+        end
     end
 
-    local diffName = AbyssRiftData.DIFFICULTY_MAP[difficultyId]
-        and AbyssRiftData.DIFFICULTY_MAP[difficultyId].name or "普通"
-    local label = "深渊裂隙 · " .. diffName
-
-    GameUI.EnterDungeonBattle({
-        mode = "abyss_rift",
-        waves = waves,
-        totalWaves = totalWaves,
-        label = label,
-        waveInterval = 20,
-        autoAdvanceWave = true,
-        overloadEnabled = true,
-        overloadLimit = 60,
-        initialDarkSoul = Config.INITIAL_DARK_SOUL,
-        onWin = function(result)
-            for w = 1, totalWaves do
-                session.currentWave = w
-                AbyssRiftData.CompleteWave(session)
-            end
-            local endResult = AbyssRiftData.EndSession(session)
+    config.onLose = function()
+        local clearedWaves = State.currentWave or 1
+        for w = 1, clearedWaves do
+            session.currentWave = w
+            AbyssRiftData.CompleteWave(session)
+        end
+        local endResult = AbyssRiftData.EndSession(session)
+        if clearedWaves > 0 then
             local LeaderboardData = require("Game.LeaderboardData")
-            LeaderboardData.UploadAbyss(difficultyId, totalWaves)
-            local rewardItems = {}
-            if endResult.totalDust > 0 then
-                rewardItems[#rewardItems + 1] = { icon = Currency.GetImage("rift_dust"), name = "裂隙之尘", amount = endResult.totalDust, color = { 160, 120, 200 } }
-            end
-            if endResult.totalSeals > 0 then
-                rewardItems[#rewardItems + 1] = { icon = Currency.GetImage("rune_seal"), name = "符文封印", amount = endResult.totalSeals, color = { 40, 200, 160 } }
-            end
-            -- 按系列分组显示符文（每种类型单独一条）
-            local runeCounts = {}
-            local runeOrder = {}
-            for _, rune in ipairs(endResult.runes) do
-                local sid = rune.seriesId
-                if not runeCounts[sid] then
-                    runeCounts[sid] = 0
-                    runeOrder[#runeOrder + 1] = sid
-                end
-                runeCounts[sid] = runeCounts[sid] + 1
-            end
-            for _, sid in ipairs(runeOrder) do
-                local series = RuneConfig.SERIES_MAP[sid]
-                if series then
-                    rewardItems[#rewardItems + 1] = {
-                        icon = series.icon,
-                        name = series.name .. "符文",
-                        amount = runeCounts[sid],
-                        color = series.color or { 220, 180, 60 },
-                    }
-                end
-            end
-            local root = GameUI.GetUIRoot()
-            if root then
-                RewardDisplay.Show(UI, root, {
-                    title = label .. " 通关",
-                    rewards = rewardItems,
-                    onClose = function()
-                        ctx.SetView("abyss_rift_detail")
-                        GameUI.ExitDungeonBattle()
-                    end,
-                })
-            else
+            LeaderboardData.UploadAbyss(difficultyId, clearedWaves)
+        end
+        local root = GameUI.GetUIRoot()
+        if root then
+            RC.ShowFromDefs(UI, root, endResult.rewardDefs, label .. " 失败", function()
+                ctx.SetView("abyss_rift_detail")
                 GameUI.ExitDungeonBattle()
-            end
-        end,
-        onLose = function()
-            local clearedWaves = State.currentWave or 1
-            for w = 1, clearedWaves do
-                session.currentWave = w
-                AbyssRiftData.CompleteWave(session)
-            end
-            local endResult = AbyssRiftData.EndSession(session)
-            if clearedWaves > 0 then
-                local LeaderboardData = require("Game.LeaderboardData")
-                LeaderboardData.UploadAbyss(difficultyId, clearedWaves)
-            end
-            local rewardItems = {}
-            if endResult.totalDust > 0 then
-                rewardItems[#rewardItems + 1] = { icon = Currency.GetImage("rift_dust"), name = "裂隙之尘", amount = endResult.totalDust, color = { 160, 120, 200 } }
-            end
-            if endResult.totalSeals > 0 then
-                rewardItems[#rewardItems + 1] = { icon = Currency.GetImage("rune_seal"), name = "符文封印", amount = endResult.totalSeals, color = { 40, 200, 160 } }
-            end
-            -- 按系列分组显示符文
-            local runeCounts = {}
-            local runeOrder = {}
-            for _, rune in ipairs(endResult.runes) do
-                local sid = rune.seriesId
-                if not runeCounts[sid] then
-                    runeCounts[sid] = 0
-                    runeOrder[#runeOrder + 1] = sid
-                end
-                runeCounts[sid] = runeCounts[sid] + 1
-            end
-            for _, sid in ipairs(runeOrder) do
-                local series = RuneConfig.SERIES_MAP[sid]
-                if series then
-                    rewardItems[#rewardItems + 1] = {
-                        icon = series.icon,
-                        name = series.name .. "符文",
-                        amount = runeCounts[sid],
-                        color = series.color or { 220, 180, 60 },
-                    }
-                end
-            end
-            local root = GameUI.GetUIRoot()
-            if root then
-                RewardDisplay.Show(UI, root, {
-                    title = label .. " 失败",
-                    rewards = rewardItems,
-                    onClose = function()
-                        ctx.SetView("abyss_rift_detail")
-                        GameUI.ExitDungeonBattle()
-                    end,
-                })
-            else
-                GameUI.ExitDungeonBattle()
-            end
-        end,
-    })
+            end)
+        else
+            GameUI.ExitDungeonBattle()
+        end
+    end
+
+    GameUI.EnterDungeonBattle(config)
 end
 
 -- ============================================================================

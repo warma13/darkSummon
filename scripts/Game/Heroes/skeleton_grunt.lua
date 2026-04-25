@@ -11,7 +11,7 @@ end
 function M.ModifyAttackSpeed(tower, speed)
     local tenacity = has(tower, "undead_tenacity")
     if tenacity then
-        speed = speed / (1 + (tenacity.atkSpdBonus or 0.05))
+        speed = speed / (1 + tenacity.atkSpdBonus)
     end
     return speed
 end

@@ -16,11 +16,11 @@ end
 ---@return number
 function M.ModifySlowRate(tower, rate, target)
     local heavy = has(tower, "heavy_strike")
-    if heavy then return heavy.newSlowRate or 0.30 end
+    if heavy then return heavy.newSlowRate end
     return rate
 end
 
---- 碎石溅射：命中后 20% 概率对周围敌人施加减速
+--- 碎石溅射：命中后概率对周围敌人施加减速
 ---@param tower table
 ---@param target table
 ---@param killed boolean
@@ -28,10 +28,10 @@ function M.OnHit(tower, target, killed)
     local splash = has(tower, "rock_splash")
     if not splash then return end
     if not target.alive then return end
-    if math.random() >= (splash.chance or 0.20) then return end
+    if math.random() >= splash.chance then return end
 
     local Enemy = require("Game.Enemy")
-    local splashRange = splash.splashRange or 40
+    local splashRange = splash.splashRange or 30
     local splashRangeSq = splashRange * splashRange
     local dur = splash.slowDuration or 1.5
     local rate = splash.slowRate or 0.25

@@ -42,7 +42,7 @@ end
 function M.TriggerActive(tower, skill)
     if skill.id ~= "heroic_anthem" then return end
     State.heroicAnthemBuff = {
-        atkMult = skill.atkBuffPct or 0.25,
+        atkMult = skill.atkBuffPct,
         timer   = skill.duration  or 5.0,
     }
     State.skillFlash = { type = "heroic_anthem", timer = 0.5, tower = tower }

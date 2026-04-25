@@ -12,6 +12,7 @@ local DivineBlessDB = require("Game.DivineBlessData")
 local Tower     = require("Game.Tower")
 
 local F = require("Game.FormulaLib")
+local DungeonScaling = require("Game.DungeonScaling")
 
 -- 热路径 math 函数本地缓存（避免每次全局表查找）
 local mfloor  = math.floor
@@ -88,19 +89,14 @@ local function CompactDead()
     end
 end
 
---- 从全局波次号反推 HP/速度缩放（避免循环依赖 Wave.lua）
+--- 从全局波次号反推 HP/速度缩放（使用 DungeonScaling 统一模块）
 local function CalcScalesFromGlobalWave(globalWave)
     local stageNum = mfloor((globalWave - 1) / Config.WAVES_PER_STAGE) + 1
     local waveInStage = globalWave - (stageNum - 1) * Config.WAVES_PER_STAGE
     if waveInStage < 1 then waveInStage = 1 end
 
-    local stageScale = Config.GetStageHPScale(stageNum)
-    local waveScale = 1.0 + Config.WAVE_HP_PER_WAVE * (waveInStage - 1)
-    local hpScale = stageScale * waveScale
-
-    local speedScale = 1.0 + mmin(
-        (stageNum - 1) * Config.STAGE_SPEED_PER_STAGE,
-        Config.STAGE_SPEED_CAP - 1.0)
+    local hpScale    = DungeonScaling.CalcHPScaleWithWave(stageNum, waveInStage)
+    local speedScale = DungeonScaling.CalcSpeedScale(stageNum)
 
     return hpScale, speedScale
 end
@@ -114,9 +110,11 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
     local hp = typeDef.baseHP * hpScale
     local speed = typeDef.speed * speedScale
 
-    -- DEF 成长: baseDEF × hpScale × 比率（与 HP 同源缩放，破甲全程有效）
+    -- DEF 成长: baseDEF × defScale（独立于 HP 缩放，追踪英雄 ATK 成长）
     local baseDEF = typeDef.baseDEF or 0
-    local totalDEF = mfloor(baseDEF * hpScale * Config.ENEMY_DEF_HP_RATIO)
+    local stageForDEF = mfloor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+    local defScale = DungeonScaling.CalcDEFScale(stageForDEF)
+    local totalDEF = mfloor(baseDEF * defScale)
 
     local enemy = {
         id = nextEnemyId,

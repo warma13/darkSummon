@@ -17,7 +17,7 @@ end
 function M.ModifyRange(tower, range)
     local stormEye = has(tower, "storm_eye")
     if stormEye then
-        range = range + (stormEye.rangeBonus or 20)
+        range = range + stormEye.rangeBonus
     end
     return range
 end
@@ -29,7 +29,7 @@ function M.TriggerActive(tower, skill)
     if skill.id ~= "divine_thunder" then return end
     local Enemy  = require("Game.Enemy")
     local Combat = require("Game.Combat")
-    local baseDmg = tower.attack * (skill.damagePct or 0.30)
+    local baseDmg = tower.attack * skill.damagePct
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
             local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)

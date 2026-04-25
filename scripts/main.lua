@@ -20,6 +20,7 @@ local Currency = require("Game.Currency")
 local AudioManager = require("Game.AudioManager")
 local Toast = require("Game.Toast")
 local AchievementToast = require("Game.AchievementToast")
+local AchievementData = require("Game.AchievementData")
 local SlotSaveSystem = require("Game.SlotSaveSystem")
 local SpeedBoost = require("Game.SpeedBoostData")
 -- WorldBossSkills / EmeraldBossSkills 不再在 main 中直接调用，
@@ -59,9 +60,9 @@ function Start()
     AudioManager.Init()
     AudioManager.PlayBGM()
 
-    -- 6. 创建 UI
+    -- 6. 初始化 UI 系统，但只创建预加载根容器（不创建游戏页面）
     GameUI.Init(UI)
-    GameUI.CreateUI()
+    GameUI.CreatePreGameRoot()
 
     -- 7. 订阅事件
     SubscribeToEvents()
@@ -93,12 +94,17 @@ function StartGame(serverId)
         if not success then
             print("[StartGame] LoadSlot failed for slot " .. tostring(serverId))
             Toast.Show("存档加载失败，请重试")
+            -- 重新显示区服选择，避免卡在死界面
+            GameUI.ShowServerSelect(true)
             return
         end
 
         print("[StartGame] Slot " .. tostring(serverId) .. " loaded, isNew=" .. tostring(isNewSlot))
 
-        -- 云端数据已反序列化，重新加载各子模块数据（ChestData 等在 CreateUI 时过早初始化）
+        -- 存档加载成功后才创建完整游戏 UI（战斗页、英雄页等）
+        GameUI.CreateUI()
+
+        -- 云端数据已反序列化，重新加载各子模块数据
         local ChestData = require("Game.ChestData")
         ChestData.Load()
 
@@ -321,6 +327,18 @@ function HandleKeyDown(eventType, eventData)
         AchievementToast.Show(testNames[ri], testDescs[ri])
         print("[Debug] F8 - 测试成就弹出: " .. testNames[ri])
     end
+
+    -- F9：离线平衡模拟器（打印到控制台）
+    if key == KEY_F9 then
+        print("[Debug] F9 - 运行平衡模拟器...")
+        local ok, err = pcall(function()
+            local BalanceSim = require("Balance.BalanceSim")
+            BalanceSim.Run()
+        end)
+        if not ok then
+            print("[Debug] BalanceSim error: " .. tostring(err))
+        end
+    end
 end
 
 -- ============================================================================
@@ -401,6 +419,9 @@ function HandleUpdate(eventType, eventData)
     -- 更新提示消息
     Toast.Update(rawDt)
     AchievementToast.Update(rawDt)
+
+    -- 成就达成检测（定时轮询）
+    AchievementData.Update(rawDt)
 
     -- 更新云端存档系统（自动保存、脏标记、重试队列）
     SlotSaveSystem.Update(rawDt)
@@ -609,6 +630,7 @@ end
 
 function HandleNanoVGRender(eventType, eventData)
     if not vg then return end
+    if State.phase == State.PHASE_MENU then return end
     if MiniGameUI.isActive() then return end
     if IdleScreen.IsActive() then return end
 

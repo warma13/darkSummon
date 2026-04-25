@@ -6,6 +6,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local SaveManager = require("Game.SaveManager")
 local SaveRegistry = require("Game.SaveRegistry")
+local DungeonScaling = require("Game.DungeonScaling")
 
 local TrialTowerData = {}
 
@@ -212,6 +213,15 @@ function TrialTowerData.ClearFloor(floor)
         Currency.GrantReward({ type = "currency", id = "void_pact", amount = floorPact }, "TrialTower")
     end
 
+    -- 标准化奖励定义（供 RewardController 展示）
+    local rewardDefs = {
+        { type = "currency", id = "devour_stone",   amount = stones },
+        { type = "currency", id = "nether_crystal",  amount = gold },
+    }
+    if floorPact > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "void_pact", amount = floorPact }
+    end
+
     local rewards = {
         floor = floor,
         towerNum = towerNum,
@@ -220,6 +230,7 @@ function TrialTowerData.ClearFloor(floor)
         nether_crystal = gold,
         void_pact = floorPact,
         isTowerClear = false,
+        rewardDefs = rewardDefs,
     }
 
     -- 更新进度
@@ -236,6 +247,9 @@ function TrialTowerData.ClearFloor(floor)
         Currency.GrantReward({ type = "currency", id = "void_pact", amount = clearPact }, "TrialTowerClear")
         TrialTowerData.AddTickets(TOWER_TICKET_REWARD)
         data.claimedTowers = towerNum
+        -- 通塔额外奖励追加到 rewardDefs
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "void_pact", amount = clearPact }
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "trial_ticket", amount = TOWER_TICKET_REWARD }
         print("[TrialTower] Tower " .. towerNum .. " cleared! FloorPact +" .. floorPact .. " ClearPact +" .. clearPact .. " Tickets +" .. TOWER_TICKET_REWARD)
     end
 
@@ -268,19 +282,9 @@ function TrialTowerData.FloorToStage(floor)
     return floor * 10
 end
 
---- 根据等效关卡计算 HP 缩放倍率（复用主线公式）
----@param stageEquiv number
----@return number
-local function CalcHPScale(stageEquiv)
-    return Config.GetStageHPScale(stageEquiv)
-end
-
---- 根据等效关卡计算速度缩放
----@param stageEquiv number
----@return number
-local function CalcSpeedScale(stageEquiv)
-    return math.min(1.0 + (stageEquiv - 1) * Config.STAGE_SPEED_PER_STAGE, Config.STAGE_SPEED_CAP)
-end
+-- HP/Speed 缩放统一使用 DungeonScaling 模块
+local CalcHPScale    = DungeonScaling.CalcHPScale
+local CalcSpeedScale = DungeonScaling.CalcSpeedScale
 
 --- 试练塔词缀抽取（使用新的统一缩放系统）
 --- level = floor（试练塔1层 = 主线10关，与 Config.PickAffixes 的 level 语义一致）
@@ -421,6 +425,39 @@ function TrialTowerData.GenerateEnemies(floor)
         end
     end
     return all
+end
+
+-- ============================================================================
+-- 战斗配置构建（静态部分，不含 UI 回调）
+-- ============================================================================
+
+--- 构建试练塔战斗配置（纯数据，无 UI 依赖）
+---@param floor number 当前全局层数
+---@return table config BattleManager 所需的静态配置
+function TrialTowerData.BuildBattleConfig(floor)
+    local BM = require("Game.BattleManager")
+    local towerNum     = TrialTowerData.GetTowerNum(floor)
+    local floorInTower = TrialTowerData.GetFloorInTower(floor)
+    local label        = "试练塔 " .. towerNum .. "-" .. floorInTower
+
+    local waves = {}
+    for w = 1, TrialTowerData.WAVE_COUNT do
+        waves[w] = BM.BuildSpawnQueue(TrialTowerData.GenerateWaveEnemies(floor, w), 0.5)
+    end
+
+    return {
+        mode             = "trial_tower",
+        waves            = waves,
+        totalWaves       = TrialTowerData.WAVE_COUNT,
+        stageNum         = towerNum,
+        label            = label,
+        waveInterval     = 25,
+        autoAdvanceWave  = true,
+        bossTimerEnabled = true,
+        overloadEnabled  = true,
+        overloadLimit    = TrialTowerData.OVERLOAD_LIMIT,
+        initialDarkSoul  = Config.INITIAL_DARK_SOUL,
+    }
 end
 
 -- ============================================================================

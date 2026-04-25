@@ -18,7 +18,7 @@ end
 function M.ModifyDamage(tower, target, damage)
     local voidTear = has(tower, "void_tear")
     if voidTear and target.isBoss then
-        damage = damage * (1 + (voidTear.bossExtraDmg or 0.50))
+        damage = damage * (1 + voidTear.bossExtraDmg)
     end
     return damage
 end
@@ -33,7 +33,7 @@ function M.OnHit(tower, target, killed)
     if not target.alive then return end
 
     local Enemy  = require("Game.Enemy")
-    local dotDmg = tower.attack * (dragonDot.dotAtkPct or 0.10)
+    local dotDmg = tower.attack * dragonDot.dotAtkPct
     Enemy.ApplyDOT(target, dotDmg, dragonDot.dotDuration or 3.0)
 end
 
@@ -44,7 +44,7 @@ function M.TriggerActive(tower, skill)
     if skill.id ~= "dragon_wrath" then return end
     local Enemy  = require("Game.Enemy")
     local Combat = require("Game.Combat")
-    local baseDmg = tower.attack * (skill.damagePct or 0.50)
+    local baseDmg = tower.attack * skill.damagePct
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
             local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)

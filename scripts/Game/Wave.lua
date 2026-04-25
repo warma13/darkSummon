@@ -6,6 +6,7 @@ local Config = require("Game.Config")
 local State = require("Game.State")
 local Enemy = require("Game.Enemy")
 local Currency = require("Game.Currency")
+local DungeonScaling = require("Game.DungeonScaling")
 
 -- 热路径 math 函数本地缓存
 local mfloor  = math.floor
@@ -94,24 +95,11 @@ local function PickAffixes(globalWave, stageNum)
 end
 
 -- ============================================================================
--- 难度缩放
+-- 难度缩放（统一使用 DungeonScaling 模块）
 -- ============================================================================
 
---- 计算 HP 缩放倍率（关卡号 + 关内波次号）
-local function GetHPScale(stageNum, waveInStage)
-    local stageScale = Config.GetStageHPScale(stageNum)
-    -- 关内波次微调
-    local waveScale = 1.0 + Config.WAVE_HP_PER_WAVE * (waveInStage - 1)
-    return stageScale * waveScale
-end
-
---- 计算速度缩放倍率
-local function GetSpeedScale(stageNum)
-    return 1.0 + mmin(
-        (stageNum - 1) * Config.STAGE_SPEED_PER_STAGE,
-        Config.STAGE_SPEED_CAP - 1.0
-    )
-end
+local GetHPScale    = DungeonScaling.CalcHPScaleWithWave
+local GetSpeedScale = DungeonScaling.CalcSpeedScale
 
 --- 计算 BOSS 阶数（每10关升一阶）
 local function GetBossTier(stageNum)

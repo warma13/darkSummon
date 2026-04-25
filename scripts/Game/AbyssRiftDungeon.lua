@@ -9,6 +9,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local State = require("Game.State")
 local Toast = require("Game.Toast")
+local DungeonScaling = require("Game.DungeonScaling")
 
 local Abyss = {}
 
@@ -177,19 +178,9 @@ function Abyss.WaveToStage(wave, difficultyId)
     return math.max(1, math.floor(stageEquiv))
 end
 
---- 根据等效关卡计算 HP 缩放
----@param stageEquiv number
----@return number
-function Abyss.CalcHPScale(stageEquiv)
-    return Config.GetStageHPScale(stageEquiv)
-end
-
---- 根据等效关卡计算速度缩放
----@param stageEquiv number
----@return number
-function Abyss.CalcSpeedScale(stageEquiv)
-    return math.min(1.0 + (stageEquiv - 1) * Config.STAGE_SPEED_PER_STAGE, Config.STAGE_SPEED_CAP)
-end
+-- HP/Speed 缩放统一使用 DungeonScaling 模块
+Abyss.CalcHPScale    = DungeonScaling.CalcHPScale
+Abyss.CalcSpeedScale = DungeonScaling.CalcSpeedScale
 
 -- ============================================================================
 -- 波次敌人生成
@@ -422,6 +413,24 @@ function Abyss.ClaimReward(clearedWave, difficultyId)
     -- 保存
     HeroData.Save(true)  -- 立即云端保存
 
+    -- 构建 rewardDefs 供 RewardController 统一展示
+    local rewardDefs = {}
+    if totalDust > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "rift_dust", amount = totalDust }
+    end
+    if totalSeals > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "rune_seal", amount = totalSeals }
+    end
+    local runeCounts, runeOrder = {}, {}
+    for _, rune in ipairs(addedRunes) do
+        local sid = rune.seriesId
+        if not runeCounts[sid] then runeCounts[sid] = 0; runeOrder[#runeOrder + 1] = sid end
+        runeCounts[sid] = runeCounts[sid] + 1
+    end
+    for _, sid in ipairs(runeOrder) do
+        rewardDefs[#rewardDefs + 1] = { type = "rune", id = sid, amount = runeCounts[sid] }
+    end
+
     local result = {
         totalDust = totalDust,
         totalSeals = totalSeals,
@@ -430,6 +439,7 @@ function Abyss.ClaimReward(clearedWave, difficultyId)
         waveDrops = waveDrops,
         clearedWave = clearedWave,
         difficultyId = difficultyId,
+        rewardDefs = rewardDefs,
     }
 
     print(string.format("[AbyssRift] cleared wave %d/%d (diff=%s) dust=%d seals=%d runes=%d overflow=%d",
@@ -604,6 +614,24 @@ function Abyss.EndSession(session)
     -- 保存
     HeroData.Save(true)
 
+    -- 构建 rewardDefs 供 RewardController 统一展示
+    local rewardDefs = {}
+    if session.totalDust > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "rift_dust", amount = session.totalDust }
+    end
+    if session.totalSeals > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "rune_seal", amount = session.totalSeals }
+    end
+    local runeCounts2, runeOrder2 = {}, {}
+    for _, rune in ipairs(addedRunes) do
+        local sid = rune.seriesId
+        if not runeCounts2[sid] then runeCounts2[sid] = 0; runeOrder2[#runeOrder2 + 1] = sid end
+        runeCounts2[sid] = runeCounts2[sid] + 1
+    end
+    for _, sid in ipairs(runeOrder2) do
+        rewardDefs[#rewardDefs + 1] = { type = "rune", id = sid, amount = runeCounts2[sid] }
+    end
+
     local result = {
         totalDust = session.totalDust,
         totalSeals = session.totalSeals,
@@ -612,6 +640,7 @@ function Abyss.EndSession(session)
         waveDrops = session.waveDrops,
         clearedWave = session.currentWave,
         difficultyId = session.difficultyId,
+        rewardDefs = rewardDefs,
     }
 
     print(string.format("[AbyssRift] EndSession wave %d/%d (diff=%s) dust=%d seals=%d runes=%d overflow=%d",
@@ -629,5 +658,43 @@ Abyss.TOTAL_WAVES = TOTAL_WAVES
 Abyss.ENEMIES_PER_WAVE = ENEMIES_PER_WAVE
 Abyss.DAILY_FREE = RuneConfig.ABYSS_RIFT.dailyFree
 Abyss.DAILY_AD   = RuneConfig.ABYSS_RIFT.dailyAd
+
+-- ============================================================================
+-- 战斗配置构建（静态部分，不含 UI 回调）
+-- ============================================================================
+
+--- 构建深渊裂隙战斗配置（纯数据，无 UI 依赖）
+---@param difficultyId string 难度 ID
+---@return table|nil config 静态配置
+---@return table|nil session 会话对象（供回调中 CompleteWave/EndSession 使用）
+function Abyss.BuildBattleConfig(difficultyId)
+    local BM = require("Game.BattleManager")
+    local session = Abyss.CreateSession(difficultyId)
+    if not session then return nil, nil end
+
+    local waves = {}
+    for w = 1, TOTAL_WAVES do
+        local enemyDefs = Abyss.GenerateWaveEnemies(w, difficultyId)
+        waves[w] = BM.BuildSpawnQueue(enemyDefs, 0.5)
+    end
+
+    local diffName = Abyss.DIFFICULTY_MAP[difficultyId]
+        and Abyss.DIFFICULTY_MAP[difficultyId].name or "普通"
+    local label = "深渊裂隙 · " .. diffName
+
+    local config = {
+        mode = "abyss_rift",
+        waves = waves,
+        totalWaves = TOTAL_WAVES,
+        label = label,
+        waveInterval = 20,
+        autoAdvanceWave = true,
+        overloadEnabled = true,
+        overloadLimit = 60,
+        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+    }
+
+    return config, session
+end
 
 return Abyss

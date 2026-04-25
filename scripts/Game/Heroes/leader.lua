@@ -15,7 +15,7 @@ end
 function M.UpdateAura(source, towers)
     local dominion = has(source, "shadow_dominion")
     if not dominion then return end
-    local buff = dominion.globalAtkBuff or 0.05
+    local buff = dominion.globalAtkBuff
     for _, t in ipairs(towers) do
         t.auraAtkBuff = t.auraAtkBuff + buff
     end
@@ -29,7 +29,7 @@ function M.OnHit(tower, target, killed)
     if not killed then return end
     local lordWill = has(tower, "lord_will")
     if not lordWill then return end
-    if math.random() >= (lordWill.chance or 0.08) then return end
+    if math.random() >= lordWill.chance then return end
 
     if tower.skillTimers then
         for skillId, _ in pairs(tower.skillTimers) do
@@ -46,7 +46,7 @@ function M.TriggerActive(tower, skill)
     if skill.id ~= "shadow_devour" then return end
     local Enemy  = require("Game.Enemy")
     local Combat = require("Game.Combat")
-    local baseDmg = tower.attack * (skill.damagePct or 0.30)
+    local baseDmg = tower.attack * skill.damagePct
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
             local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)

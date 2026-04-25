@@ -12,6 +12,7 @@ local Currency = require("Game.Currency")
 local HeroData = require("Game.HeroData")
 local ChestData = require("Game.ChestData")
 
+local CS = require("Game.CampaignSettlement")
 local AudioManager = require("Game.AudioManager")
 local Renderer = require("Game.Renderer")
 local IdleScreen = require("Game.IdleScreen")
@@ -1128,31 +1129,9 @@ function GameUI.NextStage()
     StartStage(State.currentStage + 1)
 end
 
---- 通关结算：更新统计并进入下一关
+--- 通关结算：委托 CampaignSettlement 处理奖励与任务追踪，然后进入下一关
 function GameUI.DoStageClear()
-    local stageNum = State.currentStage
-    HeroData.SettleRewards(stageNum, State.score)
-
-    -- 通关产出宝箱
-    ChestData.GrantStageDrop(stageNum)
-
-    -- 通关产出虚空契约（对数曲线：floor(2 * ln(stage + 1))）
-    local voidPact = math.floor(2 * math.log(stageNum + 1))
-    if voidPact > 0 then
-        Currency.Add("void_pact", voidPact)
-    end
-
-    -- 开服好礼任务追踪
-    local ok, LGD = pcall(require, "Game.LaunchGiftData")
-    if ok and LGD then LGD.AddProgress("stage", 1) end
-    -- 每日任务追踪（通关 + 战斗）
-    local ok2, DTD = pcall(require, "Game.DailyTaskData")
-    if ok2 and DTD then
-        DTD.AddProgress("stage", 1)
-        DTD.AddProgress("battle", 1)
-    end
-
-    print("[GameUI] Stage " .. stageNum .. " clear! void_pact +" .. voidPact)
+    CS.SettleStageClear(State.currentStage, State.score)
     GameUI.NextStage()
 end
 
@@ -1203,17 +1182,10 @@ local function AutoMergeAll()
     return totalMerged
 end
 
---- 失败处理：记录任务进度，重置并重新开始当前关卡
+--- 失败处理：委托 CampaignSettlement 记录任务进度，然后重新开始当前关卡
 function GameUI.DoGameOver()
-    -- 每日任务追踪（战斗失败也计为一次战斗）
-    local ok2, DTD = pcall(require, "Game.DailyTaskData")
-    if ok2 and DTD then DTD.AddProgress("battle", 1) end
-
     local failedStage = State.currentStage
-    local failedWave  = State.currentWave
-    print("[GameUI] Stage " .. failedStage .. " failed at wave " .. failedWave .. ", restarting same stage")
-
-    -- 重置并重新开始（BattleManager.Enter 内部处理 Reset/Leader/Wave 等全部逻辑）
+    CS.SettleGameOver(failedStage, State.currentWave)
     StartStage(failedStage)
 end
 

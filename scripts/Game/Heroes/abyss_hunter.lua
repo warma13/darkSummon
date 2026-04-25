@@ -17,7 +17,7 @@ end
 function M.ModifyDamage(tower, target, damage)
     local hunt = has(tower, "hunt_instinct")
     if hunt and target.isBoss then
-        damage = damage * (1 + (hunt.bossExtraDmg or 0.50))
+        damage = damage * (1 + hunt.bossExtraDmg)
     end
     return damage
 end
@@ -39,7 +39,7 @@ function M.TriggerActive(tower, skill)
         end
     end
     if bestEnemy then
-        local baseDmg = bestEnemy.hp * (skill.hpPct or 0.08)
+        local baseDmg = bestEnemy.hp * skill.hpPct
         if bestEnemy.isBoss and skill.bossAtkCap then
             baseDmg = math.min(baseDmg, tower.attack * skill.bossAtkCap)
         end

@@ -13,7 +13,7 @@ end
 function M.ShouldMultiShot(tower)
     local multi = has(tower, "multi_shot")
     if multi then
-        return math.random() < (multi.chance or 0.20)
+        return math.random() < multi.chance
     end
     return false
 end
@@ -22,7 +22,7 @@ function M.OnHit(tower, target, _killed)
     local markSkill = has(tower, "weak_mark")
     if markSkill and target.alive then
         Debuff.Apply(target, "amp_damage", {
-            value    = markSkill.bonusDmg or 0.10,
+            value    = markSkill.bonusDmg,
             duration = markSkill.duration or 3.0,
         })
     end

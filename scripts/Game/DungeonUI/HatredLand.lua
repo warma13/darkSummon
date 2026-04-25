@@ -8,6 +8,7 @@ local HL = require("Game.HatredLandData")
 local HatredBossSkills = require("Game.HatredBossSkills")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
+local RC = require("Game.RewardController")
 local AdHelper = require("Game.AdHelper")
 local SweepPopup = require("Game.SweepPopup")
 
@@ -418,31 +419,12 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
     local ok2, DTD = pcall(require, "Game.DailyTaskData")
     if ok2 and DTD then DTD.AddProgress("boss", 1) end
 
-    local BM = require("Game.BattleManager")
     local GameUI = require("Game.GameUI")
     local State = require("Game.State")
 
-    local cfg = HL.CONFIG
     local challengeDifficulty = HL.GetSelectedDifficulty()
-    local diffDef = HL.GetDifficultyDef(challengeDifficulty)
-
-    local bossDef = HL.CreateBossDef()
-    bossDef.baseDEF = (bossDef.baseDEF or cfg.bossDEF) * diffDef.attrMult
-
-    local waves = {
-        {
-            {
-                type = bossDef.id or "hatred_body",
-                typeDef = bossDef,
-                delay = 0,
-                isElite = false,
-                affixes = {},
-                prescaled = true,
-            },
-        },
-    }
-
-    local label = "憎恨之地 · 憎恨化身" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
+    local config, bossDef = HL.BuildBattleConfig(challengeDifficulty)
+    local label = config.label
 
     local function handleResult(result, isExit)
         HatredBossSkills.Cleanup()
@@ -450,64 +432,13 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
         local rewards = HL.ClaimReward(totalDamage, challengeDifficulty)
-        local rewardItems = {}
-        if rewards then
-            if rewards.essence > 0 then
-                local essenceDef = Config.CURRENCY["relic_essence"]
-                rewardItems[#rewardItems + 1] = {
-                    icon = essenceDef and essenceDef.image or "",
-                    name = essenceDef and essenceDef.name or "遗物精华",
-                    amount = rewards.essence,
-                    borderColor = { 200, 150, 255, 200 },
-                }
-            end
-            -- 遗物碎片明细（shardDetail 已改为 { [relicId] = count }）
-            if rewards.shardDetail then
-                for relicId, count in pairs(rewards.shardDetail) do
-                    local rDef = Config.RELICS[relicId]
-                    local rName = rDef and rDef.name or relicId
-                    rewardItems[#rewardItems + 1] = {
-                        icon = "",
-                        name = rName .. "碎片",
-                        amount = count,
-                        borderColor = { 150, 200, 255, 200 },
-                    }
-                end
-            end
-            -- 额外遗物碎片掉落（品质加成）
-            if rewards.relicDrop then
-                local rd = rewards.relicDrop
-                local rdName = rd.relicName or rd.relicId or ""
-                rewardItems[#rewardItems + 1] = {
-                    icon = "",
-                    name = rdName .. "碎片",
-                    amount = rd.shards,
-                    borderColor = { 150, 200, 255, 200 },
-                }
-                -- 自动合成通知
-                if rd.synthResult then
-                    local sr = rd.synthResult
-                    local qColor = Config.RELIC_QUALITY_COLOR[sr.quality] or { 180, 180, 180 }
-                    rewardItems[#rewardItems + 1] = {
-                        icon = "",
-                        name = "合成: " .. sr.relicName .. " (" .. (Config.RELIC_QUALITY_NAME[sr.quality] or "?") .. ")",
-                        amount = 1,
-                        borderColor = { qColor[1], qColor[2], qColor[3], 200 },
-                    }
-                end
-            end
-        end
-
+        local defs = rewards and rewards.rewardDefs or {}
         local title = label .. (isExit and " 退出" or " 挑战结束") .. "\n伤害: " .. HL.FormatDamage(totalDamage)
 
-        if #rewardItems > 0 then
+        if #defs > 0 then
             local root = GameUI.GetUIRoot()
             if root then
-                RewardDisplay.Show(UI, root, {
-                    title = title,
-                    rewards = rewardItems,
-                    onClose = function() GameUI.ExitDungeonBattle() end,
-                })
+                RC.ShowFromDefs(UI, root, defs, title, function() GameUI.ExitDungeonBattle() end)
                 return
             end
         else
@@ -516,36 +447,23 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
         GameUI.ExitDungeonBattle()
     end
 
-    GameUI.EnterDungeonBattle({
-        mode = "world_boss",
-        waves = waves,
-        totalWaves = 1,
-        stageNum = 1,
-        label = label,
-        waveInterval = 0,
-        autoAdvanceWave = false,
-        bossTimerEnabled = true,
-        overloadEnabled = false,
-        worldBossDuration = cfg.totalDuration,
-        worldBossDarkSoulDrain = cfg.darkSoulDrain + diffDef.darkSoulBonus,
-        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+    config.onStart = function()
+        State.worldBossActive = true
+        HatredBossSkills.Init(bossDef.bossSkills)
+    end
+    config.onUpdate = function(dt)
+        HatredBossSkills.Update(dt)
+    end
 
-        onStart = function()
-            State.worldBossActive = true
-            HatredBossSkills.Init(bossDef.bossSkills)
-        end,
-        onUpdate = function(dt)
-            HatredBossSkills.Update(dt)
-        end,
+    config.onWin = function(result) handleResult(result, false) end
+    config.onExit = function(result) handleResult(result, true) end
+    config.onLose = function(result)
+        local BM_ = require("Game.BattleManager")
+        if BM_.config then BM_.config.onExit = nil end
+        handleResult(result, false)
+    end
 
-        onWin = function(result) handleResult(result, false) end,
-        onExit = function(result) handleResult(result, true) end,
-        onLose = function(result)
-            local BM_ = require("Game.BattleManager")
-            if BM_.config then BM_.config.onExit = nil end
-            handleResult(result, false)
-        end,
-    })
+    GameUI.EnterDungeonBattle(config)
 end
 
 -- ============================================================================

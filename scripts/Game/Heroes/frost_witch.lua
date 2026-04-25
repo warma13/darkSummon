@@ -18,7 +18,7 @@ end
 ---@return number
 function M.ModifySlowRate(tower, rate, target)
     local extremeCold = has(tower, "extreme_cold")
-    if extremeCold then return extremeCold.newSlowRate or 0.35 end
+    if extremeCold then return extremeCold.newSlowRate end
     return rate
 end
 
@@ -30,7 +30,7 @@ function M.OnHit(tower, target, killed)
     local freeze = has(tower, "freeze_chance")
     if not freeze then return end
     if not target.alive then return end
-    if math.random() >= (freeze.chance or 0.10) then return end
+    if math.random() >= freeze.chance then return end
 
     local Enemy = require("Game.Enemy")
     if target.isBoss then
@@ -61,7 +61,7 @@ function M.TriggerActive(tower, skill)
     local Enemy = require("Game.Enemy")
     for _, e in ipairs(State.enemies) do
         if e.alive then
-            local slowRate = skill.slowPct or 0.40
+            local slowRate = skill.slowPct
             if e.isBoss then
                 slowRate = slowRate * (Config.BOSS_BALANCE.slowEfficiency or 0.50)
             end

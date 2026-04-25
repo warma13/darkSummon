@@ -423,12 +423,87 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
 
     if not hasReward then return nil end
 
+    -- 构建 rewardDefs 供 RewardController 统一展示
+    local rewardDefs = {}
+    if calc.essence > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = "relic_essence", amount = calc.essence }
+    end
+    for relicId, count in pairs(shardDetail) do
+        rewardDefs[#rewardDefs + 1] = { type = "relic_shard", id = relicId, amount = count }
+    end
+    if relicDropResult then
+        if relicDropResult.shards and relicDropResult.shards > 0 then
+            rewardDefs[#rewardDefs + 1] = { type = "relic_shard", id = relicDropResult.relicId, amount = relicDropResult.shards }
+        end
+        if relicDropResult.synthResult then
+            local sr = relicDropResult.synthResult
+            local qColor = Config.RELIC_QUALITY_COLOR[sr.quality] or { 180, 180, 180 }
+            rewardDefs[#rewardDefs + 1] = {
+                type = "synth_result",
+                id = sr.relicId or "",
+                amount = 1,
+                displayName = "合成: " .. sr.relicName .. " (" .. (Config.RELIC_QUALITY_NAME[sr.quality] or "?") .. ")",
+                displayIcon = "",
+                borderColor = { qColor[1], qColor[2], qColor[3], 200 },
+            }
+        end
+    end
+
     return {
         essence = calc.essence,
         shards = calc.shards,
         shardDetail = shardDetail,
         relicDrop = relicDropResult,
+        rewardDefs = rewardDefs,
     }
+end
+
+-- ============================================================================
+-- 战斗配置构建（静态部分，不含 UI 回调）
+-- ============================================================================
+
+--- 构建憎恨之地战斗配置（纯数据，无 UI 依赖）
+---@param challengeDifficulty number 选择的难度等级
+---@return table config 静态配置
+---@return table bossDef BOSS定义（含 bossSkills，供 BossSkills 模块使用）
+function HL.BuildBattleConfig(challengeDifficulty)
+    local cfg = HL.CONFIG
+    local diffDef = HL.GetDifficultyDef(challengeDifficulty)
+
+    local bossDef = HL.CreateBossDef()
+    bossDef.baseDEF = (bossDef.baseDEF or cfg.bossDEF) * diffDef.attrMult
+
+    local waves = {
+        {
+            {
+                type = bossDef.id or "hatred_body",
+                typeDef = bossDef,
+                delay = 0,
+                isElite = false,
+                affixes = {},
+                prescaled = true,
+            },
+        },
+    }
+
+    local label = "憎恨之地 · 憎恨化身" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
+
+    local config = {
+        mode = "world_boss",
+        waves = waves,
+        totalWaves = 1,
+        stageNum = 1,
+        label = label,
+        waveInterval = 0,
+        autoAdvanceWave = false,
+        bossTimerEnabled = true,
+        overloadEnabled = false,
+        worldBossDuration = cfg.totalDuration,
+        worldBossDarkSoulDrain = cfg.darkSoulDrain + diffDef.darkSoulBonus,
+        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+    }
+
+    return config, bossDef
 end
 
 -- ============================================================================

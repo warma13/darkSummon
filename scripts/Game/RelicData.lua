@@ -100,6 +100,21 @@ function RelicData.SetData(data)
             end
         end
         HeroData.relicData, relicSnapshot = SafeTable.CreateDeep(data)
+
+        -- 一次性迁移：碎片足够但未拥有的遗物自动合成（只跑一次）
+        if not data.shardSynthMigrated then
+            local synthCount = 0
+            for relicId, _ in pairs(Config.RELICS) do
+                local result = RelicData.TrySynthesize(relicId)
+                if result then
+                    synthCount = synthCount + 1
+                end
+            end
+            HeroData.relicData.shardSynthMigrated = true
+            if synthCount > 0 then
+                print("[RelicData] Migration: auto-synthesized " .. synthCount .. " relics from existing shards")
+            end
+        end
     else
         HeroData.relicData = nil
         relicSnapshot = nil

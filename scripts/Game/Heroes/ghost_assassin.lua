@@ -14,7 +14,7 @@ function M.OnHit(tower, target, _killed)
     local markSkill = has(tower, "lethal_mark")
     if markSkill and target.alive then
         Debuff.Apply(target, "amp_damage", {
-            value    = markSkill.ampRate or 0.12,
+            value    = markSkill.ampRate,
             duration = markSkill.duration or 3.0,
         })
     end

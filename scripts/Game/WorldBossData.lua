@@ -9,6 +9,7 @@ local Toast = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
 local InventoryData = require("Game.InventoryData")
 local TodayStr = require("Game.DateUtil").TodayStr
+local DungeonScaling = require("Game.DungeonScaling")
 
 local WB = {}
 
@@ -263,19 +264,9 @@ function WB.WaveToStage(wave)
     return base * (1 + (wave - 1) * scale)
 end
 
---- HP 缩放（复用主线公式）
----@param stageEquiv number
----@return number
-function WB.CalcHPScale(stageEquiv)
-    return Config.GetStageHPScale(stageEquiv)
-end
-
---- 速度缩放
----@param wave number
----@return number
-function WB.CalcSpeedScale(wave)
-    return math.min(1.0 + (wave - 1) * 0.02, 1.8)
-end
+-- HP/Speed 缩放统一使用 DungeonScaling 模块
+WB.CalcHPScale    = DungeonScaling.CalcHPScale
+WB.CalcSpeedScale = DungeonScaling.CalcSpeedScale
 
 -- ============================================================================
 -- 主题轮换
@@ -649,7 +640,11 @@ function WB.ClaimReward(totalDamage, difficultyLevel)
         .. " recruit_ticket_select_box=" .. frostPact
         .. " bestWeighted=" .. (data.bestWeightedDamage or 0))
 
-    return frostPact > 0 and { recruit_ticket_select_box = frostPact } or nil
+    local result = { recruit_ticket_select_box = frostPact, rewardDefs = {} }
+    if frostPact > 0 then
+        result.rewardDefs[#result.rewardDefs + 1] = { type = "item", id = "recruit_ticket_select_box", amount = frostPact }
+    end
+    return result
 end
 
 -- ============================================================================
@@ -671,6 +666,54 @@ function WB.FormatDamage(damage)
     else
         return tostring(math.floor(damage))
     end
+end
+
+-- ============================================================================
+-- 战斗配置构建（静态部分，不含 UI 回调）
+-- ============================================================================
+
+--- 构建世界BOSS战斗配置（纯数据，无 UI 依赖）
+---@param challengeDifficulty number 选择的难度等级
+---@return table config 静态配置
+---@return table bossDef BOSS定义（含 bossSkills，供 BossSkills 模块使用）
+function WB.BuildBattleConfig(challengeDifficulty)
+    local cfg = WB.CONFIG
+    local diffDef = WB.GetDifficultyDef(challengeDifficulty)
+
+    local bossDef = WB.CreateWorldBossDef()
+    bossDef.baseDEF = (bossDef.baseDEF or cfg.bossDEF) * diffDef.attrMult
+
+    local waves = {
+        {
+            {
+                type = bossDef.id or "world_boss",
+                typeDef = bossDef,
+                delay = 0,
+                isElite = false,
+                affixes = {},
+                prescaled = true,
+            },
+        },
+    }
+
+    local label = "世界BOSS · 深渊主宰" .. (challengeDifficulty > 0 and (" [" .. diffDef.label .. "]") or "")
+
+    local config = {
+        mode = "world_boss",
+        waves = waves,
+        totalWaves = 1,
+        stageNum = 1,
+        label = label,
+        waveInterval = 0,
+        autoAdvanceWave = false,
+        bossTimerEnabled = true,
+        overloadEnabled = false,
+        worldBossDuration = cfg.totalDuration,
+        worldBossDarkSoulDrain = cfg.darkSoulDrain + diffDef.darkSoulBonus,
+        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+    }
+
+    return config, bossDef
 end
 
 -- ============================================================================

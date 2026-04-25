@@ -68,7 +68,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         -- 冰川爆发：全局寒意计数达阈值时爆发
         local eruption = has(tower, "glacial_eruption")
         if eruption and tower.chillGlobalCounter then
-            local threshold = eruption.chillGlobalThreshold or 100
+            local threshold = eruption.chillGlobalThreshold
             while tower.chillGlobalCounter >= threshold do
                 tower.chillGlobalCounter = tower.chillGlobalCounter - threshold
                 local applyStacks = eruption.chillApplyAll or 5

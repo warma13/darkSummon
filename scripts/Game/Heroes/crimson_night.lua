@@ -39,10 +39,10 @@ function M.OnHit(tower, target, killed)
             local Enemy      = require("Game.Enemy")
 
             local atk = HeroSkills.GetEffectiveAttack(tower)
-            local burstDmg = atk * (needle.burstAtkPct or 2.0)
+            local burstDmg = atk * needle.burstAtkPct
 
             -- 穿甲
-            target.armorReduceFromDot = needle.armorIgnore or 0.20
+            target.armorReduceFromDot = needle.armorIgnore
 
             local finalDmg, isCrit = Combat.CalcFinalDamage(tower, target, burstDmg)
             Enemy.TakeDamage(target, finalDmg)
@@ -80,8 +80,8 @@ function M.OnHit(tower, target, killed)
 
         -- 更新 bonusCritRate / bonusCritDmg（供 CalcFinalDamage 使用）
         local stacks = tower.bloodEyeStacks or 0
-        tower.bonusCritRate = stacks * (bloodEye.critRatePerHit or 0.03)
-        tower.bonusCritDmg  = stacks > 0 and (bloodEye.critDmgBonus or 0.50) or 0
+        tower.bonusCritRate = stacks * bloodEye.critRatePerHit
+        tower.bonusCritDmg  = stacks > 0 and bloodEye.critDmgBonus or 0
     end
 end
 
@@ -99,17 +99,17 @@ function M.TriggerActive(tower, skill)
     local Enemy      = require("Game.Enemy")
 
     local atk = HeroSkills.GetEffectiveAttack(tower)
-    local baseDmg = atk * (skill.baseAtkPct or 8.0)
+    local baseDmg = atk * skill.baseAtkPct
 
     -- 绯瞳加成：每层绯瞳额外 stackBonusPct × ATK
     local stacks = tower.bloodEyeStacks or 0
     if stacks > 0 then
-        baseDmg = baseDmg + atk * (skill.stackBonusPct or 1.0) * stacks
+        baseDmg = baseDmg + atk * skill.stackBonusPct * stacks
 
         -- 穿甲（暗影之针的穿甲也对深渊一刺生效）
         local needle = has(tower, "shadow_needle")
         if needle then
-            target.armorReduceFromDot = needle.armorIgnore or 0.20
+            target.armorReduceFromDot = needle.armorIgnore
         end
 
         -- 暂存绯瞳层数，释放后保留一半
@@ -132,8 +132,8 @@ function M.TriggerActive(tower, skill)
         if half > 0 then
             tower.bloodEyeStacks = half
             tower.bloodEyeDecayTimer = bloodEye and (bloodEye.decayDuration or 4.0) or 4.0
-            tower.bonusCritRate = half * (bloodEye and bloodEye.critRatePerHit or 0.03)
-            tower.bonusCritDmg  = bloodEye and (bloodEye.critDmgBonus or 0.50) or 0.50
+            tower.bonusCritRate = half * (bloodEye and bloodEye.critRatePerHit or 0)
+            tower.bonusCritDmg  = bloodEye and bloodEye.critDmgBonus or 0
         else
             tower.bloodEyeStacks = 0
             tower.bloodEyeDecayTimer = nil
@@ -216,8 +216,8 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                     else
                         tower.bloodEyeDecayTimer = 1.0  -- 下一层1秒后衰减
                         local bloodEye = has(tower, "blood_eye")
-                        tower.bonusCritRate = tower.bloodEyeStacks * (bloodEye and bloodEye.critRatePerHit or 0.03)
-                        tower.bonusCritDmg  = bloodEye and (bloodEye.critDmgBonus or 0.50) or 0.50
+                        tower.bonusCritRate = tower.bloodEyeStacks * (bloodEye and bloodEye.critRatePerHit or 0)
+                        tower.bonusCritDmg  = bloodEye and bloodEye.critDmgBonus or 0
                     end
                 end
             end

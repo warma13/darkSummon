@@ -6,6 +6,7 @@ local EmeraldData      = require("Game.EmeraldDungeonData")
 local EmeraldShop      = require("Game.EmeraldShopData")
 local Toast            = require("Game.Toast")
 local RewardDisplay    = require("Game.RewardDisplay")
+local RC               = require("Game.RewardController")
 local AdHelper         = require("Game.AdHelper")
 local Currency         = require("Game.Currency")
 
@@ -982,82 +983,45 @@ end
 
 function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
     local GameUI = require("Game.GameUI")
-    local BM = require("Game.BattleManager")
-    local StateM = require("Game.State")
 
-    local session = EmeraldData.CreateSession(difficultyId)
-    if not session then return end
+    local config, session, bossDef = EmeraldData.BuildBattleConfig(difficultyId)
+    if not config then return end
 
-    local diff = session.difficulty
-    local totalWaves = diff.waves
+    local label = config.label
+    local totalWaves = config.totalWaves
 
-    -- 生成驻场 BOSS（开局出场，附加词缀难度）
-    local bossDef = EmeraldData.GenerateBoss(difficultyId, session.affixCount)
-    local bossQueue = bossDef and BM.BuildSpawnQueue({ bossDef }, 0.5) or {}
-
-    -- 预构建所有小怪波次
-    local waves = {}
-    for w = 1, totalWaves do
-        local enemyDefs = EmeraldData.GenerateWaveEnemies(w, difficultyId)
-        waves[w] = BM.BuildSpawnQueue(enemyDefs, 0.5)
-    end
-
-    -- BOSS 插入第一波队列头部（先出 BOSS，再出小怪）
-    if #bossQueue > 0 then
-        for i = #bossQueue, 1, -1 do
-            table.insert(waves[1], 1, bossQueue[i])
+    config.onStart = function()
+        local mechanics = bossDef and bossDef.bossSkills or nil
+        if mechanics then
+            EmeraldBossSkills.Init(mechanics)
         end
-        -- 驻场 BOSS 从第一波就出场，但不应立即触发 BOSS 计时器
-        -- 强制标记第一波为 normal，计时器将在所有小怪清完后由 BattleManager 激活
-        waves[1]._waveType = "normal"
+    end
+    config.onUpdate = function(dt)
+        EmeraldBossSkills.Update(dt)
     end
 
-    local label = "翠影秘境 · " .. diff.name
+    config.onWin = function(result)
+        EmeraldBossSkills.Cleanup()
+        for w = 1, totalWaves do
+            session.currentWave = w
+            EmeraldData.CompleteWave(session)
+        end
+        local endResult = EmeraldData.EndSession(session)
+        EmeraldDungeon._ShowResult(UI, S, ctx, endResult, label, true)
+    end
 
-    GameUI.EnterDungeonBattle({
-        mode = "emerald_dungeon",
-        waves = waves,
-        totalWaves = totalWaves,
-        label = label,
-        waveInterval = 20,
-        autoAdvanceWave = true,
-        overloadEnabled = true,
-        overloadLimit = 60,
-        bossTimerEnabled = true,  -- BOSS 计时器由 BattleManager 在全波小怪清完后激活
-        initialDarkSoul = Config.INITIAL_DARK_SOUL,
-        -- BOSS 技能数据（BattleManager/Combat 可读取）
-        emeraldMechanics = bossDef and bossDef.bossSkills or nil,
-        onStart = function()
-            local mechanics = bossDef and bossDef.bossSkills or nil
-            if mechanics then
-                EmeraldBossSkills.Init(mechanics)
-            end
-        end,
-        onUpdate = function(dt)
-            EmeraldBossSkills.Update(dt)
-        end,
-        onWin = function(result)
-            EmeraldBossSkills.Cleanup()
-            -- 所有波次通关
-            for w = 1, totalWaves do
-                session.currentWave = w
-                EmeraldData.CompleteWave(session)
-            end
-            local endResult = EmeraldData.EndSession(session)
-            EmeraldDungeon._ShowResult(UI, S, ctx, endResult, label, true)
-        end,
-        onLose = function(result)
-            EmeraldBossSkills.Cleanup()
-            -- 用 BattleManager 计算的实际通关波数（基于最早存活敌人的波次）
-            local clearedWaves = result and result.clearedWave or 0
-            for w = 1, clearedWaves do
-                session.currentWave = w
-                EmeraldData.CompleteWave(session)
-            end
-            local endResult = EmeraldData.EndSession(session)
-            EmeraldDungeon._ShowResult(UI, S, ctx, endResult, label, false)
-        end,
-    })
+    config.onLose = function(result)
+        EmeraldBossSkills.Cleanup()
+        local clearedWaves = result and result.clearedWave or 0
+        for w = 1, clearedWaves do
+            session.currentWave = w
+            EmeraldData.CompleteWave(session)
+        end
+        local endResult = EmeraldData.EndSession(session)
+        EmeraldDungeon._ShowResult(UI, S, ctx, endResult, label, false)
+    end
+
+    GameUI.EnterDungeonBattle(config)
 end
 
 --- 显示战斗结果
@@ -1067,24 +1031,6 @@ function EmeraldDungeon._ShowResult(UI, S, ctx, result, label, isWin)
     if not root then
         GameUI.ExitDungeonBattle()
         return
-    end
-
-    local rewardItems = {}
-    if result.tokens > 0 then
-        rewardItems[#rewardItems + 1] = {
-            icon = "image/emerald_certificate.png",
-            name = "翠影凭证",
-            amount = result.tokens,
-            color = { 100, 220, 140 },
-        }
-    end
-    if result.firstClearBonus then
-        rewardItems[#rewardItems + 1] = {
-            icon = "image/icon_ticket.png",
-            name = "秘境券（首次通关）",
-            amount = 1,
-            color = { 255, 220, 80 },
-        }
     end
 
     local ratioText = ""
@@ -1098,15 +1044,11 @@ function EmeraldDungeon._ShowResult(UI, S, ctx, result, label, isWin)
         title = title .. "\n" .. ratioText
     end
 
-    RewardDisplay.Show(UI, root, {
-        title = title,
-        rewards = rewardItems,
-        onClose = function()
-            subView = "detail"
-            ctx.SetView("emerald_dungeon_detail")
-            GameUI.ExitDungeonBattle()
-        end,
-    })
+    RC.ShowFromDefs(UI, root, result.rewardDefs or {}, title, function()
+        subView = "detail"
+        ctx.SetView("emerald_dungeon_detail")
+        GameUI.ExitDungeonBattle()
+    end)
 end
 
 return EmeraldDungeon

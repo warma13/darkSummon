@@ -16,7 +16,7 @@ end
 ---@return number
 function M.ModifySlowRate(tower, rate, target)
     local deepFreeze = has(tower, "deep_freeze")
-    if deepFreeze then return deepFreeze.newSlowRate or 0.45 end
+    if deepFreeze then return deepFreeze.newSlowRate end
     return rate
 end
 
@@ -58,7 +58,7 @@ function M.UpdateGlobal(dt)
             if not curseTowers then curseTowers = {} end
             curseTowers[#curseTowers + 1] = {
                 tower = tower,
-                pct   = curse.curseDmgAtkPct or 0.05,
+                pct   = curse.curseDmgAtkPct,
             }
         end
     end

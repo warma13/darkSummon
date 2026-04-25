@@ -11,7 +11,7 @@ end
 function M.ModifyDotDamage(tower, dmg, _target)
     local flameBreath = has(tower, "flame_breath")
     if flameBreath then
-        dmg = dmg * (flameBreath.dotMultiplier or 1.3)
+        dmg = dmg * flameBreath.dotMultiplier
     end
     return dmg
 end

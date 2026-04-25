@@ -38,14 +38,19 @@ function RC.BuildEntry(def)
         name = cd and cd.name or id
 
     elseif def.type == "item" then
-        local ok, InventoryData = pcall(require, "Game.InventoryData")
-        if ok then
-            local item = InventoryData.ITEM_DEFS and InventoryData.ITEM_DEFS[id]
-            name = item and item.name or id
+        if def.displayName then
+            name = def.displayName
+            icon = def.displayIcon or icon or "📦"
         else
-            name = id
+            local ok, InventoryData = pcall(require, "Game.InventoryData")
+            if ok then
+                local item = InventoryData.ITEM_DEFS and InventoryData.ITEM_DEFS[id]
+                name = item and item.name or id
+            else
+                name = id
+            end
+            if not icon then icon = "📦" end
         end
-        if not icon then icon = "📦" end
 
     elseif def.type == "chest" then
         local ok, ChestData = pcall(require, "Game.ChestData")
@@ -89,6 +94,42 @@ function RC.BuildEntry(def)
 
     elseif def.type == "universal_shard" then
         name = (id or "?") .. "万能碎片"
+
+    elseif def.type == "relic_shard" then
+        -- 遗物碎片：id 是 relicId，需查 RelicData 获取名称
+        local ok3, RelicData = pcall(require, "Game.RelicData")
+        if ok3 and RelicData.RELIC_DEFS then
+            local rd = RelicData.RELIC_DEFS[id]
+            name = rd and (rd.name .. "碎片") or (id .. "碎片")
+            icon = rd and rd.icon or icon
+        else
+            name = (id or "?") .. "碎片"
+        end
+        if not icon then icon = "image/icon_fragment.png" end
+
+    elseif def.type == "rune" then
+        -- 符文：id 是 seriesId，需查 Config_Runes 获取系列信息
+        local ok4, RuneConfig = pcall(require, "Game.Config_Runes")
+        if ok4 and RuneConfig.RUNE_SERIES then
+            local series = RuneConfig.RUNE_SERIES[id]
+            if series then
+                name = series.name .. "符文"
+                icon = series.icon or icon
+            else
+                name = (id or "?") .. "符文"
+            end
+        else
+            name = (id or "?") .. "符文"
+        end
+
+    elseif def.type == "synth_result" then
+        -- 合成结果（遗物自动合成产出）
+        name = def.displayName or ("合成: " .. (id or "?"))
+        icon = def.displayIcon or icon
+        if def.borderColor then
+            -- 将 borderColor 透传到展示格式
+            return { icon = icon, name = name, amount = amount, borderColor = def.borderColor }
+        end
 
     else
         name = id or ""

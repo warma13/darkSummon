@@ -267,6 +267,7 @@ function LeaderboardUI.CreateOverlay(uiModule)
         id = "leaderboardOverlay",
         position = "absolute",
         top = 0, left = 0, right = 0, bottom = 0,
+        zIndex = 5000,
         visible = false,
         justifyContent = "center",
         alignItems = "center",

@@ -7,6 +7,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
 local TodayStr = require("Game.DateUtil").TodayStr
+local DungeonScaling = require("Game.DungeonScaling")
 
 local RD = {}
 
@@ -126,19 +127,9 @@ function RD.WaveToStage(wave)
     return 10 * (600 ^ t)
 end
 
---- 根据等效关卡计算 HP 缩放倍率（复用主线公式）
----@param stageEquiv number 等效关卡号（可以是小数）
----@return number
-function RD.CalcHPScale(stageEquiv)
-    return Config.GetStageHPScale(stageEquiv)
-end
-
---- 根据等效关卡计算速度缩放
----@param stageEquiv number
----@return number
-function RD.CalcSpeedScale(stageEquiv)
-    return math.min(1.0 + (stageEquiv - 1) * Config.STAGE_SPEED_PER_STAGE, Config.STAGE_SPEED_CAP)
-end
+-- HP/Speed 缩放统一使用 DungeonScaling 模块
+RD.CalcHPScale    = DungeonScaling.CalcHPScale
+RD.CalcSpeedScale = DungeonScaling.CalcSpeedScale
 
 -- ============================================================================
 -- 奖励公式
@@ -676,20 +667,27 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
     -- 计算并发放奖励
     local rewards = RD.CalcTotalRewards(dungeonKey, clearedWave, diffLevel)
 
+    -- 标准化奖励定义（供 RewardController 展示）
+    local rewardDefs = {}
+
     if def.rewardCurrency == "chest" then
         -- 宝箱副本：按类型发放宝箱
         local chests = rewards.chests or {}
         for chestId, count in pairs(chests) do
             if count > 0 then
                 Currency.GrantReward({ type = "chest", id = chestId, amount = count }, "ResourceDungeon")
+                rewardDefs[#rewardDefs + 1] = { type = "chest", id = chestId, amount = count }
             end
         end
     else
         -- 货币副本：发放对应货币
         for currId, amount in pairs(rewards) do
             Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "ResourceDungeon")
+            rewardDefs[#rewardDefs + 1] = { type = "currency", id = currId, amount = amount }
         end
     end
+
+    rewards.rewardDefs = rewardDefs
 
     -- 上传资源副本排行榜（取难度0的最高波次，因为高难度必须先通关普通）
     local ok, LBMod = pcall(require, "Game.LeaderboardData")
@@ -793,5 +791,42 @@ SaveRegistry.Register("resourceDungeon", {
         end
     end,
 })
+
+-- ============================================================================
+-- 战斗配置构建（供 DungeonUI 调用）
+-- ============================================================================
+
+--- 构建资源副本战斗配置（不含回调，由 DungeonUI 添加）
+---@param dungeonKey string 副本 key
+---@param diffLevel number  难度等级
+---@return table|nil config  BattleManager 所需的静态配置
+function RD.BuildBattleConfig(dungeonKey, diffLevel)
+    local BM = require("Game.BattleManager")
+    local def = RD.DUNGEON_MAP[dungeonKey]
+    if not def then return nil end
+
+    local diffDef = RD.GetDifficultyDef(diffLevel)
+    local diffSuffix = diffLevel > 0 and (" [" .. diffDef.label .. "]") or ""
+    local label = (def.name or dungeonKey) .. "副本" .. diffSuffix
+
+    local waves = {}
+    for w = 1, RD.TOTAL_WAVES do
+        waves[w] = BM.BuildSpawnQueue(RD.GenerateWaveEnemies(dungeonKey, w, diffLevel), 0.5)
+    end
+
+    return {
+        mode = "resource_dungeon",
+        waves = waves,
+        totalWaves = RD.TOTAL_WAVES,
+        stageNum = 1,
+        label = label,
+        waveInterval = 30,
+        autoAdvanceWave = true,
+        bossTimerEnabled = true,
+        overloadEnabled = true,
+        overloadLimit = 10,
+        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+    }
+end
 
 return RD

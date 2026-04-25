@@ -17,11 +17,11 @@ end
 function M.ModifyDotDamage(tower, dmg, target)
     local enhanced = has(tower, "enhanced_burn")
     if enhanced then
-        dmg = dmg * (enhanced.dotMultiplier or 1.5)
+        dmg = dmg * enhanced.dotMultiplier
     end
     local nirvana = has(tower, "nirvana_flame")
     if nirvana and target and target.isBoss then
-        local bossAtk = tower.attack * (nirvana.bossAtkPct or 3.0)
+        local bossAtk = tower.attack * nirvana.bossAtkPct
         if bossAtk > dmg then dmg = bossAtk end
     end
     return dmg

@@ -6,6 +6,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local TrialTowerData = require("Game.TrialTowerData")
 local Toast = require("Game.Toast")
+local RC = require("Game.RewardController")
 
 local TrialTower = {}
 
@@ -414,165 +415,6 @@ end
 -- 挑战逻辑
 -- ============================================================================
 
--- 试练塔专用奖励弹窗 ID
-local TOWER_REWARD_ID = "towerRewardPopup"
-
---- 隐藏试练塔奖励弹窗
-local function HideTowerReward(root)
-    local p = root:FindById(TOWER_REWARD_ID)
-    if p then p:Remove() end
-end
-
---- 显示试练塔通关奖励弹窗
---- @param UI any
---- @param root any       UI 根节点
---- @param opts table     { title, items, onClose }
-local function ShowTowerReward(UI, root, opts)
-    local title   = opts.title or "通关奖励"
-    local items   = opts.items or {}
-    local onClose = opts.onClose
-
-    HideTowerReward(root)
-
-    local closed = false
-    local function doClose()
-        if closed then return end
-        closed = true
-        HideTowerReward(root)
-        if onClose then onClose() end
-    end
-
-    -- 奖励卡片
-    local cards = {}
-    for _, item in ipairs(items) do
-        local iconWidget
-        if item.icon and type(item.icon) == "string" and item.icon:find("%.png$") then
-            iconWidget = UI.Panel {
-                width = 44, height = 44,
-                backgroundImage = item.icon,
-                backgroundFit = "contain",
-                flexShrink = 0,
-            }
-        else
-            iconWidget = UI.Label {
-                text = item.icon or "?",
-                fontSize = 28,
-                flexShrink = 0,
-            }
-        end
-        cards[#cards + 1] = UI.Panel {
-            width = 76,
-            flexDirection = "column",
-            alignItems = "center",
-            gap = 4,
-            paddingTop = 10, paddingBottom = 10,
-            backgroundColor = { 35, 30, 25, 240 },
-            borderRadius = 10,
-            borderWidth = 2,
-            borderColor = item.borderColor or { 100, 85, 50, 180 },
-            children = {
-                iconWidget,
-                UI.Label {
-                    text = item.name or "",
-                    fontSize = 10,
-                    fontColor = { 200, 185, 145, 255 },
-                    flexShrink = 0,
-                },
-                UI.Label {
-                    text = "×" .. tostring(item.amount or 0),
-                    fontSize = 15,
-                    fontColor = { 255, 220, 80, 255 },
-                    fontWeight = "bold",
-                    flexShrink = 0,
-                },
-            },
-        }
-    end
-
-    -- 卡片内容（命令式构建，避免 nil 空洞）
-    local inner = {}
-    inner[#inner + 1] = UI.Label {
-        text = "🏆  " .. title,
-        fontSize = 18,
-        fontColor = { 255, 245, 200, 255 },
-        fontWeight = "bold",
-        marginBottom = 10,
-        flexShrink = 0,
-    }
-    inner[#inner + 1] = UI.Panel {
-        width = "100%",
-        flexDirection = "row",
-        flexWrap = "wrap",
-        justifyContent = "center",
-        gap = 10,
-        paddingLeft = 16, paddingRight = 16,
-        paddingBottom = 10,
-        flexShrink = 0,
-        children = cards,
-    }
-
-    inner[#inner + 1] = UI.Button {
-        text = "确定",
-        variant = "primary",
-        width = 130,
-        height = 44,
-        marginBottom = 18,
-        marginTop = 6,
-        flexShrink = 0,
-        onClick = function() doClose() end,
-    }
-
-    local popup = UI.Panel {
-        id = TOWER_REWARD_ID,
-        position = "absolute",
-        top = 0, left = 0, right = 0, bottom = 0,
-        flexDirection = "column",
-        alignItems = "center",
-        justifyContent = "center",
-        backgroundColor = { 0, 0, 0, 170 },
-        pointerEvents = "auto",
-        children = {
-            UI.Panel {
-                width = "78%",
-                flexDirection = "column",
-                alignItems = "center",
-                backgroundColor = { 18, 16, 28, 252 },
-                borderRadius = 16,
-                borderWidth = 2,
-                borderColor = { 80, 130, 220, 200 },
-                paddingTop = 22,
-                overflow = "hidden",
-                pointerEvents = "auto",
-                children = inner,
-            },
-        },
-    }
-
-    root:AddChild(popup)
-end
-
---- 构建奖励列表
-local function BuildRewardItems(rewards)
-    local items = {}
-    local function add(id, fallback, extra)
-        local def = Config.CURRENCY[id]
-        local item = {
-            icon   = def and def.image or "?",
-            name   = def and def.name or fallback,
-            amount = rewards[id],
-        }
-        if extra then for k, v in pairs(extra) do item[k] = v end end
-        items[#items + 1] = item
-    end
-    if (rewards.devour_stone    or 0) > 0 then add("devour_stone",   "噬魂石") end
-    if (rewards.nether_crystal  or 0) > 0 then add("nether_crystal", "冥晶") end
-    if (rewards.void_pact       or 0) > 0 then add("void_pact",    "虚空契约", { borderColor = { 255, 200, 50, 200 } }) end
-    if rewards.isTowerClear then
-        if (rewards.trial_ticket or 0) > 0 then add("trial_ticket", "试练券",   { borderColor = { 80, 200, 220, 200 } }) end
-    end
-    return items
-end
-
 --- 构建试练塔战斗配置
 ---@param UI any
 ---@param S any
@@ -580,53 +422,32 @@ end
 ---@param floor number  当前全局层数
 ---@return table config  BattleManager 所需的配置
 BuildTrialConfig = function(UI, S, ctx, floor)
-    local towerNum     = TrialTowerData.GetTowerNum(floor)
-    local floorInTower = TrialTowerData.GetFloorInTower(floor)
-    local isBoss       = (floorInTower == 10)
-    local label        = "试练塔 " .. towerNum .. "-" .. floorInTower
+    local config = TrialTowerData.BuildBattleConfig(floor)
+    local label  = config.label
 
-    local BM = require("Game.BattleManager")
+    config.onWin = function(result)
+        local rewards = TrialTowerData.ClearFloor(floor)
+        local defs = rewards and rewards.rewardDefs or {}
 
-    local waves = {}
-    for w = 1, TrialTowerData.WAVE_COUNT do
-        waves[w] = BM.BuildSpawnQueue(TrialTowerData.GenerateWaveEnemies(floor, w), 0.5)
+        if #defs > 0 then
+            local root = require("Game.GameUI").GetUIRoot()
+            if root then
+                RC.ShowFromDefs(UI, root, defs, label .. " 通关", function()
+                    require("Game.GameUI").ExitDungeonBattle()
+                end)
+                return
+            end
+        end
+        require("Game.GameUI").ExitDungeonBattle()
     end
 
-    return {
-        mode             = "trial_tower",
-        waves            = waves,
-        totalWaves       = TrialTowerData.WAVE_COUNT,
-        stageNum         = towerNum,
-        label            = label,
-        waveInterval     = 25,
-        autoAdvanceWave  = true,
-        bossTimerEnabled = true,  -- 每层最后一波都有 BOSS，全部启用计时器
-        overloadEnabled  = true,
-        overloadLimit    = TrialTowerData.OVERLOAD_LIMIT,
-        initialDarkSoul  = Config.INITIAL_DARK_SOUL,
+    config.onLose = function(result)
+        local msg = label .. " 挑战失败 (第" .. result.wave .. "/" .. TrialTowerData.WAVE_COUNT .. "波)"
+        Toast.Show(msg, { 255, 100, 100 })
+        require("Game.GameUI").ExitDungeonBattle()
+    end
 
-        onWin = function(result)
-            local rewards     = TrialTowerData.ClearFloor(floor)
-            local rewardItems = rewards and BuildRewardItems(rewards) or {}
-
-            require("Game.GameUI").ExitDungeonBattle()
-            if #rewardItems > 0 then
-                local root = require("Game.GameUI").GetUIRoot()
-                if root then
-                    ShowTowerReward(UI, root, {
-                        title = label .. " 通关",
-                        items = rewardItems,
-                    })
-                end
-            end
-        end,
-
-        onLose = function(result)
-            local msg = label .. " 挑战失败 (第" .. result.wave .. "/" .. TrialTowerData.WAVE_COUNT .. "波)"
-            Toast.Show(msg, { 255, 100, 100 })
-            require("Game.GameUI").ExitDungeonBattle()
-        end,
-    }
+    return config
 end
 
 --- 核心挑战函数（进入副本，走 EnterDungeonBattle 完整流程）

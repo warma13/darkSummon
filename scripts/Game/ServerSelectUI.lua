@@ -49,6 +49,7 @@ function ServerSelectUI.CreatePage(uiModule, onStart, meta)
         backgroundColor = { 12, 8, 20, 255 },
         justifyContent = "center",
         alignItems = "center",
+        pointerEvents = "auto",  -- 全屏遮罩，拦截底层点击
         visible = true,
     }
 

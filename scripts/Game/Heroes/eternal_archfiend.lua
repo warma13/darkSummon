@@ -19,7 +19,7 @@ function M.ModifyDamage(tower, target, damage)
     if tower.killAtkStacks and tower.killAtkStacks > 0 then
         local eternal = has(tower, "eternal_power")
         if eternal then
-            damage = damage * (1 + tower.killAtkStacks * (eternal.killAtkBonus or 0.01))
+            damage = damage * (1 + tower.killAtkStacks * eternal.killAtkBonus)
         end
     end
     return damage
@@ -36,7 +36,7 @@ function M.OnHit(tower, target, killed)
         if eternal then
             tower.killAtkStacks = math.min(
                 (tower.killAtkStacks or 0) + 1,
-                math.floor((eternal.maxBonus or 0.50) / (eternal.killAtkBonus or 0.01))
+                math.floor(eternal.maxBonus / eternal.killAtkBonus)
             )
         end
     end
@@ -44,13 +44,13 @@ function M.OnHit(tower, target, killed)
     -- 终焉审判：HP 低于阈值时处决（BOSS 免疫→固定伤害）
     local judgment = has(tower, "final_judgment")
     if judgment and target.alive then
-        local threshold = judgment.executeThreshold or 0.15
+        local threshold = judgment.executeThreshold
         if target.hp / target.maxHP < threshold then
             local Enemy = require("Game.Enemy")
             if target.isBoss then
                 if Config.BOSS_BALANCE.executeImmune then
                     local Combat  = require("Game.Combat")
-                    local baseDmg = tower.attack * (judgment.bossFixedAtkMult or 15)
+                    local baseDmg = tower.attack * judgment.bossFixedAtkMult
                     local finalDmg = Combat.CalcFinalDamage(tower, target, baseDmg)
                     Enemy.TakeDamage(target, finalDmg)
                 end
@@ -78,7 +78,7 @@ function M.TriggerActive(tower, skill)
         end
     end
     if bestEnemy then
-        local baseDmg = bestEnemy.hp * (skill.hpPct or 0.08)
+        local baseDmg = bestEnemy.hp * skill.hpPct
         if bestEnemy.isBoss and skill.bossAtkCap then
             baseDmg = math.min(baseDmg, tower.attack * skill.bossAtkCap)
         end

@@ -68,13 +68,10 @@ end
 ---@param tierId string  "green"/"blue"/...
 ---@return number
 function EquipData.CalcStatBonus(statType, level, tierId)
-    local base = Config.EQUIP_STAT_BASE[statType] or 10
+    local base = Config.EQUIP_STAT_BASE[statType] or 0.002
     local mult = Config.EQUIP_TIER_MULT[tierId] or 1.0
     local value = base * level * mult
-    -- 攻击力取整，百分比属性保留小数
-    if statType == "atk" then
-        return math.floor(value)
-    end
+    -- 所有属性均为百分比，保留小数
     return value
 end
 
@@ -337,7 +334,12 @@ function EquipData.GetTotalBonus(heroId)
         if e then
             local tier = Config.EQUIP_TIERS[e.tierIdx]
             local bonus = EquipData.CalcStatBonus(slot.stat, e.level, tier.id)
-            total[slot.stat] = (total[slot.stat] or 0) + bonus
+            -- 武器特殊处理：fmt="pct" 且 stat="atk" → 路由到 atk_pct（百分比攻击力）
+            if slot.fmt == "pct" and slot.stat == "atk" then
+                total["atk_pct"] = (total["atk_pct"] or 0) + bonus
+            else
+                total[slot.stat] = (total[slot.stat] or 0) + bonus
+            end
         end
     end
 

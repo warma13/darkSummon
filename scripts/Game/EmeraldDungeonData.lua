@@ -11,6 +11,7 @@ local State    = require("Game.State")
 local Toast    = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
 local TodayKey = require("Game.DateUtil").TodayKey
+local DungeonScaling = require("Game.DungeonScaling")
 
 local Emerald = {}
 
@@ -494,19 +495,9 @@ function Emerald.WaveToStage(wave, difficultyId)
     return math.max(1, math.floor(stageEquiv))
 end
 
---- HP 缩放
----@param stageEquiv number
----@return number
-function Emerald.CalcHPScale(stageEquiv)
-    return Config.GetStageHPScale(stageEquiv)
-end
-
---- 速度缩放
----@param stageEquiv number
----@return number
-function Emerald.CalcSpeedScale(stageEquiv)
-    return math.min(1.0 + (stageEquiv - 1) * Config.STAGE_SPEED_PER_STAGE, Config.STAGE_SPEED_CAP)
-end
+-- HP/Speed 缩放统一使用 DungeonScaling 模块
+Emerald.CalcHPScale    = DungeonScaling.CalcHPScale
+Emerald.CalcSpeedScale = DungeonScaling.CalcSpeedScale
 
 -- ============================================================================
 -- 波次敌人生成
@@ -812,6 +803,18 @@ function Emerald.EndSession(session)
     local diff = session.difficulty
     local ratio = CalcRewardRatio(session.currentWave, session.totalWaves)
 
+    -- 构建 rewardDefs 供 RewardController 统一展示
+    local rewardDefs = {}
+    if tokens > 0 then
+        rewardDefs[#rewardDefs + 1] = { type = "currency", id = CURRENCY_ID, amount = tokens }
+    end
+    if firstClearBonus then
+        rewardDefs[#rewardDefs + 1] = {
+            type = "item", id = "emerald_ticket", amount = 1,
+            displayName = "秘境券（首次通关）", displayIcon = "image/icon_ticket.png",
+        }
+    end
+
     local result = {
         tokens = tokens,
         clearedWave = session.currentWave,
@@ -821,6 +824,7 @@ function Emerald.EndSession(session)
         ratio = ratio,
         isFullClear = session.cleared,
         firstClearBonus = firstClearBonus,
+        rewardDefs = rewardDefs,
     }
 
     print(string.format("[EmeraldDungeon] EndSession wave %d/%d (diff=%s) tokens=%d ratio=%.0f%%",
@@ -978,6 +982,65 @@ Emerald.EVENT_DURATION_DAYS = EVENT_DURATION_DAYS
 -- SaveRegistry 自注册
 -- ============================================================================
 
+-- ============================================================================
+-- 战斗配置构建（静态部分，不含 UI 回调）
+-- ============================================================================
+
+--- 构建翠影秘境战斗配置（纯数据，无 UI 依赖）
+---@param difficultyId string 难度 ID
+---@return table|nil config 静态配置（含 emeraldMechanics）
+---@return table|nil session 会话对象
+---@return table|nil bossDef BOSS定义（含 bossSkills）
+function Emerald.BuildBattleConfig(difficultyId)
+    local BM = require("Game.BattleManager")
+
+    local session = Emerald.CreateSession(difficultyId)
+    if not session then return nil, nil, nil end
+
+    local diff = session.difficulty
+    local totalWaves = diff.waves
+
+    -- 生成驻场 BOSS
+    local bossDef = Emerald.GenerateBoss(difficultyId, session.affixCount)
+    local bossQueue = bossDef and BM.BuildSpawnQueue({ bossDef }, 0.5) or {}
+
+    -- 预构建所有小怪波次
+    local waves = {}
+    for w = 1, totalWaves do
+        local enemyDefs = Emerald.GenerateWaveEnemies(w, difficultyId)
+        waves[w] = BM.BuildSpawnQueue(enemyDefs, 0.5)
+    end
+
+    -- BOSS 插入第一波队列头部
+    if #bossQueue > 0 then
+        for i = #bossQueue, 1, -1 do
+            table.insert(waves[1], 1, bossQueue[i])
+        end
+        waves[1]._waveType = "normal"
+    end
+
+    local label = "翠影秘境 · " .. diff.name
+
+    local config = {
+        mode = "emerald_dungeon",
+        waves = waves,
+        totalWaves = totalWaves,
+        label = label,
+        waveInterval = 20,
+        autoAdvanceWave = true,
+        overloadEnabled = true,
+        overloadLimit = 60,
+        bossTimerEnabled = true,
+        initialDarkSoul = Config.INITIAL_DARK_SOUL,
+        emeraldMechanics = bossDef and bossDef.bossSkills or nil,
+    }
+
+    return config, session, bossDef
+end
+
+-- ============================================================================
+-- SaveRegistry
+-- ============================================================================
 SaveRegistry.Register("emeraldDungeon", {
     group = "meta_game",
     order = 85,
