@@ -1021,15 +1021,27 @@ function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
         EmeraldDungeon._ShowResult(UI, S, ctx, endResult, label, false)
     end
 
+    config.onExit = function(result, continueExit)
+        EmeraldBossSkills.Cleanup()
+        local clearedWaves = math.max(0, (result.wave or 1) - 1)
+        for w = 1, clearedWaves do
+            session.currentWave = w
+            EmeraldData.CompleteWave(session)
+        end
+        local endResult = EmeraldData.EndSession(session)
+        EmeraldDungeon._ShowResult(UI, S, ctx, endResult, label, false, continueExit)
+    end
+
     GameUI.EnterDungeonBattle(config)
 end
 
 --- 显示战斗结果
-function EmeraldDungeon._ShowResult(UI, S, ctx, result, label, isWin)
+function EmeraldDungeon._ShowResult(UI, S, ctx, result, label, isWin, continueExit)
     local GameUI = require("Game.GameUI")
+    local exitFn = continueExit or function() GameUI.ExitDungeonBattle() end
     local root = GameUI.GetUIRoot()
     if not root then
-        GameUI.ExitDungeonBattle()
+        exitFn()
         return
     end
 
@@ -1047,7 +1059,7 @@ function EmeraldDungeon._ShowResult(UI, S, ctx, result, label, isWin)
     RC.ShowFromDefs(UI, root, result.rewardDefs or {}, title, function()
         subView = "detail"
         ctx.SetView("emerald_dungeon_detail")
-        GameUI.ExitDungeonBattle()
+        exitFn()
     end)
 end
 

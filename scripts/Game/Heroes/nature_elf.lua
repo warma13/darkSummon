@@ -68,14 +68,16 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         local natForceDuration = td.natForceDuration or 8.0
         local starScale        = StarScaleFactor(td.id)
 
-        -- 计时器递减
-        elf.natPulseTimer = (elf.natPulseTimer or 0) - dt
-        elf.natActiveCd   = (elf.natActiveCd   or 0) - dt
+        -- 计时器递减（使用 hstate 子命名空间）
+        local ehs = elf.hstate
+        if not ehs then goto nextElf end
+        ehs.natPulseTimer = ehs.natPulseTimer - dt
+        ehs.natActiveCd   = ehs.natActiveCd   - dt
 
         -- 主动：绿野之呼
         local activeFired = false
-        if elf.natActiveCd <= 0 then
-            elf.natActiveCd = td.activeCooldown or 20.0
+        if ehs.natActiveCd <= 0 then
+            ehs.natActiveCd = td.activeCooldown or 20.0
             activeFired = true
         end
 
@@ -87,18 +89,24 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                 local dx, dy = t._sx - elfX, t._sy - elfY
                 local inRange = dx * dx + dy * dy <= auraRangeSq
                 -- 被动①：定时脉冲（范围内）
-                if inRange and elf.natPulseTimer <= 0 then
+                if inRange and ehs.natPulseTimer <= 0 then
                     local forceGain = td.natForcePerPulse or 3
-                    t.naturalForce      = (t.naturalForce or 0) + forceGain
-                    t.naturalForceTimer = natForceDuration
+                    local ths = t.hstate
+                    if ths then
+                        ths.naturalForce      = ths.naturalForce + forceGain
+                        ths.naturalForceTimer = natForceDuration
+                    end
                     pulseHit = pulseHit + 1
                     SpawnNatureParticles(t, 6)
                 end
                 -- 主动：绿野之呼（全场所有英雄+自然之力，数值随星级缩放）
                 if activeFired then
                     local bonus = math.floor((td.activeForce or 30) * starScale)
-                    t.naturalForce      = (t.naturalForce or 0) + bonus
-                    t.naturalForceTimer = natForceDuration
+                    local ths2 = t.hstate
+                    if ths2 then
+                        ths2.naturalForce      = ths2.naturalForce + bonus
+                        ths2.naturalForceTimer = natForceDuration
+                    end
                 end
             end
         end
@@ -109,7 +117,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             local bestT, bestAtk = nil, -1
             for ti = 1, towerCount do
                 local t = towers[ti]
-                if t ~= elf and not t.wreathActive then
+                if t ~= elf and not (t.hstate and t.hstate.wreathActive) then
                     local atk = HeroSkills.GetEffectiveAttack(t)
                     if atk > bestAtk then
                         bestAtk = atk
@@ -117,10 +125,10 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                     end
                 end
             end
-            if bestT then
-                bestT.wreathActive = true
-                bestT.wreathTimer  = td.wreathDuration or 10.0
-                bestT.wreathBonus  = (td.wreathAtkBonus or 0.40) * starScale
+            if bestT and bestT.hstate then
+                bestT.hstate.wreathActive = true
+                bestT.hstate.wreathTimer  = td.wreathDuration or 10.0
+                bestT.hstate.wreathBonus  = (td.wreathAtkBonus or 0.40) * starScale
                 State.AddFloatingText({
                     text     = "🌸 鲜花环",
                     x        = bestT._sx,
@@ -134,7 +142,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         end
 
         -- 脉冲触发后在翎嫣自身显示"自然馈赠"提示
-        if elf.natPulseTimer <= 0 and pulseHit > 0 then
+        if ehs.natPulseTimer <= 0 and pulseHit > 0 then
             State.AddFloatingText({
                 text     = "自然馈赠",
                 x        = elfX + (math.random() - 0.5) * 10,
@@ -146,8 +154,8 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         end
 
         -- 重置脉冲计时器
-        if elf.natPulseTimer <= 0 then
-            elf.natPulseTimer = td.baseSpeed or 3.0
+        if ehs.natPulseTimer <= 0 then
+            ehs.natPulseTimer = td.baseSpeed or 3.0
         end
 
         ::nextElf::
@@ -190,33 +198,35 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
     -- =========================================================
     for ti = 1, towerCount do
         local t = towers[ti]
+        local ths = t.hstate
+        if not ths then goto nextTarget end
 
         -- 自然之力衰减
-        if (t.naturalForceTimer or 0) > 0 then
-            t.naturalForceTimer = t.naturalForceTimer - dt
-            if t.naturalForceTimer <= 0 then
-                t.naturalForce      = 0
-                t.naturalForceTimer = 0
+        if ths.naturalForceTimer > 0 then
+            ths.naturalForceTimer = ths.naturalForceTimer - dt
+            if ths.naturalForceTimer <= 0 then
+                ths.naturalForce      = 0
+                ths.naturalForceTimer = 0
             end
         end
 
-        local nf = t.naturalForce or 0
+        local nf = ths.naturalForce
         if nf > 0 then
             local factor = NatForceFactor(nf, halfSat)
             t.auraAtkBuff   = (t.auraAtkBuff or 0) + maxAtkPct * factor
             t.auraSpdBuff   = (t.auraSpdBuff or 0) + maxSpdPct * factor
-            t.natureFlatAtk = elfAtk * atkRatio * factor
+            ths.natureFlatAtk = elfAtk * atkRatio * factor
         else
-            t.natureFlatAtk = 0
+            ths.natureFlatAtk = 0
         end
 
         -- 鲜花环计时器衰减
-        if (t.wreathTimer or 0) > 0 then
-            t.wreathTimer = t.wreathTimer - dt
-            if t.wreathTimer <= 0 then
-                t.wreathTimer  = 0
-                t.wreathActive = false
-                t.wreathBonus  = 0
+        if ths.wreathTimer > 0 then
+            ths.wreathTimer = ths.wreathTimer - dt
+            if ths.wreathTimer <= 0 then
+                ths.wreathTimer  = 0
+                ths.wreathActive = false
+                ths.wreathBonus  = 0
                 State.AddFloatingText({
                     text     = "鲜花环消散",
                     x        = t._sx,
@@ -229,30 +239,30 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
         end
 
         -- 翠意计时器衰减
-        if (t.verdantTimer or 0) > 0 then
-            t.verdantTimer = t.verdantTimer - dt
-            if t.verdantTimer <= 0 then
-                t.verdantTimer         = 0
-                t.verdantActive        = false
-                t.verdantCooldownTimer = verdantCd
+        if ths.verdantTimer > 0 then
+            ths.verdantTimer = ths.verdantTimer - dt
+            if ths.verdantTimer <= 0 then
+                ths.verdantTimer         = 0
+                ths.verdantActive        = false
+                ths.verdantCooldownTimer = verdantCd
                 -- 翠意庇护结束，撤销免疫
                 Debuff.RevokeImmunity(t, "silence")
                 Debuff.RevokeImmunity(t, "shackle")
             end
         end
-        if (t.verdantCooldownTimer or 0) > 0 then
-            t.verdantCooldownTimer = t.verdantCooldownTimer - dt
+        if ths.verdantCooldownTimer > 0 then
+            ths.verdantCooldownTimer = ths.verdantCooldownTimer - dt
         end
 
         -- 翠意触发（技能2，Lv.500 解锁）
         if skill2On_global
             and nf >= verdantThresh
-            and not t.verdantActive
-            and (not t.verdantCooldownTimer or t.verdantCooldownTimer <= 0)
+            and not ths.verdantActive
+            and ths.verdantCooldownTimer <= 0
         then
-            t.verdantActive        = true
-            t.verdantTimer         = verdantDur
-            t.verdantCooldownTimer = verdantDur + verdantCd
+            ths.verdantActive        = true
+            ths.verdantTimer         = verdantDur
+            ths.verdantCooldownTimer = verdantDur + verdantCd
             -- 翠意庇护激活，授予免疫（同时立即清除已有的沉默/束缚）
             Debuff.GrantImmunity(t, "silence")
             Debuff.GrantImmunity(t, "shackle")
@@ -265,6 +275,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                 fontSize = 14,
             })
         end
+        ::nextTarget::
     end
 end
 

@@ -426,7 +426,7 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
     local config, bossDef = HL.BuildBattleConfig(challengeDifficulty)
     local label = config.label
 
-    local function handleResult(result, isExit)
+    local function handleResult(result, isExit, continueExit)
         HatredBossSkills.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
@@ -435,16 +435,17 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
         local defs = rewards and rewards.rewardDefs or {}
         local title = label .. (isExit and " 退出" or " 挑战结束") .. "\n伤害: " .. HL.FormatDamage(totalDamage)
 
+        local exitFn = continueExit or function() GameUI.ExitDungeonBattle() end
         if #defs > 0 then
             local root = GameUI.GetUIRoot()
             if root then
-                RC.ShowFromDefs(UI, root, defs, title, function() GameUI.ExitDungeonBattle() end)
+                RC.ShowFromDefs(UI, root, defs, title, exitFn)
                 return
             end
         else
             Toast.Show("伤害: " .. HL.FormatDamage(totalDamage) .. (isExit and "" or " · 未达奖励阈值"), S.dim)
         end
-        GameUI.ExitDungeonBattle()
+        exitFn()
     end
 
     config.onStart = function()
@@ -456,10 +457,8 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
     end
 
     config.onWin = function(result) handleResult(result, false) end
-    config.onExit = function(result) handleResult(result, true) end
+    config.onExit = function(result, continueExit) handleResult(result, true, continueExit) end
     config.onLose = function(result)
-        local BM_ = require("Game.BattleManager")
-        if BM_.config then BM_.config.onExit = nil end
         handleResult(result, false)
     end
 

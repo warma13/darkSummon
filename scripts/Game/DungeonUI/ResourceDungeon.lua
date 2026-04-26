@@ -893,7 +893,7 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
         GameUI.ExitDungeonBattle()
     end
 
-    config.onExit = function(result)
+    config.onExit = function(result, continueExit)
         local clearedWave = math.max(0, result.wave - 1)
         if clearedWave > 0 then
             local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
@@ -901,22 +901,17 @@ function ResourceDungeon.OnChallenge(UI, S, ctx, dungeonKey, useTicket, skipCons
             if #defs > 0 then
                 local root = GameUI.GetUIRoot()
                 if root then
-                    RC.ShowFromDefs(UI, root, defs, label .. " 提前退出 (第" .. clearedWave .. "波)", function()
-                        GameUI.ExitDungeonBattle()
-                    end)
+                    RC.ShowFromDefs(UI, root, defs, label .. " 提前退出 (第" .. clearedWave .. "波)", continueExit)
                     return
                 end
             end
         else
             Toast.Show(label .. " 提前退出，无奖励", S.red)
         end
-        GameUI.ExitDungeonBattle()
+        continueExit()
     end
 
     config.onLose = function(result)
-        local BM_ = require("Game.BattleManager")
-        if BM_.config then BM_.config.onExit = nil end
-
         local clearedWave = math.max(0, result.wave - 1)
         if clearedWave > 0 then
             local rewards = RD.ClaimReward(dungeonKey, clearedWave, diffLevel)

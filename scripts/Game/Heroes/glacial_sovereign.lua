@@ -21,8 +21,8 @@ function M.OnHit(tower, target, killed)
     local Enemy   = require("Game.Enemy")
     local chillDur = tower.typeDef.chillDuration or 5.0
     local added    = Enemy.ApplyChill(target, 1, chillDur, tower.id)
-    if added > 0 then
-        tower.chillGlobalCounter = (tower.chillGlobalCounter or 0) + added
+    if added > 0 and tower.hstate then
+        tower.hstate.chillGlobalCounter = tower.hstate.chillGlobalCounter + added
     end
 end
 
@@ -39,10 +39,11 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
     for _, tower in ipairs(towers) do
         -- 凌冽寒意：每秒对范围内敌人施加寒意
         local piercingChill = has(tower, "piercing_chill")
-        if piercingChill then
-            tower.chillTickTimer = (tower.chillTickTimer or 0) + dt
-            if tower.chillTickTimer >= 1.0 then
-                tower.chillTickTimer = tower.chillTickTimer - 1.0
+        if piercingChill and tower.hstate then
+            local hs = tower.hstate
+            hs.chillTickTimer = hs.chillTickTimer + dt
+            if hs.chillTickTimer >= 1.0 then
+                hs.chillTickTimer = hs.chillTickTimer - 1.0
 
                 local tx, ty = Grid.CellToScreen(tower.col, tower.row, gridOffsetX, gridOffsetY)
                 local effectiveRange = HeroSkills.ModifyRange(tower, tower.range)
@@ -57,7 +58,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                         if dist <= effectiveRange then
                             local added = Enemy.ApplyChill(e, chillPerSec, chillDur, tower.id)
                             if added > 0 then
-                                tower.chillGlobalCounter = (tower.chillGlobalCounter or 0) + added
+                                hs.chillGlobalCounter = hs.chillGlobalCounter + added
                             end
                         end
                     end
@@ -67,10 +68,11 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
 
         -- 冰川爆发：全局寒意计数达阈值时爆发
         local eruption = has(tower, "glacial_eruption")
-        if eruption and tower.chillGlobalCounter then
+        local hs2 = tower.hstate
+        if eruption and hs2 and hs2.chillGlobalCounter >= 1 then
             local threshold = eruption.chillGlobalThreshold
-            while tower.chillGlobalCounter >= threshold do
-                tower.chillGlobalCounter = tower.chillGlobalCounter - threshold
+            while hs2.chillGlobalCounter >= threshold do
+                hs2.chillGlobalCounter = hs2.chillGlobalCounter - threshold
                 local applyStacks = eruption.chillApplyAll or 5
                 local chillDur    = tower.typeDef.chillDuration or 5.0
 

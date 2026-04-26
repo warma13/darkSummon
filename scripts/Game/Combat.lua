@@ -213,9 +213,10 @@ local function CalcFinalDamage(tower, enemy, damage)
         if critRate > 0 and math.random() < critRate then
             isCrit = true
             local critDmg = Tower.GetEffectiveCritDmg(tower)
-            -- 英雄模块额外暴击伤害（绯夜绯瞳锁定等）
-            if tower.bonusCritDmg and tower.bonusCritDmg > 0 then
-                critDmg = critDmg + tower.bonusCritDmg
+            -- 英雄模块额外暴击伤害（绯夜缚瞳锁定等，hstate 子命名空间）
+            local hs = tower.hstate
+            if hs and hs.bonusCritDmg and hs.bonusCritDmg > 0 then
+                critDmg = critDmg + hs.bonusCritDmg
             end
             local critReduce = enemy.critDmgReduce or 0
             if critReduce > 0 then

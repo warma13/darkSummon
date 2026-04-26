@@ -69,24 +69,8 @@ function BattleFlow.EnterDungeon(config)
     if ok2 and DTD and DTD.AddProgress then DTD.AddProgress("dungeon", 1) end
 end
 
---- 退出副本战斗：清理 BM、恢复主线 campaign、切回副本页
-function BattleFlow.ExitDungeon()
-    -- 如果有 onExit 回调，先触发提前结算
-    if BM.config and BM.config.onExit then
-        local onExit = BM.config.onExit
-        BM.config.onExit = nil  -- 清除防止递归
-        local LootDrop = require("Game.LootDrop")
-        LootDrop.CollectAll()
-        local result = {
-            mode = BM.config.mode,
-            wave = State.currentWave,
-            totalWaves = BM.config.totalWaves,
-            score = State.score,
-        }
-        onExit(result)
-        return
-    end
-
+--- 内部：真正的清理 + 恢复主线（不要直接调用，走 ExitDungeon）
+local function doExitCleanup()
     BM.End()
 
     -- 恢复主线 campaign
@@ -111,6 +95,28 @@ function BattleFlow.ExitDungeon()
     end
 
     print("[BattleFlow] Exited dungeon battle, restored campaign stage " .. restoreStage)
+end
+
+--- 退出副本战斗
+--- 若有 onExit 回调，会传入 (result, continueExit)；副本展示完奖励后调 continueExit() 即可。
+--- 若无 onExit，直接清理恢复主线。
+function BattleFlow.ExitDungeon()
+    if BM.config and BM.config.onExit then
+        local onExit = BM.config.onExit
+        BM.config.onExit = nil
+        local LootDrop = require("Game.LootDrop")
+        LootDrop.CollectAll()
+        local result = {
+            mode = BM.config.mode,
+            wave = State.currentWave,
+            totalWaves = BM.config.totalWaves,
+            score = State.score,
+        }
+        onExit(result, doExitCleanup)
+        return
+    end
+
+    doExitCleanup()
 end
 
 --- 获取备份的主线关卡号（供外部查询）

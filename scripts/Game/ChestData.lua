@@ -189,6 +189,30 @@ function ChestData.Open(chestId, count)
         -- 加积分
         totalScore = totalScore + def.score
 
+        -- 挂机收益型宝箱：按 idleMinutes 计算冥晶/噬魂石/锻魂铁
+        if def.idleMinutes and def.idleMinutes > 0 then
+            local stage = (HeroData.stats and HeroData.stats.bestStage) or 1
+            local crystalPerStage, stonePerStage, ironPerStage = Config.EstimateStageDrop(stage)
+            -- 每分钟挂机过关数 = (60 / IDLE_STAGE_SECONDS) * IDLE_RATE
+            local stagesPerMin = (60 / Config.IDLE_STAGE_SECONDS) * Config.IDLE_RATE
+            local mins = def.idleMinutes
+            local crystal = math.floor(crystalPerStage * stagesPerMin * mins)
+            local stone   = math.floor(stonePerStage   * stagesPerMin * mins)
+            local iron    = math.floor(ironPerStage    * stagesPerMin * mins)
+            if crystal > 0 then
+                HeroData.currencies.nether_crystal = (HeroData.currencies.nether_crystal or 0) + crystal
+                drops[#drops + 1] = { kind = "currency", currType = "nether_crystal", amount = crystal }
+            end
+            if stone > 0 then
+                HeroData.currencies.devour_stone = (HeroData.currencies.devour_stone or 0) + stone
+                drops[#drops + 1] = { kind = "currency", currType = "devour_stone", amount = stone }
+            end
+            if iron > 0 then
+                HeroData.currencies.forge_iron = (HeroData.currencies.forge_iron or 0) + iron
+                drops[#drops + 1] = { kind = "currency", currType = "forge_iron", amount = iron }
+            end
+        end
+
         -- 判定掉落
         for _, dropDef in ipairs(def.drops) do
             local result = RollDrop(dropDef)

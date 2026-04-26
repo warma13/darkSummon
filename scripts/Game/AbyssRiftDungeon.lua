@@ -10,6 +10,7 @@ local Currency = require("Game.Currency")
 local State = require("Game.State")
 local Toast = require("Game.Toast")
 local DungeonScaling = require("Game.DungeonScaling")
+local WaveGen = require("Game.WaveGenerator")
 
 local Abyss = {}
 
@@ -224,65 +225,24 @@ function Abyss.GenerateWaveEnemies(wave, difficultyId)
     local themeIdx = ((stageNum - 1) % Config.THEME_COUNT) + 1
     if themeIdx > Config.THEME_COUNT then themeIdx = Config.THEME_COUNT end
 
-    -- 可用角色池
-    local globalWave = stageNum * Config.WAVES_PER_STAGE
-    local availRoles = {}
-    for _, roleId in ipairs(Config.ROLE_IDS) do
-        local role = Config.ENEMY_ROLES[roleId]
-        if role then
-            local unlockWave = Config.ROLE_UNLOCK_WAVE[role.unlockOrder] or 1
-            if globalWave >= unlockWave then
-                availRoles[#availRoles + 1] = roleId
-            end
-        end
-    end
-    if #availRoles == 0 then
-        availRoles = { "minion", "infantry" }
-    end
-
-    local enemies = {}
-    local normalCount = ENEMIES_PER_WAVE
-
-    if waveType == "boss" then
-        normalCount = ENEMIES_PER_WAVE - 1  -- 留一个位置给BOSS
-    end
+    local tags = { isAbyssRift = true }
+    local normalCount = (waveType == "boss") and (ENEMIES_PER_WAVE - 1) or ENEMIES_PER_WAVE
 
     -- 生成普通怪
-    for i = 1, normalCount do
-        local roleId = availRoles[((i - 1) % #availRoles) + 1]
-        local def = Config.BuildEnemyDef(stageNum, roleId)
-        if def then
-            def.baseHP = def.baseHP * hpScale
-            def.speed = def.speed * spdScale
-            def.isDungeonEnemy = true
-            def.isAbyssRift = true
-            enemies[#enemies + 1] = def
-        end
-    end
+    local enemies = WaveGen.GenerateBatch(stageNum, normalCount, hpScale, spdScale, tags)
 
     -- BOSS 波：追加 BOSS
     if waveType == "boss" then
-        local bossDef = Config.BuildBossDef(stageNum)
+        local bossDef = WaveGen.CreateBoss(stageNum, hpScale, spdScale, BOSS_HP_MULT, 0.6, tags)
         if bossDef then
-            bossDef.baseHP = bossDef.baseHP * hpScale * BOSS_HP_MULT
-            bossDef.speed = bossDef.speed * spdScale * 0.6  -- BOSS 更慢
-            bossDef.isDungeonEnemy = true
-            bossDef.isDungeonBoss = true
-            bossDef.isAbyssRift = true
             enemies[#enemies + 1] = bossDef
         end
     end
 
-    -- 精英波：强化最后2个怪为精英
+    -- 精英波：强化尾部 2-3 个怪
     if waveType == "elite5" or waveType == "elite10" then
         local eliteCount = (waveType == "elite10") and 3 or 2
-        for i = math.max(1, #enemies - eliteCount + 1), #enemies do
-            if enemies[i] then
-                enemies[i].baseHP = enemies[i].baseHP * 2.5  -- 精英 HP 翻倍
-                enemies[i].speed = enemies[i].speed * 0.8    -- 精英略慢
-                enemies[i].isElite = true
-            end
-        end
+        WaveGen.MarkElitesTail(enemies, eliteCount, 2.5, 0.8)
     end
 
     return enemies

@@ -9,6 +9,26 @@ local HeroData = require("Game.HeroData")
 
 local HeroSkills = {}
 
+-- ============================================================================
+-- 英雄模块接口契约（EmmyLua 类型定义）
+-- 每个 Heroes/{id}.lua 模块可实现以下任意 hook 函数。
+-- HeroSkills 调度器按需调用，未实现的 hook 将被跳过。
+-- ============================================================================
+
+---@class HeroModule
+---@field ModifyDamage?      fun(tower: table, target: table, damage: number): number        伤害修正（被动）
+---@field ModifySlowRate?    fun(tower: table, rate: number, target: table?): number         减速修正（被动）
+---@field ModifyDotDamage?   fun(tower: table, dmg: number, target: table?): number          DOT 伤害修正（被动）
+---@field ModifyAttackSpeed? fun(tower: table, speed: number): number                        攻速修正（被动）
+---@field ModifyRange?       fun(tower: table, range: number): number                        射程修正（被动）
+---@field ShouldMultiShot?   fun(tower: table): boolean                                      是否连射（被动）
+---@field OnHit?             fun(tower: table, target: table, killed: boolean)                命中触发（被动）
+---@field HandleSlowSpread?  fun(tower: table, target: table, dur: number, rate: number)      减速扩散（被动）
+---@field TriggerActive?     fun(tower: table, skill: table)                                  主动技能释放
+---@field UpdateAura?        fun(source: table, towers: table)                                光环更新（每帧）
+---@field UpdateFrame?       fun(towers: table, dt: number, gx: number, gy: number)           帧更新（需要每帧 tick 的英雄专属系统）
+---@field UpdateGlobal?      fun(dt: number)                                                  全局帧更新（诅咒 DOT 等全局 tick）
+
 -- 飘字安全添加（带数量上限）
 local AddFloatingText = State.AddFloatingText
 
@@ -41,6 +61,7 @@ end
 -- 英雄模块注册表
 -- ============================================================================
 
+---@type table<string, HeroModule>
 local _modules = {
     skeleton_grunt    = require("Game.Heroes.skeleton_grunt"),
     bat_minion        = require("Game.Heroes.bat_minion"),
@@ -66,6 +87,7 @@ local _modules = {
     leader            = require("Game.Heroes.leader"),
     nature_elf        = require("Game.Heroes.nature_elf"),
     crimson_night     = require("Game.Heroes.crimson_night"),
+    ember_wraith      = require("Game.Heroes.ember_wraith"),
 }
 
 -- 按 hook 类型缓存有实现的模块列表（避免每帧遍历所有模块）
@@ -78,7 +100,7 @@ end
 
 --- 获取塔对应的英雄模块（可能为 nil）
 ---@param tower table
----@return table|nil
+---@return HeroModule|nil
 local function getmod(tower)
     return tower.typeDef and _modules[tower.typeDef.id]
 end
@@ -191,10 +213,39 @@ function HeroSkills.InitTowerSkills(tower)
         end
     end
 
-    tower.killAtkStacks       = 0
-    tower.soulReapStacks      = 0
-    tower.chillGlobalCounter  = 0
-    tower.chillTickTimer      = 0
+    -- 英雄专属状态子命名空间（避免字段污染 tower 顶层）
+    tower.hstate = {
+        -- Shadow Mage: 灵魂收割
+        soulReapStacks      = 0,
+        -- Eternal Archfiend: 永恒之力
+        killAtkStacks       = 0,
+        -- Glacial Sovereign: 凌冽寒意
+        chillGlobalCounter  = 0,
+        chillTickTimer      = 0,
+        -- Crimson Night: 暗影之针 + 绯瞳锁定
+        shadowNeedleStacks  = 0,
+        shadowNeedleTimer   = nil,
+        bloodEyeStacks      = 0,
+        bloodEyeDecayTimer  = nil,
+        bonusCritRate       = 0,
+        bonusCritDmg        = 0,
+        -- Ember Wraith: 灼烧系统 + 共振
+        resonanceBurnCount  = 0,
+        resonanceAtkBonus   = 0,
+        resonanceDotAmp     = 0,
+        -- Nature Elf: 自然之力 + 鲜花环 + 翠意庇护（由 nature_elf 写入其他塔）
+        naturalForce        = 0,
+        naturalForceTimer   = 0,
+        natureFlatAtk       = 0,
+        wreathActive        = false,
+        wreathTimer         = 0,
+        wreathBonus         = 0,
+        verdantActive       = false,
+        verdantTimer        = 0,
+        verdantCooldownTimer = 0,
+        natPulseTimer       = 0,
+        natActiveCd         = 0,
+    }
 end
 
 -- ============================================================================
@@ -600,15 +651,19 @@ function HeroSkills.GetEffectiveAttack(tower)
     local CD    = GetCostumeData()
     local bonus = CD.GetGlobalAtkBonus()
     if bonus > 0 then pctBucket = pctBucket + bonus end
-    if tower.wreathActive and tower.wreathBonus and tower.wreathBonus > 0 then
-        pctBucket = pctBucket + tower.wreathBonus
+    local hs = tower.hstate
+    if hs and hs.wreathActive and hs.wreathBonus and hs.wreathBonus > 0 then
+        pctBucket = pctBucket + hs.wreathBonus
+    end
+    if hs and hs.resonanceAtkBonus and hs.resonanceAtkBonus > 0 then
+        pctBucket = pctBucket + hs.resonanceAtkBonus
     end
 
     local atk = baseAtk * (1 + pctBucket)
 
     -- 固定值加成（加法）
-    if tower.natureFlatAtk and tower.natureFlatAtk > 0 then
-        atk = atk + tower.natureFlatAtk
+    if hs and hs.natureFlatAtk and hs.natureFlatAtk > 0 then
+        atk = atk + hs.natureFlatAtk
     end
 
     return atk
@@ -630,8 +685,9 @@ function HeroSkills.GetEffectiveCritRate(tower)
         rate = rate + tower.auraCritRateBuff
     end
     -- 英雄模块额外暴击率（绯夜绯瞳锁定等）
-    if tower.bonusCritRate and tower.bonusCritRate > 0 then
-        rate = rate + tower.bonusCritRate
+    local hs2 = tower.hstate
+    if hs2 and hs2.bonusCritRate and hs2.bonusCritRate > 0 then
+        rate = rate + hs2.bonusCritRate
     end
     return rate
 end
@@ -690,7 +746,7 @@ end
 
 function HeroSkills.OnWaveStart()
     for _, tower in ipairs(State.towers) do
-        tower.killAtkStacks = 0
+        if tower.hstate then tower.hstate.killAtkStacks = 0 end
     end
     for _, e in ipairs(State.enemies) do
         e.slowSpread = nil
@@ -698,6 +754,13 @@ function HeroSkills.OnWaveStart()
         e.chillStacks = nil
         e.chillTimer  = nil
         -- shadowNeedle 已迁移到 tower 上，enemy 上不再需要清理
+        -- Ember Wraith: 灼烧清理
+        e.igniteStacks = nil
+        e.igniteTimer = nil
+        e.igniteDotDmg = nil
+        e.igniteSource = nil
+        e.igniteTickTimer = nil
+        e._igniteSpreadDone = nil
     end
 end
 

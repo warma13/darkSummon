@@ -7,7 +7,7 @@ local function apply(Config)
 -- 游戏基础设置
 -- ============================================================================
 Config.SERVER_START_DATE        = "2026-04-12"  -- 开服日期（YYYY-MM-DD）
-Config.WEEKLY_ACTIVITY_START    = "2026-04-13"  -- 宝箱周活动起始日期
+Config.WEEKLY_ACTIVITY_START    = "2026-04-13"  -- 宝箱周活动起始日期（提前1周测试黑市周）
 Config.LIMITED_BANNER_START     = "2026-04-14"  -- 限定池起始日期
 Config.COSTUME_SIGN_IN_START    = "2026-04-18"  -- 暗影之翼时装签到活动起始日期（YYYY-MM-DD）
 Config.TITLE = "Dark Merge TD"
@@ -361,6 +361,35 @@ Config.TOWER_TYPES = {
         abyssCooldown = 14,
         faction = "undead",
         icon = "crimson_night",
+    },
+    {
+        id = "ember_wraith",
+        name = "烬殇",
+        rarity = "UR",
+        color = { 255, 120, 30 },
+        glowColor = { 1.0, 0.47, 0.12 },
+        attackType = "aoe",
+        baseRange = 100,
+        baseSpeed = 1.1,
+        special = "chain_ignite",
+        -- 技能1：灰烬蔓延
+        igniteMaxStacks = 3,
+        igniteDotPct = 0.15,
+        igniteDotDuration = 3.0,
+        igniteDeathAoePct = 1.50,
+        igniteDeathRadius = 60,
+        -- 技能2：烬核共振
+        resonanceAtkPerBurn = 0.04,
+        resonanceMaxBurns = 12,
+        resonanceDotAmp = 0.06,
+        -- 技能3：焚天
+        pyreAtkPct = 6.0,
+        pyreExecuteThreshold = 0.30,
+        pyreExecuteRadius = 50,
+        pyreExecuteAtkPct = 3.0,
+        activeCooldown = 16.0,
+        faction = "elemental",
+        icon = "ember_wraith",
     },
     -- 限定 UR: 凛冬君王（限定池专属，不进常驻池）
     {

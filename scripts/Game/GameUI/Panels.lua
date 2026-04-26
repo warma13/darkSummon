@@ -241,7 +241,7 @@ function GameUI.BuildHeroInfoContent(tower)
             ctx.UI.Panel {
                 flex = 1, gap = 3,
                 children = {
-                    StatRow("射程", tostring(math.floor(tower.range)), { 200, 180, 255, 255 }, "heroPanel_range"),
+                    StatRow("射程", tostring(math.floor(HeroSkills.ModifyRange(tower, tower.range))), { 200, 180, 255, 255 }, "heroPanel_range"),
                 },
             },
         },
@@ -439,7 +439,7 @@ function GameUI.UpdateHeroInfoValues(tower, panel)
     end
     local rangeLabel = panel:FindById("heroPanel_range")
     if rangeLabel then
-        rangeLabel:SetText(tostring(math.floor(tower.range)))
+        rangeLabel:SetText(tostring(math.floor(HeroSkills.ModifyRange(tower, tower.range))))
     end
 
     -- 副属性

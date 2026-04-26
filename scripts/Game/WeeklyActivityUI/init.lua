@@ -5,7 +5,9 @@ local WAD            = require("Game.WeeklyActivityData")
 local WelfareData    = require("Game.WelfareData")
 local Tooltip        = require("Game.Tooltip")
 local RMD            = require("Game.RecruitMilestoneData")
+local BMD            = require("Game.BlackMarketData")
 local DivineBlessDB  = require("Game.DivineBlessData")
+local DED            = require("Game.DropEventData")
 
 local WeeklyActivityUI = {}
 
@@ -20,26 +22,49 @@ local activeSubTab = "chest"
 -- 子模块（懒加载）
 local ChestMilestone   = nil
 local RecruitMilestone = nil
+local BlackMarketUI    = nil
 local Welfare          = nil
 local DivineBless      = nil
+local DropEventUI      = nil
 
--- 子标签配置
-local SUB_TABS = {
-    { id = "chest",         icon = "image/icon_cumulate.png",          label = "宝箱达标" },
-    { id = "welfare",       icon = "image/icon_limited_welfare.png",   label = "限时福利" },
-    { id = "weekend_bonus", icon = "image/icon_weekend_bonus.png",     label = "神裔降临" },
+-- 子标签配置（week 字段控制显示条件：nil=始终显示，"market"=仅市场周）
+local ALL_SUB_TABS = {
+    { id = "chest",         icon = "image/icon_cumulate.png",                          label = "宝箱达标",   week = { "chest", "recruit" } },
+    { id = "black_market",  icon = "image/icon_black_market_20260426055156.png",       label = "黑市",       week = "market" },
+    { id = "drop_event",    icon = "image/icon_drop_event_20260426050205.png",         label = "掉落活动",   week = "market" },
+    { id = "exchange_shop", icon = "image/icon_exchange_shop_20260426053936.png",      label = "换购商店",   week = "market" },
+    { id = "welfare",       icon = "image/icon_limited_welfare.png",                   label = "限时福利",   week = "chest" },
+    { id = "weekend_bonus", icon = "image/icon_weekend_bonus.png",                     label = "神裔降临" },
 }
 
+--- 根据当前周类型过滤可见标签
+local function GetVisibleSubTabs()
+    local weekType = WAD.GetCurrentWeekType()
+    local tabs = {}
+    for _, tab in ipairs(ALL_SUB_TABS) do
+        if not tab.week then
+            tabs[#tabs + 1] = tab
+        elseif type(tab.week) == "table" then
+            for _, w in ipairs(tab.week) do
+                if w == weekType then tabs[#tabs + 1] = tab; break end
+            end
+        elseif tab.week == weekType then
+            tabs[#tabs + 1] = tab
+        end
+    end
+    return tabs
+end
+
 local SUB_TAB_ACTIVE = {
-    bg = { 60, 40, 100, 255 },
-    border = { 180, 120, 255, 200 },
+    bg = { 80, 50, 20, 255 },
+    border = { 255, 200, 50, 220 },
     borderW = 2,
     label = { 255, 220, 100, 255 },
     fontW = "bold",
 }
 local SUB_TAB_INACTIVE = {
-    bg = { 30, 24, 50, 200 },
-    border = { 80, 65, 120, 100 },
+    bg = { 35, 28, 55, 220 },
+    border = { 70, 55, 90, 120 },
     borderW = 1,
     label = { 160, 150, 180, 200 },
     fontW = "normal",
@@ -88,8 +113,10 @@ function WeeklyActivityUI.CreatePage(uiModule)
     if not ChestMilestone then
         ChestMilestone   = require("Game.WeeklyActivityUI.ChestMilestone")
         RecruitMilestone = require("Game.WeeklyActivityUI.RecruitMilestone")
+        BlackMarketUI    = require("Game.WeeklyActivityUI.BlackMarket")
         Welfare          = require("Game.WeeklyActivityUI.Welfare")
         DivineBless      = require("Game.WeeklyActivityUI.DivineBless")
+        DropEventUI      = require("Game.WeeklyActivityUI.DropEvent")
     end
 
     activeTab = "weekly"
@@ -112,6 +139,8 @@ function WeeklyActivityUI.CreatePage(uiModule)
             },
         },
     }
+    -- patch：竖向滚轮也能横向滚动子标签栏
+    WeeklyActivityUI._PatchSubTabWheel()
     Tooltip.Init(UI, pageRoot)
     return pageRoot
 end
@@ -191,6 +220,23 @@ end
 function WeeklyActivityUI._UpdateTabHighlight()
 end
 
+--- patch 子标签栏滚轮：竖向滚轮也能横向滚动（与 ActivityUI 一致）
+function WeeklyActivityUI._PatchSubTabWheel()
+    if not pageRoot then return end
+    local tabScroll = pageRoot:FindById("waSubTabScroll")
+    if tabScroll and tabScroll.ScrollBy then
+        tabScroll.OnWheel = function(self, dx, dy)
+            local step = 60
+            local dir = 0
+            if dy ~= 0 then dir = dir + (dy > 0 and -1 or 1) end
+            if dx ~= 0 then dir = dir + (dx > 0 and 1 or -1) end
+            if dir ~= 0 then
+                self:ScrollBy(dir * step, 0)
+            end
+        end
+    end
+end
+
 -- ============================================================================
 -- 子标签栏
 -- ============================================================================
@@ -209,6 +255,9 @@ local SUB_TAB_RED_DOT = {
         end
         return WAD.HasClaimable()
     end,
+    black_market  = function() return BMD.HasAffordable() end,
+    drop_event    = function() return DED.HasClaimable() end,
+    exchange_shop = function() return DED.HasAffordableItem() end,
     welfare       = function() return WelfareData.HasClaimable() end,
     weekend_bonus = function() return not DivineBlessDB.HasChosen() end,
 }
@@ -230,8 +279,18 @@ local function GetWelfareTabIcon()
 end
 
 function WeeklyActivityUI._BuildSubTabBar()
+    local visibleTabs = GetVisibleSubTabs()
+    -- 如果当前激活标签不在可见列表中，回退到第一个
+    local found = false
+    for _, tab in ipairs(visibleTabs) do
+        if tab.id == activeSubTab then found = true; break end
+    end
+    if not found and #visibleTabs > 0 then
+        activeSubTab = visibleTabs[1].id
+    end
+
     local tabIcons = {}
-    for _, tab in ipairs(SUB_TABS) do
+    for _, tab in ipairs(visibleTabs) do
         local isActive = (activeSubTab == tab.id)
         tabIcons[#tabIcons + 1] = WeeklyActivityUI._CreateSubTabIcon(tab, isActive)
     end
@@ -332,7 +391,7 @@ end
 
 function WeeklyActivityUI._UpdateSubTabHighlight()
     if not pageRoot then return end
-    for _, tab in ipairs(SUB_TABS) do
+    for _, tab in ipairs(GetVisibleSubTabs()) do
         local isActive = (activeSubTab == tab.id)
         local s = isActive and SUB_TAB_ACTIVE or SUB_TAB_INACTIVE
         local tabWidget = pageRoot:FindById("waSubTab_" .. tab.id)
@@ -376,6 +435,15 @@ function WeeklyActivityUI._RenderWeeklyTab(area)
             area:AddChild(ChestMilestone.BuildBanner(WeeklyActivityUI))
             area:AddChild(ChestMilestone.BuildList(WeeklyActivityUI))
         end
+    elseif activeSubTab == "black_market" then
+        area:AddChild(BlackMarketUI.BuildBanner(WeeklyActivityUI))
+        area:AddChild(BlackMarketUI.BuildList(WeeklyActivityUI))
+    elseif activeSubTab == "drop_event" then
+        area:AddChild(DropEventUI.BuildBanner(WeeklyActivityUI))
+        area:AddChild(DropEventUI.BuildDailyDrops(WeeklyActivityUI))
+        area:AddChild(DropEventUI._BuildWeeklyAdProgress(WeeklyActivityUI))
+    elseif activeSubTab == "exchange_shop" then
+        area:AddChild(DropEventUI.BuildShop(WeeklyActivityUI))
     elseif activeSubTab == "welfare" then
         area:AddChild(Welfare.Build(WeeklyActivityUI))
     elseif activeSubTab == "weekend_bonus" then

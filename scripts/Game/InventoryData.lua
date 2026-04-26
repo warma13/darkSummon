@@ -438,6 +438,19 @@ InventoryData.ITEM_DEFS = {
         end,
     },
     -- 招募券自选包：使用后选择招募池，获得对应票券
+    -- 暗烬碎片（掉落活动专属道具，不可使用，仅在活动换购商店消耗）
+    dark_ember_shard = {
+        id       = "dark_ember_shard",
+        name     = "暗烬碎片",
+        desc     = "掉落活动专属道具，可在换购商店兑换珍稀物品",
+        icon     = "dark_ember_shard",
+        image    = "image/icon_dark_ember_shard_20260426050206.png",
+        rarity   = "SR",
+        stackable = true,
+        use      = function(_amount)
+            return "该道具只能在换购商店使用", nil
+        end,
+    },
     recruit_ticket_select_box = {
         id       = "recruit_ticket_select_box",
         name     = "招募券自选包",

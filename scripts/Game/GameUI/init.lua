@@ -129,6 +129,8 @@ function GameUI.Init(uiModule)
         GameUI.UpdateHUD()
     end)
 
+
+
     -- 注册 BattleFlow UI 回调
     local BattleFlow = require("Game.BattleFlow")
     BattleFlow.RegisterHooks({
@@ -458,7 +460,7 @@ local function CleanupGameUI()
         "_dailyTaskPage", "_leaderboardPage", "_exchangeShopPage",
         "_adReliefPage", "_costumeSignInPage", "_miniGamePage",
         "_adDashboardPage", "_speedBoostDialog", "_adTicketConfirmDialog",
-        "_userIdWrap", "_versionWrap",
+        "_userIdWrap", "_versionWrap", "_loadingOverlay",
     }
     for _, key in ipairs(overlayKeys) do
         if GameUI[key] then
@@ -650,6 +652,41 @@ end
 --- 获取 UI 根节点（供外部模块挂载弹窗）
 function GameUI.GetUIRoot()
     return uiRoot
+end
+
+--- 显示全屏加载提示（遮挡黑屏）
+function GameUI.ShowLoading(text)
+    if GameUI._loadingOverlay then return end
+    GameUI._loadingBaseText = text or "加载中"
+    GameUI._loadingDots = 0
+    GameUI._loadingDotTimer = 0
+    GameUI._loadingOverlay = UI.Panel {
+        id = "loadingOverlay",
+        position = "absolute",
+        width = "100%", height = "100%",
+        justifyContent = "center", alignItems = "center",
+        backgroundColor = { 10, 10, 15, 255 },
+        children = {
+            UI.Label {
+                id = "loadingLabel",
+                text = GameUI._loadingBaseText,
+                fontSize = 22,
+                color = { 200, 200, 210, 255 },
+            },
+        },
+    }
+    uiRoot:AddChild(GameUI._loadingOverlay)
+end
+
+--- 隐藏全屏加载提示
+function GameUI.HideLoading()
+    if GameUI._loadingOverlay then
+        uiRoot:RemoveChild(GameUI._loadingOverlay)
+        GameUI._loadingOverlay = nil
+        GameUI._loadingBaseText = nil
+        GameUI._loadingDots = nil
+        GameUI._loadingDotTimer = nil
+    end
 end
 
 --- 创建招募页浮层
@@ -1594,6 +1631,20 @@ function GameUI.Update(dt)
             end
         else
             GameUI._dmgAnimating = false
+        end
+    end
+
+    -- 加载提示点动画（0~3 个点循环）
+    if GameUI._loadingOverlay and GameUI._loadingBaseText then
+        GameUI._loadingDotTimer = (GameUI._loadingDotTimer or 0) + dt
+        if GameUI._loadingDotTimer >= 0.4 then
+            GameUI._loadingDotTimer = 0
+            GameUI._loadingDots = ((GameUI._loadingDots or 0) + 1) % 4
+            local dots = string.rep(".", GameUI._loadingDots)
+            local lbl = GameUI._loadingOverlay:FindById("loadingLabel")
+            if lbl then
+                lbl:SetText(GameUI._loadingBaseText .. dots)
+            end
         end
     end
 end

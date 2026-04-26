@@ -8,6 +8,7 @@ local State       = require("Game.State")
 local Grid        = require("Game.Grid")
 local SpriteSheet = ctx.SpriteSheet
 local EnemyAnim   = require("Game.EnemyAnim")
+local HeroSkills  = require("Game.HeroSkills")
 
 -- 从 ctx 获取共享工具函数
 local rgba                    = ctx.rgba
@@ -451,14 +452,15 @@ function Renderer.DrawDragOverlay(vg, ox, oy)
     local mx, my = State.dragX, State.dragY
 
     -- 攻击范围圈（半透明）
+    local effRange = HeroSkills.ModifyRange(tower, tower.range)
     nvgBeginPath(vg)
-    nvgCircle(vg, mx, my, tower.range)
+    nvgCircle(vg, mx, my, effRange)
     nvgStrokeWidth(vg, 1.5)
     nvgStrokeColor(vg, nvgRGBA(gc[1] * 255, gc[2] * 255, gc[3] * 255, 60))
     nvgStroke(vg)
     -- 范围填充
     nvgBeginPath(vg)
-    nvgCircle(vg, mx, my, tower.range)
+    nvgCircle(vg, mx, my, effRange)
     nvgFillColor(vg, nvgRGBA(gc[1] * 255, gc[2] * 255, gc[3] * 255, 15))
     nvgFill(vg)
 

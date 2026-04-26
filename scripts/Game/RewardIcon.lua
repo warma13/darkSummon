@@ -41,6 +41,8 @@ local REWARD_DESC = {
     recruit_ticket_select_box = "使用后可选择当前开放的招募池，获得对应招募券",
     -- 碎片箱
     random_ur_shard_box   = "打开随机获得1个UR英雄碎片",
+    random_relic_shard_box = "打开随机获得1个遗物碎片",
+    random_mythic_rune_box = "打开随机获得1个神话品质符文",
     r_shard_random_box    = "打开随机获得1个R英雄碎片",
     sr_shard_random_box   = "打开随机获得1个SR英雄碎片",
     ssr_shard_random_box  = "打开随机获得1个SSR英雄碎片",

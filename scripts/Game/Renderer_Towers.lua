@@ -12,6 +12,7 @@ local HeroAnim         = require("Game.HeroAnim")
 local LeaderWingEffect = require("Game.LeaderWingEffect")
 local Debuff           = require("Game.Debuff")
 local Tower            = require("Game.Tower")
+local HeroSkills       = require("Game.HeroSkills")
 
 -- 星级字符串缓存（避免每帧 string.rep）
 local starStrCache = {}
@@ -757,7 +758,7 @@ function Renderer.DrawTowers(vg, ox, oy)
         -- 选中高亮（非拖拽中才显示攻击范围）
         if not isDragged and State.selectedTower and State.selectedTower.id == tower.id then
             nvgBeginPath(vg)
-            nvgCircle(vg, cx, cy, tower.range)
+            nvgCircle(vg, cx, cy, HeroSkills.ModifyRange(tower, tower.range))
             nvgStrokeWidth(vg, 1)
             nvgStrokeColor(vg, nvgRGBA(255, 255, 255, 40))
             nvgStroke(vg)
@@ -799,24 +800,25 @@ function Renderer.DrawTowers(vg, ox, oy)
 
             -- ── 增益（仅显示重要状态：免控、层数、临时增益） ──
             -- 翠意庇护 → 显示"免控"（翎嫣免疫沉默+禁锢）
-            if tower.verdantActive then
+            local hs = tower.hstate
+            if hs and hs.verdantActive then
                 labels[#labels + 1] = { "免控", 255, 220, 80 }
             end
             -- 翎嫣鲜花环（+攻击力临时增益）
-            if tower.wreathActive then
+            if hs and hs.wreathActive then
                 labels[#labels + 1] = { "鲜花环", 255, 150, 200 }
             end
             -- 绯夜缚瞳锁定层数（代码内部名 bloodEye，技能名"缚瞳锁定"）
-            if (tower.bloodEyeStacks or 0) > 0 then
-                labels[#labels + 1] = { "缚瞳x" .. tower.bloodEyeStacks, 220, 40, 60 }
+            if hs and (hs.bloodEyeStacks or 0) > 0 then
+                labels[#labels + 1] = { "缚瞳x" .. hs.bloodEyeStacks, 220, 40, 60 }
             end
             -- 影法师灵魂收割层数
-            if (tower.soulReapStacks or 0) > 0 then
-                labels[#labels + 1] = { "收割x" .. tower.soulReapStacks, 180, 60, 220 }
+            if hs and (hs.soulReapStacks or 0) > 0 then
+                labels[#labels + 1] = { "收割x" .. hs.soulReapStacks, 180, 60, 220 }
             end
             -- 永恒大魔击杀层数
-            if (tower.killAtkStacks or 0) > 0 then
-                labels[#labels + 1] = { "杀意x" .. tower.killAtkStacks, 200, 50, 50 }
+            if hs and (hs.killAtkStacks or 0) > 0 then
+                labels[#labels + 1] = { "杀意x" .. hs.killAtkStacks, 200, 50, 50 }
             end
             -- 英勇战歌（战鼓祭司全体主动技，临时增益）
             if State.heroicAnthemBuff then

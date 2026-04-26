@@ -184,6 +184,10 @@ SpriteSheet.Register("crimson_night", {
     path = "image/crimson_night_sprite.png",
     cols = 3,   -- 0=idle, 1=attack, 2=projectile
 })
+SpriteSheet.Register("ember_wraith", {
+    path = "image/ember_wraith_spritesheet_20260426025527.png",
+    cols = 3,   -- 0=idle, 1=attack, 2=projectile
+})
 -- 注册世界BOSS精灵图
 SpriteSheet.Register("world_boss", {
     path = "image/world_boss_abyss_lord_20260414151439.png",

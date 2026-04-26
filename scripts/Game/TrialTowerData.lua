@@ -7,6 +7,7 @@ local Currency = require("Game.Currency")
 local SaveManager = require("Game.SaveManager")
 local SaveRegistry = require("Game.SaveRegistry")
 local DungeonScaling = require("Game.DungeonScaling")
+local WaveGen = require("Game.WaveGenerator")
 
 local TrialTowerData = {}
 
@@ -315,78 +316,29 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
     -- 波次内微调：后续波怪物略强
     local waveMult  = 1.0 + (wave - 1) * 0.05
 
-    -- 可用角色池（基于等效全局波次）
-    local globalWave = stageNum * Config.WAVES_PER_STAGE
-    local availRoles = {}
-    for _, roleId in ipairs(Config.ROLE_IDS) do
-        local role = Config.ENEMY_ROLES[roleId]
-        if role then
-            local unlockWave = Config.ROLE_UNLOCK_WAVE[role.unlockOrder] or 1
-            if globalWave >= unlockWave then
-                availRoles[#availRoles + 1] = roleId
-            end
-        end
-    end
-    if #availRoles == 0 then
-        availRoles = { "minion", "infantry" }
-    end
-
-    local enemies = {}
-    local totalCount = TrialTowerData.ENEMIES_PER_WAVE
+    -- 可用角色池
+    local availRoles = WaveGen.BuildRolePool(stageNum)
 
     -- Boss 层第 5 波出 Boss
     local hasBoss = isBossFloor and (wave == TrialTowerData.WAVE_COUNT)
+    local totalCount = TrialTowerData.ENEMIES_PER_WAVE
     local normalCount = hasBoss and (totalCount - 1) or totalCount
 
-    -- ======== 精英配置 ========
-    -- 精英基础属性倍率（在词缀之外额外叠加）
-    local eliteHPMult  = 2.5   -- 精英 HP ×2.5
-    local eliteSpdMult = 1.3   -- 精英速度 ×1.3
+    -- 生成普通怪（waveMult 为波次内微调）
+    local enemies = WaveGen.GenerateBatch(stageNum, normalCount, hpScale * waveMult, spdScale, nil, availRoles)
 
-    -- 精英数量：基础 3 只，每 3 塔 +1，上限 8
+    -- ======== 精英配置（前插模式） ========
     local eliteCount = 0
     if hasBoss then
-        -- BOSS 波：2~4 只精英护卫
         eliteCount = math.min(2 + math.floor(towerNum / 3), 4)
     else
-        -- 普通波：基础 3 只，每 3 塔 +1，上限 8
         eliteCount = math.min(3 + math.floor(towerNum / 3), 8)
     end
-    local eliteAffixCount = 1
-    if floor >= 30 then eliteAffixCount = 3
-    elseif floor >= 15 then eliteAffixCount = 2
-    end
+    WaveGen.MarkElitesFront(enemies, eliteCount, 2.5, 1.3)
 
-    -- 生成普通怪
-    for i = 1, normalCount do
-        local roleId = availRoles[((i - 1) % #availRoles) + 1]
-        local def = Config.BuildEnemyDef(stageNum, roleId)
-        if def then
-            def.baseHP  = def.baseHP * hpScale * waveMult
-            def.speed   = def.speed * spdScale
-
-            -- 标记精英（队列前段插入），精英有基础属性加成 + 缩放词缀
-            if i <= eliteCount then
-                def.isElite = true
-                def.baseHP = def.baseHP * eliteHPMult
-                def.speed  = def.speed * eliteSpdMult
-                -- def.eliteAffixes = PickTowerAffixes(floor, eliteAffixCount)
-            end
-
-            def.isDungeonEnemy = true
-            enemies[#enemies + 1] = def
-        end
-    end
-
-    -- Boss 层第 5 波末尾追加 Boss（带词缀）
+    -- Boss 层第 5 波末尾追加 Boss
     if hasBoss then
-        local bossDef = Config.BuildBossDef(stageNum)
-        bossDef.baseHP  = bossDef.baseHP * hpScale * waveMult
-        bossDef.speed   = bossDef.speed * spdScale * 0.7  -- Boss 略慢
-        bossDef.isDungeonEnemy = true
-        -- BOSS 词缀：已移除
-        -- local bossAffixCount = math.min(1 + math.floor(towerNum / 5), 3)
-        -- bossDef.bossAffixes = PickTowerAffixes(floor, bossAffixCount)
+        local bossDef = WaveGen.CreateBoss(stageNum, hpScale * waveMult, spdScale, 1, 0.7)
         enemies[#enemies + 1] = bossDef
     end
 

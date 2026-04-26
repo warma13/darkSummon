@@ -10,6 +10,48 @@ local GachaResult = require("Game.RecruitUI.GachaResult")
 
 local NormalPool = {}
 
+-- ============================================================================
+-- 常驻池精选角色轮播配置
+-- ============================================================================
+
+local FEATURED_HEROES = {
+    {
+        heroId = "crimson_night",
+        name   = "绯夜",
+        color  = { 200, 50, 80 },
+        image  = "image/绯夜_立绘_v5_20260422131608.png",
+        bgColor = { 60, 20, 40, 200 },
+        borderColor = { 200, 50, 80, 150 },
+    },
+    {
+        heroId = "ember_wraith",
+        name   = "烬殇",
+        color  = { 255, 120, 30 },
+        image  = "image/ember_wraith_artwork_20260426024033.png",
+        bgColor = { 60, 30, 10, 200 },
+        borderColor = { 255, 120, 30, 150 },
+    },
+}
+
+-- 当前轮播索引（模块级状态）
+local _featuredIndex = 1
+
+--- 切换到下一个精选角色
+function NormalPool.NextFeatured()
+    _featuredIndex = _featuredIndex % #FEATURED_HEROES + 1
+end
+
+--- 切换到上一个精选角色
+function NormalPool.PrevFeatured()
+    _featuredIndex = (_featuredIndex - 2) % #FEATURED_HEROES + 1
+end
+
+--- 获取当前精选角色配置
+---@return table
+function NormalPool.GetCurrentFeatured()
+    return FEATURED_HEROES[_featuredIndex]
+end
+
 --- 顶部招募令货币栏
 ---@param UI any
 ---@return any
@@ -150,7 +192,24 @@ end
 ---@param showDetailFn function
 ---@param showFateRitualFn function|nil
 ---@return any
-function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn, showFateRitualFn)
+function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn, showFateRitualFn, refreshFn)
+    local featured = NormalPool.GetCurrentFeatured()
+    local fc = featured.color
+
+    -- 构建底部指示点
+    local dots = {}
+    for i, hero in ipairs(FEATURED_HEROES) do
+        local isActive = (i == _featuredIndex)
+        dots[#dots + 1] = UI.Panel {
+            width = isActive and 18 or 8,
+            height = 8,
+            borderRadius = 4,
+            backgroundColor = isActive
+                and { fc[1], fc[2], fc[3], 240 }
+                or  { 180, 170, 200, 100 },
+        }
+    end
+
     return UI.Panel {
         width = "100%",
         flex = 1,
@@ -169,22 +228,83 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn, showFateRit
                 marginTop = 16,
                 zIndex = 1,
             },
-            -- 绯夜名称标签
+            -- 当前精选角色名称标签
             UI.Panel {
                 paddingLeft = 16, paddingRight = 16,
                 paddingTop = 4, paddingBottom = 4,
-                backgroundColor = { 60, 20, 40, 200 },
+                backgroundColor = featured.bgColor,
                 borderRadius = 8,
                 borderWidth = 1,
-                borderColor = { 200, 50, 80, 150 },
+                borderColor = featured.borderColor,
                 children = {
                     UI.Label {
-                        text = "绯夜",
+                        text = featured.name,
                         fontSize = 18,
-                        fontColor = { 200, 50, 80, 255 },
+                        fontColor = { fc[1], fc[2], fc[3], 255 },
                         fontWeight = "bold",
                     },
                 },
+            },
+            -- 左侧切换箭头
+            UI.Panel {
+                position = "absolute",
+                left = 4, top = "50%",
+                width = 44, height = 64,
+                borderRadius = 8,
+                backgroundColor = { 10, 6, 20, 180 },
+                borderWidth = 1,
+                borderColor = { 120, 80, 200, 100 },
+                justifyContent = "center",
+                alignItems = "center",
+                pointerEvents = "auto",
+                onClick = function(self)
+                    NormalPool.PrevFeatured()
+                    if refreshFn then refreshFn() end
+                end,
+                children = {
+                    UI.Label {
+                        text = "<",
+                        fontSize = 28,
+                        fontColor = { 220, 200, 255, 240 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            -- 右侧切换箭头
+            UI.Panel {
+                position = "absolute",
+                right = 4, top = "50%",
+                width = 44, height = 64,
+                borderRadius = 8,
+                backgroundColor = { 10, 6, 20, 180 },
+                borderWidth = 1,
+                borderColor = { 120, 80, 200, 100 },
+                justifyContent = "center",
+                alignItems = "center",
+                pointerEvents = "auto",
+                onClick = function(self)
+                    NormalPool.NextFeatured()
+                    if refreshFn then refreshFn() end
+                end,
+                children = {
+                    UI.Label {
+                        text = ">",
+                        fontSize = 28,
+                        fontColor = { 220, 200, 255, 240 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            -- 底部指示点
+            UI.Panel {
+                position = "absolute",
+                bottom = 52, left = 0, right = 0,
+                flexDirection = "row",
+                justifyContent = "center",
+                alignItems = "center",
+                gap = 6,
+                pointerEvents = "none",
+                children = dots,
             },
             -- 左侧广告领契约入口
             UI.Panel {
@@ -241,11 +361,11 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn, showFateRit
                     } or nil,
                 },
             },
-            -- 绯夜立绘
+            -- 精选角色立绘（跟随轮播切换）
             UI.Panel {
                 position = "absolute",
                 top = 0, left = 0, right = 0, bottom = 0,
-                backgroundImage = "image/绯夜_立绘_v5_20260422131608.png",
+                backgroundImage = featured.image,
                 backgroundFit = "contain",
                 backgroundPosition = "center center",
                 pointerEvents = "none",

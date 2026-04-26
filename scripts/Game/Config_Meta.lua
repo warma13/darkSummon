@@ -309,6 +309,39 @@ Config.HERO_SKILLS = {
           type = "active", interval = 10, damagePct = 1.05,
           buildDesc = function(f) return "每10秒全屏" .. P(1.05, f) .. "攻击力伤害" end },
     },
+    ember_wraith = {
+        { id = "chain_ignite",    name = "灰烬蔓延",
+          desc = "攻击叠加灼烧(最多3层,持续3秒),每层每秒造成ATK×15%火焰伤害;带灼烧的敌人死亡时,向周围60范围敌人造成ATK×150%火伤并施加1层灼烧",
+          type = "passive",
+          maxStacks = 3, stackDuration = 3.0,
+          dotPctPerStack = 0.15,
+          deathAoePct = 1.50, deathRadius = 60,
+          starScale = true,
+          buildDesc = function(f)
+              return "攻击叠加灼烧(最多3层,持续3秒),每层每秒ATK×" .. P(0.15, f) .. "火伤;死亡蔓延ATK×" .. M(1.50, f) .. "火伤(半径60)"
+          end },
+        { id = "ember_resonance", name = "烬核共振",
+          desc = "场上每个灼烧中的敌人为烬殇提供+4%ATK和+6%DOT增伤,最多12层",
+          type = "passive",
+          atkPerBurn = 0.04, dotAmpPerBurn = 0.06,
+          maxBurns = 12,
+          starScale = true,
+          buildDesc = function(f)
+              return "每个灼烧敌人+" .. PD(0.04, f) .. "ATK和+" .. PD(0.06, f) .. "DOT增伤,最多12层"
+          end },
+        { id = "heavens_pyre",    name = "焚天",
+          desc = "对范围内所有敌人造成ATK×600%火伤;HP<30%且有灼烧的敌人被处决,处决者爆炸对周围造成ATK×300%火伤并施加2层灼烧 (CD:16s)",
+          type = "active", interval = 16,
+          baseAtkPct = 6.0,
+          executeThreshold = 0.30,
+          executeAoePct = 3.0,
+          executeRadius = 50,
+          executeIgniteStacks = 2,
+          starScale = true,
+          buildDesc = function(f)
+              return "AOE ATK×" .. M(6.0, f) .. "火伤;HP<30%灼烧敌人处决,爆炸ATK×" .. M(3.0, f) .. "火伤(半径50)"
+          end },
+    },
     nature_elf = {
         { id = "nature_gift",    name = "自然馈赠", desc = "每3秒为范围内英雄注入3点自然之力（持续8秒），自然之力越多越接近上限：攻击+115%、攻速+75%，并额外获得翎嫣ATK×19%的固定攻击加成",
           type = "passive", starScale = true,
@@ -535,9 +568,9 @@ Config.CHEST_TYPES = {
         bgColor = { 50, 40, 25, 220 },
         borderColor = { 120, 95, 50, 200 },
         score = 1,           -- 开箱积分
-        -- 掉落: 冥晶为主
+        -- 掉落: 3分钟挂机收益（冥晶+噬魂石+锻魂铁）
+        idleMinutes = 3,     -- 按挂机收益计算，3分钟
         drops = {
-            { type = "nether_crystal", min = 20, max = 50, chance = 1.0 },
             { type = "fragment_random", rarity = "N", min = 1, max = 2, chance = 0.05 },
         },
     },

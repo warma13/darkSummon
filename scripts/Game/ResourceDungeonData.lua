@@ -8,6 +8,7 @@ local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
 local TodayStr = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
+local WaveGen = require("Game.WaveGenerator")
 
 local RD = {}
 
@@ -296,44 +297,13 @@ function RD.GenerateWaveEnemies(dungeonKey, wave, diffLevel)
     local round = math.floor((stageNum - 1) / Config.THEME_COUNT) + 1
     local roundHPMult = 1.0 + (round - 1) * 0.5
 
-    -- 可用角色池
-    local globalWave = stageNum * Config.WAVES_PER_STAGE
-    local availRoles = {}
-    for _, roleId in ipairs(Config.ROLE_IDS) do
-        local role = Config.ENEMY_ROLES[roleId]
-        if role then
-            local unlockWave = Config.ROLE_UNLOCK_WAVE[role.unlockOrder] or 1
-            if globalWave >= unlockWave then
-                availRoles[#availRoles + 1] = roleId
-            end
-        end
-    end
-    if #availRoles == 0 then
-        availRoles = { "minion", "infantry" }
-    end
-
-    local enemies = {}
-    local normalCount = RD.ENEMIES_PER_WAVE - 1  -- 前 19 个普通怪
-
-    for i = 1, normalCount do
-        local roleId = availRoles[((i - 1) % #availRoles) + 1]
-        local def = Config.BuildEnemyDef(stageNum, roleId)
-        if def then
-            def.baseHP = def.baseHP * hpScale * statMult
-            def.speed = def.speed * spdScale
-            def.isDungeonEnemy = true
-            enemies[#enemies + 1] = def
-        end
-    end
+    -- 前 19 个普通怪
+    local normalCount = RD.ENEMIES_PER_WAVE - 1
+    local enemies = WaveGen.GenerateBatch(stageNum, normalCount, hpScale * statMult, spdScale)
 
     -- 第 20 个是 Boss
-    local bossDef = Config.BuildBossDef(stageNum)
+    local bossDef = WaveGen.CreateBoss(stageNum, hpScale * statMult, spdScale, RD.BOSS_HP_MULT, 0.7)
     if bossDef then
-        -- Boss HP = 普通怪基准 × BOSS_HP_MULT × hpScale × 难度倍率
-        bossDef.baseHP = bossDef.baseHP * hpScale * RD.BOSS_HP_MULT * statMult
-        bossDef.speed = bossDef.speed * spdScale * 0.7  -- Boss 略慢
-        bossDef.isDungeonEnemy = true
-        bossDef.isDungeonBoss = true
         enemies[#enemies + 1] = bossDef
     end
 

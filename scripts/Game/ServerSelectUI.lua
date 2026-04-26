@@ -21,6 +21,31 @@ local SERVER_LIST = {
 
 local selectedServerId = 1
 
+-- 加载状态：loading / ready / error
+local loadState = "loading"
+local loadErrorMsg = nil
+---@type function|nil
+local retryCallback = nil
+
+--- 设置加载状态（外部调用）
+---@param state string  "loading" | "ready" | "error"
+---@param errMsg string|nil  错误信息（state="error"时使用）
+function ServerSelectUI.SetLoadState(state, errMsg)
+    loadState = state
+    loadErrorMsg = errMsg
+    ServerSelectUI.Refresh()
+end
+
+--- 设置重试回调
+function ServerSelectUI.SetRetryCallback(fn)
+    retryCallback = fn
+end
+
+--- 更新存档元数据（SlotSave加载完成后调用）
+function ServerSelectUI.UpdateSlotMeta(meta)
+    slotMeta = meta
+end
+
 --- 格式化游戏时长（秒 → "Xh Xm"）
 local function FormatPlayTime(seconds)
     if not seconds or seconds <= 0 then return "0m" end
@@ -348,8 +373,77 @@ function BuildServerItem(server)
     }
 end
 
---- 构建开始游戏按钮
+--- 构建开始游戏按钮（根据加载状态显示不同内容）
 function BuildStartButton()
+    -- 加载中状态
+    if loadState == "loading" then
+        return UI.Panel {
+            width = "100%",
+            paddingTop = 10,
+            alignItems = "center",
+            gap = 8,
+            children = {
+                UI.Panel {
+                    width = 220, height = 48,
+                    backgroundColor = { 60, 45, 90, 200 },
+                    borderRadius = 24,
+                    borderWidth = 1,
+                    borderColor = { 100, 80, 140, 100 },
+                    justifyContent = "center",
+                    alignItems = "center",
+                    children = {
+                        UI.Label {
+                            text = "正在加载存档...",
+                            fontSize = 16,
+                            fontColor = { 180, 170, 220, 200 },
+                            textAlign = "center",
+                        },
+                    },
+                },
+            },
+        }
+    end
+
+    -- 加载失败状态
+    if loadState == "error" then
+        return UI.Panel {
+            width = "100%",
+            paddingTop = 10,
+            alignItems = "center",
+            gap = 10,
+            children = {
+                UI.Label {
+                    text = loadErrorMsg or "存档加载超时",
+                    fontSize = 13,
+                    fontColor = { 255, 140, 100, 220 },
+                    textAlign = "center",
+                },
+                UI.Panel {
+                    width = 220, height = 48,
+                    backgroundColor = { 200, 100, 50, 255 },
+                    borderRadius = 24,
+                    justifyContent = "center",
+                    alignItems = "center",
+                    pointerEvents = "auto",
+                    onClick = function(self)
+                        if retryCallback then
+                            retryCallback()
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = "重新加载",
+                            fontSize = 18,
+                            fontColor = { 255, 255, 255, 255 },
+                            textAlign = "center",
+                        },
+                    },
+                },
+            },
+        }
+    end
+
+    -- 正常就绪状态
     return UI.Panel {
         width = "100%",
         paddingTop = 10,

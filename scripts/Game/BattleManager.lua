@@ -537,6 +537,7 @@ function BattleManager.OnWin()
     local cfg = BattleManager.config
     if not cfg or BattleManager._settled then return end
     BattleManager._settled = true
+    cfg.onExit = nil  -- 胜利后清除退出回调，防止后续 ExitDungeon 二次触发
 
     LootDrop.CollectAll()
 
@@ -560,6 +561,7 @@ function BattleManager.OnLose()
     local cfg = BattleManager.config
     if not cfg or BattleManager._settled then return end
     BattleManager._settled = true
+    cfg.onExit = nil  -- 失败后清除退出回调，防止后续 ExitDungeon 二次触发
 
     LootDrop.CollectAll()
 

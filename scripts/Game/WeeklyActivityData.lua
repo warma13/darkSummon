@@ -100,10 +100,14 @@ function WAD.GetCurrentWeekStart()
     return GetCurrentWeekStart()
 end
 
---- 当前周类型：偶数周=宝箱周，奇数周=招募周
----@return "chest"|"recruit"
+--- 当前周类型：三周轮换（0=宝箱周，1=招募周，2=黑市/掉落/换购周）
+---@return "chest"|"recruit"|"market"
 function WAD.GetCurrentWeekType()
-    return GetCurrentWeekNum() % 2 == 0 and "chest" or "recruit"
+    local phase = GetCurrentWeekNum() % 3
+    if phase == 0 then return "chest"
+    elseif phase == 1 then return "recruit"
+    else return "market"
+    end
 end
 
 -- ============================================================================

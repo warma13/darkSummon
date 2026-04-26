@@ -24,16 +24,17 @@ function M.OnHit(tower, target, killed)
     -- 技能1：暗影之针 — 叠加印记（存在塔自身），满层穿刺爆发
     -- ================================================================
     local needle = has(tower, "shadow_needle")
-    if needle and target.alive then
+    local hs = tower.hstate
+    if needle and target.alive and hs then
         -- 叠加 1 层印记到塔自身（刷新持续时间）
-        tower.shadowNeedleStacks = math.min(
-            (tower.shadowNeedleStacks or 0) + 1,
+        hs.shadowNeedleStacks = math.min(
+            hs.shadowNeedleStacks + 1,
             needle.maxStacks or 5
         )
-        tower.shadowNeedleTimer = needle.stackDuration or 4.0
+        hs.shadowNeedleTimer = needle.stackDuration or 4.0
 
         -- 满层触发穿刺爆发（对当前目标释放）
-        if tower.shadowNeedleStacks >= (needle.maxStacks or 5) then
+        if hs.shadowNeedleStacks >= (needle.maxStacks or 5) then
             local HeroSkills = require("Game.HeroSkills")
             local Combat     = require("Game.Combat")
             local Enemy      = require("Game.Enemy")
@@ -48,8 +49,8 @@ function M.OnHit(tower, target, killed)
             Enemy.TakeDamage(target, finalDmg)
 
             -- 消耗全部印记
-            tower.shadowNeedleStacks = 0
-            tower.shadowNeedleTimer = nil
+            hs.shadowNeedleStacks = 0
+            hs.shadowNeedleTimer = nil
 
             -- 飘字
             AddFloatingText({
@@ -70,18 +71,18 @@ function M.OnHit(tower, target, killed)
     -- 技能2：绯瞳锁定 — 攻击获得绯瞳，停止攻击后衰减消失
     -- ================================================================
     local bloodEye = has(tower, "blood_eye")
-    if bloodEye then
+    if bloodEye and hs then
         -- 每次攻击（任意目标）+1层，刷新衰减计时器
-        tower.bloodEyeStacks = math.min(
-            (tower.bloodEyeStacks or 0) + 1,
+        hs.bloodEyeStacks = math.min(
+            hs.bloodEyeStacks + 1,
             bloodEye.maxCritStacks or 10
         )
-        tower.bloodEyeDecayTimer = bloodEye.decayDuration or 4.0
+        hs.bloodEyeDecayTimer = bloodEye.decayDuration or 4.0
 
         -- 更新 bonusCritRate / bonusCritDmg（供 CalcFinalDamage 使用）
-        local stacks = tower.bloodEyeStacks or 0
-        tower.bonusCritRate = stacks * bloodEye.critRatePerHit
-        tower.bonusCritDmg  = stacks > 0 and bloodEye.critDmgBonus or 0
+        local stacks = hs.bloodEyeStacks
+        hs.bonusCritRate = stacks * bloodEye.critRatePerHit
+        hs.bonusCritDmg  = stacks > 0 and bloodEye.critDmgBonus or 0
     end
 end
 
@@ -100,9 +101,10 @@ function M.TriggerActive(tower, skill)
 
     local atk = HeroSkills.GetEffectiveAttack(tower)
     local baseDmg = atk * skill.baseAtkPct
+    local hs = tower.hstate
 
     -- 绯瞳加成：每层绯瞳额外 stackBonusPct × ATK
-    local stacks = tower.bloodEyeStacks or 0
+    local stacks = (hs and hs.bloodEyeStacks) or 0
     if stacks > 0 then
         baseDmg = baseDmg + atk * skill.stackBonusPct * stacks
 
@@ -116,29 +118,29 @@ function M.TriggerActive(tower, skill)
     end
 
     -- 强制暴击：临时拉高 bonusCritRate
-    local savedCritRate = tower.bonusCritRate or 0
-    tower.bonusCritRate = savedCritRate + 10.0
+    local savedCritRate = (hs and hs.bonusCritRate) or 0
+    if hs then hs.bonusCritRate = savedCritRate + 10.0 end
 
     local finalDmg, isCrit = Combat.CalcFinalDamage(tower, target, baseDmg)
     Enemy.TakeDamage(target, finalDmg)
 
     -- 恢复暴击率临时加成
-    tower.bonusCritRate = savedCritRate
+    if hs then hs.bonusCritRate = savedCritRate end
 
     -- 保留一半绯瞳层数（击杀和非击杀均保留）
-    if stacks > 0 then
+    if stacks > 0 and hs then
         local half = math.floor(stacks / 2)
         local bloodEye = has(tower, "blood_eye")
         if half > 0 then
-            tower.bloodEyeStacks = half
-            tower.bloodEyeDecayTimer = bloodEye and (bloodEye.decayDuration or 4.0) or 4.0
-            tower.bonusCritRate = half * (bloodEye and bloodEye.critRatePerHit or 0)
-            tower.bonusCritDmg  = bloodEye and bloodEye.critDmgBonus or 0
+            hs.bloodEyeStacks = half
+            hs.bloodEyeDecayTimer = bloodEye and (bloodEye.decayDuration or 4.0) or 4.0
+            hs.bonusCritRate = half * (bloodEye and bloodEye.critRatePerHit or 0)
+            hs.bonusCritDmg  = bloodEye and bloodEye.critDmgBonus or 0
         else
-            tower.bloodEyeStacks = 0
-            tower.bloodEyeDecayTimer = nil
-            tower.bonusCritRate = 0
-            tower.bonusCritDmg = 0
+            hs.bloodEyeStacks = 0
+            hs.bloodEyeDecayTimer = nil
+            hs.bonusCritRate = 0
+            hs.bonusCritDmg = 0
         end
     end
 
@@ -188,36 +190,37 @@ end
 ---@param gridOffsetY number
 function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
     for _, tower in ipairs(towers) do
-        if tower.typeDef and tower.typeDef.id == "crimson_night" then
+        if tower.typeDef and tower.typeDef.id == "crimson_night" and tower.hstate then
+            local hs = tower.hstate
             -- 衰减暗影印记计时器（逐层衰减，每1.5秒减1层）
-            if tower.shadowNeedleTimer and tower.shadowNeedleTimer > 0 then
-                tower.shadowNeedleTimer = tower.shadowNeedleTimer - dt
-                if tower.shadowNeedleTimer <= 0 then
-                    tower.shadowNeedleStacks = (tower.shadowNeedleStacks or 0) - 1
-                    if tower.shadowNeedleStacks <= 0 then
-                        tower.shadowNeedleStacks = 0
-                        tower.shadowNeedleTimer = nil
+            if hs.shadowNeedleTimer and hs.shadowNeedleTimer > 0 then
+                hs.shadowNeedleTimer = hs.shadowNeedleTimer - dt
+                if hs.shadowNeedleTimer <= 0 then
+                    hs.shadowNeedleStacks = hs.shadowNeedleStacks - 1
+                    if hs.shadowNeedleStacks <= 0 then
+                        hs.shadowNeedleStacks = 0
+                        hs.shadowNeedleTimer = nil
                     else
-                        tower.shadowNeedleTimer = 1.5  -- 下一层1.5秒后衰减
+                        hs.shadowNeedleTimer = 1.5  -- 下一层1.5秒后衰减
                     end
                 end
             end
 
             -- 衰减绯瞳计时器（逐层衰减，每1秒减1层）
-            if tower.bloodEyeDecayTimer and tower.bloodEyeDecayTimer > 0 then
-                tower.bloodEyeDecayTimer = tower.bloodEyeDecayTimer - dt
-                if tower.bloodEyeDecayTimer <= 0 then
-                    tower.bloodEyeStacks = (tower.bloodEyeStacks or 0) - 1
-                    if tower.bloodEyeStacks <= 0 then
-                        tower.bloodEyeStacks = 0
-                        tower.bloodEyeDecayTimer = nil
-                        tower.bonusCritRate = 0
-                        tower.bonusCritDmg = 0
+            if hs.bloodEyeDecayTimer and hs.bloodEyeDecayTimer > 0 then
+                hs.bloodEyeDecayTimer = hs.bloodEyeDecayTimer - dt
+                if hs.bloodEyeDecayTimer <= 0 then
+                    hs.bloodEyeStacks = hs.bloodEyeStacks - 1
+                    if hs.bloodEyeStacks <= 0 then
+                        hs.bloodEyeStacks = 0
+                        hs.bloodEyeDecayTimer = nil
+                        hs.bonusCritRate = 0
+                        hs.bonusCritDmg = 0
                     else
-                        tower.bloodEyeDecayTimer = 1.0  -- 下一层1秒后衰减
+                        hs.bloodEyeDecayTimer = 1.0  -- 下一层1秒后衰减
                         local bloodEye = has(tower, "blood_eye")
-                        tower.bonusCritRate = tower.bloodEyeStacks * (bloodEye and bloodEye.critRatePerHit or 0)
-                        tower.bonusCritDmg  = bloodEye and bloodEye.critDmgBonus or 0
+                        hs.bonusCritRate = hs.bloodEyeStacks * (bloodEye and bloodEye.critRatePerHit or 0)
+                        hs.bonusCritDmg  = bloodEye and bloodEye.critDmgBonus or 0
                     end
                 end
             end

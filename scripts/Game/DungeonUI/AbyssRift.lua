@@ -553,6 +553,29 @@ function AbyssRift.StartBattle(UI, S, ctx, difficultyId)
         end
     end
 
+    config.onExit = function(result, continueExit)
+        local clearedWaves = math.max(0, (State.currentWave or 1) - 1)
+        for w = 1, clearedWaves do
+            session.currentWave = w
+            AbyssRiftData.CompleteWave(session)
+        end
+        local endResult = AbyssRiftData.EndSession(session)
+        if clearedWaves > 0 then
+            local LeaderboardData = require("Game.LeaderboardData")
+            LeaderboardData.UploadAbyss(difficultyId, clearedWaves)
+        end
+        local root = GameUI.GetUIRoot()
+        if root then
+            local title = label .. " 退出 (第" .. clearedWaves .. "/" .. totalWaves .. "波)"
+            RC.ShowFromDefs(UI, root, endResult.rewardDefs, title, function()
+                ctx.SetView("abyss_rift_detail")
+                continueExit()
+            end)
+        else
+            continueExit()
+        end
+    end
+
     GameUI.EnterDungeonBattle(config)
 end
 

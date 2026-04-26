@@ -23,11 +23,12 @@ function M.ModifyDamage(tower, target, damage)
         end
     end
     -- 灵魂收割叠层消耗
-    if tower.soulReapStacks and tower.soulReapStacks > 0 then
+    local hs = tower.hstate
+    if hs and hs.soulReapStacks > 0 then
         local reap = has(tower, "soul_reap")
         if reap then
-            damage = damage * (1 + tower.soulReapStacks * reap.killDmgBonus)
-            tower.soulReapStacks = 0
+            damage = damage * (1 + hs.soulReapStacks * reap.killDmgBonus)
+            hs.soulReapStacks = 0
         end
     end
     return damage
@@ -40,9 +41,9 @@ end
 function M.OnHit(tower, target, killed)
     if not killed then return end
     local reap = has(tower, "soul_reap")
-    if reap then
-        tower.soulReapStacks = math.min(
-            (tower.soulReapStacks or 0) + 1,
+    if reap and tower.hstate then
+        tower.hstate.soulReapStacks = math.min(
+            tower.hstate.soulReapStacks + 1,
             reap.maxStacks or 3
         )
     end

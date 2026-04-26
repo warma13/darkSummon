@@ -183,8 +183,9 @@ local function CalcTrueDamage(baseDmg, tower, target)
             isCrit = true
             local T = GetTower()
             local critDmg = T.GetEffectiveCritDmg(tower)
-            if tower.bonusCritDmg and tower.bonusCritDmg > 0 then
-                critDmg = critDmg + tower.bonusCritDmg
+            local hs = tower.hstate
+            if hs and hs.bonusCritDmg and hs.bonusCritDmg > 0 then
+                critDmg = critDmg + hs.bonusCritDmg
             end
             mult = mult * (Config.BASE_CRIT_MULT + critDmg)
         end

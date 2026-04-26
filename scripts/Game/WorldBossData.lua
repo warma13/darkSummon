@@ -10,6 +10,7 @@ local SaveRegistry = require("Game.SaveRegistry")
 local InventoryData = require("Game.InventoryData")
 local TodayStr = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
+local WaveGen = require("Game.WaveGenerator")
 
 local WB = {}
 
@@ -331,55 +332,29 @@ function WB.GenerateWaveEnemies(wave)
     if themeIdx > Config.THEME_COUNT then themeIdx = Config.THEME_COUNT end
     local theme = Config.THEMES[themeIdx]
 
-    -- 可用角色池（按全局波次解锁）
-    local globalWave = stageNum * Config.WAVES_PER_STAGE
-    local availRoles = {}
-    for _, roleId in ipairs(Config.ROLE_IDS) do
-        local role = Config.ENEMY_ROLES[roleId]
-        if role then
-            local unlockWave = Config.ROLE_UNLOCK_WAVE[role.unlockOrder] or 1
-            if globalWave >= unlockWave then
-                availRoles[#availRoles + 1] = roleId
-            end
-        end
-    end
-    if #availRoles == 0 then
-        availRoles = { "minion", "infantry" }
-    end
+    -- 可用角色池
+    local availRoles = WaveGen.BuildRolePool(stageNum)
 
-    -- 词缀精英数量
+    -- 基础敌人
+    local count = WB.CONFIG.enemiesPerWave
+    local enemies = WaveGen.GenerateBatch(stageNum, count, hpScale, spdScale, nil, availRoles)
+
+    -- 词缀精英（世界 Boss 特有：按 tier 分配词缀）
     local t1Count, t2Count, t3Count = GetWaveAffixCounts(wave)
     local totalElites = t1Count + t2Count + t3Count
-
-    local enemies = {}
-    local count = WB.CONFIG.enemiesPerWave
-
-    for i = 1, count do
-        local roleId = availRoles[((i - 1) % #availRoles) + 1]
-        local def = Config.BuildEnemyDef(stageNum, roleId)
-        if def then
-            def.baseHP = def.baseHP * hpScale
-            def.speed = def.speed * spdScale
-            def.isDungeonEnemy = true
-
-            -- 词缀精英
-            if i <= totalElites then
-                def.isElite = true
-                local tier
-                if i <= t3Count then
-                    tier = 3
-                elseif i <= t3Count + t2Count then
-                    tier = 2
-                else
-                    tier = 1
-                end
-                local affix = GetRandomAffix(tier)
-                if affix then
-                    def.eliteAffixes = { affix }
-                end
-            end
-
-            enemies[#enemies + 1] = def
+    for i = 1, math.min(totalElites, #enemies) do
+        enemies[i].isElite = true
+        local tier
+        if i <= t3Count then
+            tier = 3
+        elseif i <= t3Count + t2Count then
+            tier = 2
+        else
+            tier = 1
+        end
+        local affix = GetRandomAffix(tier)
+        if affix then
+            enemies[i].eliteAffixes = { affix }
         end
     end
 

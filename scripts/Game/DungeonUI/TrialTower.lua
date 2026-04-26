@@ -15,6 +15,19 @@ local DoChallenge
 local BuildTrialConfig
 
 -- ============================================================================
+-- 连续挑战状态
+-- ============================================================================
+local _autoContinue = false          -- 连续挑战开关
+local _countdown    = nil            -- 当前倒计时（nil=不在倒计时）
+local COUNTDOWN_SECONDS = 3          -- 倒计时秒数
+local _cdFloor      = nil            -- 倒计时目标层
+local _cdUI         = nil            -- 倒计时缓存的 UI 引用
+local _cdS          = nil
+local _cdCtx        = nil
+local _cdDefs       = nil            -- 倒计时缓存的奖励 defs
+local _cdLabel      = nil            -- 倒计时缓存的关卡名
+
+-- ============================================================================
 -- 试练塔详情页
 -- ============================================================================
 
@@ -402,10 +415,40 @@ function TrialTower._BuildChallengeButton(UI, S, ctx, currentFloor)
         },
     }
 
+    -- 连续挑战开关行
+    local toggleRow = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        justifyContent = "flex-end",
+        paddingRight = 16,
+        paddingTop = 4,
+        gap = 6,
+        children = {
+            UI.Label {
+                text = "连续挑战",
+                fontSize = 12,
+                fontColor = S.dim,
+                pointerEvents = "none",
+            },
+            UI.Toggle {
+                value = _autoContinue,
+                trackWidth = 38,
+                trackHeight = 20,
+                thumbSize = 16,
+                onChange = function(self, v)
+                    _autoContinue = v
+                    print("[TrialTower] autoContinue = " .. tostring(v))
+                end,
+            },
+        },
+    }
+
     return UI.Panel {
         width = "100%",
         flexShrink = 0,
         children = {
+            toggleRow,
             buttonRow,
         },
     }
@@ -422,6 +465,9 @@ end
 ---@param floor number  当前全局层数
 ---@return table config  BattleManager 所需的配置
 BuildTrialConfig = function(UI, S, ctx, floor)
+    local BM = require("Game.BattleManager")
+    local GameUI = require("Game.GameUI")
+    local RewardDisplay = require("Game.RewardDisplay")
     local config = TrialTowerData.BuildBattleConfig(floor)
     local label  = config.label
 
@@ -429,22 +475,101 @@ BuildTrialConfig = function(UI, S, ctx, floor)
         local rewards = TrialTowerData.ClearFloor(floor)
         local defs = rewards and rewards.rewardDefs or {}
 
-        if #defs > 0 then
-            local root = require("Game.GameUI").GetUIRoot()
-            if root then
-                RC.ShowFromDefs(UI, root, defs, label .. " 通关", function()
-                    require("Game.GameUI").ExitDungeonBattle()
-                end)
-                return
+        local root = GameUI.GetUIRoot()
+        if not root or #defs == 0 then
+            GameUI.ExitDungeonBattle()
+            return
+        end
+
+        -- 检查是否可以继续下一层（有券）
+        local nextFloor = floor + 1
+        local canContinue = TrialTowerData.GetTickets() > 0
+
+        if not canContinue then
+            -- 无券，正常退出
+            RC.ShowFromDefs(UI, root, defs, label .. " 通关", function()
+                GameUI.ExitDungeonBattle()
+            end)
+            return
+        end
+
+        -- 有券：根据连续挑战开关决定行为
+        local nextTower = TrialTowerData.GetTowerNum(nextFloor)
+        local nextFloorInTower = TrialTowerData.GetFloorInTower(nextFloor)
+        local nextLabel = "继续 " .. nextTower .. "-" .. nextFloorInTower
+        local ticketsLeft = TrialTowerData.GetTickets()
+
+        -- 聚合同类奖励后构建展示列表
+        local aggMap, aggOrder = {}, {}
+        for _, d in ipairs(defs) do
+            local key = (d.type or "") .. ":" .. (d.id or "")
+            if aggMap[key] then
+                aggMap[key].amount = (aggMap[key].amount or 1) + (d.amount or 1)
+            else
+                local m = { type = d.type, id = d.id, amount = d.amount or 1 }
+                aggMap[key] = m
+                aggOrder[#aggOrder + 1] = m
             end
         end
-        require("Game.GameUI").ExitDungeonBattle()
+
+        if _autoContinue then
+            -- 连续模式：启动倒计时覆盖层
+            _cdFloor = nextFloor
+            _cdUI    = UI
+            _cdS     = S
+            _cdCtx   = ctx
+            _cdDefs  = aggOrder
+            _cdLabel = label
+            TrialTower._StartCountdown(UI, root, aggOrder, label, ticketsLeft, nextLabel)
+            return
+        end
+
+        -- 手动模式：双按钮
+        local rewardList = RC.BuildList(aggOrder)
+        RewardDisplay.Show(UI, root, {
+            title   = label .. " 通关",
+            rewards = rewardList,
+            hint    = "剩余试练券: " .. ticketsLeft,
+            buttons = {
+                {
+                    text = "返回",
+                    variant = "outline",
+                    onClick = function()
+                        RewardDisplay.Hide(root)
+                        GameUI.ExitDungeonBattle()
+                    end,
+                },
+                {
+                    text = nextLabel,
+                    variant = "primary",
+                    onClick = function()
+                        RewardDisplay.Hide(root)
+                        if not TrialTowerData.SpendTicket() then
+                            Toast.Show("试练券不足", { 255, 100, 100 })
+                            GameUI.ExitDungeonBattle()
+                            return
+                        end
+                        -- 直接启动下一层，不退出副本
+                        local nextConfig = BuildTrialConfig(UI, S, ctx, nextFloor)
+                        BM.Start(nextConfig)
+                        if GameUI.UpdateHUD then GameUI.UpdateHUD() end
+                        print("[TrialTower] Continue to next floor: " .. nextFloor)
+                    end,
+                },
+            },
+        })
     end
 
     config.onLose = function(result)
         local msg = label .. " 挑战失败 (第" .. result.wave .. "/" .. TrialTowerData.WAVE_COUNT .. "波)"
         Toast.Show(msg, { 255, 100, 100 })
-        require("Game.GameUI").ExitDungeonBattle()
+        GameUI.ExitDungeonBattle()
+    end
+
+    config.onExit = function(result, continueExit)
+        local msg = label .. " 提前退出 (第" .. (result.wave or 1) .. "/" .. TrialTowerData.WAVE_COUNT .. "波)"
+        Toast.Show(msg, { 255, 200, 100 })
+        continueExit()
     end
 
     return config
@@ -467,6 +592,154 @@ function TrialTower.OnChallenge(UI, S, ctx)
         return
     end
     DoChallenge(UI, S, ctx, TrialTowerData.GetCurrentFloor())
+end
+
+-- ============================================================================
+-- 倒计时覆盖层
+-- ============================================================================
+
+--- 启动倒计时覆盖层
+function TrialTower._StartCountdown(UI, root, aggDefs, label, ticketsLeft, nextLabel)
+    _countdown = COUNTDOWN_SECONDS
+
+    -- 构建奖励摘要文本
+    local rewardTexts = {}
+    for _, d in ipairs(aggDefs) do
+        local name = d.id or d.type or "?"
+        local cDef = Config.CURRENCY[d.id]
+        if cDef and cDef.name then name = cDef.name end
+        rewardTexts[#rewardTexts + 1] = name .. "×" .. (d.amount or 1)
+    end
+    local rewardSummary = table.concat(rewardTexts, "  ")
+
+    -- 移除旧覆盖层（如果有）
+    local old = root:FindById("trial_cd_overlay")
+    if old then old:Remove() end
+
+    local overlay = UI.Panel {
+        id = "trial_cd_overlay",
+        position = "absolute",
+        width = "100%",
+        height = "100%",
+        backgroundColor = { 0, 0, 0, 180 },
+        justifyContent = "center",
+        alignItems = "center",
+        children = {
+            UI.Panel {
+                width = 280,
+                backgroundColor = { 30, 30, 40, 240 },
+                borderRadius = 12,
+                borderWidth = 1,
+                borderColor = { 100, 80, 200, 120 },
+                paddingTop = 20, paddingBottom = 16,
+                paddingLeft = 20, paddingRight = 20,
+                alignItems = "center",
+                gap = 10,
+                children = {
+                    UI.Label {
+                        text = label .. " 通关",
+                        fontSize = 16,
+                        fontWeight = "bold",
+                        fontColor = { 255, 215, 0 },
+                        pointerEvents = "none",
+                    },
+                    UI.Label {
+                        text = rewardSummary,
+                        fontSize = 12,
+                        fontColor = { 200, 200, 200 },
+                        textAlign = "center",
+                        pointerEvents = "none",
+                    },
+                    UI.Label {
+                        id = "trial_cd_num",
+                        text = tostring(math.ceil(_countdown)),
+                        fontSize = 48,
+                        fontWeight = "bold",
+                        fontColor = { 120, 200, 255 },
+                        pointerEvents = "none",
+                    },
+                    UI.Label {
+                        text = "秒后继续下一层",
+                        fontSize = 13,
+                        fontColor = { 160, 160, 180 },
+                        pointerEvents = "none",
+                    },
+                    UI.Label {
+                        text = "剩余试练券: " .. ticketsLeft,
+                        fontSize = 11,
+                        fontColor = { 140, 140, 160 },
+                        pointerEvents = "none",
+                    },
+                    UI.Button {
+                        text = "取消",
+                        width = 120,
+                        height = 36,
+                        borderRadius = 8,
+                        variant = "outline",
+                        fontSize = 13,
+                        onClick = function()
+                            TrialTower._CancelCountdown()
+                        end,
+                    },
+                },
+            },
+        },
+    }
+    root:AddChild(overlay)
+    print("[TrialTower] Countdown started: " .. COUNTDOWN_SECONDS .. "s to floor " .. _cdFloor)
+end
+
+--- 取消倒计时 → 退出副本
+function TrialTower._CancelCountdown()
+    _countdown = nil
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if root then
+        local ov = root:FindById("trial_cd_overlay")
+        if ov then ov:Remove() end
+    end
+    GameUI.ExitDungeonBattle()
+    print("[TrialTower] Countdown cancelled, exiting dungeon")
+end
+
+--- 每帧更新倒计时（由 GameUI.Update 调用）
+function TrialTower.UpdateCountdown(dt)
+    if not _countdown then return end
+
+    _countdown = _countdown - dt
+
+    -- 更新显示数字
+    local GameUI = require("Game.GameUI")
+    local root = GameUI.GetUIRoot()
+    if root then
+        local numLabel = root:FindById("trial_cd_num")
+        if numLabel then
+            numLabel:SetText(tostring(math.ceil(math.max(0, _countdown))))
+        end
+    end
+
+    -- 倒计时结束
+    if _countdown <= 0 then
+        _countdown = nil
+        -- 移除覆盖层
+        if root then
+            local ov = root:FindById("trial_cd_overlay")
+            if ov then ov:Remove() end
+        end
+
+        -- 花券 + 启动下一层
+        if not TrialTowerData.SpendTicket() then
+            Toast.Show("试练券不足", { 255, 100, 100 })
+            GameUI.ExitDungeonBattle()
+            return
+        end
+
+        local BM = require("Game.BattleManager")
+        local nextConfig = BuildTrialConfig(_cdUI, _cdS, _cdCtx, _cdFloor)
+        BM.Start(nextConfig)
+        if GameUI.UpdateHUD then GameUI.UpdateHUD() end
+        print("[TrialTower] Auto-continue to floor: " .. _cdFloor)
+    end
 end
 
 return TrialTower

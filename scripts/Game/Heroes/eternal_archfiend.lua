@@ -16,10 +16,11 @@ end
 ---@param damage number
 ---@return number
 function M.ModifyDamage(tower, target, damage)
-    if tower.killAtkStacks and tower.killAtkStacks > 0 then
+    local hs = tower.hstate
+    if hs and hs.killAtkStacks > 0 then
         local eternal = has(tower, "eternal_power")
         if eternal then
-            damage = damage * (1 + tower.killAtkStacks * eternal.killAtkBonus)
+            damage = damage * (1 + hs.killAtkStacks * eternal.killAtkBonus)
         end
     end
     return damage
@@ -33,9 +34,9 @@ function M.OnHit(tower, target, killed)
     -- 永恒之力：击杀叠层（每波重置）
     if killed then
         local eternal = has(tower, "eternal_power")
-        if eternal then
-            tower.killAtkStacks = math.min(
-                (tower.killAtkStacks or 0) + 1,
+        if eternal and tower.hstate then
+            tower.hstate.killAtkStacks = math.min(
+                tower.hstate.killAtkStacks + 1,
                 math.floor(eternal.maxBonus / eternal.killAtkBonus)
             )
         end

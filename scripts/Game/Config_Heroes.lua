@@ -181,6 +181,12 @@ Config.HERO_BASE_STATS = {
         critRate = 0, critRateGrowth = 0,
         critDmg  = 0, critDmgGrowth  = 0,
     },
+    ember_wraith = {
+        atk = 3500, spd = 10,
+        armorPen = 0, armorPenGrowth = 0,
+        critRate = 0, critRateGrowth = 0,
+        critDmg  = 0, critDmgGrowth  = 0,
+    },
     -- 限定 UR
     glacial_sovereign = {
         atk = 3500, spd = 10,
@@ -282,6 +288,7 @@ Config.HERO_ELEMENT = {
     fallen_archangel = "lightning",
     void_dragon     = "shadow",
     crimson_night    = "shadow",
+    ember_wraith     = "fire",
     -- 限定 UR
     glacial_sovereign = "ice",
     -- LR 级
@@ -438,6 +445,9 @@ Config.CURRENCY = {
     devour_stone_bag     = { name = "噬魂石福袋",   icon = "bag",     color = { 60, 160, 80 },   image = "image/icon_devour_stone_bag.png",    usage = "获取噬魂石", category = "bag" },
     forge_iron_bag       = { name = "锻魂铁福袋",   icon = "bag",     color = { 130, 160, 200 }, image = "image/icon_forge_iron_bag.png",      usage = "获取锻魂铁", category = "bag" },
     recruit_ticket_select_box = { name = "招募券自选包", icon = "ticket", color = { 200, 150, 255 }, image = "image/icon_recruit_ticket_select_box.png", usage = "选择招募池", category = "bag" },
+    -- 遗物 & 符文箱
+    random_relic_shard_box  = { name = "随机遗物碎片箱", icon = "box", color = { 255, 215, 100 }, image = "image/icon_random_relic_shard_box_20260426065816.png",  usage = "随机遗物碎片", category = "box" },
+    random_mythic_rune_box  = { name = "随机神话符文箱", icon = "box", color = { 220, 40, 40 },   image = "image/icon_random_mythic_rune_box_20260426065826.png",  usage = "随机神话符文", category = "box" },
 }
 
 -- 战斗内暗魂掉落（不可被技能修改）
@@ -515,7 +525,7 @@ Config.RECRUIT_POOL = {
     R   = { "skeleton_archer", "demon_warrior", "ghost_assassin", "stone_golem" },
     SR  = { "necromancer", "inferno_flame", "armor_breaker", "frost_witch", "war_drummer" },
     SSR = { "shadow_mage", "abyss_hunter", "plague_doctor", "storm_lord" },
-    UR  = { "fallen_archangel", "void_dragon", "crimson_night" },
+    UR  = { "fallen_archangel", "void_dragon", "crimson_night", "ember_wraith" },
     LR  = { "fate_weaver", "eternal_archfiend" },
 }
 

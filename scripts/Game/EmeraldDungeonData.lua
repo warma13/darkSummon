@@ -12,6 +12,7 @@ local Toast    = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
 local TodayKey = require("Game.DateUtil").TodayKey
 local DungeonScaling = require("Game.DungeonScaling")
+local WaveGen = require("Game.WaveGenerator")
 
 local Emerald = {}
 
@@ -544,48 +545,14 @@ function Emerald.GenerateWaveEnemies(wave, difficultyId)
     local themeIdx = (wave % 2 == 1) and 3 or 5
     if themeIdx > Config.THEME_COUNT then themeIdx = Config.THEME_COUNT end
 
-    -- 可用角色池
-    local globalWave = stageNum * Config.WAVES_PER_STAGE
-    local availRoles = {}
-    for _, roleId in ipairs(Config.ROLE_IDS) do
-        local role = Config.ENEMY_ROLES[roleId]
-        if role then
-            local unlockWave = Config.ROLE_UNLOCK_WAVE[role.unlockOrder] or 1
-            if globalWave >= unlockWave then
-                availRoles[#availRoles + 1] = roleId
-            end
-        end
-    end
-    if #availRoles == 0 then
-        availRoles = { "minion", "infantry" }
-    end
-
-    local enemies = {}
-
     -- 生成普通怪
-    for i = 1, diff.enemiesPerWave do
-        local roleId = availRoles[((i - 1) % #availRoles) + 1]
-        local def = Config.BuildEnemyDef(stageNum, roleId)
-        if def then
-            def.baseHP = def.baseHP * hpScale
-            def.speed = def.speed * spdScale
-            def.isDungeonEnemy = true
-            def.isEmeraldDungeon = true
-            def.themeIdx = themeIdx
-            enemies[#enemies + 1] = def
-        end
-    end
+    local tags = { isEmeraldDungeon = true, themeIdx = themeIdx }
+    local enemies = WaveGen.GenerateBatch(stageNum, diff.enemiesPerWave, hpScale, spdScale, tags)
 
-    -- 精英波：强化最后2-3个怪
+    -- 精英波：强化尾部 2-3 个怪
     if waveType == "elite" then
         local eliteCount = diff.tier >= 4 and 3 or 2
-        for i = math.max(1, #enemies - eliteCount + 1), #enemies do
-            if enemies[i] then
-                enemies[i].baseHP = enemies[i].baseHP * 2.5
-                enemies[i].speed = enemies[i].speed * 0.8
-                enemies[i].isElite = true
-            end
-        end
+        WaveGen.MarkElitesTail(enemies, eliteCount, 2.5, 0.8)
     end
 
     return enemies

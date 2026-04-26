@@ -551,7 +551,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
         GameUI.ExitDungeonBattle()
     end
 
-    config.onExit = function(result)
+    config.onExit = function(result, continueExit)
         WorldBossSkills.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
@@ -562,21 +562,16 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
         if #defs > 0 then
             local root = GameUI.GetUIRoot()
             if root then
-                RC.ShowFromDefs(UI, root, defs, label .. " 退出\n伤害: " .. WB.FormatDamage(totalDamage), function()
-                    GameUI.ExitDungeonBattle()
-                end)
+                RC.ShowFromDefs(UI, root, defs, label .. " 退出\n伤害: " .. WB.FormatDamage(totalDamage), continueExit)
                 return
             end
         else
             Toast.Show("伤害: " .. WB.FormatDamage(totalDamage), S.dim)
         end
-        GameUI.ExitDungeonBattle()
+        continueExit()
     end
 
     config.onLose = function(result)
-        local BM_ = require("Game.BattleManager")
-        if BM_.config then BM_.config.onExit = nil end
-
         WorldBossSkills.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
