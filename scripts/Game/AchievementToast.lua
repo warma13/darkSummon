@@ -35,6 +35,11 @@ local dismissTimer = 0          -- 距最后一条加入的时间
 local phase = "idle"            -- "idle" | "showing" | "slide_out"
 local slideOutOffset = 0
 
+--- 是否处于空闲（无内容需要渲染）
+function AchievementToast.IsIdle()
+    return phase == "idle"
+end
+
 -- ── 工具 ──────────────────────────────────────
 local function clamp01(v) return math.max(0, math.min(1, v)) end
 local function lerp(a, b, t) return a + (b - a) * t end

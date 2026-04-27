@@ -858,9 +858,6 @@ function Emerald.CanSweep(difficultyId)
     if not Emerald.IsDifficultyUnlocked(difficultyId) then
         return false, "未解锁"
     end
-    if not Emerald.HasDailyChallenged(difficultyId) then
-        return false, "今日需先挑战一次"
-    end
     local bestWaves = Emerald.GetBestWaves(difficultyId)
     if bestWaves <= 0 then
         return false, "需要先挑战一次"

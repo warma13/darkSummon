@@ -45,6 +45,9 @@ function GameLoop.HandleUpdate(eventType, eventData)
 
     local rawDt = eventData["TimeStep"]:GetFloat()
 
+    -- 将实际帧间隔传给 Renderer（替代硬编码 1/60）
+    Renderer.frameDt = rawDt
+
     -- SlotSave 加载超时检测（延迟 require 避免循环依赖）
     local Bootstrap = require("Game.Bootstrap")
     Bootstrap.Tick(rawDt)
@@ -172,6 +175,9 @@ function GameLoop.HandleToastRender(eventType, eventData)
     if not toastVg then return end
     if MiniGameUI.isActive() then return end
     if IdleScreen.IsActive() then return end
+
+    -- 无内容时跳过整个渲染通道，减少 GPU 提交
+    if Toast.IsEmpty() and AchievementToast.IsIdle() then return end
 
     local dpr = graphics:GetDPR()
     local logW = graphics:GetWidth() / dpr

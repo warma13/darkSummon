@@ -735,9 +735,9 @@ Config.THEME_ELEMENT_RESIST = {
 -- ============================================================================
 -- 关卡 & 波次参数
 -- ============================================================================
-Config.WAVES_PER_STAGE = 20
-Config.BOSS_WAVE = 20
-Config.ELITE_INTERVAL = 5
+Config.WAVES_PER_STAGE = 10
+Config.BOSS_WAVE = 10
+Config.ELITE_INTERVAL = 3
 
 -- HP 缩放表: heroParamsAtStage 精确校准，killTime = 2+8√progress (2s → 10s)
 -- 基准: SSR shadow_mage, minion(baseHP=4500), defFactor≈1.25

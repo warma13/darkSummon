@@ -188,7 +188,6 @@ function EmeraldDungeon._BuildDungeonView(ctx)
         -- 构建按钮（挑战 + 扫荡）
         local actionBtn
         local canSweep, sweepReason = EmeraldData.CanSweep(diff.id)
-        local hasDailyChallenged = EmeraldData.HasDailyChallenged(diff.id)
         local sweepBestWaves = EmeraldData.GetBestWaves(diff.id)
 
         if not isActive then
@@ -265,7 +264,7 @@ function EmeraldDungeon._BuildDungeonView(ctx)
                 }
             else
                 -- 不可扫荡 → 灰色，点击提示原因
-                local tipText = (sweepBestWaves <= 0) and "需先通关" or (not hasDailyChallenged and "今日未挑战" or sweepReason)
+                local tipText = (sweepBestWaves <= 0) and "需先通关" or sweepReason
                 sweepBtn = UI.Panel {
                     paddingLeft = 8, paddingRight = 8,
                     paddingTop = 6, paddingBottom = 6,
@@ -274,8 +273,6 @@ function EmeraldDungeon._BuildDungeonView(ctx)
                     onClick = function()
                         if sweepBestWaves <= 0 then
                             Toast.Show("需要先挑战一次才能扫荡", { 255, 200, 80 })
-                        elseif not hasDailyChallenged then
-                            Toast.Show("今日需先挑战一次该难度才能扫荡", { 255, 200, 80 })
                         else
                             Toast.Show(sweepReason, { 255, 200, 80 })
                         end

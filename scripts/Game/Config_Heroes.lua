@@ -50,7 +50,7 @@ Config.BOSS_BALANCE = {
 -- ============================================================================
 -- 等级系统
 -- ============================================================================
-Config.MAX_LEVEL = 6000
+Config.MAX_LEVEL = 99999
 
 -- ============================================================================
 -- 英雄四维基础属性
@@ -229,6 +229,7 @@ Config.RARITY_GROWTH_PCT = {
 }
 
 Config.LEVEL_RANGE_BONUS = 0.02
+Config.LEVEL_RANGE_BONUS_CAP = 40      -- 等级射程加成上限（Lv.2001封顶）
 
 -- ============================================================================
 -- 战斗公式常量
@@ -300,8 +301,9 @@ Config.HERO_ELEMENT = {
 
 Config.LEVEL_COST_CAP = 8078000
 
--- 进阶系统: 20阶
+-- 进阶系统: 手工定义前20阶 + 程序化生成后续阶（每300级一次里程碑）
 Config.ADVANCE_GATES = {
+    -- 前20阶（手工定义）
     { level = 100,  stones = 10,      bonus = 0.10 },
     { level = 200,  stones = 20,      bonus = 0.10 },
     { level = 300,  stones = 40,      bonus = 0.10 },
@@ -323,6 +325,19 @@ Config.ADVANCE_GATES = {
     { level = 5200, stones = 220000,  bonus = 0.10 },
     { level = 5500, stones = 400000,  bonus = 0.10 },
 }
+-- 程序化生成 5500 之后的里程碑，每 300 级一次，消耗 ×1.45 递增
+do
+    local lastStones = 400000
+    local growthRate = 1.45
+    local step = 300
+    local startLevel = 5500 + step
+    for lv = startLevel, Config.MAX_LEVEL, step do
+        lastStones = math.floor(lastStones * growthRate)
+        Config.ADVANCE_GATES[#Config.ADVANCE_GATES + 1] = {
+            level = lv, stones = lastStones, bonus = 0.10,
+        }
+    end
+end
 
 -- ============================================================================
 -- 主角英雄定义
@@ -449,13 +464,16 @@ Config.CURRENCY = {
     -- 遗物 & 符文箱
     random_relic_shard_box  = { name = "随机遗物碎片箱", icon = "box", color = { 255, 215, 100 }, image = "image/icon_random_relic_shard_box_20260426065816.png",  usage = "随机遗物碎片", category = "box" },
     random_mythic_rune_box  = { name = "随机神话符文箱", icon = "box", color = { 220, 40, 40 },   image = "image/icon_random_mythic_rune_box_20260426065826.png",  usage = "随机神话符文", category = "box" },
+    -- 称号
+    hero_designer    = { name = "英雄设计师",     icon = "title", color = { 180, 130, 255 }, image = "image/title_hero_designer_20260427192548.png",    category = "title" },
+    hero_designer_ex = { name = "优秀英雄设计师", icon = "title", color = { 255, 200, 60 },  image = "image/title_hero_designer_ex_20260427192549.png", category = "title" },
 }
 
 -- 战斗内暗魂掉落（不可被技能修改）
 Config.DARK_SOUL_DROP = {
-    normal = 1,
-    elite  = 3,
-    boss   = 10,
+    normal = 2,
+    elite  = 6,
+    boss   = 20,
 }
 
 -- 击杀掉落与挂机收益统一线性体系:

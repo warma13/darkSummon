@@ -233,7 +233,7 @@ function Renderer.DrawEnemies(vg)
             end
 
             -- Debuff 粒子发射（每帧为有 debuff 的敌人生成粒子）
-            EmitDebuffParticles(e, 1.0 / 60.0)
+            EmitDebuffParticles(e, Renderer.frameDt)
 
             -- 绘制该敌人的 debuff 粒子
             DrawEnemyDebuffParticles(vg, e.id)
@@ -1420,7 +1420,7 @@ function Renderer.DrawRelicChargeBar(vg, ox, oy)
 
     -- 满充能发光效果
     if charge.ready then
-        _relicChargeGlowTime = _relicChargeGlowTime + 1.0 / 60.0
+        _relicChargeGlowTime = _relicChargeGlowTime + Renderer.frameDt
         local pulse = 0.5 + 0.5 * math.sin(_relicChargeGlowTime * 4.0)
         local glowAlpha = math.floor(80 + 120 * pulse)
 

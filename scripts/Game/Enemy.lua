@@ -237,7 +237,7 @@ local function ApplyAffixes(enemy, affixes)
             enemy.speed = enemy.speed + bonus
             enemy.baseSpeed = enemy.baseSpeed + bonus
         end
-        if affix.shieldHP then
+        if affix.shieldHP and enemy.maxHP ~= math.huge then
             enemy.shield = enemy.maxHP * affix.shieldHP
             enemy.maxShield = enemy.shield
         end
@@ -1332,7 +1332,7 @@ end
 function Enemy.Update(dt, gridOffsetX, gridOffsetY)
     -- dt 防护：NaN 或异常大值（如设备休眠恢复）会破坏计时器算术
     if dt ~= dt or dt > 1.0 then
-        dt = 1.0 / 60.0  -- 回退到 60fps 帧时间
+        dt = 1.0 / 30.0  -- 回退到 30fps 帧时间
     end
 
     local pathLen = Grid.GetPathLength(gridOffsetX, gridOffsetY)

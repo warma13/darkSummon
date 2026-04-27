@@ -662,6 +662,25 @@ function HeroData._ValidateCore()
         end
         HeroData.stats.compensations[COMP_BM_BOX] = true
     end
+
+    -- 黑市补发 v2：上一轮补偿因周重置导致 purchased 被清空，实际未发出
+    -- 无法从存档恢复购买记录，按每种最大购买量（limit=1）统一补发
+    local COMP_BM_BOX_V2 = "bm_box_comp_v2_20260427"
+    if not HeroData.stats.compensations[COMP_BM_BOX_V2] then
+        local ok4, Mailbox4 = pcall(require, "Game.MailboxData")
+        if ok4 then
+            Mailbox4.Add({
+                title = "黑市补发",
+                desc  = "因系统问题，之前黑市购买的符文箱/碎片箱奖励未正确发放，现统一补发。",
+                rewards = {
+                    { type = "item", id = "random_mythic_rune_box",  amount = 3 },
+                    { type = "item", id = "random_relic_shard_box",  amount = 150 },
+                },
+            })
+            print("[HeroData] Comp v2: bm_box universal compensation sent")
+        end
+        HeroData.stats.compensations[COMP_BM_BOX_V2] = true
+    end
 end
 
 --- 保存数据（自动分流：SlotSaveSystem 活跃时标记脏，否则走本地）
@@ -1128,7 +1147,7 @@ local function CalcAdvanceMultiplier(heroId)
     local advLv = h.advanceLevel or 0
     if advLv <= 0 then return 1.0 end
 
-    -- Memoization: advanceLevel 只有 0-20，按 advLv 缓存
+    -- Memoization: 按 advLv 缓存
     local cached = _advMultCache[advLv]
     if cached then return cached end
 
@@ -1202,7 +1221,8 @@ end
 function HeroData.GetLevelRangeBonus(heroId)
     local h = HeroData.heroes[heroId]
     if not h then return 0 end
-    return (h.level - 1) * Config.LEVEL_RANGE_BONUS
+    local bonus = (h.level - 1) * Config.LEVEL_RANGE_BONUS
+    return math.min(bonus, Config.LEVEL_RANGE_BONUS_CAP)
 end
 
 -- 升级费用分段多项式定义: { fromX, toX, a, b, c }
@@ -1289,6 +1309,7 @@ function HeroData.UnlockHero(heroId)
     h.unlocked = true
     h.star = 1
     print("[HeroData] " .. heroId .. " unlocked! (first pull, star=1)")
+
 end
 
 -- ============================================================================

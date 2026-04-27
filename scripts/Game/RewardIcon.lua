@@ -69,6 +69,7 @@ local REWARD_DESC = {
 ---@return any widget
 function RewardIcon.Create(UI, size, currencyId, amount, opts)
     opts = opts or {}
+    amount = amount or 1
     local cdef = Config.CURRENCY[currencyId]
     -- fallback: 如果不在 CURRENCY 中，尝试从 InventoryData.ITEM_DEFS 查找
     if not cdef then

@@ -25,7 +25,7 @@ function HatredLand.BuildDetailView(ctx)
 
     local data = HL.GetData()
     local bestDamage = HL.GetBestDamage()
-    local remaining = HL.GetRemainingAttempts()
+    local remaining = HL.GetTotalAvailable()
     local cfg = HL.CONFIG
     local selectedDiff = HL.GetSelectedDifficulty()
 

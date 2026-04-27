@@ -20,16 +20,21 @@ require("Game.Renderer_Utils")(Renderer, ctx)
 require("Game.Renderer_Towers")(Renderer, ctx)
 require("Game.Renderer_Draw")(Renderer, ctx)
 
+-- 帧间隔（由 GameLoop 每帧写入实际 dt）
+Renderer.frameDt = 1.0 / 30.0
+
 --- 主渲染函数
 function Renderer.Render(vg, width, height)
+    local dt = Renderer.frameDt
+
     -- 更新暗影君主漂浮动画时间
-    ctx.spriteFloatTime = ctx.spriteFloatTime + (1.0 / 60.0)
+    ctx.spriteFloatTime = ctx.spriteFloatTime + dt
 
     -- 确保粒子纹理已加载
     ctx.EnsureParticleTextures(vg)
 
     -- 更新 debuff 粒子
-    ctx.UpdateDebuffParticles(1.0 / 60.0)
+    ctx.UpdateDebuffParticles(dt)
 
     local ox = Renderer.gridOffsetX
     local oy = Renderer.gridOffsetY

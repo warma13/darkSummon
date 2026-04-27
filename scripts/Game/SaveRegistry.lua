@@ -68,6 +68,7 @@ local DATA_MODULE_PATHS = {
     "Game.RelicData",
     "Game.DropEventData",
     "Game.BlackMarketData",
+    "Game.TitleData",
 }
 
 --- 确保所有数据模块已加载（触发它们底部的 SaveRegistry.Register 调用）

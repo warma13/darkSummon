@@ -153,9 +153,9 @@ RuneConfig._totalAffixWeight = RuneConfig._totalBaseWeight + RuneConfig._totalSp
 RuneConfig.MAX_SLOTS = 3
 
 RuneConfig.SLOT_DEFS = {
-    { id = 1, name = "源力核心", unlockStage = 20  },  -- 主线第20关
-    { id = 2, name = "意志铭刻", unlockStage = 40  },  -- 主线第40关
-    { id = 3, name = "深渊之印", unlockStage = 60  },  -- 主线第60关
+    { id = 1, name = "源力核心", unlockStage = 50  },  -- 主线第50关(匹配深渊裂隙解锁)
+    { id = 2, name = "意志铭刻", unlockStage = 80  },  -- 主线第80关
+    { id = 3, name = "深渊之印", unlockStage = 120 },  -- 主线第120关
 }
 
 -- ============================================================================
@@ -208,7 +208,7 @@ RuneConfig.DECOMPOSE = {
 -- ============================================================================
 
 RuneConfig.ABYSS_RIFT = {
-    unlockStage    = 20,          -- 解锁关卡(主线第20关)
+    unlockStage    = 50,          -- 解锁关卡(主线第50关，匹配深渊裂隙)
     dailyFree      = 1,           -- 每日免费次数
     dailyAd        = 2,           -- 每日广告次数
     totalWaves     = 15,          -- 总波数

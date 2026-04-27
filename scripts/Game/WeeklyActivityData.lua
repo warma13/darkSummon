@@ -160,12 +160,19 @@ local function CheckWeekReset(data)
     end
 end
 
---- 活动是否在有效期内
+--- 活动是否在有效期内（宝箱达标：受轮数限制）
 ---@return boolean
 function WAD.IsActive()
     local data = WAD.EnsureData()
     CheckWeekReset(data)
     return data.round <= WAD.MAX_ROUNDS
+end
+
+--- 当前周期是否有效（不检查宝箱轮数，供黑市/掉落等子活动使用）
+---@return boolean
+function WAD.IsWeekValid()
+    WAD.EnsureData()
+    return true
 end
 
 --- 获取剩余天数

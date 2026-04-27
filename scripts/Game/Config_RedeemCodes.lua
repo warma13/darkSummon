@@ -499,6 +499,115 @@ local CODES = {
             Inv.Add("recruit_ticket_select_box", 100)
         end,
     },
+
+    -- ========== 测试满配（一键设置） ==========
+    {
+        code = "DEVMAX1779",
+        desc = "测试满配：4000关/英雄7000级/装备4000级/券1000/货币1亿",
+        color = { 255, 50, 50 },
+        allowedUser = 1779057459,
+        reward = function()
+            local State    = require("Game.State")
+            local HeroData = require("Game.HeroData")
+            local Config   = require("Game.Config")
+            local Inv      = require("Game.InventoryData")
+            local ED       = require("Game.EmeraldDungeonData")
+            local EquipData = require("Game.EquipData")
+            local Toast    = require("Game.Toast")
+
+            -- 1) 关卡 → 4000
+            State.currentStage = 4000
+
+            -- 2) 全英雄解锁 + 等级7000 + 自动计算进阶等级
+            -- 计算7000级需要的进阶阶数
+            local targetAdvLv = 0
+            for i, gate in ipairs(Config.ADVANCE_GATES) do
+                if gate.level <= 7000 then
+                    targetAdvLv = i
+                else
+                    break
+                end
+            end
+
+            for _, towerDef in ipairs(Config.TOWER_TYPES) do
+                local h = HeroData.heroes[towerDef.id]
+                if h then
+                    h.unlocked = true
+                    h.level = 7000
+                    h.fragments = 999
+                    h.advanceLevel = targetAdvLv
+                else
+                    HeroData.heroes[towerDef.id] = {
+                        unlocked = true, fragments = 999,
+                        level = 7000, star = 1, advanceLevel = targetAdvLv,
+                    }
+                end
+            end
+            -- 主角
+            local lh = HeroData.heroes[Config.LEADER_HERO.id]
+            if lh then
+                lh.level = 7000
+                lh.fragments = 999
+                lh.advanceLevel = targetAdvLv
+            end
+
+            -- 3) 全装备等级4000
+            local allHeroIds = {}
+            for _, td in ipairs(Config.TOWER_TYPES) do
+                allHeroIds[#allHeroIds + 1] = td.id
+            end
+            allHeroIds[#allHeroIds + 1] = Config.LEADER_HERO.id
+            for _, heroId in ipairs(allHeroIds) do
+                local eqData = EquipData.GetHeroEquips(heroId)
+                for _, slotDef in ipairs(Config.EQUIP_SLOTS) do
+                    if eqData[slotDef.id] then
+                        eqData[slotDef.id].level = 4000
+                    end
+                end
+            end
+
+            -- 4) 全货币 → 1亿
+            local AMT = 100000000
+            for _, cid in ipairs({
+                "nether_crystal", "devour_stone", "forge_iron",
+                "void_pact", "shadow_essence", "dark_soul",
+                "relic_essence", "frost_pact", "rift_dust",
+                "rune_seal", "abyss_crystal", "emerald_token",
+                "shadow_orb", "pale_jade", "rainbow_jade",
+            }) do
+                Currency.Set(cid, AMT)
+            end
+            Currency.Add("ad_ticket", AMT)
+
+            -- 5) 全券 → 1000
+            local TKT = 1000
+            Inv.Add("recruit_ticket_select_box", TKT)
+            Inv.Add("boss_ticket", TKT)
+            Inv.Add("abyss_ticket", TKT)
+            Inv.Add("hatred_ticket", TKT)
+            Inv.Add("dungeon_ticket", TKT)
+            Inv.Add("dungeon_ticket_crystal", TKT)
+            Inv.Add("dungeon_ticket_stone", TKT)
+            Inv.Add("dungeon_ticket_iron", TKT)
+            Inv.Add("dungeon_ticket_chest", TKT)
+            ED.AddTickets(TKT)
+            -- 试练塔券
+            local okTT, TTD = pcall(require, "Game.TrialTowerData")
+            if okTT and TTD.AddTickets then TTD.AddTickets(TKT) end
+
+            -- 6) 解锁称号"英雄设计师"
+            local okTD, TitleData = pcall(require, "Game.TitleData")
+            if okTD then
+                TitleData.Unlock("hero_designer")
+            end
+
+            -- 7) 保存
+            HeroData.Save()
+
+            Toast.Show("测试满配完成！重新进入战斗生效", { 255, 220, 80 })
+            print("[DEVMAX] 满配完成: stage=4000, heroLv=7000, equipLv=4000, 货币=1亿, 券=1000")
+        end,
+    },
 }
 
 return CODES

@@ -13,6 +13,7 @@ local LeaderWingEffect = require("Game.LeaderWingEffect")
 local Debuff           = require("Game.Debuff")
 local Tower            = require("Game.Tower")
 local HeroSkills       = require("Game.HeroSkills")
+local TitleData        = require("Game.TitleData")
 
 -- 星级字符串缓存（避免每帧 string.rep）
 local starStrCache = {}
@@ -20,6 +21,8 @@ for i = 1, 10 do starStrCache[i] = string.rep("★", i) end
 
 -- 背景图片 handle（仅本模块使用）
 local bgImageHandle = -1
+-- 称号边框图片 handle
+local titleFrameHandle = -1
 
 ---@diagnostic disable: undefined-global
 local cjson = cjson  -- 引擎内置全局变量
@@ -841,6 +844,9 @@ function Renderer.DrawTowers(vg, ox, oy)
                     nvgText(vg, cx, yPos, lb[1], nil)
                 end
             end
+            tower._buffLabelCount = #labels
+        else
+            tower._buffLabelCount = 0
         end
 
         -- 等级小字（非拖拽时显示）
@@ -850,6 +856,51 @@ function Renderer.DrawTowers(vg, ox, oy)
             nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_TOP)
             nvgFillColor(vg, nvgRGBA(180, 180, 200, 160))
             nvgText(vg, cx, cy + size * 0.5 + 10, "Lv." .. tower.heroLevel, nil)
+        end
+
+        -- 君主已装备称号（头顶显示，在 buff 标签之上，背景图 + 文字居中）
+        if not isDragged and tower.typeDef.isLeader and Renderer.fontId >= 0 then
+            local titleDef = TitleData.GetEquippedDef()
+            if titleDef then
+                local tc = titleDef.color or { 255, 255, 255, 255 }
+                local titleStr = titleDef.name
+                local titleFontSize = 14
+
+                -- 测量文字宽度
+                nvgFontFaceId(vg, Renderer.fontId)
+                nvgFontSize(vg, titleFontSize)
+                nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+                local bounds = { 0, 0, 0, 0 }
+                nvgTextBounds(vg, 0, 0, titleStr, nil, bounds)
+                local tw = bounds[3] - bounds[1]
+
+                -- 框尺寸：按图片比例(256:143)拉伸，大于文字以包裹
+                local imgRatio = 256 / 143  -- 原图宽高比
+                local fw = math.max(tw + 50, 120)  -- 宽度至少比文字多 50px，最小 120
+                local fh = fw / imgRatio            -- 按图片比例算高度
+                local fx = cx - fw * 0.5
+                -- 计算 buff 标签占用高度，称号放在 buff 之上
+                local buffCount = tower._buffLabelCount or 0
+                local baseTop = cy - size * 0.55 - 2 - buffCount * 13
+                local titleCenterY = baseTop - fh * 0.5 - 4
+                local fy = titleCenterY - fh * 0.5
+
+                -- 加载并绘制背景图（铺满整个框）
+                if titleFrameHandle == -1 then
+                    titleFrameHandle = nvgCreateImage(vg, "image/title_frame_20260427205711.png", 0)
+                end
+                if titleFrameHandle >= 0 then
+                    local pat = nvgImagePattern(vg, fx, fy, fw, fh, 0, titleFrameHandle, 1.0)
+                    nvgBeginPath(vg)
+                    nvgRoundedRect(vg, fx, fy, fw, fh, 3)
+                    nvgFillPaint(vg, pat)
+                    nvgFill(vg)
+                end
+
+                -- 称号文字（居中绘制在框内）
+                nvgFillColor(vg, nvgRGBA(tc[1], tc[2], tc[3], 245))
+                nvgText(vg, cx, titleCenterY, titleStr, nil)
+            end
         end
     end
 end

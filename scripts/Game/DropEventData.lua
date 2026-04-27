@@ -221,7 +221,7 @@ end
 --- 活动是否激活（仅在市场周生效）
 ---@return boolean
 function DED.IsActive()
-    return WAD.IsActive() and WAD.GetCurrentWeekType() == "market"
+    return WAD.IsWeekValid() and WAD.GetCurrentWeekType() == "market"
 end
 
 -- ============================================================================

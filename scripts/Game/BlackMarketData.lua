@@ -149,10 +149,10 @@ local function CheckWeekReset(data)
     end
 end
 
---- 活动是否激活（仅在市场周生效）
+--- 活动是否激活（仅在市场周生效，不受宝箱轮数限制）
 ---@return boolean
 function BMD.IsActive()
-    return WAD.IsActive() and WAD.GetCurrentWeekType() == "market"
+    return WAD.IsWeekValid() and WAD.GetCurrentWeekType() == "market"
 end
 
 -- ============================================================================

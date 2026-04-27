@@ -410,20 +410,34 @@ function WB.GetData()
     return HeroData.worldBossData
 end
 
---- 获取剩余总次数（含神裔降临加成）
+--- 获取每日总次数上限（含神裔降临加成）
+---@return number
+function WB.GetMaxAttempts()
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
+    return WB.DAILY_ATTEMPTS + bonusAttempt
+end
+
+--- 获取每日剩余免费+广告次数（含神裔降临加成）
 ---@return number
 function WB.GetRemainingAttempts()
     local data = WB.GetData()
-    local DivineBlessDB = require("Game.DivineBlessData")
-    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
-    return math.max(0, WB.DAILY_ATTEMPTS + bonusAttempt - data.todayAttempts)
+    return math.max(0, WB.GetMaxAttempts() - data.todayAttempts)
+end
+
+--- 获取总可用挑战次数（每日剩余 + 挑战券），用于顶部"剩余 X 次"显示
+---@return number
+function WB.GetTotalAvailable()
+    return WB.GetRemainingAttempts() + WB.GetTicketCount()
 end
 
 --- 获取剩余免费次数
 ---@return number
 function WB.GetFreeRemaining()
     local data = WB.GetData()
-    return math.max(0, WB.FREE_ATTEMPTS - data.todayAttempts)
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
+    return math.max(0, WB.FREE_ATTEMPTS + bonusAttempt - data.todayAttempts)
 end
 
 --- 获取剩余广告次数
@@ -455,11 +469,13 @@ end
 ---@return boolean
 function WB.ConsumeAttempt()
     local data = WB.GetData()
-    if data.todayAttempts >= WB.DAILY_ATTEMPTS then
+    if data.todayAttempts >= WB.GetMaxAttempts() then
         Toast.Show("今日挑战次数已用完", { 255, 200, 80 })
         return false
     end
-    if data.todayAttempts >= WB.FREE_ATTEMPTS then
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
+    if data.todayAttempts >= WB.FREE_ATTEMPTS + bonusAttempt then
         Toast.Show("免费次数已用完，请观看广告继续", { 255, 200, 80 })
         return false
     end
@@ -630,6 +646,9 @@ end
 ---@param damage number
 ---@return string
 function WB.FormatDamage(damage)
+    if not damage or damage ~= damage or damage == math.huge or damage == -math.huge then
+        return "0"
+    end
     if damage >= 10000000000000000 then
         return string.format("%.1f京", damage / 10000000000000000)
     elseif damage >= 1000000000000 then

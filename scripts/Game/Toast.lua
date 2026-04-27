@@ -20,6 +20,11 @@ local CORNER_RADIUS = 8
 -- ── 内部状态 ──────────────────────────────────
 local messages = {}  -- { text, color, life }
 
+--- 是否有待显示的消息
+function Toast.IsEmpty()
+    return #messages == 0
+end
+
 -- ── 公开 API ──────────────────────────────────
 
 --- 显示一条提示消息

@@ -489,6 +489,19 @@ function GameUI.ShowSettingsPopup()
                             IdleScreen.Show()
                         end,
                     },
+                    -- 检测新版本
+                    ctx.UI.Button {
+                        text = "检测新版本",
+                        fontSize = 14,
+                        width = "100%",
+                        height = 40,
+                        borderRadius = 8,
+                        variant = "outline",
+                        onClick = function(self)
+                            local GameVersion = require("Game.GameVersion")
+                            GameVersion.CheckAndReport(closeModal)
+                        end,
+                    },
 
                     ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 160, 120, 255, 40 } },
 

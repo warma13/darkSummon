@@ -25,7 +25,7 @@ function WorldBoss.BuildDetailView(ctx)
 
     local data = WB.GetData()
     local bestDamage = WB.GetBestDamage()
-    local remaining = WB.GetRemainingAttempts()
+    local remaining = WB.GetTotalAvailable()
     local cfg = WB.CONFIG
 
     -- 标题栏

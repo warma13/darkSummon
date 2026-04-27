@@ -217,8 +217,14 @@ function HeroSkills.InitTowerSkills(tower)
     tower.hstate = {
         -- Shadow Mage: 灵魂收割
         soulReapStacks      = 0,
-        -- Eternal Archfiend: 永恒之力
-        killAtkStacks       = 0,
+        -- Eternal Archfiend: 魔焰之力 + 永恒侵蚀 + 深渊印记
+        demonFlameStacks    = 0,
+        demonFlameTimer     = nil,
+        erodeStacks         = 0,
+        erodeTimer          = nil,
+        bonusDmgBonus       = 0,
+        abyssMarkTarget     = nil,
+        abyssMarkTimer      = 0,
         -- Glacial Sovereign: 凌冽寒意
         chillGlobalCounter  = 0,
         chillTickTimer      = 0,
@@ -283,6 +289,17 @@ end
 -- ============================================================================
 -- 被动技能效果 — 命中触发
 -- ============================================================================
+
+--- 暴击命中回调（由 Combat.lua 在暴击时调用）
+---@param tower table
+---@param target table
+---@param damage number 暴击造成的最终伤害
+function HeroSkills.OnCritHit(tower, target, damage)
+    local mod = getmod(tower)
+    if mod and mod.OnCritHit then
+        mod.OnCritHit(tower, target, damage)
+    end
+end
 
 ---@param tower table
 ---@param target table
@@ -651,6 +668,12 @@ function HeroSkills.GetEffectiveAttack(tower)
     local CD    = GetCostumeData()
     local bonus = CD.GetGlobalAtkBonus()
     if bonus > 0 then pctBucket = pctBucket + bonus end
+    -- 称号攻击加成
+    local okTD, TD = pcall(require, "Game.TitleData")
+    if okTD then
+        local titleAtk = TD.GetGlobalAtkBonus()
+        if titleAtk > 0 then pctBucket = pctBucket + titleAtk end
+    end
     local hs = tower.hstate
     if hs and hs.wreathActive and hs.wreathBonus and hs.wreathBonus > 0 then
         pctBucket = pctBucket + hs.wreathBonus
@@ -746,7 +769,19 @@ end
 
 function HeroSkills.OnWaveStart()
     for _, tower in ipairs(State.towers) do
-        if tower.hstate then tower.hstate.killAtkStacks = 0 end
+        if tower.hstate then
+            tower.hstate.killAtkStacks = 0
+            -- Eternal Archfiend: 每波重置层数和标记
+            tower.hstate.demonFlameStacks = 0
+            tower.hstate.demonFlameTimer  = nil
+            tower.hstate.erodeStacks      = 0
+            tower.hstate.erodeTimer       = nil
+            tower.hstate.bonusDmgBonus    = 0
+            tower.hstate.abyssMarkTarget  = nil
+            tower.hstate.abyssMarkTimer   = 0
+            tower.hstate.bonusCritRate    = 0
+            tower.hstate.bonusCritDmg     = 0
+        end
     end
     for _, e in ipairs(State.enemies) do
         e.slowSpread = nil

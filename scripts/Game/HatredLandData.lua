@@ -206,16 +206,30 @@ function HL.GetData()
     return HeroData.hatredLandData
 end
 
-function HL.GetRemainingAttempts()
-    local data = HL.GetData()
+--- 获取每日总次数上限（含神裔降临加成）
+---@return number
+function HL.GetMaxAttempts()
     local DivineBlessDB = require("Game.DivineBlessData")
     local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
-    return math.max(0, HL.DAILY_ATTEMPTS + bonusAttempt - data.todayAttempts)
+    return HL.DAILY_ATTEMPTS + bonusAttempt
+end
+
+function HL.GetRemainingAttempts()
+    local data = HL.GetData()
+    return math.max(0, HL.GetMaxAttempts() - data.todayAttempts)
+end
+
+--- 获取总可用挑战次数（免费剩余 + 挑战券），用于顶部"剩余 X 次"显示
+---@return number
+function HL.GetTotalAvailable()
+    return HL.GetRemainingAttempts() + HL.GetTicketCount()
 end
 
 function HL.GetFreeRemaining()
     local data = HL.GetData()
-    return math.max(0, HL.FREE_ATTEMPTS - data.todayAttempts)
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
+    return math.max(0, HL.FREE_ATTEMPTS + bonusAttempt - data.todayAttempts)
 end
 
 function HL.GetAdRemaining()
@@ -242,11 +256,13 @@ end
 
 function HL.ConsumeAttempt()
     local data = HL.GetData()
-    if data.todayAttempts >= HL.DAILY_ATTEMPTS then
+    if data.todayAttempts >= HL.GetMaxAttempts() then
         Toast.Show("今日挑战次数已用完", { 255, 200, 80 })
         return false
     end
-    if data.todayAttempts >= HL.FREE_ATTEMPTS then
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
+    if data.todayAttempts >= HL.FREE_ATTEMPTS + bonusAttempt then
         Toast.Show("免费次数已用完，请观看广告继续", { 255, 200, 80 })
         return false
     end
@@ -294,6 +310,10 @@ end
 -- ============================================================================
 
 function HL.FormatDamage(damage)
+    if not damage or damage ~= damage or damage == math.huge or damage == -math.huge then
+        return "0"
+    end
+    if damage < 0 then damage = -damage end
     if damage >= 10000000000000000 then
         return string.format("%.1f京", damage / 10000000000000000)
     elseif damage >= 1000000000000 then

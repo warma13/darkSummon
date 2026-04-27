@@ -167,6 +167,60 @@ SaveRegistry.Register("mailboxData", {
                 { type = "item", id = "recruit_ticket_select_box", amount = 10 },
             },
         })
+
+        -- ── 社区英雄设计活动奖励（按用户ID定向发放）──
+        local myId = clientCloud and clientCloud.userId and tostring(clientCloud.userId) or ""
+
+        -- 参与奖
+        local participantIds = {
+            ["346333596"] = true,
+            ["1211202246"] = true,
+            ["1366174619"] = true,
+            ["1840951947"] = true,
+            ["293191593"] = true,
+        }
+        if participantIds[myId] then
+            MailboxData.SendOnce("event_hero_design_participant", {
+                title = "英雄设计活动·参与奖",
+                desc = "感谢您参与社区英雄设计活动！附上参与奖励，请注意查收。",
+                rewards = {
+                    { type = "currency", id = "linyan_oath", amount = 40 },
+                    { type = "currency", id = "shadow_essence", amount = 5000 },
+                    { type = "fragment", id = "eternal_archfiend", amount = 10 },
+                    { type = "title", id = "hero_designer" },
+                },
+            })
+        end
+
+        -- 测试账号：发放两个称号
+        if myId == "1779057459" then
+            MailboxData.SendOnce("test_hero_design_titles", {
+                title = "英雄设计活动·称号发放",
+                desc = "发放英雄设计师 & 优秀英雄设计师两个称号。",
+                rewards = {
+                    { type = "title", id = "hero_designer" },
+                    { type = "title", id = "hero_designer_ex" },
+                },
+            })
+        end
+
+        -- 优秀设计奖
+        local excellentIds = {
+            ["1005540212"] = true,
+            ["2135680770"] = true,
+        }
+        if excellentIds[myId] then
+            MailboxData.SendOnce("event_hero_design_excellent", {
+                title = "英雄设计活动·优秀设计奖",
+                desc = "恭喜您荣获社区英雄设计活动优秀设计奖！附上丰厚奖励，请注意查收。",
+                rewards = {
+                    { type = "currency", id = "linyan_oath", amount = 400 },
+                    { type = "currency", id = "shadow_essence", amount = 50000 },
+                    { type = "fragment", id = "eternal_archfiend", amount = 100 },
+                    { type = "title", id = "hero_designer_ex" },
+                },
+            })
+        end
     end,
 })
 

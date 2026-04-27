@@ -1086,6 +1086,10 @@ local function BuildIdlePage1()
                             if pendingRewards then
                                 if pendingRewards.isOffline then
                                     HeroData.ClaimIdleRewards(pendingRewards)
+                                    -- 领取离线奖励后，重置在线挂机计时基准
+                                    HeroData.stats.afkLastClaimTime = os.time()
+                                    GameUI._afkStartTime = time.elapsedTime
+                                    GameUI._afkLastDisplaySec = -1
                                     GameUI._pendingIdleRewards = nil
                                     GameUI.ShowPanel("idleRewardPanel", false)
                                     local rewardItems = BuildRewardItems(pendingRewards)

@@ -447,6 +447,12 @@ function Currency.GrantReward(reward, source)
     elseif reward.type == "universal_shard" then
         if not id then return false end
         Currency.AddUniversalShards(id, amount)
+    elseif reward.type == "title" then
+        if not id then return false end
+        local ok, TitleData = pcall(require, "Game.TitleData")
+        if ok and TitleData.Unlock then
+            TitleData.Unlock(id)
+        end
     else
         print("[Currency.GrantReward] Unknown reward type: " .. tostring(reward.type))
         return false

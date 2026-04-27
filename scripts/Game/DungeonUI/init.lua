@@ -109,6 +109,7 @@ local DUNGEON_DEFS = {
         available = true,
         cover = "image/emerald_dungeon_banner.png",
         isEvent = true,
+        unlockFloor = 20,
     },
     {
         key = "tower",
@@ -117,6 +118,7 @@ local DUNGEON_DEFS = {
         accentColor = S.towerAccent,
         available = true,
         cover = "image/dungeon_trial_tower.png",
+        unlockFloor = 10,
     },
     {
         key = "resource",
@@ -125,6 +127,7 @@ local DUNGEON_DEFS = {
         accentColor = S.dailyAccent,
         available = true,
         cover = "image/dungeon_resource_cover.png",
+        unlockFloor = 5,
     },
     {
         key = "world_boss",
@@ -133,7 +136,7 @@ local DUNGEON_DEFS = {
         accentColor = { 180, 50, 70, 255 },
         available = true,
         cover = "image/dungeon_world_boss_20260414134349.png",
-        unlockFloor = 20,
+        unlockFloor = 30,
     },
     {
         key = "hatred_land",
@@ -142,7 +145,7 @@ local DUNGEON_DEFS = {
         accentColor = { 160, 40, 50, 255 },
         available = true,
         cover = "image/dungeon_hatred_land_20260424045354.png",
-        unlockFloor = 20,
+        unlockFloor = 40,
     },
     {
         key = "abyss_rift",
@@ -151,7 +154,7 @@ local DUNGEON_DEFS = {
         accentColor = { 160, 80, 220, 255 },
         available = true,
         cover = "image/banner_abyss_rift_20260415162859.png",
-        unlockStage = 20,
+        unlockStage = 50,
     },
 }
 
@@ -383,12 +386,27 @@ function DungeonUI.BuildCompactCard(def)
     local progressColor = S.dim
     if def.key == "world_boss" and isAvailable then
         local remaining = WB.GetRemainingAttempts()
-        progressText = remaining .. "/" .. WB.DAILY_ATTEMPTS
+        progressText = remaining .. "/" .. WB.GetMaxAttempts()
         progressColor = remaining > 0 and S.green or S.red
     elseif def.key == "hatred_land" and isAvailable then
-        local remaining = HLData.GetRemainingAttempts()
-        progressText = remaining .. "/" .. HLData.DAILY_ATTEMPTS
-        progressColor = remaining > 0 and S.green or S.red
+        local freeR = HLData.GetFreeRemaining()
+        local tickets = HLData.GetTicketCount()
+        local adR = HLData.GetAdRemaining()
+        if freeR > 0 then
+            progressText = "免费" .. freeR .. "次"
+            if tickets > 0 then progressText = progressText .. " · " .. tickets .. "券" end
+            progressColor = S.green
+        elseif tickets > 0 then
+            progressText = tickets .. "券"
+            if adR > 0 then progressText = progressText .. " · 可领" .. adR end
+            progressColor = S.green
+        elseif adR > 0 then
+            progressText = "可领" .. adR .. "券"
+            progressColor = S.gold or { 255, 200, 80 }
+        else
+            progressText = "今日已用完"
+            progressColor = S.red
+        end
     elseif not isAvailable then
         progressText = "第" .. (def.unlockFloor or 20) .. "关解锁"
         progressColor = S.comingSoon
@@ -551,16 +569,28 @@ function DungeonUI.BuildDungeonCard(def)
         progressColor = totalRemain > 0 and S.green or (totalAdRemain > 0 and S.gold or S.red)
     elseif def.key == "world_boss" and isAvailable then
         local remaining = WB.GetRemainingAttempts()
-        progressText = "今日 " .. remaining .. "/" .. WB.DAILY_ATTEMPTS
+        progressText = "今日 " .. remaining .. "/" .. WB.GetMaxAttempts()
         progressColor = remaining > 0 and S.green or S.red
     elseif def.key == "abyss_rift" and isAvailable then
         local remaining = AbyssRift.GetRemaining()
         progressText = "今日 " .. remaining .. "/" .. AbyssRift.DAILY_FREE
         progressColor = remaining > 0 and S.green or S.red
     elseif def.key == "hatred_land" and isAvailable then
-        local remaining = HLData.GetRemainingAttempts()
-        progressText = "今日 " .. remaining .. "/" .. HLData.DAILY_ATTEMPTS
-        progressColor = remaining > 0 and S.green or S.red
+        local freeR = HLData.GetFreeRemaining()
+        local tickets = HLData.GetTicketCount()
+        local adR = HLData.GetAdRemaining()
+        if freeR > 0 then
+            progressText = "免费" .. freeR .. "次"
+            if tickets > 0 then progressText = progressText .. " · " .. tickets .. "券" end
+        elseif tickets > 0 then
+            progressText = tickets .. "券"
+            if adR > 0 then progressText = progressText .. " · 可领" .. adR end
+        elseif adR > 0 then
+            progressText = "可领" .. adR .. "券"
+        else
+            progressText = "今日已用完"
+        end
+        progressColor = (freeR > 0 or tickets > 0) and S.green or (adR > 0 and (S.gold or { 255, 200, 80 }) or S.red)
     elseif def.key == "emerald_dungeon" and isAvailable then
         local tickets = EmeraldDungeonData.GetTickets()
         local adLeft = EmeraldDungeonData.GetAdRemaining()

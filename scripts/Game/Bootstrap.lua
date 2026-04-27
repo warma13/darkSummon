@@ -117,6 +117,7 @@ end
 
 function Bootstrap.Start()
     graphics.windowTitle = Config.TITLE
+
     print("=== " .. Config.TITLE .. " Starting ===")
 
     -- 1. 初始化 UI 系统
@@ -154,15 +155,19 @@ function Bootstrap.Start()
     GameUI.ShowServerSelect(true)
 
     -- 超时检测状态（模块级，由 Bootstrap.Tick 驱动）
-    local SLOT_TIMEOUT = 10  -- 秒
+    local SLOT_TIMEOUT_FIRST = 3    -- 首次加载超时（秒）
+    local SLOT_TIMEOUT_RETRY = 10   -- 重试加载超时（秒）
     Bootstrap._slotInitDone  = false
     Bootstrap._slotTimer     = 0
-    Bootstrap._slotTimeout   = SLOT_TIMEOUT
+    Bootstrap._slotTimeout   = SLOT_TIMEOUT_FIRST
+    local isFirstLoad = true
 
     -- 加载存档（首次 + 重试共用）
     local function doSlotInit()
         Bootstrap._slotInitDone = false
         Bootstrap._slotTimer    = 0
+        Bootstrap._slotTimeout  = isFirstLoad and SLOT_TIMEOUT_FIRST or SLOT_TIMEOUT_RETRY
+        isFirstLoad = false
         ServerSelectUI.SetLoadState("loading")
         print("[Main] SlotSaveSystem.Init starting...")
 
@@ -268,6 +273,10 @@ function StartGame(serverId)
                 GameUI._afkLastDisplaySec = -1
                 print("[StartGame] AFK restored " .. math.floor(totalAfkSecs / 60) .. " min since last claim")
             end
+        else
+            -- 从未领取过挂机收益（新存档），初始化基准时间为当前时间
+            HeroData.stats.afkLastClaimTime = os.time()
+            print("[StartGame] AFK initialized afkLastClaimTime for new save")
         end
         HeroData.lastSaveTime = os.time()
         HeroData.Save()

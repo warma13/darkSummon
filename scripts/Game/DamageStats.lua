@@ -35,7 +35,7 @@ end
 ---@param killed boolean 是否击杀目标
 ---@param isBoss? boolean 目标是否为 Boss
 function DamageStats.Record(tower, dmg, isCrit, killed, isBoss)
-    if dmg <= 0 then return end
+    if not dmg or dmg <= 0 or dmg ~= dmg or dmg == math.huge then return end
     _dirty = true
     local tid = tower.id
     if not _stats[tid] then

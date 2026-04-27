@@ -138,9 +138,14 @@ end
 ---@param n number
 ---@return string
 local function FormatDamage(n)
-    if not n or n ~= n then return "0" end  -- nil / NaN 保护
-    n = math.floor(n)
-    if n >= 1e12 then
+    if not n or n ~= n or n == math.huge or n == -math.huge then return "0" end  -- nil / NaN / Inf 保护
+    if n < 0 then n = -n end  -- 负数取绝对值（防止溢出显示负数）
+    if n >= 1e16 then
+        local v = n / 1e16
+        local s = v >= 100 and string.format("%.0f京", v)
+            or string.format("%.1f京", v)
+        return (s:gsub("%.0京", "京"))
+    elseif n >= 1e12 then
         local v = n / 1e12
         local s = v >= 100 and string.format("%.0f万亿", v)
             or string.format("%.1f万亿", v)
@@ -156,7 +161,7 @@ local function FormatDamage(n)
             or string.format("%.1f万", v)
         return (s:gsub("%.0万", "万"))
     end
-    return tostring(n)
+    return tostring(math.floor(n))
 end
 
 --- 统一伤害飘字（暴击/普通自动格式化）
@@ -285,6 +290,11 @@ local function CalcFinalDamage(tower, enemy, damage)
     -- 怪物伤害加成减免：dmgBonusReduce 削减英雄 dmgBonus
     do
         local dmgBonus = Tower.GetEffectiveDmgBonus(tower)
+        -- 英雄模块额外伤害加成（永恒魔君侵蚀等，hstate 子命名空间）
+        local hs = tower.hstate
+        if hs and hs.bonusDmgBonus and hs.bonusDmgBonus > 0 then
+            dmgBonus = dmgBonus + hs.bonusDmgBonus
+        end
         local dmgReduce = enemy.dmgBonusReduce or 0
         if dmgReduce > 0 then
             dmgBonus = dmgBonus * (1 - dmgReduce)
@@ -325,6 +335,11 @@ local function CalcFinalDamage(tower, enemy, damage)
     local final = damage
     for _, mult in pairs(zones) do
         final = final * mult
+    end
+
+    -- 安全兜底：确保最终伤害非负（防止浮点精度问题或未预见的乘区负值）
+    if final < 0 or final ~= final then
+        final = 0
     end
 
     return final, isCrit, heroElement, zones.elemResist
@@ -541,7 +556,10 @@ local function OnProjectileHit(proj)
 
         local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
         ShowDamageText(target, finalDmg, isCrit, elemColor)
-        if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
+        if isCrit then
+            HeroSkills.CheckCritSplash(tower, target, finalDmg)
+            HeroSkills.OnCritHit(tower, target, finalDmg)
+        end
         HeroSkills.OnHit(tower, target, killed)
         CheckHatredBossHit(tower, target, finalDmg)
 
@@ -572,7 +590,10 @@ local function OnProjectileHit(proj)
 
                     local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
                     ShowDamageText(e, finalDmg, isCrit, elemColor)
-                    if isCrit then HeroSkills.CheckCritSplash(tower, e, finalDmg) end
+                    if isCrit then
+                        HeroSkills.CheckCritSplash(tower, e, finalDmg)
+                        HeroSkills.OnCritHit(tower, e, finalDmg)
+                    end
                     HeroSkills.OnHit(tower, e, killed)
                     CheckHatredBossHit(tower, e, finalDmg)
 
