@@ -416,6 +416,7 @@ Config.CURRENCY = {
     rainbow_jade    = { name = "封魂玉",   icon = "rjade",    color = { 255, 120, 220 }, image = "image/currency_rainbow_jade.png", usage = "锁定淬炼孔位", category = "refine" },
     -- 符文系统货币
     rift_dust       = { name = "裂隙之尘", icon = "dust",     color = { 160, 120, 200 }, image = "image/currency_rift_dust.png",    usage = "符文洗练", category = "rune" },
+    rune_generic    = { name = "符文",     icon = "rune",     color = { 180, 100, 255 }, image = "image/rune_generic_20260427025545.png", usage = "深渊裂隙掉落的随机符文", category = "rune" },
     rune_seal       = { name = "符文封印", icon = "seal",     color = { 40, 200, 160 },  image = "image/currency_rune_seal.png",    usage = "洗练锁定", category = "rune" },
     abyss_crystal   = { name = "深渊结晶", icon = "acrystal", color = { 200, 60, 255 },  image = "image/currency_abyss_crystal.png", usage = "定向洗练", category = "rune" },
     -- 活动货币
@@ -499,6 +500,7 @@ Config.ESSENCE_EXCHANGE = {
 -- ============================================================================
 Config.RECRUIT_SINGLE_COST = 1
 Config.RECRUIT_TEN_COST = 10
+Config.RECRUIT_HUNDRED_COST = 90
 Config.RECRUIT_PITY = 10
 Config.RECRUIT_INITIAL_TOKENS = 10
 
@@ -543,6 +545,7 @@ Config.LIMITED_BANNERS = {
         currency    = "frost_pact",
         singleCost  = 1,
         tenCost     = 10,
+        hundredCost = 90,
         pity        = 50,
         pityResetOnGet = true,
         durationDays   = 30,
@@ -576,6 +579,7 @@ Config.LIMITED_BANNERS = {
         currency    = "linyan_oath",
         singleCost  = 1,
         tenCost     = 10,
+        hundredCost = 90,
         pity        = 50,
         pityResetOnGet = true,
         durationDays   = 30,

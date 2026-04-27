@@ -50,6 +50,7 @@ function WG.GenerateBatch(stageNum, count, hpScale, spdScale, tags, availRoles)
             def.baseHP = def.baseHP * hpScale
             def.speed  = def.speed * spdScale
             def.isDungeonEnemy = true
+            def.stageEquiv = stageNum  -- 传递等效关卡，供 DEF 缩放使用
             -- 附加自定义标签
             if tags then
                 for k, v in pairs(tags) do
@@ -79,6 +80,7 @@ function WG.CreateBoss(stageNum, hpScale, spdScale, bossHPMult, bossSpeedFactor,
     bossDef.speed  = bossDef.speed * spdScale * (bossSpeedFactor or 0.7)
     bossDef.isDungeonEnemy = true
     bossDef.isDungeonBoss  = true
+    bossDef.stageEquiv = stageNum  -- 传递等效关卡，供 DEF 缩放使用
     if tags then
         for k, v in pairs(tags) do
             bossDef[k] = v

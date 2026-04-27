@@ -129,8 +129,41 @@ function GachaResult.ShowResultPopup(UI, pageRoot, RARITY_COLORS, currentTab, re
     local old = pageRoot:FindById("recruitResultPopup")
     if old then pageRoot:RemoveChild(old) end
 
-    local rewardCards = {}
+    -- 聚合相同英雄：合并碎片数量，保留 isNew / isLimitedHero 标记
+    local merged = {}       -- heroId -> aggregated entry
+    local mergedOrder = {}  -- 保持首次出现顺序
     for _, r in ipairs(results) do
+        local key = r.heroId or r.heroName
+        if merged[key] then
+            merged[key].fragments = merged[key].fragments + (r.fragments or 0)
+        else
+            merged[key] = {
+                heroId   = r.heroId,
+                heroName = r.heroName,
+                rarity   = r.rarity,
+                fragments = r.fragments or 0,
+                isNew    = r.isNew,
+                isLimitedHero = r.isLimitedHero,
+            }
+            mergedOrder[#mergedOrder + 1] = key
+        end
+        -- 只要有一次是 isNew，就标记
+        if r.isNew then merged[key].isNew = true end
+        if r.isLimitedHero then merged[key].isLimitedHero = true end
+    end
+
+    -- 按稀有度排序：LR > UR > SSR > SR > R > N
+    local RARITY_ORDER = { LR = 6, UR = 5, SSR = 4, SR = 3, R = 2, N = 1 }
+    table.sort(mergedOrder, function(a, b)
+        local ra = RARITY_ORDER[merged[a].rarity] or 0
+        local rb = RARITY_ORDER[merged[b].rarity] or 0
+        if ra ~= rb then return ra > rb end
+        return merged[a].fragments > merged[b].fragments
+    end)
+
+    local rewardCards = {}
+    for _, key in ipairs(mergedOrder) do
+        local r = merged[key]
         local rc = RARITY_COLORS[r.rarity] or { 200, 200, 200 }
         rewardCards[#rewardCards + 1] = GachaResult.CreateRewardCard(
             UI,

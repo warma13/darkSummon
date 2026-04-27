@@ -355,8 +355,10 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
     local LBD    = require("Game.LimitedBannerData")
     local isLocked = LBD.IsLocked(bannerCfg)
     local isActive = LBD.IsActive(bannerCfg)
-    local canSingle = isActive and LBD.CanAfford(bannerCfg, bannerCfg.singleCost)
-    local canTen    = isActive and LBD.CanAfford(bannerCfg, bannerCfg.tenCost)
+    local canSingle  = isActive and LBD.CanAfford(bannerCfg, bannerCfg.singleCost)
+    local canTen     = isActive and LBD.CanAfford(bannerCfg, bannerCfg.tenCost)
+    local hundredCost = bannerCfg.hundredCost or (bannerCfg.tenCost * 9)
+    local canHundred = isActive and LBD.CanAfford(bannerCfg, hundredCost)
     local tc = GetThemeColor(bannerCfg)
 
     -- 锁定状态：只显示解锁倒计时，无招募按钮
@@ -488,6 +490,50 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
                 text = "招募十次",
                 fontSize = 14,
                 fontColor = canTen and { 255, 255, 255, 255 } or { 100, 110, 130, 180 },
+                fontWeight = "bold",
+            },
+        },
+    }
+
+    -- 百连
+    buttons[#buttons + 1] = UI.Panel {
+        flex = 1, height = 56,
+        borderRadius = 10,
+        backgroundColor = canHundred and { 160, 60, 40, 255 } or { 40, 25, 25, 200 },
+        borderWidth = 1,
+        borderColor = canHundred and { 255, 120, 60, 200 } or { 80, 50, 40, 100 },
+        justifyContent = "center",
+        alignItems = "center",
+        gap = 2,
+        onClick = function()
+            if not isActive then
+                local Toast = require("Game.Toast")
+                Toast.Show("限定池已结束", { 255, 100, 100 })
+                return
+            end
+            if canHundred then
+                GachaResult.DoLimitedRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, 100, refreshFn, bannerCfg)
+            else
+                GachaResult.ShowBuyPopup(UI, pageRoot, 100, bannerCfg.currency, refreshFn)
+            end
+        end,
+        children = {
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 3,
+                children = {
+                    Currency.IconWidget(UI, bannerCfg.currency, 16),
+                    UI.Label {
+                        text = tostring(hundredCost),
+                        fontSize = 14,
+                        fontColor = { tc[1], tc[2], tc[3], 255 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            UI.Label {
+                text = "招募百次",
+                fontSize = 14,
+                fontColor = canHundred and { 255, 255, 255, 255 } or { 100, 110, 130, 180 },
                 fontWeight = "bold",
             },
         },

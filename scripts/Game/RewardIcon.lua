@@ -30,6 +30,10 @@ local REWARD_DESC = {
     rainbow_jade   = "淬炼稀有材料，锁定已有淬炼词条使其不被洗练覆盖",
     bronze_chest   = "青铜宝箱，开启可获得随机奖励",
     shadow_orb     = "幽影珠，可在神秘商店兑换物品",
+    rift_dust      = "裂隙之尘，用于符文洗练",
+    rune_generic   = "深渊裂隙掉落的随机符文",
+    rune_seal      = "符文封印，洗练时锁定已有词条",
+    abyss_crystal  = "深渊结晶，用于定向洗练",
     -- 福袋 & 礼包
     shadow_essence_bag  = "打开可获得128~1288暗影精粹（600以上概率仅8%）",
     nether_crystal_pack = "使用获得当前挂机收益的4小时冥晶",

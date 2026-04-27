@@ -3,7 +3,6 @@
 
 local Currency     = require("Game.Currency")
 local HeroData     = require("Game.HeroData")
-local MailboxData  = require("Game.MailboxData")
 local SaveRegistry = require("Game.SaveRegistry")
 local Toast        = require("Game.Toast")
 local WAD          = require("Game.WeeklyActivityData")
@@ -106,7 +105,7 @@ BMD.PACKAGES = {
     {
         id    = "bm_pale_jade",
         name  = "神话符文包",
-        cost  = 2000,
+        cost  = 20000,
         limit = 1,
         rewards = {
             { type = "item", id = "random_mythic_rune_box", amount = 3 },
@@ -196,17 +195,47 @@ function BMD.Purchase(index)
 
     data.purchased[pkg.id] = bought + 1
 
-    -- 发放奖励到邮箱
-    MailboxData.Add({
-        title = "黑市商店",
-        desc  = "黑市购买: " .. pkg.name,
-        rewards = pkg.rewards,
-    })
+    -- 直接发放奖励
+    for _, reward in ipairs(pkg.rewards) do
+        Currency.GrantReward(reward)
+    end
 
-    Toast.Show("购买成功: " .. pkg.name, { 220, 180, 80 })
     print("[BlackMarket] Purchased " .. pkg.id .. " (count: " .. (bought + 1) .. ")")
     HeroData.Save()
-    return true, "购买成功"
+
+    -- 构建奖励展示列表
+    local Config = require("Game.Config")
+    local displayRewards = {}
+    for _, reward in ipairs(pkg.rewards) do
+        local rName = reward.id
+        local rIcon = reward.id
+        local cdef = Config.CURRENCY[reward.id]
+        if cdef then
+            rName = cdef.name or reward.id
+            rIcon = cdef.image or reward.id
+        else
+            -- 尝试从 ITEM_DEFS 获取名称
+            local okI, InvD = pcall(require, "Game.InventoryData")
+            if okI and InvD.ITEM_DEFS and InvD.ITEM_DEFS[reward.id] then
+                rName = InvD.ITEM_DEFS[reward.id].name or reward.id
+            end
+            -- 尝试从 Config_Heroes 获取图标
+            local heroConf = Config.CURRENCY[reward.id]
+            if heroConf and heroConf.image then
+                rIcon = heroConf.image
+            end
+        end
+        if reward.type == "chest" then
+            rName = (cdef and cdef.name or reward.id) .. "宝箱"
+        end
+        displayRewards[#displayRewards + 1] = {
+            icon = rIcon,
+            name = rName,
+            amount = reward.amount,
+        }
+    end
+
+    return true, "购买成功", displayRewards
 end
 
 --- 是否有可购买的礼包（红点）

@@ -36,25 +36,62 @@ local Combat = {}
 
 -- 模块级 enemyById 查找表（Combat.Update 中构建，OnProjectileHit 中复用）
 local _enemyById = {}
+local _enemyByIdKeys = {}       -- 已使用的 key 列表（快速清除）
+local _enemyByIdKeyCount = 0
 
 -- ========== 空间网格哈希（FindTarget / FindChainTarget 加速） ==========
 -- 每帧在 Combat.Update 中重建（O(E)），查询时只检查邻近格子（O(K)，K≪E）
 local SPATIAL_CELL = Config.CELL_SIZE  -- 42px，与网格格子大小一致
 local _spatialGrid = {}
+local _gridActiveKeys = {}             -- 当前帧使用的 key 列表（避免 pairs 遍历全表清除）
+local _gridActiveCount = 0
+local _cellPool = {}                   -- cell table 对象池（避免每帧创建新 table）
+local _cellPoolN = 0
+
+--- 回收 cell 到对象池
+local function RecycleCell(cell)
+    for i = #cell, 1, -1 do cell[i] = nil end  -- 清空内容但保留 table
+    _cellPoolN = _cellPoolN + 1
+    _cellPool[_cellPoolN] = cell
+end
+
+--- 从对象池获取 cell（或创建新的）
+local function AcquireCell()
+    if _cellPoolN > 0 then
+        local cell = _cellPool[_cellPoolN]
+        _cellPool[_cellPoolN] = nil
+        _cellPoolN = _cellPoolN - 1
+        return cell
+    end
+    return {}
+end
 
 --- 重建空间网格（每帧调用一次）
 local function RebuildSpatialGrid()
-    -- 清除旧数据
-    for k in pairs(_spatialGrid) do _spatialGrid[k] = nil end
+    -- 仅清除上一帧使用的 key（O(K) 而非 O(全表)），并回收 cell 到池
+    for i = 1, _gridActiveCount do
+        local key = _gridActiveKeys[i]
+        local cell = _spatialGrid[key]
+        if cell then
+            RecycleCell(cell)
+            _spatialGrid[key] = nil
+        end
+        _gridActiveKeys[i] = nil
+    end
+    _gridActiveCount = 0
+
+    local mfloor = math.floor
     for _, e in ipairs(State.enemies) do
         if e.alive and not e.phaseActive then
-            local cx = math.floor(e.x / SPATIAL_CELL)
-            local cy = math.floor(e.y / SPATIAL_CELL)
+            local cx = mfloor(e.x / SPATIAL_CELL)
+            local cy = mfloor(e.y / SPATIAL_CELL)
             local key = cx * 10000 + cy
             local cell = _spatialGrid[key]
             if not cell then
-                cell = {}
+                cell = AcquireCell()
                 _spatialGrid[key] = cell
+                _gridActiveCount = _gridActiveCount + 1
+                _gridActiveKeys[_gridActiveCount] = key
             end
             cell[#cell + 1] = e
         end
@@ -64,6 +101,11 @@ end
 -- 粒子/飘字安全添加（带数量上限），共享定义在 State.lua
 local AddFloatingText = State.AddFloatingText
 local AddParticle = State.AddParticle
+-- 对象池（复用 table，减少 GC 压力）
+local AcquireFloatingText = State.AcquireFloatingText
+local AcquireParticle = State.AcquireParticle
+local AcquireProjectile = State.AcquireProjectile
+local RecycleProjectile = State.RecycleProjectile
 
 -- 预定义飘字颜色（避免每次创建新 table）
 local COLOR_CRIT       = { 255, 60, 60, 255 }
@@ -128,30 +170,26 @@ local function ShowDamageText(target, finalDmg, isCrit, elemColor)
     -- 随机抛物线初速度
     local vx = (math.random() - 0.5) * 80          -- 水平随机 ±40
     local vy = -(55 + math.random() * 35)           -- 向上 55~90
+    local ft = AcquireFloatingText()
     if isCrit then
         vy = -(80 + math.random() * 40)             -- 暴击弹得更高
-        AddFloatingText({
-            text = text .. "!",
-            x = target.x + (math.random() - 0.5) * 12,
-            y = target.y - size - 10,
-            vx = vx, vy = vy,
-            life = 0.9,
-            maxLife = 0.9,
-            color = COLOR_CRIT,
-            fontSize = 16,
-            isCrit = true,
-        })
+        ft.text = text .. "!"
+        ft.x = target.x + (math.random() - 0.5) * 12
+        ft.y = target.y - size - 10
+        ft.vx = vx; ft.vy = vy
+        ft.life = 0.9; ft.maxLife = 0.9
+        ft.color = COLOR_CRIT
+        ft.fontSize = 16; ft.isCrit = true
     else
-        AddFloatingText({
-            text = text,
-            x = target.x + (math.random() - 0.5) * 14,
-            y = target.y - size - 6,
-            vx = vx, vy = vy,
-            life = 0.7,
-            color = elemColor,
-            fontSize = 11,
-        })
+        ft.text = text
+        ft.x = target.x + (math.random() - 0.5) * 14
+        ft.y = target.y - size - 6
+        ft.vx = vx; ft.vy = vy
+        ft.life = 0.7; ft.maxLife = nil
+        ft.color = elemColor
+        ft.fontSize = 11; ft.isCrit = nil
     end
+    AddFloatingText(ft)
 end
 
 -- 复用乘区表（避免每次 CalcFinalDamage 创建新 table）
@@ -387,35 +425,25 @@ local function TowerAttack(tower, towerX, towerY, target)
         lastAttackSfxTime = State.time
     end
 
-    -- 创建弹道
-    State.projectiles[#State.projectiles + 1] = {
-        x = towerX,
-        y = towerY,
-        targetId = target.id,
-        tx = target.x,
-        ty = target.y,
-        speed = 300,
-        damage = effectiveAtk,
-        tower = tower,
-        life = 2.0,
-        color = tower.typeDef.color,
-        spriteSheet = tower.typeDef.icon or nil,
-    }
+    -- 创建弹道（从对象池复用）
+    local proj = AcquireProjectile()
+    proj.x = towerX; proj.y = towerY
+    proj.targetId = target.id; proj.tx = target.x; proj.ty = target.y
+    proj.speed = 300; proj.damage = effectiveAtk; proj.tower = tower
+    proj.life = 2.0; proj.color = tower.typeDef.color
+    proj.spriteSheet = tower.typeDef.icon or nil
+    proj.isEnemyProjectile = nil
+    State.projectiles[#State.projectiles + 1] = proj
 
     -- 连射技能: 概率额外发射
     if HeroSkills.ShouldMultiShot(tower) then
-        State.projectiles[#State.projectiles + 1] = {
-            x = towerX + 3,
-            y = towerY + 3,
-            targetId = target.id,
-            tx = target.x,
-            ty = target.y,
-            speed = 280,
-            damage = effectiveAtk,
-            tower = tower,
-            life = 2.0,
-            color = tower.typeDef.color,
-        }
+        local proj2 = AcquireProjectile()
+        proj2.x = towerX + 3; proj2.y = towerY + 3
+        proj2.targetId = target.id; proj2.tx = target.x; proj2.ty = target.y
+        proj2.speed = 280; proj2.damage = effectiveAtk; proj2.tower = tower
+        proj2.life = 2.0; proj2.color = tower.typeDef.color
+        proj2.spriteSheet = nil; proj2.isEnemyProjectile = nil
+        State.projectiles[#State.projectiles + 1] = proj2
     end
 end
 
@@ -475,15 +503,14 @@ local function HandleChainAttack(tower, firstTarget, damage)
             Enemy.ApplySlow(nextTarget, 2.0, slowRate)
         end
 
-        -- 链闪电粒子
-        AddParticle({
-            x = (currentTarget.x + nextTarget.x) / 2,
-            y = (currentTarget.y + nextTarget.y) / 2,
-            vx = 0, vy = -20,
-            life = 0.3, maxLife = 0.3,
-            color = tower.typeDef.color,
-            size = 3,
-        })
+        -- 链闪电粒子（对象池复用）
+        local cp = AcquireParticle()
+        cp.x = (currentTarget.x + nextTarget.x) / 2
+        cp.y = (currentTarget.y + nextTarget.y) / 2
+        cp.vx = 0; cp.vy = -20
+        cp.life = 0.3; cp.maxLife = 0.3
+        cp.color = tower.typeDef.color; cp.size = 3
+        AddParticle(cp)
 
         currentTarget = nextTarget
     end
@@ -608,14 +635,15 @@ local function OnProjectileHit(proj)
             duration = typeDef.ampDuration or 3.0,
         })
         if isFirst then
-            AddFloatingText({
-                text = "易伤",
-                x = target.x + (math.random() - 0.5) * 10,
-                y = target.y - (target.typeDef.size or 8) - 16,
-                life = 0.5,
-                color = COLOR_AMP_MARK,
-                fontSize = 11,
-            })
+            local ft = AcquireFloatingText()
+            ft.text = "易伤"
+            ft.x = target.x + (math.random() - 0.5) * 10
+            ft.y = target.y - (target.typeDef.size or 8) - 16
+            ft.vx = nil; ft.vy = nil
+            ft.life = 0.5; ft.maxLife = nil
+            ft.color = COLOR_AMP_MARK
+            ft.fontSize = 11; ft.isCrit = nil
+            AddFloatingText(ft)
         end
     elseif typeDef.special == "armor_break" and target.alive then
         -- 破甲（首次施加或叠层时飘字）
@@ -624,14 +652,15 @@ local function OnProjectileHit(proj)
         target.armorBreakValue = typeDef.armorBreak or 0.08
         target.armorBreakTimer = typeDef.armorBreakDuration or 5.0
         if oldStacks == 0 then
-            AddFloatingText({
-                text = "破甲",
-                x = target.x + (math.random() - 0.5) * 10,
-                y = target.y - (target.typeDef.size or 8) - 16,
-                life = 0.5,
-                color = COLOR_ARMOR_BREAK,
-                fontSize = 11,
-            })
+            local ft = AcquireFloatingText()
+            ft.text = "破甲"
+            ft.x = target.x + (math.random() - 0.5) * 10
+            ft.y = target.y - (target.typeDef.size or 8) - 16
+            ft.vx = nil; ft.vy = nil
+            ft.life = 0.5; ft.maxLife = nil
+            ft.color = COLOR_ARMOR_BREAK
+            ft.fontSize = 11; ft.isCrit = nil
+            AddFloatingText(ft)
         end
     elseif typeDef.special == "aoe_control" and target.alive then
         -- AOE控制（眩晕）—— 从技能实例读取（受星级和技能等级缩放）
@@ -669,20 +698,19 @@ local function OnProjectileHit(proj)
         tower.scorchReduction = reduce
     end
 
-    -- 命中粒子
+    -- 命中粒子（对象池复用）
     for i = 1, 4 do
         local angle = math.random() * math.pi * 2
         local spd = 20 + math.random() * 30
-        AddParticle({
-            x = proj.tx,
-            y = proj.ty,
-            vx = math.cos(angle) * spd,
-            vy = math.sin(angle) * spd,
-            life = 0.3 + math.random() * 0.3,
-            maxLife = 0.6,
-            color = proj.color,
-            size = 2 + math.random() * 2,
-        })
+        local hp = AcquireParticle()
+        hp.x = proj.tx; hp.y = proj.ty
+        hp.vx = math.cos(angle) * spd
+        hp.vy = math.sin(angle) * spd
+        hp.life = 0.3 + math.random() * 0.3
+        hp.maxLife = 0.6
+        hp.color = proj.color
+        hp.size = 2 + math.random() * 2
+        AddParticle(hp)
     end
 end
 
@@ -751,10 +779,18 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
     end
 
     -- 构建敌人 ID 查找表（O(e) 一次，OnProjectileHit 复用，避免每弹道 O(e) 线性扫描）
-    -- 先清除旧数据
-    for k in pairs(_enemyById) do _enemyById[k] = nil end
+    -- 用 activeKeys 列表快速清除旧数据（避免 pairs 遍历）
+    for i = 1, _enemyByIdKeyCount do
+        _enemyById[_enemyByIdKeys[i]] = nil
+        _enemyByIdKeys[i] = nil
+    end
+    _enemyByIdKeyCount = 0
     for _, e in ipairs(State.enemies) do
-        if e.alive then _enemyById[e.id] = e end
+        if e.alive then
+            _enemyById[e.id] = e
+            _enemyByIdKeyCount = _enemyByIdKeyCount + 1
+            _enemyByIdKeys[_enemyByIdKeyCount] = e.id
+        end
     end
     local enemyById = _enemyById
 
@@ -803,6 +839,7 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
             end
 
             if remove then
+                RecycleProjectile(p)  -- 回收到弹道对象池
                 projs[i] = projs[n]
                 projs[n] = nil
                 n = n - 1
@@ -812,7 +849,8 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         end
     end
 
-    -- 更新粒子（swap-and-pop）
+    -- 更新粒子（swap-and-pop + 回收到对象池）
+    local RecycleParticle = State.RecycleParticle
     do
         local parts = State.particles
         local n = #parts
@@ -824,6 +862,7 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
             pt.y = pt.y + pt.vy * dt
             pt.vy = pt.vy + 40 * dt
             if pt.life <= 0 then
+                RecycleParticle(pt)
                 parts[i] = parts[n]
                 parts[n] = nil
                 n = n - 1
@@ -833,7 +872,8 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         end
     end
 
-    -- 更新飘字（swap-and-pop）
+    -- 更新飘字（swap-and-pop + 回收到对象池）
+    local RecycleFloatingText = State.RecycleFloatingText
     do
         local GRAVITY = 140  -- 抛物线重力加速度 (px/s²)
         local fts = State.floatingTexts
@@ -852,6 +892,7 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
                 ft.y = ft.y - 30 * dt
             end
             if ft.life <= 0 then
+                RecycleFloatingText(ft)
                 fts[i] = fts[n]
                 fts[n] = nil
                 n = n - 1

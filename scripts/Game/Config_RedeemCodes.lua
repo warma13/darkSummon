@@ -480,6 +480,25 @@ local CODES = {
             Currency.Add("rainbow_jade", 100000000)
         end,
     },
+    {
+        code = "VIP1211202246",
+        desc = "专属奖励：憎恨之地挑战券 ×8",
+        color = { 160, 40, 50 },
+        allowedUser = 1211202246,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("hatred_ticket", 8)
+        end,
+    },
+    {
+        code = "SELECT100",
+        desc = "招募自选包 x100",
+        color = { 255, 160, 60 },
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 100)
+        end,
+    },
 }
 
 return CODES

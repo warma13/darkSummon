@@ -169,10 +169,10 @@ end
 ---@return number stageEquiv
 function Abyss.WaveToStage(wave, difficultyId)
     local diff = Abyss.DIFFICULTY_MAP[difficultyId] or Abyss.DIFFICULTIES[1]
-    local base  = RuneConfig.ABYSS_RIFT.baseStage   -- 5
+    local base  = RuneConfig.ABYSS_RIFT.baseStage   -- 500
     local final = RuneConfig.ABYSS_RIFT.finalStage   -- 6000
 
-    -- 指数增长：wave1=5, wave8≈173, wave15=6000 (× 难度系数)
+    -- 指数增长：ratio=12，wave1=500, wave8≈1732, wave15=6000 (× 难度系数)
     local t = (wave - 1) / (TOTAL_WAVES - 1)         -- 0 ~ 1
     local stageEquiv = base * (final / base) ^ t * diff.levelMult
 
@@ -270,14 +270,17 @@ function Abyss.CalcWaveDrops(wave, difficultyId)
     local extraDust = math.random(diff.dustRange[1], diff.dustRange[2])
     drops.dust = baseDust + extraDust
 
-    -- 符文掉落
-    if dropDef.runeChance > 0 and math.random() < dropDef.runeChance then
+    -- 符文掉落（dropChanceMult 按难度提升爆率）
+    local chanceMult = diff.dropChanceMult or 1.0
+    local runeChance = math.min((dropDef.runeChance or 0) * chanceMult, 1.0)
+    if runeChance > 0 and math.random() < runeChance then
         local rune = RuneData.Generate(diff.qualityMult)
         drops.runes[#drops.runes + 1] = rune
     end
 
     -- 符文封印掉落
-    if dropDef.sealChance and dropDef.sealChance > 0 and math.random() < dropDef.sealChance then
+    local sealChance = math.min((dropDef.sealChance or 0) * chanceMult, 1.0)
+    if sealChance > 0 and math.random() < sealChance then
         local sealCount = math.random(dropDef.sealMin or 1, dropDef.sealMax or 1)
         drops.seals = sealCount
     end
@@ -290,6 +293,7 @@ end
 ---@return table summary { totalDust, avgRunes, avgSeals }
 function Abyss.EstimateFullClearDrops(difficultyId)
     local diff = Abyss.DIFFICULTY_MAP[difficultyId] or Abyss.DIFFICULTIES[1]
+    local chanceMult = diff.dropChanceMult or 1.0
     local totalDust = 0
     local avgRunes = 0
     local avgSeals = 0
@@ -303,13 +307,15 @@ function Abyss.EstimateFullClearDrops(difficultyId)
             local avgDiffDust = (diff.dustRange[1] + diff.dustRange[2]) / 2
             totalDust = totalDust + avgWaveDust + avgDiffDust
 
-            -- 符文概率
-            avgRunes = avgRunes + (dropDef.runeChance or 0)
+            -- 符文概率（×难度爆率系数）
+            local rc = math.min((dropDef.runeChance or 0) * chanceMult, 1.0)
+            avgRunes = avgRunes + rc
 
-            -- 封印概率
+            -- 封印概率（×难度爆率系数）
             if dropDef.sealChance then
+                local sc = math.min(dropDef.sealChance * chanceMult, 1.0)
                 local avgSealCount = ((dropDef.sealMin or 1) + (dropDef.sealMax or 1)) / 2
-                avgSeals = avgSeals + dropDef.sealChance * avgSealCount
+                avgSeals = avgSeals + sc * avgSealCount
             end
         end
     end

@@ -110,8 +110,8 @@ function RC.BuildEntry(def)
     elseif def.type == "rune" then
         -- 符文：id 是 seriesId，需查 Config_Runes 获取系列信息
         local ok4, RuneConfig = pcall(require, "Game.Config_Runes")
-        if ok4 and RuneConfig.RUNE_SERIES then
-            local series = RuneConfig.RUNE_SERIES[id]
+        if ok4 and RuneConfig.SERIES_MAP then
+            local series = RuneConfig.SERIES_MAP[id]
             if series then
                 name = series.name .. "符文"
                 icon = series.icon or icon

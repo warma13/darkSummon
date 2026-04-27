@@ -111,8 +111,9 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
     local speed = typeDef.speed * speedScale
 
     -- DEF 成长: baseDEF × defScale（独立于 HP 缩放，追踪英雄 ATK 成长）
+    -- 优先使用 typeDef.stageEquiv（副本系统传入的等效关卡），否则从 waveNum 反推
     local baseDEF = typeDef.baseDEF or 0
-    local stageForDEF = mfloor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+    local stageForDEF = typeDef.stageEquiv or (mfloor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1)
     local defScale = DungeonScaling.CalcDEFScale(stageForDEF)
     local totalDEF = mfloor(baseDEF * defScale)
 
@@ -199,7 +200,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
 
     -- 怪物防御属性（随关卡成长，对抗英雄各乘区）
     do
-        local stageNum = mfloor((waveNum - 1) / Config.WAVES_PER_STAGE) + 1
+        local stageNum = stageForDEF  -- 复用上面已计算的 stageForDEF（含 stageEquiv 优先逻辑）
         local es = Config.ENEMY_SCALING
         if es then
             enemy.critDmgReduce   = F.Piecewise4(es.critDmgReduce,   stageNum)

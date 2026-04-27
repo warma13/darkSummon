@@ -725,7 +725,7 @@ function GameUI.CreateAfkButton()
                 position = "absolute",
                 bottom = 2, left = 0, right = 0,
                 alignItems = "center",
-                children = { outlineLabel("减负", 11, { 100, 220, 180 }) },
+                children = { outlineLabel("免广卡", 11, { 100, 220, 180 }) },
             },
             -- 红点
             ctx.UI.Panel {
@@ -1320,6 +1320,7 @@ function GameUI.CreateIdleRewardPanel()
         id = "idleRewardPanel",
         visible = false,
         position = "absolute",
+        zIndex = 200,
         top = 0, left = 0, right = 0, bottom = 0,
         justifyContent = "center",
         alignItems = "center",

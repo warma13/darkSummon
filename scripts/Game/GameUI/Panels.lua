@@ -472,7 +472,7 @@ function GameUI.CreateBottomBar()
         id = "bottomBar",
         position = "absolute",
         bottom = 4, left = 0, right = 0,
-        height = 90,
+        height = 110,
         flexDirection = "row",
         justifyContent = "center",
         alignItems = "center",

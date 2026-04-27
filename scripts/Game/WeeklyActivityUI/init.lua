@@ -33,7 +33,7 @@ local ALL_SUB_TABS = {
     { id = "black_market",  icon = "image/icon_black_market_20260426055156.png",       label = "黑市",       week = "market" },
     { id = "drop_event",    icon = "image/icon_drop_event_20260426050205.png",         label = "掉落活动",   week = "market" },
     { id = "exchange_shop", icon = "image/icon_exchange_shop_20260426053936.png",      label = "换购商店",   week = "market" },
-    { id = "welfare",       icon = "image/icon_limited_welfare.png",                   label = "限时福利",   week = "chest" },
+    { id = "welfare",       icon = "image/icon_limited_welfare.png",                   label = "限时福利",   week = { "chest", "recruit" } },
     { id = "weekend_bonus", icon = "image/icon_weekend_bonus.png",                     label = "神裔降临" },
 }
 

@@ -178,6 +178,52 @@ function RuneData.Generate(qualityMult)
     }
 end
 
+--- 生成指定品质的符文
+---@param qualityId string  品质ID（如 "red" = 神话）
+---@return table|nil  rune 数据，品质不存在返回 nil
+function RuneData.GenerateFixedQuality(qualityId)
+    local quality = RuneConfig.QUALITY_MAP[qualityId]
+    if not quality then return nil end
+    local series = RollSeries()
+    local affixCount = quality.initAffixes
+
+    local affixes = {}
+    local existingIds = {}
+    local baseCount = math.ceil(affixCount * 0.6)
+    local specialCount = affixCount - baseCount
+
+    for _ = 1, baseCount do
+        local def = RollAffix(existingIds, "base")
+        if def then
+            existingIds[def.id] = true
+            affixes[#affixes + 1] = {
+                id = def.id, name = def.name,
+                value = CalcAffixValue(def, quality),
+                unit = def.unit, locked = false,
+            }
+        end
+    end
+    for _ = 1, specialCount do
+        local def = RollAffix(existingIds, "special")
+        if def then
+            existingIds[def.id] = true
+            affixes[#affixes + 1] = {
+                id = def.id, name = def.name,
+                value = CalcAffixValue(def, quality),
+                unit = def.unit, locked = false,
+            }
+        end
+    end
+
+    return {
+        runeId = NextRuneId(),
+        qualityId = quality.id,
+        seriesId = series.id,
+        affixes = affixes,
+        maxAffixes = quality.maxAffixes,
+    }
+end
+
 -- ============================================================================
 -- 背包管理
 -- ============================================================================
@@ -798,6 +844,13 @@ SaveRegistry.Register("runeData", {
         return HeroData.runeData
     end,
     deserialize = function(saved, _saveData)
+        if saved then
+            -- 防止空表覆盖已有数据（云存档损坏时可能返回 {}）
+            if not next(saved) and HeroData.runeData and next(HeroData.runeData) then
+                print("[RuneData] WARNING: received empty table, keeping existing runeData")
+                return
+            end
+        end
         HeroData.runeData = saved or nil
     end,
 })

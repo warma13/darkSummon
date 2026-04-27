@@ -452,11 +452,9 @@ function DED.PurchaseShopItem(shopIndex, count)
         Currency.GrantReward(batchReward, "DropEventShop")
     end
 
-    local Toast = require("Game.Toast")
-    Toast.Show("换购成功: " .. item.name .. " ×" .. count, { 100, 220, 160 })
     print("[DropEvent] Purchased " .. item.id .. " x" .. count .. " (total: " .. (bought + count) .. ")")
     HeroData.Save()
-    return true, "换购成功"
+    return true, "换购成功", item, count
 end
 
 --- 获取某商品最大可购买数量

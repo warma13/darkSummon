@@ -626,6 +626,42 @@ function HeroData._ValidateCore()
         end
         HeroData.stats.compensations[COMP_VOID_REBALANCE] = true
     end
+
+    -- 黑市神话符文箱/遗物碎片箱 丢失补发（ITEM_DEFS 缺失导致邮箱领取后物品未入库）
+    local COMP_BM_BOX = "bm_box_comp_20260427"
+    if not HeroData.stats.compensations[COMP_BM_BOX] then
+        local bmData = HeroData.blackMarketData
+        if bmData and bmData.purchased then
+            local ok3, Mailbox3 = pcall(require, "Game.MailboxData")
+            if ok3 then
+                -- 神话符文包：bm_pale_jade → random_mythic_rune_box × 3
+                local paleCount = bmData.purchased["bm_pale_jade"] or 0
+                if paleCount > 0 then
+                    Mailbox3.Add({
+                        title = "黑市补发",
+                        desc  = "神话符文包奖励补发（×" .. paleCount .. "）",
+                        rewards = {
+                            { type = "item", id = "random_mythic_rune_box", amount = 3 * paleCount },
+                        },
+                    })
+                    print("[HeroData] Comp: bm_pale_jade x" .. paleCount .. " → random_mythic_rune_box x" .. (3 * paleCount))
+                end
+                -- 遗物碎片包：bm_top_forge → random_relic_shard_box × 150
+                local forgeCount = bmData.purchased["bm_top_forge"] or 0
+                if forgeCount > 0 then
+                    Mailbox3.Add({
+                        title = "黑市补发",
+                        desc  = "遗物碎片包奖励补发（×" .. forgeCount .. "）",
+                        rewards = {
+                            { type = "item", id = "random_relic_shard_box", amount = 150 * forgeCount },
+                        },
+                    })
+                    print("[HeroData] Comp: bm_top_forge x" .. forgeCount .. " → random_relic_shard_box x" .. (150 * forgeCount))
+                end
+            end
+        end
+        HeroData.stats.compensations[COMP_BM_BOX] = true
+    end
 end
 
 --- 保存数据（自动分流：SlotSaveSystem 活跃时标记脏，否则走本地）
@@ -656,6 +692,11 @@ end
 ---@param data table  明文装备数据
 function HeroData.SetEquipData(data)
     if data then
+        -- 防止空表覆盖已有数据（云存档损坏时可能返回 {}）
+        if not next(data) and HeroData.equipData and next(HeroData.equipData) then
+            print("[HeroData] WARNING: SetEquipData received empty table, keeping existing equipData")
+            return
+        end
         HeroData.equipData, equipSnapshot = SafeTable.CreateDeep(data)
     else
         HeroData.equipData = nil
@@ -1314,21 +1355,28 @@ function HeroData.CalcRebirthRefund(heroId)
     local EquipData = require("Game.EquipData")
     local equips = EquipData.GetHeroEquips(heroId)
     local ironRefund = 0
+    local maxLv = Config.EQUIP_MAX_LEVEL or 4000
+    local lockedSlots = 0  -- 满级锁定的部位数
     for _, slot in ipairs(Config.EQUIP_SLOTS) do
         local e = equips[slot.id]
         if e then
-            ironRefund = ironRefund + CalcEquipLevelCost(e.level)
-            -- 突破费用返还
-            for ti = 2, e.tierIdx do
-                local tierDef = Config.EQUIP_TIERS[ti]
-                if tierDef then
-                    ironRefund = ironRefund + (tierDef.breakCost or 0)
+            if e.level >= maxLv then
+                -- 满级装备绑定英雄，重生不重置，不返还
+                lockedSlots = lockedSlots + 1
+            else
+                ironRefund = ironRefund + CalcEquipLevelCost(e.level)
+                -- 突破费用返还
+                for ti = 2, e.tierIdx do
+                    local tierDef = Config.EQUIP_TIERS[ti]
+                    if tierDef then
+                        ironRefund = ironRefund + (tierDef.breakCost or 0)
+                    end
                 end
             end
         end
     end
 
-    return { nether_crystal = crystalRefund, forge_iron = ironRefund, devour_stone = stoneRefund }
+    return { nether_crystal = crystalRefund, forge_iron = ironRefund, devour_stone = stoneRefund, lockedSlots = lockedSlots }
 end
 
 --- 执行重生（重置英雄等级和装备等级，返还资源，保留升星）
@@ -1344,11 +1392,16 @@ function HeroData.Rebirth(heroId)
     h.level = 1
     h.advanceLevel = 0
 
-    -- 重置装备
+    -- 重置装备（满级装备绑定英雄，不重置）
     local EquipData = require("Game.EquipData")
     local equips = EquipData.GetHeroEquips(heroId)
+    local maxLv = Config.EQUIP_MAX_LEVEL or 4000
     for _, slot in ipairs(Config.EQUIP_SLOTS) do
-        equips[slot.id] = { level = 1, tierIdx = 1 }
+        local e = equips[slot.id]
+        if not e or e.level < maxLv then
+            equips[slot.id] = { level = 1, tierIdx = 1 }
+        end
+        -- 满级装备保留原始等级和品质
     end
 
     -- 返还资源

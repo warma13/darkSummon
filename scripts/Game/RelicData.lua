@@ -36,6 +36,15 @@ end
 ---@param data table|nil 明文遗物数据
 function RelicData.SetData(data)
     if data then
+        -- 防止空表覆盖已有数据（云存档损坏时可能返回 {}）
+        local hasContent = (data.equipped and next(data.equipped))
+            or (data.owned and next(data.owned))
+            or (data.shards and next(data.shards))
+            or (data.progress and next(data.progress))
+        if not hasContent and HeroData.relicData and next(HeroData.relicData) then
+            print("[RelicData] WARNING: SetData received empty data, keeping existing relicData")
+            return
+        end
         -- 补全旧存档缺失字段
         data.equipped = data.equipped or {}
         data.shards = data.shards or {}

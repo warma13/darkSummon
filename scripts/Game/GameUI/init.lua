@@ -568,7 +568,7 @@ function GameUI.CreateUI()
     -- 左下角固定显示版本号（放在 TabBar 上方，避免被遮挡）
     local versionLabel = UI.Label {
         id = "fixedVersion",
-        text = "v1.0.69",
+        text = "v1.0.74",
         fontSize = 10,
         fontColor = { 160, 160, 180, 130 },
     }
@@ -700,6 +700,7 @@ function GameUI.CreateRecruitOverlay()
     local overlay = UI.Panel {
         id = "recruitOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = {
@@ -726,6 +727,7 @@ function GameUI.CreateActivityOverlay()
     local overlay = UI.Panel {
         id = "activityOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = { activityContent },
@@ -785,6 +787,7 @@ function GameUI.CreateExchangeShopOverlay()
     local overlay = UI.Panel {
         id = "exchangeShopOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = { content },
@@ -821,6 +824,7 @@ function GameUI.CreateAdReliefOverlay()
     local overlay = UI.Panel {
         id = "adReliefOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = { content },
@@ -856,6 +860,7 @@ function GameUI.CreateCostumeSignInOverlay()
     local overlay = UI.Panel {
         id = "costumeSignInOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = { content },
@@ -897,6 +902,7 @@ function GameUI.CreateMiniGameOverlay()
     local overlay = UI.Panel {
         id = "miniGameOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = { content },
@@ -1091,6 +1097,7 @@ function GameUI.CreateLaunchGiftOverlay()
     local overlay = UI.Panel {
         id = "launchGiftOverlay",
         position = "absolute",
+        zIndex = 200,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = {
@@ -1158,6 +1165,7 @@ function GameUI.CreateWeeklyActivityOverlay()
     local overlay = UI.Panel {
         id = "weeklyActivityOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         flexDirection = "column",
         backgroundColor = { 12, 10, 25, 250 },
@@ -1250,6 +1258,7 @@ function GameUI.CreateMailboxOverlay()
     local overlay = UI.Panel {
         id = "mailboxOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         children = { content },
@@ -1286,6 +1295,7 @@ function GameUI.CreateDailyTaskOverlay()
     local overlay = UI.Panel {
         id = "dailyTaskOverlay",
         position = "absolute",
+        zIndex = 100,
         top = 0, left = 0, right = 0, bottom = 0,
         flexDirection = "column",
         visible = false,
@@ -1357,6 +1367,7 @@ function GameUI.CreateSpeedBoostDialog()
     local overlay = UI.Panel {
         id = "speedBoostOverlay",
         position = "absolute",
+        zIndex = 300,
         top = 0, left = 0, right = 0, bottom = 0,
         backgroundColor = { 0, 0, 0, 160 },
         justifyContent = "center",

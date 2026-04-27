@@ -126,17 +126,16 @@ function TemperData.CanUnlock(heroId, slotId)
         return false, "淬炼已解锁"
     end
 
-    -- [TEST] 以下检查已临时关闭，用于测试
-    -- if e.level < Config.TEMPER_UNLOCK_LEVEL then
-    --     return false, "装备需达到Lv." .. Config.TEMPER_UNLOCK_LEVEL
-    -- end
-    -- if e.tierIdx < #Config.EQUIP_TIERS then
-    --     return false, "装备需达到红色品质"
-    -- end
-    -- local bestStage = HeroData.bestStage or 0
-    -- if bestStage < Config.TEMPER_UNLOCK_STAGE then
-    --     return false, "需通过第" .. Config.TEMPER_UNLOCK_STAGE .. "关"
-    -- end
+    if e.level < Config.TEMPER_UNLOCK_LEVEL then
+        return false, "装备需达到Lv." .. Config.TEMPER_UNLOCK_LEVEL
+    end
+    if e.tierIdx < #Config.EQUIP_TIERS then
+        return false, "装备需达到红色品质"
+    end
+    local bestStage = (HeroData.stats and HeroData.stats.bestStage) or 0
+    if bestStage < Config.TEMPER_UNLOCK_STAGE then
+        return false, "需通过第" .. Config.TEMPER_UNLOCK_STAGE .. "关"
+    end
 
     -- 检查暗影精粹
     if not Currency.Has("shadow_essence", Config.TEMPER_UNLOCK_COST) then

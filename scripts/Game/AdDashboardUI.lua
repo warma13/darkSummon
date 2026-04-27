@@ -517,6 +517,7 @@ function AdDashboardUI.CreateOverlay(uiModule)
     return UI.Panel {
         id = "adDashboardOverlay",
         position = "absolute",
+        zIndex = 300,
         top = 0, left = 0, right = 0, bottom = 0,
         visible = false,
         justifyContent = "center",

@@ -23,6 +23,7 @@ local Enemy        = require("Game.Enemy")
 local RelicEffects  = require("Game.RelicEffects")
 local RelicData     = require("Game.RelicData")
 local WorldBossData = require("Game.WorldBossData")
+local DamageStats   = require("Game.DamageStats")
 
 -- BattleManager 延迟 require（避免循环依赖：Combat→HatredBossSkills→Renderer→BM→Combat）
 local _BM
@@ -785,6 +786,32 @@ function Renderer.DrawBossBar(vg, w)
         if remain <= 10 then tr, tg, tb = 255, 80, 60 end
         nvgFillColor(vg, nvgRGBA(tr, tg, tb, timerAlpha))
         nvgText(vg, rightX + 30, barY + barH * 0.3, timeStr, nil)
+
+        -- 血条下方右侧：伤害计数器
+        local totalBossDmg = DamageStats.GetTotalBossDmg()
+        if totalBossDmg > 0 then
+            local dmgY = barY + barH + 3
+            local dmgStr = "伤害 " .. WorldBossData.FormatDamage(totalBossDmg)
+            local dmgBgW = 90
+            local dmgBgH = 18
+            local dmgBgX = barX + barW - dmgBgW
+
+            nvgBeginPath(vg)
+            nvgRoundedRect(vg, dmgBgX, dmgY, dmgBgW, dmgBgH, 4)
+            nvgFillColor(vg, nvgRGBA(30, 15, 10, 200))
+            nvgFill(vg)
+            nvgBeginPath(vg)
+            nvgRoundedRect(vg, dmgBgX, dmgY, dmgBgW, dmgBgH, 4)
+            nvgStrokeColor(vg, nvgRGBA(255, 100, 50, 100))
+            nvgStrokeWidth(vg, 1)
+            nvgStroke(vg)
+
+            nvgFontFaceId(vg, Renderer.fontId)
+            nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+            nvgFontSize(vg, 11)
+            nvgFillColor(vg, nvgRGBA(255, 140, 60, 255))
+            nvgText(vg, dmgBgX + dmgBgW * 0.5, dmgY + dmgBgH * 0.5, dmgStr, nil)
+        end
     end
 
     -- 剩余时间进度条（小的）
@@ -1330,12 +1357,15 @@ function Renderer.DrawRelicChargeBar(vg, ox, oy)
     local iconX = cx - iconSize * 0.5
     local iconY = ty
 
-    -- 加载槽位图标
-    local slotIcon = "image/relic_slot_power_20260424084412.png"
-    for _, s in ipairs(Config.RELIC_SLOTS) do
-        if s.id == "power" then slotIcon = s.icon; break end
+    -- 优先使用遗物专属图片，fallback 到槽位图标
+    local relicIcon = relicDef and relicDef.image
+    if not relicIcon then
+        relicIcon = "image/relic_slot_power_20260424084412.png"
+        for _, s in ipairs(Config.RELIC_SLOTS) do
+            if s.id == "power" then relicIcon = s.icon; break end
+        end
     end
-    local img = EnsureMobImage(vg, slotIcon)
+    local img = EnsureMobImage(vg, relicIcon)
 
     -- 背景暗框
     nvgBeginPath(vg)

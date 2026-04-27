@@ -1229,42 +1229,47 @@ local function BuildRelicTab(ctx, heroId)
             titleColor = { 120, 100, 80 }
         end
 
-        local innerChildren = {
-            -- 顶部名称
-            UI.Label {
-                text = titleText, fontSize = 9, fontColor = titleColor,
-                fontWeight = "bold", textAlign = "center",
-            },
-            -- 中间图标（带阴影）
-            UI.Panel {
-                width = 32, height = 32,
-                backgroundImage = slotDef.icon, backgroundSize = "contain",
-                opacity = equipped and 1.0 or 0.3,
-            },
-        }
-        if equipped then
-            innerChildren[#innerChildren + 1] = UI.Label {
-                text = "Lv." .. equipped.level .. " ★" .. equipped.star,
-                fontSize = 8, fontColor = { 200, 180, 160 },
-            }
-        end
+        local relicImage = (equipped and Config.RELICS[equipped.id] and Config.RELICS[equipped.id].image) or slotDef.icon
 
         slotPanels[#slotPanels + 1] = UI.Panel {
             flex = 1,
             aspectRatio = 1,
             margin = 3,
-            alignItems = "center", justifyContent = "center",
-            gap = 2,
             borderRadius = 8,
             borderWidth = isSelected and 2 or 1,
             borderColor = isSelected and S.gold or { 70, 55, 40, 150 },
             backgroundColor = isSelected and { 70, 55, 35, 240 } or { 50, 38, 28, 200 },
+            overflow = "hidden",
             onClick = function(self)
                 selectedRelicSlot = slotId
-                selectedRelicView = nil -- 切换槽位时重置预览
+                selectedRelicView = nil
                 ctx.ShowHeroDetail(heroId)
             end,
-            children = innerChildren,
+            children = {
+                -- 上：标题
+                UI.Panel {
+                    width = "100%", alignItems = "center", paddingTop = 2, paddingBottom = 1,
+                    children = {
+                        UI.Label { text = titleText, fontSize = 9, fontColor = titleColor, fontWeight = "bold", textAlign = "center" },
+                    },
+                },
+                -- 中：图片铺满（1:1，铺满高度）
+                UI.Panel {
+                    flex = 1, aspectRatio = 1, alignSelf = "center",
+                    backgroundImage = relicImage, backgroundSize = "cover",
+                    opacity = equipped and 1.0 or 0.25,
+                },
+                -- 下：等级/星级
+                UI.Panel {
+                    width = "100%", alignItems = "center", paddingTop = 1, paddingBottom = 2,
+                    children = {
+                        equipped and UI.Label {
+                            text = "Lv." .. equipped.level .. " ★" .. equipped.star,
+                            fontSize = 8, fontColor = { 200, 180, 160 },
+                        } or UI.Label { text = "空", fontSize = 8, fontColor = { 80, 70, 60 } },
+                    },
+                },
+            },
         }
     end
     children[#children + 1] = UI.Panel {
@@ -1583,20 +1588,34 @@ local function BuildRelicTab(ctx, heroId)
             width = "23%",
             aspectRatio = 1,
             margin = "1%",
-            alignItems = "center", justifyContent = "center",
-            gap = 2,
             borderRadius = 8,
             borderWidth = cellBorderW,
             borderColor = cellBorder,
             backgroundColor = cellBg,
+            overflow = "hidden",
             onClick = function(self)
-                -- 点击切换预览（已拥有和未拥有均可查看详情）
                 selectedRelicView = { id = rDef.id, quality = ownedQuality or rDef.minQuality }
                 ctx.ShowHeroDetail(heroId)
             end,
             children = {
-                UI.Label { text = rDef.name, fontSize = 10, fontColor = qColor, fontWeight = isOwned and "bold" or "normal", textAlign = "center" },
-                bottomLabel,
+                -- 上：名称
+                UI.Panel {
+                    width = "100%", alignItems = "center", paddingTop = 2, paddingBottom = 1,
+                    children = {
+                        UI.Label { text = rDef.name, fontSize = 10, fontColor = qColor, fontWeight = isOwned and "bold" or "normal", textAlign = "center" },
+                    },
+                },
+                -- 中：图片铺满（1:1，铺满高度）
+                UI.Panel {
+                    flex = 1, aspectRatio = 1, alignSelf = "center",
+                    backgroundImage = rDef.image or "", backgroundSize = "cover",
+                    opacity = isOwned and 1.0 or 0.25,
+                },
+                -- 下：等级/碎片信息
+                UI.Panel {
+                    width = "100%", alignItems = "center", paddingTop = 1, paddingBottom = 2,
+                    children = { bottomLabel },
+                },
             },
         }
     end
@@ -1773,7 +1792,15 @@ local function ShowRebirthConfirm(ctx, heroId)
         children = {
             UI.Label { text = "确认重生", fontSize = 17, fontColor = { 255, 120, 100 }, fontWeight = "bold" },
             UI.Label { text = heroName .. " 将重置为1级", fontSize = 13, fontColor = { 200, 180, 160 } },
-            UI.Label { text = "装备、进阶也将全部重置", fontSize = 12, fontColor = { 180, 150, 130 } },
+            UI.Label {
+                text = (refund.lockedSlots and refund.lockedSlots > 0)
+                    and "进阶重置，满级装备保留（" .. refund.lockedSlots .. "件）"
+                    or  "装备、进阶也将全部重置",
+                fontSize = 12,
+                fontColor = (refund.lockedSlots and refund.lockedSlots > 0)
+                    and { 100, 220, 140 }
+                    or  { 180, 150, 130 },
+            },
             UI.Panel { width = "90%", height = 1, backgroundColor = { 100, 75, 55, 100 } },
             UI.Label { text = "返还资源", fontSize = 13, fontColor = S.gold, fontWeight = "bold" },
             UI.Panel {

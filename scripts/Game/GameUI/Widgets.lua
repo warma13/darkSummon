@@ -313,7 +313,7 @@ function GameUI.CreateCurrencyDisplay()
                 overflow = "hidden",
                 pointerEvents = "auto",
                 marginTop = 4,
-                visible = WeeklyActivityData.IsActive(),
+                visible = true,  -- 始终显示（内部有多个子活动，如神裔降临始终可用）
                 onClick = function(self)
                     GameUI.ShowWeeklyActivityOverlay(true)
                 end,
@@ -350,7 +350,7 @@ function GameUI.CreateCurrencyDisplay()
                         width = 10, height = 10,
                         borderRadius = 5,
                         backgroundColor = { 255, 60, 60, 255 },
-                        visible = WeeklyActivityData.HasClaimable() or WelfareData.HasClaimable(),
+                        visible = WeeklyActivityData.HasClaimable() or WelfareData.HasClaimable() or not DivineBlessDB.HasChosen(),
                     },
                 },
             },

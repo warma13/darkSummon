@@ -294,16 +294,20 @@ function MailboxUI._ShowDetail(mail, index)
 
     local claimed = mail.claimed
 
-    -- 遮罩
-    local overlay = UI.Panel {
+    local overlay
+    -- 遮罩（点击外部关闭）
+    overlay = UI.Panel {
         position = "absolute",
         left = 0, top = 0, right = 0, bottom = 0,
         backgroundColor = { 0, 0, 0, 160 },
         justifyContent = "center", alignItems = "center",
         pointerEvents = "auto",
+        onClick = function()
+            overlay:Remove()
+        end,
     }
 
-    -- 弹窗主体
+    -- 弹窗主体（阻止点击穿透到遮罩）
     local dialog = UI.Panel {
         width = "88%",
         maxHeight = "70%",
@@ -314,6 +318,8 @@ function MailboxUI._ShowDetail(mail, index)
         paddingTop = 16, paddingBottom = 16,
         paddingLeft = 14, paddingRight = 14,
         gap = 10,
+        pointerEvents = "auto",
+        onClick = function() end,
     }
 
     -- 标题行

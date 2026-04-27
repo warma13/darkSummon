@@ -226,7 +226,6 @@ function NormalPool.CreatePoolBanner(UI, showAdPactFn, showDetailFn, showFateRit
                 fontColor = { 220, 180, 255, 255 },
                 fontWeight = "bold",
                 marginTop = 16,
-                zIndex = 1,
             },
             -- 当前精选角色名称标签
             UI.Panel {
@@ -478,6 +477,7 @@ end
 function NormalPool.CreateButtonArea(UI, pageRoot, RARITY_COLORS, currentTab, refreshFn)
     local canSingle = RecruitData.CanAfford(Config.RECRUIT_SINGLE_COST)
     local canTen = RecruitData.CanAfford(Config.RECRUIT_TEN_COST)
+    local canHundred = RecruitData.CanAfford(Config.RECRUIT_HUNDRED_COST)
 
     local buttons = {}
 
@@ -556,6 +556,46 @@ function NormalPool.CreateButtonArea(UI, pageRoot, RARITY_COLORS, currentTab, re
                 text = "招募十次",
                 fontSize = 14,
                 fontColor = canTen and { 255, 255, 255, 255 } or { 120, 110, 140, 180 },
+                fontWeight = "bold",
+            },
+        },
+    }
+
+    -- 百连按钮
+    buttons[#buttons + 1] = UI.Panel {
+        flex = 1,
+        height = 56,
+        borderRadius = 10,
+        backgroundColor = canHundred and { 160, 60, 40, 255 } or { 50, 35, 30, 200 },
+        borderWidth = 1,
+        borderColor = canHundred and { 255, 120, 60, 200 } or { 80, 50, 40, 100 },
+        justifyContent = "center",
+        alignItems = "center",
+        gap = 2,
+        onClick = function(self)
+            if canHundred then
+                GachaResult.DoRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, 100, false, refreshFn)
+            else
+                GachaResult.ShowBuyPopup(UI, pageRoot, 100, "void_pact", refreshFn)
+            end
+        end,
+        children = {
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 3,
+                children = {
+                    Currency.IconWidget(UI, "void_pact", 16),
+                    UI.Label {
+                        text = tostring(Config.RECRUIT_HUNDRED_COST),
+                        fontSize = 14,
+                        fontColor = { 255, 220, 80, 255 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            UI.Label {
+                text = "招募百次",
+                fontSize = 14,
+                fontColor = canHundred and { 255, 255, 255, 255 } or { 120, 110, 140, 180 },
                 fontWeight = "bold",
             },
         },

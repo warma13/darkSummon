@@ -622,13 +622,13 @@ function ServerSelectUI.ShowAnnouncementPopup()
                                         gap = 4,
                                         children = {
                                             UI.Label {
-                                                text = "限定招募券·霜誓契约",
+                                                text = "招募自选包",
                                                 fontSize = 13,
-                                                fontColor = { 130, 210, 255, 255 },
+                                                fontColor = { 255, 160, 60, 255 },
                                                 fontWeight = "bold",
                                             },
                                             UI.Label {
-                                                text = " x100张",
+                                                text = " x100",
                                                 fontSize = 14,
                                                 fontColor = { 255, 200, 60, 255 },
                                                 fontWeight = "bold",

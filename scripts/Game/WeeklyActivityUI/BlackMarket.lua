@@ -4,6 +4,7 @@
 local BMD           = require("Game.BlackMarketData")
 local Currency      = require("Game.Currency")
 local RewardIconMod = require("Game.RewardIcon")
+local RewardDisplay = require("Game.RewardDisplay")
 local FormatNumber  = require("Game.FormatUtil").FormatNumber
 
 local Toast         = require("Game.Toast")
@@ -407,10 +408,19 @@ function BlackMarket._ShowConfirmPopup(UI, S, index, pkg)
                                 local p = root:FindById(CONFIRM_POPUP_ID)
                                 if p then p:Remove() end
 
-                                local ok, msg = BMD.Purchase(index)
+                                local ok, msg, rewards = BMD.Purchase(index)
                                 if ok then
                                     local WAU = require("Game.WeeklyActivityUI")
-                                    WAU.Refresh()
+                                    if rewards and #rewards > 0 then
+                                        RewardDisplay.Show(UI, root, {
+                                            title = "购买成功",
+                                            rewards = rewards,
+                                            onClose = function() WAU.Refresh() end,
+                                        })
+                                    else
+                                        Toast.Show(msg, { 220, 180, 80 })
+                                        WAU.Refresh()
+                                    end
                                 else
                                     Toast.Show(msg, { 255, 120, 120 })
                                 end

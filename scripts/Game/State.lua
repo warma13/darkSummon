@@ -160,13 +160,78 @@ end
 State.MAX_PARTICLES = 300
 State.MAX_FLOATING_TEXTS = 150
 
+-- ======== 对象池：复用飘字/粒子/弹道 table，减少 GC 压力 ========
+local _ftPool = {}              -- 飘字对象池
+local _ftPoolN = 0
+local _ptPool = {}              -- 粒子对象池
+local _ptPoolN = 0
+local _projPool = {}            -- 弹道对象池
+local _projPoolN = 0
+
+--- 从飘字池获取 table（或创建新的），用字段赋值替代每次新建
+---@return table
+function State.AcquireFloatingText()
+    if _ftPoolN > 0 then
+        local t = _ftPool[_ftPoolN]
+        _ftPool[_ftPoolN] = nil
+        _ftPoolN = _ftPoolN - 1
+        return t
+    end
+    return {}
+end
+
+--- 回收飘字 table 到池中
+function State.RecycleFloatingText(ft)
+    -- 清除引用字段防止内存泄漏，保留 table 本身
+    ft.text = nil; ft.color = nil; ft.isCrit = nil; ft.maxLife = nil
+    _ftPoolN = _ftPoolN + 1
+    _ftPool[_ftPoolN] = ft
+end
+
+--- 从粒子池获取 table
+function State.AcquireParticle()
+    if _ptPoolN > 0 then
+        local t = _ptPool[_ptPoolN]
+        _ptPool[_ptPoolN] = nil
+        _ptPoolN = _ptPoolN - 1
+        return t
+    end
+    return {}
+end
+
+--- 回收粒子 table 到池中
+function State.RecycleParticle(pt)
+    pt.color = nil; pt.maxLife = nil
+    _ptPoolN = _ptPoolN + 1
+    _ptPool[_ptPoolN] = pt
+end
+
+--- 从弹道池获取 table
+function State.AcquireProjectile()
+    if _projPoolN > 0 then
+        local t = _projPool[_projPoolN]
+        _projPool[_projPoolN] = nil
+        _projPoolN = _projPoolN - 1
+        return t
+    end
+    return {}
+end
+
+--- 回收弹道 table 到池中
+function State.RecycleProjectile(proj)
+    proj.tower = nil; proj.color = nil; proj.spriteSheet = nil
+    proj.isEnemyProjectile = nil
+    _projPoolN = _projPoolN + 1
+    _projPool[_projPoolN] = proj
+end
+
 --- 安全添加飘字（超过上限时淘汰剩余寿命最短的旧飘字）
 function State.AddFloatingText(ft)
     local fts = State.floatingTexts
     if #fts < State.MAX_FLOATING_TEXTS then
         fts[#fts + 1] = ft
     else
-        -- 找剩余 life 最小的槽位替换
+        -- 找剩余 life 最小的槽位替换，回收被替换的旧飘字
         local minLife = fts[1].life
         local minIdx = 1
         for i = 2, #fts do
@@ -175,6 +240,7 @@ function State.AddFloatingText(ft)
                 minIdx = i
             end
         end
+        State.RecycleFloatingText(fts[minIdx])
         fts[minIdx] = ft
     end
 end
@@ -183,6 +249,9 @@ end
 function State.AddParticle(pt)
     if #State.particles < State.MAX_PARTICLES then
         State.particles[#State.particles + 1] = pt
+    else
+        -- 超出上限，回收未使用的 table
+        State.RecycleParticle(pt)
     end
 end
 

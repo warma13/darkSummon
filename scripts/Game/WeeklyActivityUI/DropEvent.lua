@@ -12,6 +12,51 @@ local Currency      = require("Game.Currency")
 local DropEvent = {}
 local PURCHASE_POPUP_ID = "dropEventPurchasePopup"
 
+--- 将购买的商品奖励转换为 RewardDisplay 所需格式
+---@param item table  SHOP_ITEMS 定义
+---@param count number 购买数量
+---@return table[]  { icon, name, amount }[]
+local function _BuildRewardItems(item, count)
+    local Config = require("Game.Config")
+    local results = {}
+    for _, r in ipairs(item.rewards) do
+        local cdef = Config.CURRENCY[r.id]
+        -- fallback: 道具查 InventoryData.ITEM_DEFS
+        if not cdef and r.type == "item" then
+            local okI, InvD = pcall(require, "Game.InventoryData")
+            if okI and InvD.ITEM_DEFS then
+                local itemDef = InvD.ITEM_DEFS[r.id]
+                if itemDef then
+                    local iconKey = itemDef.icon or r.id
+                    local iconCdef = Config.CURRENCY[iconKey]
+                    cdef = {
+                        name = itemDef.name,
+                        image = itemDef.image or (iconCdef and iconCdef.image),
+                        color = (iconCdef and iconCdef.color) or { 200, 170, 60 },
+                    }
+                end
+            end
+        end
+        if r.type == "chest" then
+            local chestDef = Config.CHEST_TYPES_MAP and Config.CHEST_TYPES_MAP[r.id]
+            results[#results + 1] = {
+                icon = (chestDef and chestDef.image) or "📦",
+                name = (chestDef and chestDef.name) or r.id,
+                amount = r.amount * count,
+                borderColor = chestDef and chestDef.color or { 200, 170, 60 },
+            }
+        else
+            results[#results + 1] = {
+                icon = (cdef and cdef.image) or "💎",
+                name = (cdef and cdef.name) or r.id,
+                amount = r.amount * count,
+                borderColor = cdef and cdef.color or { 200, 170, 60 },
+            }
+        end
+    end
+    return results
+end
+
 -- ============================================================================
 -- 入口
 -- ============================================================================
@@ -671,8 +716,17 @@ function DropEvent._ShowPurchasePopup(ctx, shopIndex, item)
 
     -- 限购1的商品直接购买，不弹窗
     if item.limit == 1 then
-        local ok, msg = DED.PurchaseShopItem(shopIndex, 1)
-        if ok then ctx.Refresh() else Toast.Show(msg, { 255, 120, 120 }) end
+        local ok, msg, boughtItem, boughtCount = DED.PurchaseShopItem(shopIndex, 1)
+        if ok then
+            local rewardItems = _BuildRewardItems(boughtItem, boughtCount)
+            RewardDisplay.Show(UI, root, {
+                title = "换购成功",
+                rewards = rewardItems,
+                onClose = function() ctx.Refresh() end,
+            })
+        else
+            Toast.Show(msg, { 255, 120, 120 })
+        end
         return
     end
 
@@ -909,9 +963,14 @@ function DropEvent._ShowPurchasePopup(ctx, shopIndex, item)
                     onClick = function()
                         local p = root:FindById(PURCHASE_POPUP_ID)
                         if p then root:RemoveChild(p) end
-                        local ok, msg = DED.PurchaseShopItem(shopIndex, selectedCount)
+                        local ok, msg, boughtItem, boughtCount = DED.PurchaseShopItem(shopIndex, selectedCount)
                         if ok then
-                            ctx.Refresh()
+                            local rewardItems = _BuildRewardItems(boughtItem, boughtCount)
+                            RewardDisplay.Show(UI, root, {
+                                title = "换购成功",
+                                rewards = rewardItems,
+                                onClose = function() ctx.Refresh() end,
+                            })
                         else
                             Toast.Show(msg, { 255, 120, 120 })
                         end

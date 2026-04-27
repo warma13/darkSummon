@@ -325,6 +325,11 @@ SaveRegistry.Register("adRelief", {
 
     deserialize = function(saved)
         if saved then
+            -- 防止空表覆盖已有数据（云存档损坏时可能返回 {}）
+            if not next(saved) and HeroData.stats.adRelief and next(HeroData.stats.adRelief) then
+                print("[AdRelief] WARNING: received empty table, keeping existing adRelief data")
+                return
+            end
             HeroData.stats.adRelief = saved
             -- 确保字段完整（旧存档迁移）
             local d = HeroData.stats.adRelief

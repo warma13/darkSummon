@@ -11,7 +11,33 @@ local AdHelper = require("Game.AdHelper")
 local Currency = require("Game.Currency")
 local SweepPopup = require("Game.SweepPopup")
 
+local RewardIcon = require("Game.RewardIcon")
+
 local AbyssRift = {}
+
+--- 构建预计掉落图标行（商店格子风格）
+local function BuildDropPreviewRow(UI, S, est)
+    local cellSize = 44
+    local icons = {}
+    if est.totalDust > 0 then
+        icons[#icons + 1] = RewardIcon.Create(UI, cellSize, "rift_dust", est.totalDust)
+    end
+    if est.avgRunes > 0 then
+        icons[#icons + 1] = RewardIcon.Create(UI, cellSize, "rune_generic", est.avgRunes)
+    end
+    if est.avgSeals > 0 then
+        icons[#icons + 1] = RewardIcon.Create(UI, cellSize, "rune_seal", est.avgSeals)
+    end
+    local rowChildren = {}
+    for _, ic in ipairs(icons) do
+        rowChildren[#rowChildren + 1] = ic
+    end
+    return UI.Panel {
+        flexDirection = "row", alignItems = "center", gap = 8,
+        marginTop = 4,
+        children = rowChildren,
+    }
+end
 
 -- ============================================================================
 -- 深渊裂隙详情页
@@ -202,15 +228,12 @@ function AbyssRift.BuildDetailView(ctx)
                                     fontColor = diffColor, pointerEvents = "none",
                                 },
                                 UI.Label {
-                                    text = "×" .. string.format("%.1f", diff.levelMult),
+                                    text = "×" .. (diff.levelMult % 1 == 0 and tostring(math.floor(diff.levelMult)) or string.format("%.1f", diff.levelMult)),
                                     fontSize = 12, fontColor = S.dim, pointerEvents = "none",
                                 },
                             },
                         },
-                        UI.Label {
-                            text = "预计掉落: 尘" .. est.totalDust .. " 符文" .. string.format("%.1f", est.avgRunes) .. " 封印" .. string.format("%.1f", est.avgSeals),
-                            fontSize = 11, fontColor = S.dim, pointerEvents = "none",
-                        },
+                        BuildDropPreviewRow(UI, S, est),
                     },
                 },
                 UI.Panel {
@@ -237,76 +260,77 @@ function AbyssRift.BuildDetailView(ctx)
     })
 
     -- 底部三栏按钮
+    local bottomBtns = {
+        UI.Button {
+            text = "返回",
+            fontSize = 13,
+            width = 56, height = 42,
+            borderRadius = 8,
+            variant = "outline",
+            onClick = function()
+                ctx.SetView("list")
+            end,
+        },
+        UI.Button {
+            text = "选择难度挑战",
+            fontSize = 14,
+            flex = 1, height = 42,
+            borderRadius = 8,
+            variant = "primary",
+            onClick = function()
+                AbyssRift._ShowDifficultyPicker(UI, S, ctx)
+            end,
+        },
+        UI.Button {
+            text = "扫荡",
+            fontSize = 13,
+            width = 56, height = 42,
+            borderRadius = 8,
+            variant = "outline",
+            onClick = function()
+                AbyssRift.OnSweep(UI, S, ctx)
+            end,
+        },
+    }
+    if ad > 0 then
+        bottomBtns[#bottomBtns + 1] = UI.Button {
+            text = "📺 领券",
+            fontSize = 12,
+            width = 64, height = 42,
+            borderRadius = 8,
+            variant = "outline",
+            onClick = function()
+                AdHelper.ShowRewardAd(function()
+                    AbyssRiftData.ConsumeAdForTicket()
+                    ctx.Refresh()
+                end)
+            end,
+        }
+    end
+    bottomBtns[#bottomBtns + 1] = UI.Button {
+        text = "🏆 排行",
+        fontSize = 12,
+        width = 64, height = 42,
+        borderRadius = 8,
+        variant = "outline",
+        onClick = function()
+            local LeaderboardUI = require("Game.LeaderboardUI")
+            local LeaderboardData = require("Game.LeaderboardData")
+            LeaderboardUI.ShowWithTabs({
+                { key = LeaderboardData.KEY_ABYSS, label = "深渊裂隙", format = function(s) return LeaderboardData.FormatAbyss(s) end },
+            })
+        end,
+    }
+
     pageRoot:AddChild(UI.Panel {
         width = "100%",
         flexDirection = "row",
         alignItems = "center",
-        paddingLeft = 12, paddingRight = 12,
-        paddingTop = 10, paddingBottom = 10,
+        paddingLeft = 8, paddingRight = 8,
+        paddingTop = 8, paddingBottom = 8,
         flexShrink = 0,
-        gap = 10,
-        children = {
-            UI.Button {
-                text = "返回",
-                fontSize = 14,
-                width = 70, height = 46,
-                borderRadius = 8,
-                variant = "outline",
-                onClick = function()
-                    ctx.SetView("list")
-                end,
-            },
-            UI.Button {
-                text = "选择难度挑战",
-                fontSize = 16,
-                flex = 1, height = 46,
-                borderRadius = 8,
-                variant = "primary",
-                onClick = function()
-                    AbyssRift._ShowDifficultyPicker(UI, S, ctx)
-                end,
-            },
-            -- 扫荡按钮（始终显示，不可用时点击弹提示）
-            UI.Button {
-                text = "扫荡",
-                fontSize = 13,
-                width = 70, height = 46,
-                borderRadius = 8,
-                variant = "outline",
-                onClick = function()
-                    AbyssRift.OnSweep(UI, S, ctx)
-                end,
-            },
-            ad > 0 and UI.Button {
-                text = "📺 领券(" .. ad .. ")",
-                fontSize = 13,
-                width = 100, height = 46,
-                borderRadius = 8,
-                variant = "outline",
-                onClick = function()
-                    AdHelper.ShowRewardAd(function()
-                        AbyssRiftData.ConsumeAdForTicket()
-                        ctx.Refresh()
-                    end)
-                end,
-            } or nil,
-            UI.Button {
-                text = "🏆 排行",
-                fontSize = 13,
-                width = 76, height = 46,
-                borderRadius = 8,
-                variant = "outline",
-                onClick = function()
-                    local LeaderboardUI = require("Game.LeaderboardUI")
-                    local LeaderboardData = require("Game.LeaderboardData")
-                    LeaderboardUI.ShowWithTabs({
-                        { key = LeaderboardData.KEY_ABYSS_NORMAL,    label = "普通", format = function(s) return LeaderboardData.FormatAbyss(s) end },
-                        { key = LeaderboardData.KEY_ABYSS_HARD,      label = "困难", format = function(s) return LeaderboardData.FormatAbyss(s) end },
-                        { key = LeaderboardData.KEY_ABYSS_NIGHTMARE, label = "噩梦", format = function(s) return LeaderboardData.FormatAbyss(s) end },
-                    })
-                end,
-            },
-        },
+        gap = 6,
+        children = bottomBtns,
     })
 end
 
@@ -408,15 +432,12 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
                                     fontColor = diffColor, pointerEvents = "none",
                                 },
                                 UI.Label {
-                                    text = "×" .. string.format("%.1f", diff.levelMult),
+                                    text = "×" .. (diff.levelMult % 1 == 0 and tostring(math.floor(diff.levelMult)) or string.format("%.1f", diff.levelMult)),
                                     fontSize = 12, fontColor = S.dim, pointerEvents = "none",
                                 },
                             },
                         },
-                        UI.Label {
-                            text = "预计: 尘" .. est.totalDust .. " 符文" .. string.format("%.1f", est.avgRunes),
-                            fontSize = 11, fontColor = S.dim, pointerEvents = "none",
-                        },
+                        BuildDropPreviewRow(UI, S, est),
                     },
                 },
                 UI.Panel {

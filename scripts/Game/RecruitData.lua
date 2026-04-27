@@ -97,13 +97,15 @@ local function ResolveHero(rarity, fateOverride)
 end
 
 --- 执行招募（单抽或十连）
----@param pullCount number  1 或 10
+---@param pullCount number  1、10 或 100
 ---@param isFree boolean  是否使用免费次数（仅单抽）
 ---@return boolean success
 ---@return table|string  results数组 或 错误信息
 function RecruitData.DoPull(pullCount, isFree)
     local rd = HeroData.recruitData
-    local cost = pullCount == 10 and Config.RECRUIT_TEN_COST or Config.RECRUIT_SINGLE_COST
+    local cost = pullCount >= 100 and Config.RECRUIT_HUNDRED_COST
+              or pullCount == 10 and Config.RECRUIT_TEN_COST
+              or Config.RECRUIT_SINGLE_COST
 
     -- 检查消耗
     if isFree and pullCount == 1 then

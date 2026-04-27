@@ -213,14 +213,14 @@ RuneConfig.ABYSS_RIFT = {
     dailyAd        = 2,           -- 每日广告次数
     totalWaves     = 15,          -- 总波数
     enemiesPerWave = 25,          -- 每波敌人数
-    baseStage      = 5,           -- 第1波等效关卡（固定起点）
-    finalStage     = 6000,        -- 第15波等效关卡（指数增长终点）
+    baseStage      = 500,         -- 第1波等效关卡（提高基数，避免前期碾压）
+    finalStage     = 6000,        -- 第15波等效关卡（ratio=12，增速平缓）
 }
 
 RuneConfig.ABYSS_DIFFICULTY = {
-    { id = "normal",   name = "普通", levelMult = 0.8, qualityMult = 1.0, dustRange = {3, 5}  },
-    { id = "hard",     name = "困难", levelMult = 1.2, qualityMult = 1.5, dustRange = {6, 10} },
-    { id = "nightmare",name = "噩梦", levelMult = 1.8, qualityMult = 2.0, dustRange = {10,15} },
+    { id = "normal",   name = "普通", levelMult = 1,   qualityMult = 1.0, dustRange = {3, 5},   dropChanceMult = 1.0 },
+    { id = "hard",     name = "困难", levelMult = 10,  qualityMult = 2.0, dustRange = {10, 16}, dropChanceMult = 1.5 },
+    { id = "nightmare",name = "噩梦", levelMult = 100, qualityMult = 5.0, dustRange = {20, 35}, dropChanceMult = 2.5 },
 }
 
 --- 波次掉落规则

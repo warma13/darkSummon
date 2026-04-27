@@ -482,6 +482,102 @@ InventoryData.ITEM_DEFS = {
             }
         end,
     },
+    -- 随机神话符文箱（开出1个神话品质符文）
+    random_mythic_rune_box = {
+        id       = "random_mythic_rune_box",
+        name     = "随机神话符文箱",
+        desc     = "打开随机获得1个神话品质符文",
+        icon     = "random_mythic_rune_box",
+        rarity   = "UR",
+        stackable = true,
+        use = function(amount)
+            local RuneData = require("Game.RuneData")
+            local results = {}
+            local bagFullCount = 0
+            for _ = 1, amount do
+                local rune = RuneData.GenerateFixedQuality("red")
+                if rune then
+                    local ok, msg = RuneData.AddToBag(rune)
+                    if ok then
+                        results[#results + 1] = rune
+                    else
+                        bagFullCount = bagFullCount + 1
+                    end
+                end
+            end
+            if bagFullCount > 0 then
+                local Toast = require("Game.Toast")
+                Toast.Show("符文背包已满，" .. bagFullCount .. "个符文未能放入", { 255, 80, 80 })
+            end
+            local RuneConfig = require("Game.Config_Runes")
+            local rewards = {}
+            for _, rune in ipairs(results) do
+                local series = RuneConfig.SERIES_MAP[rune.seriesId]
+                local quality = RuneConfig.QUALITY_MAP[rune.qualityId]
+                rewards[#rewards + 1] = {
+                    icon = series and series.icon or "random_mythic_rune_box",
+                    name = (quality and quality.name or "神话") .. (series and series.name or "") .. "符文",
+                    amount = 1,
+                    borderColor = quality and quality.color or { 220, 40, 40 },
+                }
+            end
+            return "获得神话符文 ×" .. #results, rewards
+        end,
+    },
+    -- 随机遗物碎片箱（开出1个随机遗物碎片）
+    random_relic_shard_box = {
+        id       = "random_relic_shard_box",
+        name     = "随机遗物碎片箱",
+        desc     = "打开随机获得1个遗物碎片",
+        icon     = "random_relic_shard_box",
+        rarity   = "SSR",
+        stackable = true,
+        use = function(amount)
+            local allRelicIds = {}
+            for id, _ in pairs(Config.RELICS) do
+                allRelicIds[#allRelicIds + 1] = id
+            end
+            if #allRelicIds == 0 then return "无可用遗物", {} end
+
+            local RelicData = require("Game.RelicData")
+            local results = {}
+            for _ = 1, amount do
+                local relicId = allRelicIds[math.random(1, #allRelicIds)]
+                HeroData.relicData = HeroData.relicData or { shards = {}, owned = {}, equipped = {}, progress = {} }
+                HeroData.relicData.shards = HeroData.relicData.shards or {}
+                HeroData.relicData.shards[relicId] = (HeroData.relicData.shards[relicId] or 0) + 1
+                results[relicId] = (results[relicId] or 0) + 1
+            end
+
+            local RelicConfig = require("Game.Config_Relics")
+            local parts = {}
+            local rewards = {}
+            for relicId, count in pairs(results) do
+                local rDef = Config.RELICS[relicId]
+                local rName = rDef and rDef.name or relicId
+                -- 优先使用遗物专属图片，fallback 到部位图标
+                local rIcon = (rDef and rDef.image) or "random_relic_shard_box"
+                if rIcon == "random_relic_shard_box" and rDef and rDef.slot and RelicConfig.SLOTS then
+                    for _, slot in ipairs(RelicConfig.SLOTS) do
+                        if slot.id == rDef.slot and slot.icon then
+                            rIcon = slot.icon
+                            break
+                        end
+                    end
+                end
+                parts[#parts + 1] = rName .. "碎片 ×" .. count
+                rewards[#rewards + 1] = { icon = rIcon, name = rName .. " 碎片", amount = count }
+            end
+
+            -- 检查自动合成
+            for relicId, _ in pairs(results) do
+                RelicData.TrySynthesize(relicId)
+            end
+
+            HeroData.Save()
+            return table.concat(parts, "  "), rewards
+        end,
+    },
 }
 
 -- ============================================================================

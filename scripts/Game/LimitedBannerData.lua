@@ -325,7 +325,9 @@ end
 ---@return boolean success
 ---@return table|string
 function LBD.DoPull(bannerCfg, pullCount)
-    local cost = pullCount == 10 and bannerCfg.tenCost or bannerCfg.singleCost
+    local cost = pullCount >= 100 and (bannerCfg.hundredCost or bannerCfg.tenCost * 9)
+              or pullCount == 10 and bannerCfg.tenCost
+              or bannerCfg.singleCost
     local d = LBD.GetData(bannerCfg)
 
     if LBD.IsLocked(bannerCfg) then

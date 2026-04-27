@@ -16,9 +16,7 @@ LB.KEY_CAMPAIGN    = "lb_campaign_v3"  -- 主线最高全局波次（直接存 g
 LB.KEY_TOWER       = "lb_tower"        -- 试练塔最高层
 LB.KEY_DUNGEON     = "lb_dungeon"      -- 资源副本当天最高波次（每日重置上传）
 LB.KEY_WORLD_BOSS  = "lb_world_boss_v3"   -- 世界BOSS最高伤害（历史，v3：scoreMult替代attrMult）
-LB.KEY_ABYSS_NORMAL    = "lb_abyss_normal"     -- 深渊裂隙·普通最高波数
-LB.KEY_ABYSS_HARD      = "lb_abyss_hard"       -- 深渊裂隙·困难最高波数
-LB.KEY_ABYSS_NIGHTMARE = "lb_abyss_nightmare"  -- 深渊裂隙·噩梦最高波数
+LB.KEY_ABYSS           = "lb_abyss"            -- 深渊裂隙综合最高记录 (diffIndex*100+wave)
 LB.KEY_COSTUME         = "lb_costume"          -- 时装战力总加分
 LB.KEY_EMERALD_TOKEN    = "lb_emerald_token"    -- 翠影秘境累计凭证
 LB.KEY_EMERALD_PROGRESS = "lb_emerald_progress" -- 翠影秘境最高进度 (tier*100+wave)
@@ -244,27 +242,25 @@ function LB.UploadHatredLandDiffDaily(rawDamage, difficultyLevel)
     })
 end
 
---- 深渊裂隙难度 ID → 排行榜 key 映射
-LB.ABYSS_KEY_MAP = {
-    normal    = LB.KEY_ABYSS_NORMAL,
-    hard      = LB.KEY_ABYSS_HARD,
-    nightmare = LB.KEY_ABYSS_NIGHTMARE,
-}
+--- 深渊裂隙难度 ID → 编码索引 (normal=1, hard=2, nightmare=3)
+local ABYSS_DIFF_INDEX = { normal = 1, hard = 2, nightmare = 3 }
+local ABYSS_DIFF_NAMES = { [1] = "普通", [2] = "困难", [3] = "噩梦" }
 
---- 上传深渊裂隙最高通关波数
+--- 上传深渊裂隙最高记录（编码: diffIndex * 100 + wave）
 ---@param difficultyId string "normal"/"hard"/"nightmare"
 ---@param wave number 通关波数 (1-15)
 function LB.UploadAbyss(difficultyId, wave)
     if not wave or wave <= 0 then return end
     if not clientCloud then return end
-    local key = LB.ABYSS_KEY_MAP[difficultyId]
-    if not key then return end
-    clientCloud:SetInt(key, wave, {
+    local idx = ABYSS_DIFF_INDEX[difficultyId]
+    if not idx then return end
+    local score = idx * 100 + wave
+    clientCloud:SetInt(LB.KEY_ABYSS, score, {
         ok = function()
-            print("[LB] Abyss " .. difficultyId .. " score uploaded: wave " .. wave)
+            print("[LB] Abyss uploaded: " .. difficultyId .. " wave " .. wave .. " (score=" .. score .. ")")
         end,
         error = function(code, reason)
-            print("[LB] Abyss " .. difficultyId .. " upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
+            print("[LB] Abyss upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
         end,
     })
 end
@@ -375,13 +371,16 @@ function LB.FormatEmeraldProgress(encoded)
     return name .. " 第" .. wave .. "波"
 end
 
---- 格式化深渊裂隙波数
----@param wave number
+--- 格式化深渊裂隙综合分数 (diffIndex*100+wave)
+---@param score number
 ---@return string
-function LB.FormatAbyss(wave)
-    if not wave or wave <= 0 then return "—" end
-    if wave >= 15 then return "通关" end
-    return "第" .. wave .. "波"
+function LB.FormatAbyss(score)
+    if not score or score <= 0 then return "—" end
+    local idx = math.floor(score / 100)
+    local wave = score % 100
+    local diffName = ABYSS_DIFF_NAMES[idx] or "?"
+    if wave >= 15 then return diffName .. "·通关" end
+    return diffName .. "·第" .. wave .. "波"
 end
 
 --- 同步所有排行榜分数（游戏初始化 / Save 时调用）
