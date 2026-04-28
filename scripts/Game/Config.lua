@@ -9,5 +9,6 @@ require("Game.Config_Heroes")(Config)
 require("Game.Config_Meta")(Config)
 require("Game.Config_Balance")(Config)
 require("Game.Config_Relics")(Config)
+require("Game.Config_AffixTags")(Config)
 
 return Config

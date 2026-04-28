@@ -189,7 +189,7 @@ Abyss.CalcSpeedScale = DungeonScaling.CalcSpeedScale
 
 --- 获取波次类型
 ---@param wave number 1-15
----@return string "normal"/"elite5"/"elite10"/"boss"
+---@return string "normal"/"elite3"/"elite7"/"elite10"/"elite13"/"boss"
 function Abyss.GetWaveType(wave)
     return RuneConfig.GetWaveDropType(wave)
 end
@@ -201,10 +201,14 @@ function Abyss.GetWaveLabel(wave)
     local wtype = Abyss.GetWaveType(wave)
     if wtype == "boss" then
         return "BOSS", { 255, 60, 60 }
+    elseif wtype == "elite13" then
+        return "精英++", { 255, 100, 40 }
     elseif wtype == "elite10" then
         return "精英+", { 255, 180, 40 }
-    elseif wtype == "elite5" then
+    elseif wtype == "elite7" then
         return "精英", { 200, 160, 60 }
+    elseif wtype == "elite3" then
+        return "精英", { 200, 200, 80 }
     else
         return "普通", { 160, 160, 160 }
     end
@@ -239,10 +243,15 @@ function Abyss.GenerateWaveEnemies(wave, difficultyId)
         end
     end
 
-    -- 精英波：强化尾部 2-3 个怪
-    if waveType == "elite5" or waveType == "elite10" then
-        local eliteCount = (waveType == "elite10") and 3 or 2
-        WaveGen.MarkElitesTail(enemies, eliteCount, 2.5, 0.8)
+    -- 精英波：根据阶段强化不同数量和强度的精英怪
+    if waveType == "elite3" then
+        WaveGen.MarkElitesTail(enemies, 2, 2.0, 0.85)     -- 2个精英，HP×2.0，速度×0.85
+    elseif waveType == "elite7" then
+        WaveGen.MarkElitesTail(enemies, 2, 2.5, 0.80)     -- 2个精英，HP×2.5，速度×0.80
+    elseif waveType == "elite10" then
+        WaveGen.MarkElitesTail(enemies, 3, 3.0, 0.75)     -- 3个精英，HP×3.0，速度×0.75
+    elseif waveType == "elite13" then
+        WaveGen.MarkElitesTail(enemies, 4, 3.5, 0.70)     -- 4个精英，HP×3.5，速度×0.70
     end
 
     return enemies
@@ -435,9 +444,9 @@ function Abyss.GetDifficultyInfo(difficultyId)
     }
 
     local descMap = {
-        normal    = "适合初次挑战，保底获得符文",
-        hard      = "稀有符文概率提升，材料更丰厚",
-        nightmare = "高品质符文概率翻倍，终极挑战",
+        normal    = "入门难度，保底符文，适合日常刷取",
+        hard      = "怪物等级×5，符文品质提升，材料更丰厚",
+        nightmare = "怪物×20倍等级，高品质符文频出，终极试炼",
     }
 
     return diff.name, colorMap[difficultyId] or { 160, 160, 160 }, descMap[difficultyId] or ""

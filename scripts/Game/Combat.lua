@@ -113,25 +113,21 @@ local COLOR_RESIST     = { 140, 140, 140 }
 local COLOR_AMP_MARK   = { 200, 100, 255, 255 }
 local COLOR_ARMOR_BREAK = { 255, 180, 60, 255 }
 
---- 获取元素伤害的飘字颜色（弱点=元素色高亮，抗性=灰色，普通=塔色）
----@param heroElement string|nil
----@param elemMult number
+--- 获取伤害类型飘字颜色（物理=橙，法术=蓝，真实=白，无减伤=塔色）
+---@param dmgType string|nil  "physical"/"magical"/"pure"
+---@param defMult number       防御乘区值（越低=减伤越多）
 ---@param towerColor table
 ---@return table color
----@return string|nil suffix  弱点/抗性后缀
-local function GetElementDmgColor(heroElement, elemMult, towerColor)
-    if not heroElement or elemMult == 1.0 then
-        return towerColor, nil
-    end
-    local elemDef = Config.ELEMENTS[heroElement]
-    if elemMult > 1.05 then
-        -- 弱点：元素色
-        return elemDef and elemDef.color or towerColor, nil
-    elseif elemMult < 0.95 then
-        -- 抗性：灰暗色
-        return COLOR_RESIST, nil
-    end
-    return towerColor, nil
+local function GetDmgTypeColor(dmgType, defMult, towerColor)
+    if not dmgType then return towerColor end
+    local typeDef = Config.DAMAGE_TYPES[dmgType]
+    if not typeDef then return towerColor end
+    -- 真实伤害：始终白色
+    if dmgType == "pure" then return typeDef.color end
+    -- 高抗性（defMult < 0.6）：灰暗色
+    if defMult and defMult < 0.6 then return COLOR_RESIST end
+    -- 正常：使用伤害类型色
+    return typeDef.color or towerColor
 end
 
 --- 格式化大数字（万/亿/万亿）
@@ -200,16 +196,22 @@ end
 -- 复用乘区表（避免每次 CalcFinalDamage 创建新 table）
 local _zones = {}
 
---- 计算最终伤害（护甲系数 × 暴击倍率）
---- 集成破甲叠加、光环暴击加成
+--- 计算最终伤害（防御减伤 × 暴击倍率）
+--- 集成破甲叠加、光环暴击加成、物/法/真三伤害类型
 ---@param tower table
 ---@param enemy table
 ---@param damage number
 ---@return number finalDamage
 ---@return boolean isCrit
+---@return string|nil dmgType  伤害类型 "physical"/"magical"/"pure"
+---@return number defMult      防御乘区值（用于飘字颜色）
 local function CalcFinalDamage(tower, enemy, damage)
-    -- 英雄元素（多处乘区共用）
-    local heroElement = Config.HERO_ELEMENT[tower.typeDef.id]
+    -- 伤害类型（替代旧的 heroElement）
+    local dmgType = Config.HERO_DAMAGE_TYPE[tower.typeDef.id] or "physical"
+    -- 技能标签可能覆盖伤害类型（如"真伤转化"标签激活时）
+    if tower.hstate and tower.hstate.overrideDmgType then
+        dmgType = tower.hstate.overrideDmgType
+    end
 
     -- 暴击判定（需要返回 isCrit 标记）
     local isCrit = false
@@ -220,14 +222,13 @@ local function CalcFinalDamage(tower, enemy, damage)
     -- ====================================================================
     -- 清除上次残留的 key（已知全部 key，直接置 nil）
     local zones = _zones
-    zones.def = nil; zones.crit = nil; zones.elemResist = nil
-    zones.chill = nil; zones.dmgBonus = nil; zones.elemDmg = nil; zones.vuln = nil
+    zones.def = nil; zones.crit = nil; zones.typeDmg = nil
+    zones.chill = nil; zones.dmgBonus = nil; zones.vuln = nil
 
-    -- [DEF减伤] ATK / (ATK + effectiveDEF)
-    do
+    -- [防御减伤] 按伤害类型分支：物理走 DEF，法术走 RES，真实跳过
+    if dmgType == "physical" then
+        -- 物理：走现有 DEF 递减公式（穿甲、破甲叠层全部保留）
         local enemyDEF = enemy.def or 0
-        -- 英雄穿甲：按比例削减敌方 DEF（armorPen 0.30 = 削减30% DEF）
-        -- 怪物穿甲抗性：降低穿甲有效率（armorPenResist 0.30 = 穿甲效果打7折）
         local armorPen = Tower.GetEffectiveArmorPen(tower)
         local penResist = enemy.armorPenResist or 0
         if penResist > 0 then
@@ -243,10 +244,24 @@ local function CalcFinalDamage(tower, enemy, damage)
         -- 剧毒瘴气：额外削减 DEF
         if enemy.armorReduceFromDot then
             enemyDEF = enemyDEF * (1 - enemy.armorReduceFromDot)
-            enemy.armorReduceFromDot = nil  -- 单次使用
+            enemy.armorReduceFromDot = nil
         end
         enemyDEF = math.max(0, enemyDEF)
         zones.def = F.Diminishing(enemyDEF, damage)
+
+    elseif dmgType == "magical" then
+        -- 法术：走 RES（魔抗）百分比减伤，0~100
+        local res = enemy.res or 0
+        -- 法术穿透（新属性，对应物理系的穿甲）
+        local magicPen = tower.magicPen or 0
+        if magicPen > 0 then
+            res = res - magicPen * 100  -- magicPen 是 0~1 比率
+        end
+        res = math.max(0, math.min(100, res))
+        zones.def = 1.0 - res / 100
+
+    else -- "pure"
+        -- 真实伤害：跳过防御乘区（zones.def 留 nil，不参与相乘）
     end
 
     -- [暴击] 概率触发，倍率 = baseCritMult + critDmg
@@ -269,17 +284,7 @@ local function CalcFinalDamage(tower, enemy, damage)
         end
     end
 
-    -- [元素抗性] 1 - resistance（由敌人主题×英雄元素查表）
-    do
-        local elemMult = 1.0
-        if heroElement and enemy.typeDef and enemy.typeDef.themeId then
-            local resists = Config.THEME_ELEMENT_RESIST[enemy.typeDef.themeId]
-            if resists and resists[heroElement] then
-                elemMult = 1.0 - resists[heroElement]
-            end
-        end
-        zones.elemResist = elemMult
-    end
+    -- [元素抗性] 已移除 —— 由 zones.def 中的物/法/真分支替代
 
     -- [寒意增伤] 5层寒意时受到的伤害增加
     if enemy.chillStacks and enemy.chillStacks >= 5 then
@@ -304,23 +309,25 @@ local function CalcFinalDamage(tower, enemy, damage)
         end
     end
 
-    -- [元素伤害] 匹配英雄元素时的专属乘区
-    -- 怪物元素伤害减免：elemDmgReduce 削减英雄 elemDmg
+    -- [类型伤害] 按伤害类型的专属乘区（替代旧的元素伤害）
     do
-        local elemDmg = 0
-        if heroElement and tower.elemDmgBonus then
-            elemDmg = tower.elemDmgBonus[heroElement] or 0
+        local typeDmgBonus = 0
+        if dmgType == "physical" then
+            typeDmgBonus = tower.physDmgBonus or 0
+        elseif dmgType == "magical" then
+            typeDmgBonus = tower.magicDmgBonus or 0
         end
-        -- 符文词条：元素精通追加到同一乘区
-        if heroElement and tower.runeBonus and tower.runeBonus.elemMastery and tower.runeBonus.elemMastery > 0 then
-            elemDmg = elemDmg + tower.runeBonus.elemMastery
+        -- 符文词条：伤害精通（原元素精通）追加到同一乘区
+        if tower.runeBonus and tower.runeBonus.elemMastery and tower.runeBonus.elemMastery > 0 then
+            typeDmgBonus = typeDmgBonus + tower.runeBonus.elemMastery
         end
-        local elemReduce = enemy.elemDmgReduce or 0
-        if elemReduce > 0 then
-            elemDmg = elemDmg * (1 - elemReduce)
+        -- 怪物类型伤害减免
+        local typeReduce = enemy.typeDmgReduce or 0
+        if typeReduce > 0 then
+            typeDmgBonus = typeDmgBonus * (1 - typeReduce)
         end
-        if elemDmg > 0 then
-            zones.elemDmg = 1.0 + elemDmg
+        if typeDmgBonus > 0 then
+            zones.typeDmg = 1.0 + typeDmgBonus
         end
     end
 
@@ -342,7 +349,7 @@ local function CalcFinalDamage(tower, enemy, damage)
         final = 0
     end
 
-    return final, isCrit, heroElement, zones.elemResist
+    return final, isCrit, dmgType, zones.def or 1.0
 end
 Combat.CalcFinalDamage = CalcFinalDamage
 
@@ -499,12 +506,12 @@ local function HandleChainAttack(tower, firstTarget, damage)
 
         hitSet[nextTarget.id] = true
         local modDmg = HeroSkills.ModifyDamage(tower, nextTarget, currentDmg)
-        local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, nextTarget, modDmg)
+        local finalDmg, isCrit, dmgType_, defMult_ = CalcFinalDamage(tower, nextTarget, modDmg)
         local killed = Enemy.TakeDamage(nextTarget, finalDmg)
         DamageStats.Record(tower, finalDmg, isCrit, killed, nextTarget.isBoss)
 
         -- 伤害飘字
-        local elemColor = GetElementDmgColor(heroElem, elemMult, tower.typeDef.color)
+        local elemColor = GetDmgTypeColor(dmgType_, defMult_, tower.typeDef.color)
         ShowDamageText(nextTarget, finalDmg, isCrit, elemColor)
         if isCrit then HeroSkills.CheckCritSplash(tower, nextTarget, finalDmg) end
 
@@ -550,11 +557,11 @@ local function OnProjectileHit(proj)
     -- === 链式攻击 ===
     if typeDef.attackType == "chain" then
         local damage = HeroSkills.ModifyDamage(tower, target, proj.damage)
-        local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, target, damage)
+        local finalDmg, isCrit, dmgType_, defMult_ = CalcFinalDamage(tower, target, damage)
         local killed = Enemy.TakeDamage(target, finalDmg)
         DamageStats.Record(tower, finalDmg, isCrit, killed, target.isBoss)
 
-        local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
+        local elemColor = GetDmgTypeColor(dmgType_, defMult_, proj.color)
         ShowDamageText(target, finalDmg, isCrit, elemColor)
         if isCrit then
             HeroSkills.CheckCritSplash(tower, target, finalDmg)
@@ -584,11 +591,11 @@ local function OnProjectileHit(proj)
                     local dist = math.sqrt(distSq)
                     local dmgMult = 1.0 - (dist / 50) * 0.5
                     local damage = HeroSkills.ModifyDamage(tower, e, proj.damage * dmgMult)
-                    local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, e, damage)
+                    local finalDmg, isCrit, dmgType_, defMult_ = CalcFinalDamage(tower, e, damage)
                     local killed = Enemy.TakeDamage(e, finalDmg)
                     DamageStats.Record(tower, finalDmg, isCrit, killed, e.isBoss)
 
-                    local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
+                    local elemColor = GetDmgTypeColor(dmgType_, defMult_, proj.color)
                     ShowDamageText(e, finalDmg, isCrit, elemColor)
                     if isCrit then
                         HeroSkills.CheckCritSplash(tower, e, finalDmg)
@@ -609,11 +616,11 @@ local function OnProjectileHit(proj)
     else
         -- === 单体伤害 ===
         local damage = HeroSkills.ModifyDamage(tower, target, proj.damage)
-        local finalDmg, isCrit, heroElem, elemMult = CalcFinalDamage(tower, target, damage)
+        local finalDmg, isCrit, dmgType_, defMult_ = CalcFinalDamage(tower, target, damage)
         local killed = Enemy.TakeDamage(target, finalDmg)
         DamageStats.Record(tower, finalDmg, isCrit, killed, target.isBoss)
 
-        local elemColor = GetElementDmgColor(heroElem, elemMult, proj.color)
+        local elemColor = GetDmgTypeColor(dmgType_, defMult_, proj.color)
         ShowDamageText(target, finalDmg, isCrit, elemColor)
         if isCrit then HeroSkills.CheckCritSplash(tower, target, finalDmg) end
         HeroSkills.OnHit(tower, target, killed)

@@ -306,18 +306,20 @@ function GameUI.BuildHeroInfoContent(tower)
         addTag(tag.name, tag.color)
     end
 
-    -- 元素伤害加成标签
-    if tower.elemDmgBonus then
-        for elem, val in pairs(tower.elemDmgBonus) do
-            if val > 0 then
-                local ei = Config.ELEMENTS and Config.ELEMENTS[elem]
-                local eName = ei and ei.name or elem
-                local eColor = ei and ei.color or { 200, 200, 200 }
-                addTag(eName .. "伤+" .. string.format("%.0f%%", val * 100), eColor)
-            end
-        end
+    -- 伤害类型加成标签
+    if tower.physDmgBonus and tower.physDmgBonus > 0 then
+        local ti = Config.DAMAGE_TYPES and Config.DAMAGE_TYPES["physical"]
+        local tColor = ti and ti.color or { 255, 160, 60 }
+        addTag("物伤+" .. string.format("%.0f%%", tower.physDmgBonus * 100), tColor)
     end
-
+    if tower.magicDmgBonus and tower.magicDmgBonus > 0 then
+        local ti = Config.DAMAGE_TYPES and Config.DAMAGE_TYPES["magical"]
+        local tColor = ti and ti.color or { 100, 140, 255 }
+        addTag("法伤+" .. string.format("%.0f%%", tower.magicDmgBonus * 100), tColor)
+    end
+    if tower.magicPen and tower.magicPen > 0 then
+        addTag("法穿+" .. string.format("%.0f%%", tower.magicPen * 100), { 180, 100, 255 })
+    end
     if #tagChildren > 0 then
         result[#result + 1] = ctx.UI.Panel {
             width = "100%",

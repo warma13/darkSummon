@@ -11,6 +11,7 @@ local Currency = require("Game.Currency")
 local EquipData = require("Game.EquipData")
 local HeroAnim = require("Game.HeroAnim")
 local DivineBlessDB = require("Game.DivineBlessData")
+local AffixTagResolver = require("Game.AffixTagResolver")
 
 -- 延迟 require 遗物模块（避免循环依赖）
 local _RelicData, _RelicEffects
@@ -107,16 +108,36 @@ function Tower.Create(typeIndex, star, col, row)
         critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
         critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
         dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
-        elemDmgBonus = heroStats.elemDmgBonus or {},
+        -- 伤害类型加成（替代旧的 elemDmgBonus）
+        physDmgBonus = equipBonus.physDmg or 0,
+        magicDmgBonus = equipBonus.magicDmg or 0,
+        magicPen = equipBonus.magicPen or 0,
+        -- 装备类型伤害通用加成（typeDmg 路由到英雄对应类型）
         -- 技能
         skills = {},
         skillTimers = {},
+        -- 技能标签状态（第四章）
+        tags = {},
+        -- 英雄运行时状态（Combat 用于 overrideDmgType 等）
+        hstate = {},
     }
 
-    -- 装备元素伤害加成
-    local heroElem = Config.HERO_ELEMENT[heroId]
-    if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
-        tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
+    -- 装备类型伤害加成：typeDmg 路由到英雄对应伤害类型
+    local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
+    if equipBonus.typeDmg and equipBonus.typeDmg > 0 then
+        if dmgType == "physical" then
+            tower.physDmgBonus = tower.physDmgBonus + equipBonus.typeDmg
+        elseif dmgType == "magical" then
+            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.typeDmg
+        end
+    end
+    -- 向后兼容：elemDmg 也路由到对应类型
+    if equipBonus.elemDmg and equipBonus.elemDmg > 0 then
+        if dmgType == "physical" then
+            tower.physDmgBonus = tower.physDmgBonus + equipBonus.elemDmg
+        elseif dmgType == "magical" then
+            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.elemDmg
+        end
     end
 
     -- 符文特殊词条
@@ -199,17 +220,33 @@ function Tower.CreateLeader(col, row)
         critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
         critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
         dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
-        elemDmgBonus = heroStats.elemDmgBonus or {},
+        -- 伤害类型加成（替代旧的 elemDmgBonus）
+        physDmgBonus = equipBonus.physDmg or 0,
+        magicDmgBonus = equipBonus.magicDmg or 0,
+        magicPen = equipBonus.magicPen or 0,
         skills = {},
         skillTimers = {},
+        tags = {},
+        hstate = {},
         -- 攻击动画状态
         attackAnimTimer = 0,
     }
 
-    -- 装备元素伤害加成
-    local heroElem = Config.HERO_ELEMENT[heroId]
-    if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
-        tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
+    -- 装备类型伤害加成：typeDmg 路由到英雄对应伤害类型
+    local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
+    if equipBonus.typeDmg and equipBonus.typeDmg > 0 then
+        if dmgType == "physical" then
+            tower.physDmgBonus = tower.physDmgBonus + equipBonus.typeDmg
+        elseif dmgType == "magical" then
+            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.typeDmg
+        end
+    end
+    if equipBonus.elemDmg and equipBonus.elemDmg > 0 then
+        if dmgType == "physical" then
+            tower.physDmgBonus = tower.physDmgBonus + equipBonus.elemDmg
+        elseif dmgType == "magical" then
+            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.elemDmg
+        end
     end
 
     -- 符文特殊词条
@@ -447,6 +484,11 @@ end
 --- 便捷：获取有效伤害加成
 function Tower.GetEffectiveDmgBonus(tower)
     return Tower.GetEffectiveStat(tower, "dmgBonus", tower.dmgBonus or 0)
+end
+
+--- 便捷：获取有效法术穿透
+function Tower.GetEffectiveMagicPen(tower)
+    return Tower.GetEffectiveStat(tower, "magicPen", tower.magicPen or 0)
 end
 
 --- 检查塔是否有指定 debuff
@@ -707,11 +749,25 @@ function Tower.RefreshAllStats()
         tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + DivineBlessDB.GetBuffValue("crit_pct")
         tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct
         tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0)
-        tower.elemDmgBonus = heroStats.elemDmgBonus or {}
-        -- 装备元素伤害加成：加到英雄对应元素上
-        local heroElem = Config.HERO_ELEMENT[heroId]
-        if heroElem and equipBonus.elemDmg and equipBonus.elemDmg > 0 then
-            tower.elemDmgBonus[heroElem] = (tower.elemDmgBonus[heroElem] or 0) + equipBonus.elemDmg
+
+        -- 伤害类型加成（替代旧的 elemDmgBonus）
+        tower.physDmgBonus = equipBonus.physDmg or 0
+        tower.magicDmgBonus = equipBonus.magicDmg or 0
+        tower.magicPen = equipBonus.magicPen or 0
+        local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
+        if equipBonus.typeDmg and equipBonus.typeDmg > 0 then
+            if dmgType == "physical" then
+                tower.physDmgBonus = tower.physDmgBonus + equipBonus.typeDmg
+            elseif dmgType == "magical" then
+                tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.typeDmg
+            end
+        end
+        if equipBonus.elemDmg and equipBonus.elemDmg > 0 then
+            if dmgType == "physical" then
+                tower.physDmgBonus = tower.physDmgBonus + equipBonus.elemDmg
+            elseif dmgType == "magical" then
+                tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.elemDmg
+            end
         end
 
         -- 符文特殊词条（供 Combat/HeroSkills 读取）
@@ -731,6 +787,39 @@ function Tower.RefreshAllStats()
 
         -- 刷新技能
         HeroSkills.InitTowerSkills(tower)
+
+        -- 三层词条加成（独立乘区）
+        local tagAffixes = AffixTagResolver.CollectAffixes(heroId)
+        local tagBonus = AffixTagResolver.Resolve(tower, tagAffixes)
+        tower._tagBonus = tagBonus  -- 缓存供 UI/技能查询
+        -- T1/T2 加成合并到属性（独立乘区）
+        if tagBonus.atk_pct and tagBonus.atk_pct > 0 then
+            tower.attack = tower.attack * (1 + tagBonus.atk_pct)
+        end
+        if tagBonus.skillDmg_pct and tagBonus.skillDmg_pct > 0 then
+            tower.dmgBonus = tower.dmgBonus + tagBonus.skillDmg_pct
+        end
+        if tagBonus.physDmg_pct and tagBonus.physDmg_pct > 0 then
+            tower.physDmgBonus = tower.physDmgBonus + tagBonus.physDmg_pct
+        end
+        if tagBonus.magicDmg_pct and tagBonus.magicDmg_pct > 0 then
+            tower.magicDmgBonus = tower.magicDmgBonus + tagBonus.magicDmg_pct
+        end
+        if tagBonus.critRate_add and tagBonus.critRate_add > 0 then
+            tower.critRate = tower.critRate + tagBonus.critRate_add
+        end
+        if tagBonus.critDmg_add and tagBonus.critDmg_add > 0 then
+            tower.critDmg = tower.critDmg + tagBonus.critDmg_add
+        end
+        if tagBonus.armorPen_add and tagBonus.armorPen_add > 0 then
+            tower.armorPen = tower.armorPen + tagBonus.armorPen_add
+        end
+        if tagBonus.magicPen_add and tagBonus.magicPen_add > 0 then
+            tower.magicPen = tower.magicPen + tagBonus.magicPen_add
+        end
+        if tagBonus.spdBonus_add and tagBonus.spdBonus_add > 0 then
+            tower.speed = tower.speed / (1 + tagBonus.spdBonus_add)
+        end
     end
     print("[Tower] RefreshAllStats: " .. #State.towers .. " towers updated")
 end

@@ -187,10 +187,10 @@ local function BuildInfoTab(ctx, heroId, heroDef)
     stats.atk = stats.atk + (eqBonus.atk or 0)
     stats.critDmg = (stats.critDmg or 0) + (eqBonus.critDmg or 0)
     stats.dmgBonus = (stats.dmgBonus or 0) + (eqBonus.dmgBonus or 0)
-    local heroElem = Config.HERO_ELEMENT[heroId]
-    if heroElem and eqBonus.elemDmg and eqBonus.elemDmg > 0 then
+    local heroDmgType = Config.HERO_DAMAGE_TYPE[heroId]
+    if heroDmgType and eqBonus.elemDmg and eqBonus.elemDmg > 0 then
         if not stats.elemDmgBonus then stats.elemDmgBonus = {} end
-        stats.elemDmgBonus[heroElem] = (stats.elemDmgBonus[heroElem] or 0) + eqBonus.elemDmg
+        stats.elemDmgBonus[heroDmgType] = (stats.elemDmgBonus[heroDmgType] or 0) + eqBonus.elemDmg
     end
 
     -- 计算实际攻速（次/s）= 1 / 攻击间隔
@@ -231,14 +231,71 @@ local function BuildInfoTab(ctx, heroId, heroDef)
             CreateStatRow(UI, S, "穿甲", stats.armorPen, { 200, 140, 255, 255 }, "pct"),
             CreateStatRow(UI, S, "伤害加成", stats.dmgBonus or 0, { 255, 100, 100, 255 }, "pct"),
             (function()
-                local elemId = Config.HERO_ELEMENT[heroId]
-                local elemDef = elemId and Config.ELEMENTS[elemId]
-                if not elemId or not elemDef then return nil end
-                local elemBonus = stats.elemDmgBonus and stats.elemDmgBonus[elemId] or 0
-                return CreateStatRow(UI, S, elemDef.name .. "伤害", elemBonus, elemDef.color, "pct")
+                local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
+                local dmgDef = dmgTypeId and Config.DAMAGE_TYPES[dmgTypeId]
+                if not dmgTypeId or not dmgDef then return nil end
+                local dmgBonus = stats.elemDmgBonus and stats.elemDmgBonus[dmgTypeId] or 0
+                return CreateStatRow(UI, S, dmgDef.name .. "伤害", dmgBonus, dmgDef.color, "pct")
             end)(),
         },
     }
+
+    -- 伤害类型 & 定位
+    do
+        local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
+        local dmgDef = dmgTypeId and Config.DAMAGE_TYPES[dmgTypeId]
+        local roles = Config.HERO_ROLE and Config.HERO_ROLE[heroId]
+        local roleNames = Config.HERO_ROLE_NAMES or {}
+        if dmgDef or (roles and #roles > 0) then
+            local infoChildren = {}
+            if dmgDef then
+                infoChildren[#infoChildren + 1] = UI.Panel {
+                    flexDirection = "row", alignItems = "center", gap = 4,
+                    paddingLeft = 4,
+                    children = {
+                        UI.Label { text = "伤害类型", fontSize = 10, fontColor = S.dim, width = 50 },
+                        UI.Panel {
+                            width = 10, height = 10, borderRadius = 5,
+                            backgroundColor = { dmgDef.color[1], dmgDef.color[2], dmgDef.color[3], 220 },
+                        },
+                        UI.Label {
+                            text = dmgDef.name, fontSize = 11,
+                            fontColor = dmgDef.color, fontWeight = "bold",
+                        },
+                    },
+                }
+            end
+            if roles and #roles > 0 then
+                local parts = {}
+                for _, r in ipairs(roles) do
+                    parts[#parts + 1] = roleNames[r] or r
+                end
+                infoChildren[#infoChildren + 1] = UI.Panel {
+                    flexDirection = "row", alignItems = "center", gap = 4,
+                    paddingLeft = 4,
+                    children = {
+                        UI.Label { text = "定位", fontSize = 10, fontColor = S.dim, width = 50 },
+                        UI.Label {
+                            text = table.concat(parts, " / "),
+                            fontSize = 11, fontColor = { 180, 200, 160, 220 },
+                        },
+                    },
+                }
+            end
+            children[#children + 1] = UI.Panel {
+                width = "100%",
+                marginTop = 4,
+                backgroundColor = { 35, 25, 18, 200 },
+                borderRadius = 8,
+                borderWidth = 1,
+                borderColor = { 70, 55, 40, 150 },
+                paddingTop = 6, paddingBottom = 6,
+                paddingLeft = 6, paddingRight = 6,
+                gap = 3,
+                children = infoChildren,
+            }
+        end
+    end
 
     -- 技能区
     local skillDefs = Config.HERO_SKILLS and Config.HERO_SKILLS[heroId] or {}
@@ -336,6 +393,122 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                 skillDescContainer,
             },
         }
+    end
+
+    -- 技能标签区
+    do
+        local tagDefs = Config.HERO_SKILL_TAGS and Config.HERO_SKILL_TAGS[heroId]
+        if tagDefs and #tagDefs > 0 then
+            local typeColors = {
+                passive     = { 120, 200, 120, 220 },
+                on_hit      = { 255, 160, 80, 220 },
+                on_crit     = { 255, 220, 80, 220 },
+                on_kill     = { 255, 80, 80, 220 },
+                aura        = { 100, 180, 255, 220 },
+                active      = { 220, 100, 255, 220 },
+                conditional = { 200, 180, 140, 220 },
+            }
+            local typeLabels = {
+                passive = "被动", on_hit = "命中", on_crit = "暴击",
+                on_kill = "击杀", aura = "光环", active = "主动",
+                conditional = "条件",
+            }
+
+            local tagChildren = {}
+            tagChildren[#tagChildren + 1] = UI.Label {
+                text = "技能标签", fontSize = 12, fontColor = S.dim, marginLeft = 6,
+            }
+
+            for _, tagDef in ipairs(tagDefs) do
+                local tier = HeroData.GetTagTier(heroId, tagDef.id)
+                local unlocked = HeroData.IsTagUnlocked(heroId, tagDef)
+                local effectDesc = ""
+                if tier > 0 and tagDef.effects and tagDef.effects[tier] then
+                    effectDesc = tagDef.effects[tier].desc or ""
+                elseif tagDef.effects and tagDef.effects[1] then
+                    effectDesc = tagDef.effects[1].desc or ""
+                end
+
+                local tColor = typeColors[tagDef.type] or S.dim
+                local tLabel = typeLabels[tagDef.type] or tagDef.type
+
+                -- 解锁条件文本
+                local unlockText = ""
+                if tagDef.unlock then
+                    if tagDef.unlock.star then
+                        unlockText = "★" .. tagDef.unlock.star
+                    elseif tagDef.unlock.advance then
+                        unlockText = "进阶" .. tagDef.unlock.advance
+                    end
+                end
+
+                local tierText = tier > 0
+                    and (" Lv" .. tier .. "/" .. tagDef.maxTier)
+                    or (" 0/" .. tagDef.maxTier)
+
+                tagChildren[#tagChildren + 1] = UI.Panel {
+                    width = "100%",
+                    flexDirection = "row", alignItems = "center",
+                    paddingLeft = 6, paddingRight = 6,
+                    gap = 4,
+                    opacity = unlocked and 1.0 or 0.5,
+                    children = {
+                        -- 类型标签
+                        UI.Panel {
+                            backgroundColor = { tColor[1], tColor[2], tColor[3], 60 },
+                            borderRadius = 4,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            children = {
+                                UI.Label { text = tLabel, fontSize = 9, fontColor = tColor },
+                            },
+                        },
+                        -- 标签名 + 等级
+                        UI.Label {
+                            text = tagDef.name .. tierText,
+                            fontSize = 11,
+                            fontColor = unlocked and { 230, 220, 200, 220 } or { 160, 150, 130, 150 },
+                            fontWeight = tier > 0 and "bold" or "normal",
+                        },
+                        -- 解锁条件
+                        UI.Label {
+                            text = unlockText,
+                            fontSize = 9,
+                            fontColor = unlocked and { 160, 200, 120, 180 } or { 160, 150, 130, 130 },
+                        },
+                    },
+                }
+
+                -- 效果描述
+                if effectDesc ~= "" then
+                    tagChildren[#tagChildren + 1] = UI.Panel {
+                        width = "100%",
+                        paddingLeft = 24,
+                        children = {
+                            UI.Label {
+                                text = effectDesc,
+                                fontSize = 10,
+                                fontColor = unlocked
+                                    and { 200, 190, 170, 200 }
+                                    or { 140, 130, 120, 120 },
+                            },
+                        },
+                    }
+                end
+            end
+
+            children[#children + 1] = UI.Panel {
+                width = "100%",
+                marginTop = 4,
+                backgroundColor = { 35, 25, 18, 200 },
+                borderRadius = 8,
+                borderWidth = 1,
+                borderColor = { 70, 55, 40, 150 },
+                paddingTop = 6, paddingBottom = 6,
+                gap = 3,
+                children = tagChildren,
+            }
+        end
     end
 
     return UI.Panel {
@@ -2226,10 +2399,22 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
     -- 元素图标 + 星级（同一行）
     local elemStarChildren = {}
     if elemDef then
+        local DMG_SHORT = { physical = "物", magical = "法", pure = "真" }
+        local shortLabel = DMG_SHORT[elemId] or "?"
         elemStarChildren[#elemStarChildren + 1] = UI.Panel {
             width = 16, height = 16,
-            backgroundImage = elemDef.icon,
-            backgroundFit = "contain",
+            borderRadius = 8,
+            backgroundColor = { elemDef.color[1], elemDef.color[2], elemDef.color[3], 200 },
+            justifyContent = "center",
+            alignItems = "center",
+            children = {
+                UI.Label {
+                    text = shortLabel,
+                    fontSize = 9,
+                    fontColor = { 255, 255, 255, 240 },
+                    fontWeight = "bold",
+                },
+            },
         }
     end
     if #starChildren > 0 then

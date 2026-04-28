@@ -117,6 +117,9 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
     local defScale = DungeonScaling.CalcDEFScale(stageForDEF)
     local totalDEF = mfloor(baseDEF * defScale)
 
+    -- RES（魔抗）：baseRES 已在 BuildEnemyDef 中计算（含主题乘数+轮次成长，上限80）
+    local totalRES = typeDef.baseRES or 0
+
     local enemy = {
         id = nextEnemyId,
         typeId = typeDef.id,
@@ -135,6 +138,8 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
 
         -- 防御值（伤害公式: ATK × ATK / (ATK + DEF)）
         def = totalDEF,
+        -- 魔抗（0~80，法术伤害百分比减免）
+        res = totalRES,
 
         -- 状态效果
         slowTimer = 0,
@@ -205,7 +210,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
         if es then
             enemy.critDmgReduce   = F.Piecewise4(es.critDmgReduce,   stageNum)
             enemy.dmgBonusReduce  = F.Piecewise4(es.dmgBonusReduce,  stageNum)
-            enemy.elemDmgReduce   = F.Piecewise4(es.elemDmgReduce,   stageNum)
+            enemy.typeDmgReduce   = F.Piecewise4(es.typeDmgReduce,   stageNum)
             enemy.armorPenResist  = F.Piecewise4(es.armorPenResist,  stageNum)
         end
     end

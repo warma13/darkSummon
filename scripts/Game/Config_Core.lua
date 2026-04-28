@@ -479,6 +479,74 @@ Config.STAR_SPEED_MULT = {
     [5] = 1.75,
 }
 
+-- ============================================================================
+-- 英雄定位标签（dps/caster/control/support/breaker/leader + 子类型）
+-- ============================================================================
+Config.HERO_ROLE = {
+    -- 物理输出
+    skeleton_grunt    = { "dps" },
+    bat_minion        = { "dps", "burst" },
+    skeleton_archer   = { "dps", "marker" },
+    demon_warrior     = { "dps", "boss_killer" },
+    ghost_assassin    = { "dps", "burst" },
+    abyss_hunter      = { "dps", "sniper" },
+    eternal_archfiend = { "dps", "crit" },
+    fallen_archangel  = { "dps", "aoe" },
+    crimson_night     = { "dps", "burst" },
+
+    -- 法术输出
+    hell_hound        = { "caster", "dot" },
+    necromancer       = { "caster", "chain" },
+    inferno_flame     = { "caster", "aoe" },
+    shadow_mage       = { "caster", "chain" },
+    storm_lord        = { "caster", "aoe" },
+    ember_wraith      = { "caster", "chain", "dot" },
+    plague_doctor     = { "caster", "dot" },
+    void_dragon       = { "caster", "aoe", "control" },
+
+    -- 控制定位
+    frost_witch       = { "control", "slow" },
+    glacial_sovereign = { "control", "freeze" },
+    stone_golem       = { "control", "stun" },
+
+    -- 辅助定位
+    war_drummer       = { "support", "buff" },
+    nature_elf        = { "support", "aura" },
+    fate_weaver       = { "support", "debuff" },
+
+    -- 破防定位
+    armor_breaker     = { "breaker", "armor" },
+
+    -- 领袖
+    leader            = { "leader", "aura" },
+}
+
+-- 定位名称映射（UI 展示用）
+Config.HERO_ROLE_NAMES = {
+    dps     = "输出",
+    caster  = "术师",
+    control = "控制",
+    support = "辅助",
+    breaker = "破防",
+    leader  = "领袖",
+    -- 子定位
+    burst       = "爆发",
+    dot         = "持续",
+    marker      = "标记",
+    boss_killer = "猎首",
+    sniper      = "狙击",
+    crit        = "暴击",
+    aoe         = "范围",
+    chain       = "链式",
+    slow        = "减速",
+    freeze      = "冰封",
+    stun        = "眩晕",
+    buff        = "增益",
+    aura        = "光环",
+    debuff      = "减益",
+    armor       = "碎甲",
+}
+
 end
 
 return apply

@@ -11,15 +11,15 @@ local function apply(Config)
 
 -- 10 种角色定位（行为由角色决定，外观由主题决定）
 Config.ENEMY_ROLES = {
-    minion   = { baseHP = 4500,   baseDEF = 500,   speed = 85, reward = 2,  size = 9,  shape = "diamond",   unlockOrder = 1 },
-    infantry = { baseHP = 12000,   baseDEF = 800,  speed = 50, reward = 4,  size = 12, shape = "circle",    unlockOrder = 1 },
-    tank     = { baseHP = 45000,   baseDEF = 2000,  speed = 22, reward = 10, size = 16, shape = "square",    unlockOrder = 3 },
-    assassin = { baseHP = 4800,   baseDEF = 300,   speed = 92, reward = 6,  size = 10, shape = "diamond",   unlockOrder = 3 },
-    dodger   = { baseHP = 7500,   baseDEF = 600,   speed = 55, reward = 7,  size = 11, shape = "circle",    unlockOrder = 5,    passive = "dodge", dodgeChance = 0.30 },
-    support  = { baseHP = 10500,   baseDEF = 1000,  speed = 40, reward = 8,  size = 13, shape = "diamond",   unlockOrder = 7 },
-    splitter = { baseHP = 16500,   baseDEF = 900,  speed = 52, reward = 7,  size = 14, shape = "triangle",  unlockOrder = 9,    passive = "split", splitCount = 2, splitRole = "minion" },
-    blinker  = { baseHP = 9750,   baseDEF = 700,   speed = 40, reward = 8,  size = 12, shape = "circle",    unlockOrder = 11,   passive = "blink", blinkInterval = 4.0, blinkProgress = 0.08 },
-    special  = { baseHP = 22500,   baseDEF = 1500,  speed = 45, reward = 9,  size = 14, shape = "square",    unlockOrder = 13 },
+    minion   = { baseHP = 4500,   baseDEF = 500,   baseRES = 5,   speed = 85, reward = 2,  size = 9,  shape = "diamond",   unlockOrder = 1 },
+    infantry = { baseHP = 12000,  baseDEF = 800,   baseRES = 10,  speed = 50, reward = 4,  size = 12, shape = "circle",    unlockOrder = 1 },
+    tank     = { baseHP = 45000,  baseDEF = 2000,  baseRES = 15,  speed = 22, reward = 10, size = 16, shape = "square",    unlockOrder = 3 },
+    assassin = { baseHP = 4800,   baseDEF = 300,   baseRES = 5,   speed = 92, reward = 6,  size = 10, shape = "diamond",   unlockOrder = 3 },
+    dodger   = { baseHP = 7500,   baseDEF = 600,   baseRES = 20,  speed = 55, reward = 7,  size = 11, shape = "circle",    unlockOrder = 5,    passive = "dodge", dodgeChance = 0.30 },
+    support  = { baseHP = 10500,  baseDEF = 1000,  baseRES = 25,  speed = 40, reward = 8,  size = 13, shape = "diamond",   unlockOrder = 7 },
+    splitter = { baseHP = 16500,  baseDEF = 900,   baseRES = 10,  speed = 52, reward = 7,  size = 14, shape = "triangle",  unlockOrder = 9,    passive = "split", splitCount = 2, splitRole = "minion" },
+    blinker  = { baseHP = 9750,   baseDEF = 700,   baseRES = 30,  speed = 40, reward = 8,  size = 12, shape = "circle",    unlockOrder = 11,   passive = "blink", blinkInterval = 4.0, blinkProgress = 0.08 },
+    special  = { baseHP = 22500,  baseDEF = 1500,  baseRES = 20,  speed = 45, reward = 9,  size = 14, shape = "square",    unlockOrder = 13 },
 }
 
 -- 角色解锁波次（风格内相对波次，基于 unlockOrder）
@@ -55,7 +55,7 @@ Config.THEMES = {
         },
         boss = {
             id = "bone_dragon", name = "亡灵首领",
-            color = { 200, 180, 140 }, baseHP = 120000, baseDEF = 3000, speed = 25, size = 22,
+            color = { 200, 180, 140 }, baseHP = 120000, baseDEF = 3000, baseRES = 45, speed = 25, size = 22,
             icon = "image/mobs/undead_boss.png",
             passive = "disable", disableInterval = 8.0, disableDuration = 2.0,
         },
@@ -81,7 +81,7 @@ Config.THEMES = {
         },
         boss = {
             id = "infernal_lord", name = "熔岩首领",
-            color = { 240, 60, 30 }, baseHP = 150000, baseDEF = 2500, speed = 28, size = 20,
+            color = { 240, 60, 30 }, baseHP = 150000, baseDEF = 2500, baseRES = 15, speed = 28, size = 20,
             icon = "image/mobs/lava_boss.png",
             passive = "summon", summonInterval = 6.0, summonCount = 2,
         },
@@ -107,7 +107,7 @@ Config.THEMES = {
         },
         boss = {
             id = "forest_hydra", name = "森林首领",
-            color = { 60, 140, 80 }, baseHP = 375000, baseDEF = 5000, speed = 18, size = 26,
+            color = { 60, 140, 80 }, baseHP = 375000, baseDEF = 5000, baseRES = 30, speed = 18, size = 26,
             icon = "image/mobs/forest_boss.png",
             passive = "immune_cc",
         },
@@ -133,7 +133,7 @@ Config.THEMES = {
         },
         boss = {
             id = "blizzard_king", name = "冰霜首领",
-            color = { 100, 180, 255 }, baseHP = 105000, baseDEF = 2000, speed = 40, size = 18,
+            color = { 100, 180, 255 }, baseHP = 105000, baseDEF = 2000, baseRES = 55, speed = 40, size = 18,
             icon = "image/mobs/frost_boss.png",
             passive = "phase", phaseInterval = 5.0, phaseDuration = 2.5,
         },
@@ -160,7 +160,7 @@ Config.THEMES = {
         },
         boss = {
             id = "void_emperor", name = "虚空首领",
-            color = { 140, 60, 200 }, baseHP = 225000, baseDEF = 4000, speed = 30, size = 24,
+            color = { 140, 60, 200 }, baseHP = 225000, baseDEF = 4000, baseRES = 40, speed = 30, size = 24,
             icon = "image/mobs/void_boss.png",
             passive = "enrage", enrageThreshold = 0.5, enrageSpeedMult = 2.0,
             enrageImmuneCC = true,  -- 狂暴后额外免控,
@@ -202,6 +202,37 @@ local function _shallowCopy(src)
     return dst
 end
 
+-- 主题防御配置（替代旧 5×5 元素抗性矩阵）
+-- defMult: 物防乘数（应用于 role.baseDEF）
+-- resMult: 魔抗乘数（应用于 role.baseRES）
+Config.THEME_DEFENSE_PROFILE = {
+    undead = {
+        defMult = 0.7,    -- 亡灵：低物防（骷髅脆弱）
+        resMult = 1.5,    -- 高魔抗（暗能护体）
+    },
+    lava = {
+        defMult = 1.6,    -- 熔岩：高物防（岩石外壳）
+        resMult = 0.5,    -- 低魔抗（对法术脆弱）
+    },
+    forest = {
+        defMult = 1.0,    -- 森林：均衡物防
+        resMult = 1.0,    -- 均衡魔抗
+    },
+    frost = {
+        defMult = 0.8,    -- 冰霜：低物防
+        resMult = 1.8,    -- 高魔抗（冰晶亲和法术）
+    },
+    void = {
+        defMult = 1.4,    -- 虚空：高物防
+        resMult = 1.3,    -- 高魔抗（终局主题）
+    },
+}
+
+-- 向后兼容：保留旧表引用（空表，防止旧代码报错）
+Config.THEME_ELEMENT_RESIST = {
+    undead = {}, lava = {}, forest = {}, frost = {}, void = {},
+}
+
 --- 构建指定关卡+角色的完整怪物定义（运行时组合，带缓存）
 function Config.BuildEnemyDef(stageNum, roleId)
     -- 缓存查找：同 stageNum+roleId 返回浅拷贝
@@ -221,6 +252,9 @@ function Config.BuildEnemyDef(stageNum, roleId)
     local roundHPMult = 1.0 + (round - 1) * 0.5
     local roundSpdMult = math.min(1.0 + (round - 1) * 0.1, 2.0)
 
+    -- 主题防御配置（物防/魔抗乘数）
+    local profile = Config.THEME_DEFENSE_PROFILE[theme.id] or { defMult = 1.0, resMult = 1.0 }
+
     local def = {
         id = theme.id .. "_" .. roleId,
         name = skin.name,
@@ -232,7 +266,9 @@ function Config.BuildEnemyDef(stageNum, roleId)
         liveCost = 1,
         size = role.size,
         shape = role.shape,
-        baseDEF = role.baseDEF or 0,
+        baseDEF = (role.baseDEF or 0) * (profile.defMult or 1.0),
+        -- 魔抗（RES）：按主题乘数 + 每轮 +2，上限 80
+        baseRES = math.min(80, (role.baseRES or 0) * (profile.resMult or 1.0) + (round - 1) * 2),
         role = roleId,
         themeId = theme.id,
     }
@@ -308,6 +344,8 @@ function Config.BuildBossDef(stageNum)
     local def = {}
     for k, v in pairs(boss) do def[k] = v end
     def.baseHP = boss.baseHP * roundHPMult
+    -- 魔抗：随轮次成长（每轮+3，上限80），Boss 成长略高于小兵的 +2
+    def.baseRES = math.min(80, (boss.baseRES or 0) + (round - 1) * 3)
     def.isBoss = true
     def.reward = 50
     def.liveCost = 3
@@ -523,15 +561,15 @@ Config.AFFIX_DEFS = {
             }
         end,
     },
-    -- T3: 降元素 — 周期降低英雄元素伤害（群体）
+    -- T3: 降伤害类型 — 周期降低英雄伤害类型加成（群体）
     {
-        id = "elem_down", name = "降元素", tier = 3, category = "debuff",
+        id = "type_down", name = "降伤害", tier = 3, category = "debuff",
         color = { 80, 200, 160 }, targeting = "group",
         scale = function(lvl)
             return {
                 debuffInterval = math.max(8.0, 15.0 - lvl * 0.05),
                 debuffDuration = 5.0,
-                debuffStat = "dmgBonus", debuffFlat = math.min(0.30, 0.08 + lvl * 0.002),  -- -8% → -30%
+                debuffStat = "typeDmgBonus", debuffFlat = math.min(0.30, 0.08 + lvl * 0.002),  -- -8% → -30%
             }
         end,
     },
@@ -675,13 +713,13 @@ Config.ENEMY_SCALING = {
         { 3000,  5000,   0.08,  0.12 },
         { 5000,  6000,   0.12,  0.15 },   -- 终局：伤害加成打85折
     },
-    -- 元素伤害减免: 降低英雄 elemDmg 乘区（叠加在主题抗性之上）
-    elemDmgReduce = {
+    -- 伤害类型加成减免: 降低英雄 typeDmg 乘区
+    typeDmgReduce = {
         {    1,   500,   0.00,  0.00 },
         {  500,  1500,   0.00,  0.03 },
         { 1500,  3000,   0.03,  0.06 },
         { 3000,  5000,   0.06,  0.10 },
-        { 5000,  6000,   0.10,  0.15 },   -- 终局：元素伤害打85折
+        { 5000,  6000,   0.10,  0.15 },   -- 终局：伤害类型加成打85折
     },
     -- 穿甲抵抗: 降低英雄穿甲有效率（0.15 = 英雄穿甲生效85%）
     armorPenResist = {
@@ -692,44 +730,50 @@ Config.ENEMY_SCALING = {
     },
 }
 
--- 怪物主题元素抗性（themeId → { element = resistance }）
--- 正值 = 抗性（减伤），负值 = 弱点（增伤）
-Config.THEME_ELEMENT_RESIST = {
+-- ============================================================================
+-- 敌人免疫系统
+-- ============================================================================
+Config.ENEMY_IMMUNITIES = {
+    cc_immune     = "免疫控制（冰封/眩晕）",
+    slow_immune   = "免疫减速",
+    dot_immune    = "免疫持续伤害",
+    debuff_immune = "免疫所有减益",
+    crit_immune   = "免疫暴击（暴击视为普攻）",
+    mark_immune   = "免疫标记类效果",
+}
+
+-- ============================================================================
+-- 主题特性（每主题每角色可附加特殊行为）
+-- ============================================================================
+Config.THEME_TRAITS = {
     undead = {
-        fire = -0.25,       -- 亡灵怕火
-        ice = 0.10,
-        lightning = 0.0,
-        poison = 0.30,      -- 亡灵抗毒
-        shadow = 0.20,      -- 亡灵亲和暗
+        tank     = { "dot_immune" },         -- 亡灵坦克免疫DOT（没有活体组织）
+        support  = { "mark_immune" },        -- 亡灵辅助免疫标记
     },
     lava = {
-        fire = 0.50,        -- 熔岩极抗火
-        ice = -0.30,        -- 熔岩怕冰
-        lightning = 0.0,
-        poison = -0.10,
-        shadow = 0.0,
-    },
-    forest = {
-        fire = -0.30,       -- 森林怕火
-        ice = 0.0,
-        lightning = -0.10,
-        poison = 0.40,      -- 森林抗毒
-        shadow = -0.15,
+        tank     = { "slow_immune" },        -- 熔岩坦克免疫减速
     },
     frost = {
-        fire = -0.25,       -- 冰霜怕火
-        ice = 0.50,         -- 冰霜极抗冰
-        lightning = -0.20,  -- 冰霜怕雷
-        poison = 0.0,
-        shadow = 0.0,
+        special  = { "cc_immune" },          -- 冰霜特殊怪免疫控制
     },
     void = {
-        fire = 0.0,
-        ice = 0.0,
-        lightning = -0.15,
-        poison = -0.20,
-        shadow = 0.40,      -- 虚空极抗暗
+        blinker  = { "mark_immune" },        -- 虚空闪现者免疫标记
+        special  = { "debuff_immune" },      -- 虚空特殊怪免疫所有减益
     },
+}
+
+-- ============================================================================
+-- 关卡词缀（按 stageNum 解锁，叠加到全波次敌人）
+-- ============================================================================
+Config.ENEMY_AFFIXES = {
+    { stage = 50,   id = "phys_armor",   name = "铁甲",     defBonus = 0.20,  desc = "全体+20%物防" },
+    { stage = 100,  id = "magic_ward",   name = "法抗",     resBonus = 10,    desc = "全体+10魔抗" },
+    { stage = 200,  id = "swift_march",  name = "急行军",   spdBonus = 0.15,  desc = "全体+15%移速" },
+    { stage = 350,  id = "iron_skin",    name = "铁壁",     defBonus = 0.35,  desc = "全体+35%物防" },
+    { stage = 500,  id = "arcane_shell", name = "奥术壳",   resBonus = 20,    desc = "全体+20魔抗" },
+    { stage = 750,  id = "haste",        name = "疾风",     spdBonus = 0.25,  desc = "全体+25%移速" },
+    { stage = 1000, id = "fortress",     name = "堡垒",     defBonus = 0.50, resBonus = 15, desc = "全体+50%物防+15魔抗" },
+    { stage = 1500, id = "aegis",        name = "庇护",     defBonus = 0.30, resBonus = 25, desc = "全体+30%物防+25魔抗" },
 }
 
 -- ============================================================================
@@ -784,6 +828,7 @@ Config.HATRED_BOSS = {
     color = { 180, 40, 60 },
     baseHP = math.huge,
     baseDEF = 80,
+    baseRES = 20,
     speed = 18,
     size = 26,
     icon = "image/mobs/hatred_boss.png",

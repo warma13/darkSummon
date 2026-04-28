@@ -404,6 +404,977 @@ Config.HERO_SKILLS = {
 }
 
 -- ============================================================================
+-- 技能标签升级消耗（技能书）
+-- [稀有度] = { [tier2消耗], [tier3消耗] }
+-- ============================================================================
+Config.SKILL_BOOK_COST = {
+    N   = { 3,   nil },
+    R   = { 5,   15 },
+    SR  = { 10,  30 },
+    SSR = { 20,  60 },
+    UR  = { 40,  120 },
+    LR  = { 80,  240 },
+}
+
+-- ============================================================================
+-- 英雄技能标签系统（多层可升级标签，替代单一 special 字段）
+-- type: on_hit / on_crit / on_kill / aura / active / conditional
+-- tier: 当前等级（0=未解锁）  maxTier: 最高等级
+-- unlock: { star=N } 或 { advance=N } 解锁条件
+-- requires: { "tagId" } 前置标签依赖
+-- effects: { [tier] = { 属性表 + desc } }
+-- ============================================================================
+Config.HERO_SKILL_TAGS = {
+
+    -- ================================================================
+    -- N 级：1 基础标签 + 1 解锁标签
+    -- ================================================================
+
+    skeleton_grunt = {
+        {
+            id = "tenacity", name = "坚韧", type = "passive",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { atkSpdBonus = 0.20, desc = "攻速+20%" },
+                [2] = { atkSpdBonus = 0.30, desc = "攻速+30%" },
+            },
+        },
+        {
+            id = "bone_spike", name = "骨刺", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            effects = {
+                [1] = { physVuln = 0.10, duration = 3.0, desc = "攻击使目标额外受到物理伤害+10%，持续3秒" },
+                [2] = { physVuln = 0.15, duration = 4.0, desc = "攻击使目标额外受到物理伤害+15%，持续4秒" },
+            },
+        },
+    },
+
+    bat_minion = {
+        {
+            id = "vampire_instinct", name = "吸血本能", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.30, slowRate = 0.25, slowDuration = 1.0, desc = "攻击30%概率减速目标25%，持续1秒" },
+                [2] = { chance = 0.40, slowRate = 0.30, slowDuration = 1.0, desc = "攻击40%概率减速目标30%，持续1秒" },
+            },
+        },
+        {
+            id = "bloodlust", name = "嗜血", type = "on_kill",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            effects = {
+                [1] = { atkSpdBurst = 0.50, burstDuration = 3.0, desc = "击杀后攻速+50%，持续3秒" },
+                [2] = { atkSpdBurst = 0.80, burstDuration = 3.0, desc = "击杀后攻速+80%，持续3秒" },
+            },
+        },
+    },
+
+    hell_hound = {
+        {
+            id = "scorch", name = "灼烧", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { dotMultiplier = 1.5, desc = "持续灼烧伤害提升50%" },
+                [2] = { dotMultiplier = 2.0, desc = "持续灼烧伤害提升100%" },
+            },
+        },
+        {
+            id = "searing", name = "炽热", type = "on_hit",
+            tier = 0, maxTier = 3,
+            unlock = { advance = 6 },
+            requires = { "scorch" },
+            effects = {
+                [1] = { resReduce = 5,  duration = 3.0, desc = "灼烧目标魔抗降低5，持续3秒" },
+                [2] = { resReduce = 10, duration = 4.0, desc = "灼烧目标魔抗降低10，持续4秒" },
+                [3] = { resReduce = 15, duration = 5.0, desc = "灼烧目标魔抗降低15，持续5秒" },
+            },
+        },
+    },
+
+    -- ================================================================
+    -- R 级：2 基础标签 + 1 解锁标签
+    -- ================================================================
+
+    skeleton_archer = {
+        {
+            id = "multi_shot", name = "连射", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.30, desc = "30%概率连射2箭" },
+                [2] = { chance = 0.40, desc = "40%概率连射2箭" },
+            },
+        },
+        {
+            id = "pierce_mark", name = "穿透标记", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { bonusDmg = 0.20, duration = 3.0, desc = "命中使目标受伤+20%，持续3秒" },
+                [2] = { bonusDmg = 0.25, duration = 3.0, desc = "命中使目标受伤+25%，持续3秒" },
+            },
+        },
+        {
+            id = "weakness_shot", name = "弱点射击", type = "conditional",
+            tier = 0, maxTier = 2,
+            unlock = { star = 10 },
+            requires = { "pierce_mark" },
+            effects = {
+                [1] = { critOnMaxMark = true, desc = "标记满时下一击暴击率100%" },
+                [2] = { critOnMaxMark = true, critDmgBonus = 0.50, desc = "标记满时下一击必暴且暴伤+50%" },
+            },
+        },
+    },
+
+    demon_warrior = {
+        {
+            id = "hunt_instinct", name = "猎杀本能", type = "passive",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { bossExtraDmg = 0.30, desc = "对首领额外伤害+30%" },
+                [2] = { bossExtraDmg = 0.50, desc = "对首领额外伤害+50%" },
+            },
+        },
+        {
+            id = "battle_fury", name = "战意", type = "passive",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { bonusPerWave = 0.015, maxBonus = 0.30, desc = "攻速随波次+1.5%/波，最多+30%" },
+                [2] = { bonusPerWave = 0.015, maxBonus = 0.50, desc = "攻速随波次+1.5%/波，最多+50%" },
+            },
+        },
+        {
+            id = "execute", name = "斩杀", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 10 },
+            effects = {
+                [1] = { threshold = 0.20, dmgMult = 2.0, desc = "目标血量低于20%时伤害翻倍" },
+                [2] = { threshold = 0.30, dmgMult = 2.0, desc = "目标血量低于30%时伤害翻倍" },
+            },
+        },
+    },
+
+    ghost_assassin = {
+        {
+            id = "shadow_stab", name = "暗刺", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { firstHitMult = 2.0, desc = "首次攻击目标伤害×2" },
+                [2] = { firstHitMult = 2.5, desc = "首次攻击目标伤害×2.5" },
+            },
+        },
+        {
+            id = "lethal_mark", name = "致命标记", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { ampRate = 0.15, duration = 3.0, desc = "标记增伤15%，持续3秒" },
+                [2] = { ampRate = 0.20, duration = 3.0, desc = "标记增伤20%，持续3秒，对所有友方生效" },
+            },
+        },
+        {
+            id = "fatal_pierce", name = "致命穿刺", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 10 },
+            requires = { "shadow_stab" },
+            effects = {
+                [1] = { armorIgnore = 0.30, desc = "暗刺命中忽视30%物防" },
+                [2] = { armorIgnore = 0.50, desc = "暗刺命中忽视50%物防" },
+            },
+        },
+    },
+
+    stone_golem = {
+        {
+            id = "quake", name = "震击", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { slowRate = 0.25, aoe = false, desc = "减速目标25%" },
+                [2] = { slowRate = 0.30, aoe = true, splashRange = 30, desc = "减速目标及周围30%，并溅射" },
+            },
+        },
+        {
+            id = "rock_splash", name = "碎石溅射", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.40, splashRange = 30, desc = "40%概率溅射周围敌人" },
+                [2] = { chance = 0.50, splashRange = 40, desc = "50%概率溅射周围敌人" },
+            },
+        },
+        {
+            id = "fissure", name = "地裂", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 10 },
+            requires = { "quake" },
+            effects = {
+                [1] = { physVuln = 0.10, duration = 3.0, desc = "被减速目标受物理伤害+10%，持续3秒" },
+                [2] = { physVuln = 0.15, duration = 4.0, desc = "被减速目标受物理伤害+15%，持续4秒" },
+            },
+        },
+    },
+
+    -- ================================================================
+    -- SR 级：2 基础标签 + 2 解锁标签
+    -- ================================================================
+
+    necromancer = {
+        {
+            id = "dark_chain", name = "暗能链", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { slowRate = 0.35, desc = "链式攻击减速35%" },
+                [2] = { slowRate = 0.45, desc = "链式攻击减速45%" },
+            },
+        },
+        {
+            id = "soul_drain", name = "灵魂汲取", type = "on_kill",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { cdReduce = 1.0, desc = "击杀缩短主动技能1秒CD" },
+                [2] = { cdReduce = 2.0, desc = "击杀缩短主动技能2秒CD" },
+            },
+        },
+        {
+            id = "soul_burst", name = "魂爆", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "dark_chain" },
+            effects = {
+                [1] = { chainEndAoe = true, aoeDmgPct = 0.50, aoeRange = 40, desc = "链式终点产生范围爆炸，造成50%ATK伤害" },
+                [2] = { chainEndAoe = true, aoeDmgPct = 0.80, aoeRange = 50, desc = "链式终点产生范围爆炸，造成80%ATK伤害" },
+            },
+        },
+        {
+            id = "death_whisper", name = "亡者低语", type = "aura",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            effects = {
+                [1] = { resReduce = 8,  auraRange = 100, desc = "光环降低周围敌人8点魔抗" },
+                [2] = { resReduce = 15, auraRange = 120, desc = "光环降低周围敌人15点魔抗" },
+            },
+        },
+    },
+
+    inferno_flame = {
+        {
+            id = "blaze", name = "烈焰", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { dotMultiplier = 2.0, desc = "灼烧伤害提升100%" },
+                [2] = { dotMultiplier = 3.0, desc = "灼烧伤害提升200%" },
+            },
+        },
+        {
+            id = "ignite", name = "引燃", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.30, burnDuration = 2.0, desc = "30%概率额外引燃2秒" },
+                [2] = { chance = 0.50, burnDuration = 3.0, desc = "50%概率额外引燃3秒" },
+            },
+        },
+        {
+            id = "wildfire", name = "燎原", type = "on_kill",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "ignite" },
+            effects = {
+                [1] = { spreadRange = 40, spreadTargets = 2, desc = "灼烧目标死亡时传播给周围2个敌人" },
+                [2] = { spreadRange = 50, spreadTargets = 3, desc = "灼烧目标死亡时传播给周围3个敌人" },
+            },
+        },
+        {
+            id = "scald", name = "炙烤", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            requires = { "blaze" },
+            effects = {
+                [1] = { defReduce = 0.10, duration = 3.0, desc = "灼烧目标物防降低10%，持续3秒" },
+                [2] = { defReduce = 0.15, duration = 4.0, desc = "灼烧目标物防降低15%，持续4秒" },
+            },
+        },
+    },
+
+    armor_breaker = {
+        {
+            id = "sunder", name = "破甲", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { armorBreak = 0.15, maxStacks = 3, duration = 5.0, desc = "叠加破甲15%，最多3层，持续5秒" },
+                [2] = { armorBreak = 0.20, maxStacks = 3, duration = 5.0, desc = "叠加破甲20%，最多3层，持续5秒" },
+            },
+        },
+        {
+            id = "heavy_blow", name = "重击", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { everyN = 4, trueDmgPct = 0.50, desc = "每4次攻击追加50%ATK真实伤害" },
+                [2] = { everyN = 3, trueDmgPct = 0.80, desc = "每3次攻击追加80%ATK真实伤害" },
+            },
+        },
+        {
+            id = "shatter", name = "粉碎", type = "conditional",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "sunder" },
+            effects = {
+                [1] = { fullStackDefZero = true, desc = "破甲满层时目标DEF归零" },
+                [2] = { fullStackDefZero = true, bonusDmg = 0.20, desc = "破甲满层DEF归零且受伤+20%" },
+            },
+        },
+        {
+            id = "aftershock", name = "余震", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            requires = { "sunder" },
+            effects = {
+                [1] = { spreadRange = 30, spreadRatio = 0.50, desc = "破甲效果扩散到周围（50%效力）" },
+                [2] = { spreadRange = 40, spreadRatio = 0.80, desc = "破甲效果扩散到周围（80%效力）" },
+            },
+        },
+    },
+
+    frost_witch = {
+        {
+            id = "frost", name = "寒霜", type = "on_hit",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { slowRate = 0.25, duration = 1.5, desc = "攻击减速目标25%，持续1.5秒" },
+                [2] = { slowRate = 0.35, duration = 2.0, desc = "攻击减速目标35%，持续2秒" },
+                [3] = { slowRate = 0.45, duration = 2.5, aoe = true, desc = "攻击减速目标及周围45%，持续2.5秒" },
+            },
+        },
+        {
+            id = "brittle", name = "霜冻脆弱", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "frost" },
+            effects = {
+                [1] = { defReduce = 0.10, duration = 3.0, desc = "被减速的敌人额外降低10%物防，持续3秒" },
+                [2] = { defReduce = 0.20, resReduce = 0.10, duration = 4.0, desc = "被减速的敌人降低20%物防和10%魔抗，持续4秒" },
+            },
+        },
+        {
+            id = "frozen", name = "冰封", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            requires = { "frost" },
+            effects = {
+                [1] = { freezeChance = 0.08, freezeDuration = 1.0, bonusDmg = 0.30, desc = "攻击8%概率冰封1秒（受伤+30%）" },
+                [2] = { freezeChance = 0.15, freezeDuration = 1.5, bonusDmg = 0.50, desc = "攻击15%概率冰封1.5秒（受伤+50%）" },
+            },
+        },
+        {
+            id = "blizzard", name = "暴风雪", type = "active",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            effects = {
+                [1] = { interval = 25, slowPct = 0.40, duration = 3.0, desc = "每25秒全屏减速40%持续3秒" },
+                [2] = { interval = 20, slowPct = 0.50, duration = 3.0, desc = "每20秒全屏减速50%持续3秒" },
+            },
+        },
+    },
+
+    war_drummer = {
+        {
+            id = "war_song", name = "战歌", type = "aura",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { atkBuff = 0.15, auraRange = 80, desc = "光环攻击加成15%" },
+                [2] = { atkBuff = 0.25, auraRange = 100, desc = "光环攻击加成25%" },
+            },
+        },
+        {
+            id = "rhythm", name = "激励", type = "aura",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { spdBuff = 0.10, desc = "光环攻速+10%" },
+                [2] = { spdBuff = 0.15, desc = "光环攻速+15%" },
+            },
+        },
+        {
+            id = "hero_song", name = "英雄之歌", type = "aura",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            effects = {
+                [1] = { critRateBuff = 0.10, auraRange = 80, desc = "光环暴击率+10%" },
+                [2] = { critRateBuff = 0.20, auraRange = 100, desc = "光环暴击率+20%" },
+            },
+        },
+        {
+            id = "war_cry", name = "战争怒号", type = "active",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            effects = {
+                [1] = { interval = 30, atkBuffPct = 0.40, duration = 5.0, desc = "每30秒全体攻击+40%持续5秒" },
+                [2] = { interval = 25, atkBuffPct = 0.50, duration = 8.0, desc = "每25秒全体攻击+50%持续8秒" },
+            },
+        },
+    },
+
+    -- ================================================================
+    -- SSR 级：2 基础标签 + 2 解锁标签
+    -- ================================================================
+
+    shadow_mage = {
+        {
+            id = "shadow_chain", name = "暗影链", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.35, ignoreShield = true, desc = "攻击35%概率无视护盾" },
+                [2] = { chance = 0.45, ignoreShield = true, desc = "攻击45%概率无视护盾" },
+            },
+        },
+        {
+            id = "shadow_mark", name = "暗蚀", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { maxStacks = 3, dmgPerStack = 0.10, desc = "命中叠暗影印记，每层+10%受伤，最多3层" },
+                [2] = { maxStacks = 5, dmgPerStack = 0.10, desc = "命中叠暗影印记，每层+10%受伤，最多5层" },
+            },
+        },
+        {
+            id = "shadow_burst", name = "暗影爆发", type = "conditional",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "shadow_mark" },
+            effects = {
+                [1] = { atMaxStacks = true, trueDmgPct = 1.50, desc = "印记满层引爆造成150%ATK真实伤害" },
+                [2] = { atMaxStacks = true, trueDmgPct = 2.00, resShred = 10, desc = "印记满层引爆200%ATK真伤并降低区域10魔抗" },
+            },
+        },
+        {
+            id = "void_tear", name = "虚空撕裂", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            requires = { "shadow_burst" },
+            effects = {
+                [1] = { postBurstResShred = 15, duration = 4.0, desc = "爆发后区域魔抗降低15，持续4秒" },
+                [2] = { postBurstResShred = 25, duration = 5.0, desc = "爆发后区域魔抗降低25，持续5秒" },
+            },
+        },
+    },
+
+    abyss_hunter = {
+        {
+            id = "abyss_shot", name = "深渊射击", type = "passive",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { bossExtraDmg = 0.50, desc = "对首领额外伤害+50%" },
+                [2] = { bossExtraDmg = 0.65, desc = "对首领额外伤害+65%" },
+            },
+        },
+        {
+            id = "focus_fire", name = "弱点锁定", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { dmgIncPerHit = 0.03, maxStacks = 10, desc = "连续攻击同目标每次+3%伤害，最多10层" },
+                [2] = { dmgIncPerHit = 0.05, maxStacks = 10, desc = "连续攻击同目标每次+5%伤害，最多10层" },
+            },
+        },
+        {
+            id = "penetrate", name = "贯穿", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            effects = {
+                [1] = { pierce = true, pierceDmgPct = 0.60, desc = "攻击穿透第一目标命中后方（60%伤害）" },
+                [2] = { pierce = true, pierceDmgPct = 0.80, desc = "攻击穿透第一目标命中后方（80%伤害）" },
+            },
+        },
+        {
+            id = "hunt_decree", name = "猎杀宣告", type = "active",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            effects = {
+                [1] = { interval = 15, vulnRate = 0.20, duration = 8.0, desc = "标记目标受所有伤害+20%，持续8秒" },
+                [2] = { interval = 12, vulnRate = 0.30, duration = 10.0, desc = "标记目标受所有伤害+30%，持续10秒" },
+            },
+        },
+    },
+
+    plague_doctor = {
+        {
+            id = "plague", name = "瘟疫", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { dotAtkPct = 0.10, dotDuration = 3.0, desc = "附带每秒ATK×10%法术DOT，持续3秒" },
+                [2] = { dotAtkPct = 0.15, dotDuration = 4.0, desc = "附带每秒ATK×15%法术DOT，持续4秒" },
+            },
+        },
+        {
+            id = "infection", name = "感染扩散", type = "on_kill",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { spreadRange = 30, spreadTargets = 2, spreadRatio = 0.70, desc = "DOT目标死亡时将70%DOT传播给周围2个敌人" },
+                [2] = { spreadRange = 40, spreadTargets = 2, spreadRatio = 0.90, desc = "DOT目标死亡时将90%DOT传播给周围2个敌人" },
+            },
+        },
+        {
+            id = "festering", name = "溃烂", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "plague" },
+            effects = {
+                [1] = { magicVuln = 0.15, duration = 3.0, desc = "DOT期间目标受法伤+15%" },
+                [2] = { magicVuln = 0.20, duration = 4.0, desc = "DOT期间目标受法伤+20%" },
+            },
+        },
+        {
+            id = "miasma_zone", name = "毒雾领域", type = "aura",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            effects = {
+                [1] = { auraDotPct = 0.05, auraRange = 80, desc = "周围敌人持续受ATK×5%法术伤害" },
+                [2] = { auraDotPct = 0.08, auraRange = 100, desc = "周围敌人持续受ATK×8%法术伤害" },
+            },
+        },
+    },
+
+    storm_lord = {
+        {
+            id = "thunder", name = "雷击", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { stunChance = 0.25, stunDuration = 0.8, desc = "攻击25%概率眩晕0.8秒" },
+                [2] = { stunChance = 0.40, stunDuration = 1.0, desc = "攻击40%概率眩晕1秒" },
+            },
+        },
+        {
+            id = "charge", name = "感电", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { maxStacks = 3, dmgPerStack = 0.08, desc = "命中叠感电层，每层受伤+8%，最多3层" },
+                [2] = { maxStacks = 5, dmgPerStack = 0.08, desc = "命中叠感电层，每层受伤+8%，最多5层" },
+            },
+        },
+        {
+            id = "lightning_storm", name = "雷暴", type = "conditional",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 6 },
+            requires = { "charge" },
+            effects = {
+                [1] = { atMaxStacks = true, burstDmgPct = 2.0, aoeRange = 50, desc = "满层引爆全伤200%ATK范围伤害" },
+                [2] = { atMaxStacks = true, burstDmgPct = 3.0, aoeRange = 60, desc = "满层引爆300%ATK范围伤害" },
+            },
+        },
+        {
+            id = "overload", name = "超载", type = "conditional",
+            tier = 0, maxTier = 2,
+            unlock = { star = 15 },
+            requires = { "lightning_storm" },
+            effects = {
+                [1] = { postBurstSlowImmuneLift = true, duration = 3.0, desc = "雷暴后区域内敌人减速免疫失效3秒" },
+                [2] = { postBurstSlowImmuneLift = true, duration = 5.0, resShred = 10, desc = "雷暴后减速免疫失效5秒且魔抗-10" },
+            },
+        },
+    },
+
+    -- ================================================================
+    -- UR 级：3 基础标签 + 1 解锁标签
+    -- ================================================================
+
+    glacial_sovereign = {
+        {
+            id = "arctic_chill", name = "极寒", type = "aura",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chillPerSec = 1, slowPerStack = 0.10, maxStacks = 5, duration = 5.0, desc = "每秒施加1层寒意，每层减速10%，最多5层" },
+                [2] = { chillPerSec = 1, slowPerStack = 0.15, maxStacks = 5, duration = 5.0, desc = "每秒施加1层寒意，每层减速15%，最多5层" },
+                [3] = { chillPerSec = 1, slowPerStack = 0.20, maxStacks = 5, duration = 5.0, desc = "每秒施加1层寒意，每层减速20%，最多5层" },
+            },
+        },
+        {
+            id = "ice_coffin", name = "冰晶棺", type = "conditional",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { atMaxChill = true, dmgAmp = 0.50, desc = "满5层寒意受伤+50%" },
+                [2] = { atMaxChill = true, dmgAmp = 0.95, desc = "满5层寒意受伤+95%" },
+            },
+        },
+        {
+            id = "absolute_zero", name = "绝对零度", type = "conditional",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { globalChillThreshold = 80, applyAll = 3, desc = "累积80层全局寒意时，全屏施加3层" },
+                [2] = { globalChillThreshold = 50, applyAll = 5, desc = "累积50层全局寒意时，全屏施加5层" },
+            },
+        },
+        {
+            id = "winter_domain", name = "寒冬领域", type = "aura",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { globalSlowAura = 0.10, desc = "全场敌人移速降低10%" },
+                [2] = { globalSlowAura = 0.20, desc = "全场敌人移速降低20%" },
+            },
+        },
+    },
+
+    fallen_archangel = {
+        {
+            id = "holy_slash", name = "圣光斩", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { ampRate = 0.40, ampDuration = 4.0, desc = "标记增伤40%，持续4秒" },
+                [2] = { ampRate = 0.65, ampDuration = 5.0, desc = "标记增伤65%，持续5秒" },
+            },
+        },
+        {
+            id = "judgment", name = "审判", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { stunChance = 0.10, stunDuration = 1.0, desc = "攻击10%概率眩晕1秒" },
+                [2] = { stunChance = 0.15, stunDuration = 1.5, desc = "攻击15%概率眩晕1.5秒" },
+            },
+        },
+        {
+            id = "divine_wrath", name = "天罚", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { lowHpThreshold = 0.30, trueDmgPct = 1.0, desc = "对血量低于30%的目标追加100%ATK真实伤害" },
+                [2] = { lowHpThreshold = 0.40, trueDmgPct = 1.5, desc = "对血量低于40%的目标追加150%ATK真实伤害" },
+            },
+        },
+        {
+            id = "fallen_glory", name = "堕落光辉", type = "on_kill",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { guaranteedCrit = true, critDmgBonus = 0.50, desc = "击杀后下一击必暴，暴伤+50%" },
+                [2] = { guaranteedCrit = true, critDmgBonus = 1.00, desc = "击杀后下一击必暴，暴伤+100%" },
+            },
+        },
+    },
+
+    void_dragon = {
+        {
+            id = "void_breath", name = "虚空吐息", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { dotAtkPct = 0.30, dotDuration = 3.0, desc = "链式攻击附带每秒ATK×30%法伤DOT，3秒" },
+                [2] = { dotAtkPct = 0.45, dotDuration = 3.0, desc = "链式攻击附带每秒ATK×45%法伤DOT，3秒" },
+            },
+        },
+        {
+            id = "spatial_warp", name = "空间畸变", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { slowRate = 0.20, resReduce = 10, duration = 3.0, desc = "命中减速20%并降低10魔抗，3秒" },
+                [2] = { slowRate = 0.30, resReduce = 15, duration = 4.0, desc = "命中减速30%并降低15魔抗，4秒" },
+            },
+        },
+        {
+            id = "dimension_collapse", name = "维度崩塌", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { pullChance = 0.15, pullDistance = 30, desc = "15%概率将目标拉回30像素" },
+                [2] = { pullChance = 0.25, pullDistance = 50, desc = "25%概率将目标拉回50像素" },
+            },
+        },
+        {
+            id = "annihilate", name = "湮灭", type = "on_hit",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { executeThreshold = 0.05, desc = "血量低于5%的目标即死（Boss无效）" },
+                [2] = { executeThreshold = 0.10, bossCap = 0.03, desc = "血量低于10%即死；Boss低于3%时生效" },
+            },
+        },
+    },
+
+    nature_elf = {
+        {
+            id = "nature_aura", name = "自然光环", type = "aura",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            starScale = true,
+            effects = {
+                [1] = { atkBuff = 0.30, spdBuff = 0.15, auraRange = 120, desc = "光环攻击+30%，攻速+15%" },
+                [2] = { atkBuff = 0.60, spdBuff = 0.30, auraRange = 140, desc = "光环攻击+60%，攻速+30%" },
+                [3] = { atkBuff = 1.15, spdBuff = 0.75, atkRatio = 0.19, auraRange = 140, desc = "光环攻击+115%，攻速+75%，固定攻击+翎嫣ATK×19%" },
+            },
+        },
+        {
+            id = "life_spring", name = "生命源泉", type = "on_kill",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { extraDropChance = 0.10, desc = "击杀10%概率额外掉落" },
+                [2] = { extraDropChance = 0.20, desc = "击杀20%概率额外掉落" },
+            },
+        },
+        {
+            id = "wilds_call", name = "自然怒吼", type = "active",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            starScale = true,
+            effects = {
+                [1] = { interval = 25, force = 30, wreathAtkBonus = 0.40, wreathDuration = 8.0, desc = "每25秒为全体提供30点自然之力和鲜花环（+40%ATK，8秒）" },
+                [2] = { interval = 20, force = 55, wreathAtkBonus = 0.75, wreathDuration = 10.0, desc = "每20秒为全体提供55点自然之力和鲜花环（+75%ATK，10秒）" },
+            },
+        },
+        {
+            id = "wither", name = "万物凋零", type = "aura",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { defReduce = 0.10, auraRange = 120, desc = "光环降低周围敌人10%DEF" },
+                [2] = { defReduce = 0.15, auraRange = 140, desc = "光环降低周围敌人15%DEF" },
+            },
+        },
+    },
+
+    crimson_night = {
+        {
+            id = "blood_blade", name = "血刃", type = "on_hit",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            starScale = true,
+            effects = {
+                [1] = { maxStacks = 3, stackDuration = 4.0, burstAtkPct = 1.50, desc = "叠加暗影印记，满3层引爆ATK×150%" },
+                [2] = { maxStacks = 4, stackDuration = 4.0, burstAtkPct = 2.50, armorIgnore = 0.20, desc = "满4层引爆ATK×250%，无视20%护甲" },
+                [3] = { maxStacks = 5, stackDuration = 4.0, burstAtkPct = 3.80, armorIgnore = 0.38, desc = "满5层引爆ATK×380%，无视38%护甲" },
+            },
+        },
+        {
+            id = "blood_eye", name = "绯瞳锁定", type = "on_hit",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            starScale = true,
+            effects = {
+                [1] = { critRatePerHit = 0.04, maxCritStacks = 5, critDmgBonus = 0.50, desc = "每层+4%暴击（最多5层），暴伤+50%" },
+                [2] = { critRatePerHit = 0.05, maxCritStacks = 8, critDmgBonus = 0.70, desc = "每层+5%暴击（最多8层），暴伤+70%" },
+                [3] = { critRatePerHit = 0.06, maxCritStacks = 10, critDmgBonus = 0.95, desc = "每层+6%暴击（最多10层），暴伤+95%" },
+            },
+        },
+        {
+            id = "blood_pact", name = "血契", type = "passive",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { atkPerMark = 0.03, desc = "每层暗影印记+3%攻击力" },
+                [2] = { atkPerMark = 0.05, desc = "每层暗影印记+5%攻击力" },
+            },
+        },
+        {
+            id = "crimson_eclipse", name = "绯红月蚀", type = "active",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            starScale = true,
+            effects = {
+                [1] = { interval = 18, detonateAll = true, teamSpdBuff = 0.30, buffDuration = 5.0, desc = "全场引爆暗影印记+全队攻速+30%持续5秒" },
+                [2] = { interval = 14, detonateAll = true, teamSpdBuff = 0.50, buffDuration = 8.0, desc = "全场引爆暗影印记+全队攻速+50%持续8秒" },
+            },
+        },
+    },
+
+    ember_wraith = {
+        {
+            id = "ember_ignite", name = "余烬点燃", type = "on_hit",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            starScale = true,
+            effects = {
+                [1] = { maxStacks = 2, dotPctPerStack = 0.10, desc = "叠加灼烧（最多2层），每层每秒ATK×10%" },
+                [2] = { maxStacks = 3, dotPctPerStack = 0.12, desc = "叠加灼烧（最多3层），每层每秒ATK×12%" },
+                [3] = { maxStacks = 3, dotPctPerStack = 0.15, deathAoePct = 1.50, deathRadius = 60, desc = "叠加灼烧（最多3层），每层每秒ATK×15%；死亡蔓延ATK×150%" },
+            },
+        },
+        {
+            id = "ember_resonance", name = "烬核共振", type = "passive",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            starScale = true,
+            effects = {
+                [1] = { atkPerBurn = 0.03, dotAmpPerBurn = 0.04, maxBurns = 8, desc = "每个灼烧敌人+3%ATK和+4%DOT加成，最多8层" },
+                [2] = { atkPerBurn = 0.04, dotAmpPerBurn = 0.06, maxBurns = 12, desc = "每个灼烧敌人+4%ATK和+6%DOT加成，最多12层" },
+            },
+        },
+        {
+            id = "burn_out", name = "灰飞烟灭", type = "on_kill",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { deathExplosionPct = 1.00, explosionRange = 50, desc = "灼烧致死时爆炸ATK×100%法伤" },
+                [2] = { deathExplosionPct = 1.50, explosionRange = 60, reIgnite = 1, desc = "灼烧致死爆炸ATK×150%法伤并重新点燃1层" },
+            },
+        },
+        {
+            id = "flame_echo", name = "烈焰回响", type = "conditional",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            requires = { "burn_out" },
+            effects = {
+                [1] = { chainReaction = true, maxChain = 2, desc = "爆炸再次点燃的目标死亡时可再次爆炸（最多连锁2次）" },
+                [2] = { chainReaction = true, maxChain = 3, chainDmgAmp = 0.20, desc = "连锁爆炸最多3次，每次伤害+20%" },
+            },
+        },
+    },
+
+    -- ================================================================
+    -- LR 级：3 基础标签 + 1 解锁标签
+    -- ================================================================
+
+    fate_weaver = {
+        {
+            id = "fate_thread", name = "命运丝线", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { linkDmgShare = 0.20, maxLinks = 3, desc = "链接最多3个目标，分享20%受到的伤害" },
+                [2] = { linkDmgShare = 0.30, maxLinks = 5, desc = "链接最多5个目标，分享30%受到的伤害" },
+            },
+        },
+        {
+            id = "causality", name = "因果律", type = "aura",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { doubleDmgChance = 0.50, desc = "全体友方50%概率双倍伤害" },
+                [2] = { doubleDmgChance = 0.70, desc = "全体友方70%概率双倍伤害" },
+            },
+        },
+        {
+            id = "fate_entangle", name = "命运纠缠", type = "on_hit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { linkedSlow = 0.20, desc = "链接目标移速降低20%" },
+                [2] = { linkedSlow = 0.30, linkedResShred = 10, desc = "链接目标移速降低30%且魔抗-10" },
+            },
+        },
+        {
+            id = "final_weave", name = "终焉编织", type = "active",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { interval = 25, trueDmgToLinked = 2.0, desc = "每25秒对所有链接目标造成200%ATK真实伤害" },
+                [2] = { interval = 20, trueDmgToLinked = 3.0, resetCd = true, desc = "每20秒300%ATK真伤并重置全体友方CD" },
+            },
+        },
+    },
+
+    eternal_archfiend = {
+        {
+            id = "infernal_stack", name = "魔焰之力", type = "on_hit",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { maxStacks = 5,  critPerStack = 0.05, critDmgPerStack = 0.20, stackDuration = 5.0, desc = "每层+5%暴击+20%暴伤，最多5层" },
+                [2] = { maxStacks = 8,  critPerStack = 0.06, critDmgPerStack = 0.25, stackDuration = 5.0, desc = "每层+6%暴击+25%暴伤，最多8层" },
+                [3] = { maxStacks = 10, critPerStack = 0.08, critDmgPerStack = 0.35, stackDuration = 5.0, desc = "每层+8%暴击+35%暴伤，最多10层" },
+            },
+        },
+        {
+            id = "erosion", name = "永恒侵蚀", type = "on_crit",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            requires = { "infernal_stack" },
+            effects = {
+                [1] = { maxStacks = 4, dmgBonusPerStack = 0.05, stackDuration = 6.0, desc = "暴击+1层侵蚀，每层+5%伤害，最多4层" },
+                [2] = { maxStacks = 6, dmgBonusPerStack = 0.05, pureConvertAtMax = 0.20, stackDuration = 6.0, desc = "每层+5%伤害，满6层20%伤害转真伤" },
+                [3] = { maxStacks = 6, dmgBonusPerStack = 0.06, pureConvertAtMax = 0.35, stackDuration = 6.0, desc = "每层+6%伤害，满6层35%伤害转真伤" },
+            },
+        },
+        {
+            id = "armageddon", name = "灭世余烬", type = "on_crit",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.30, aoeDmgScale = 1.5, aoeRange = 50, desc = "暴击30%概率范围150%ATK伤害" },
+                [2] = { chance = 0.40, aoeDmgScale = 2.0, aoeRange = 60, ignoreRes = true, desc = "暴击40%概率范围200%ATK伤害（无视魔抗）" },
+            },
+        },
+        {
+            id = "abyss_mark", name = "深渊印记", type = "active",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { interval = 20, vulnRate = 0.30, duration = 10.0, desc = "标记血量最高敌人，受伤+30%，10秒" },
+                [2] = { interval = 15, vulnRate = 0.50, duration = 12.0, spreadOnKill = true, desc = "受伤+50%，12秒，死亡时传播" },
+            },
+        },
+    },
+
+    -- ================================================================
+    -- 特殊
+    -- ================================================================
+
+    leader = {
+        {
+            id = "shadow_dominion", name = "暗影支配", type = "aura",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { globalAtkBuff = 0.15, desc = "全体友方塔攻击+15%" },
+                [2] = { globalAtkBuff = 0.20, desc = "全体友方塔攻击+20%" },
+            },
+        },
+        {
+            id = "lord_will", name = "君主意志", type = "on_kill",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { chance = 0.15, cdResetAmount = 1.0, desc = "击杀15%概率缩短主动技能1秒CD" },
+                [2] = { chance = 0.20, cdResetAmount = 1.0, desc = "击杀20%概率缩短主动技能1秒CD" },
+            },
+        },
+        {
+            id = "shadow_devour", name = "暗影吞噬", type = "active",
+            tier = 1, maxTier = 2,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { interval = 12, damagePct = 0.80, desc = "每12秒全屏80%ATK伤害" },
+                [2] = { interval = 10, damagePct = 1.05, desc = "每10秒全屏105%ATK伤害" },
+            },
+        },
+        {
+            id = "absolute_rule", name = "绝对统治", type = "aura",
+            tier = 0, maxTier = 2,
+            unlock = { advance = 11 },
+            effects = {
+                [1] = { globalCritBuff = 0.10, desc = "全体友方暴击率+10%" },
+                [2] = { globalCritBuff = 0.15, desc = "全体友方暴击率+15%" },
+            },
+        },
+    },
+}
+
+-- ============================================================================
 -- 阵营与羁绊系统
 -- ============================================================================
 Config.FACTIONS = {
@@ -685,7 +1656,7 @@ Config.EQUIP_SLOTS = {
     { id = "weapon", name = "武器", emoji = "⚔", stat = "atk",      statName = "攻击",       fmt = "pct" },
     { id = "armor",  name = "铠甲", emoji = "🛡", stat = "dmgBonus", statName = "伤害加成",   fmt = "pct" },
     { id = "helmet", name = "头盔", emoji = "⛑", stat = "critDmg",  statName = "暴击伤害",   fmt = "pct" },
-    { id = "mount",  name = "战马", emoji = "🐴", stat = "elemDmg",  statName = "元素伤害",   fmt = "pct" },
+    { id = "mount",  name = "战马", emoji = "🐴", stat = "typeDmg",  statName = "类型伤害",   fmt = "pct" },
 }
 
 -- 装备品质体系（对齐咸鱼之王）
@@ -746,7 +1717,7 @@ Config.EQUIP_STAT_BASE = {
     atk      = 0.002,  -- 每级+0.2%攻击（百分比，与dmgBonus对齐）
     dmgBonus = 0.002,  -- 每级+0.2%伤害加成
     critDmg  = 0.003,  -- 每级+0.3%暴击伤害
-    elemDmg  = 0.002,  -- 每级+0.2%元素伤害
+    typeDmg  = 0.002,  -- 每级+0.2%类型伤害（物理/法术）
 }
 
 -- 品质倍率（高品质基础加成更高）
@@ -774,21 +1745,42 @@ Config.TEMPER_MAX_SLOTS = 5             -- 最大孔位数
 Config.TEMPER_SLOT_UNLOCK = { 0, 10, 100, 1000, 10000 }
 
 -- 淬炼属性池（13种进攻属性）
+-- 平衡目标：每条红档满值总 DPS 贡献 ≈ 8-12%
+-- 计算依据：红档上限 = maxValue, DPS贡献 = maxValue × 每1%DPS贡献率
 Config.TEMPER_ATTRIBUTES = {
-    { id = "atk",           name = "攻击力",     maxValue = 0.10,  fmt = "pct" },
-    { id = "spd",           name = "攻速",       maxValue = 0.10,  fmt = "pct" },
-    { id = "critRate",      name = "暴击率",     maxValue = 0.20,  fmt = "pct" },
-    { id = "critDmg",       name = "暴击伤害",   maxValue = 0.30,  fmt = "pct" },
-    { id = "armorPen",      name = "破甲",       maxValue = 0.20,  fmt = "pct" },
-    { id = "dmgBonus",      name = "伤害加成",   maxValue = 0.15,  fmt = "pct" },
-    { id = "skillDmg",      name = "技能伤害",   maxValue = 0.20,  fmt = "pct" },
-    { id = "ctrlHit",       name = "控制命中",   maxValue = 0.20,  fmt = "pct" },
-    { id = "elemFire",      name = "火元素伤害", maxValue = 0.25,  fmt = "pct" },
-    { id = "elemIce",       name = "冰元素伤害", maxValue = 0.25,  fmt = "pct" },
-    { id = "elemShadow",    name = "暗影伤害",   maxValue = 0.25,  fmt = "pct" },
-    { id = "elemPoison",    name = "毒元素伤害", maxValue = 0.25,  fmt = "pct" },
-    { id = "elemLightning", name = "雷元素伤害", maxValue = 0.25,  fmt = "pct" },
+    { id = "atk",           name = "攻击力",     maxValue = 0.15,  fmt = "pct" },  -- 15%×0.71=10.7% DPS
+    { id = "spd",           name = "攻速",       maxValue = 0.15,  fmt = "pct" },  -- 15%×0.6 = 9.0% DPS
+    { id = "critRate",      name = "暴击率",     maxValue = 0.15,  fmt = "pct" },  -- 15%×0.69=10.4% DPS
+    { id = "critDmg",       name = "暴击伤害",   maxValue = 0.35,  fmt = "pct" },  -- 35%×0.30=10.5% DPS
+    { id = "armorPen",      name = "破甲",       maxValue = 0.08,  fmt = "pct" },  -- 8% ×1.3 =10.4% DPS
+    { id = "dmgBonus",      name = "伤害加成",   maxValue = 0.14,  fmt = "pct" },  -- 14%×0.76=10.6% DPS
+    { id = "skillDmg",      name = "技能伤害",   maxValue = 0.18,  fmt = "pct" },  -- 技能专属, ~dmgBonus同区
+    { id = "ctrlHit",       name = "控制命中",   maxValue = 0.20,  fmt = "pct" },  -- 功能性词条, 不直接增伤
+    { id = "physDmg",       name = "物理伤害",   maxValue = 0.14,  fmt = "pct" },  -- 14%×0.78=10.9% DPS(类型限制)
+    { id = "magicDmg",      name = "法术伤害",   maxValue = 0.14,  fmt = "pct" },  -- 14%×0.78=10.9% DPS(类型限制)
+    { id = "magicPen",      name = "法术穿透",   maxValue = 0.06,  fmt = "pct" },  -- 6% ×1.7 =10.2% DPS(类型限制)
+    { id = "dotDmg",        name = "持续伤害",   maxValue = 0.18,  fmt = "pct" },  -- DOT专属, 同skillDmg
+    { id = "bossDmg",       name = "对首领伤害", maxValue = 0.18,  fmt = "pct" },  -- Boss专属, 同skillDmg
 }
+
+-- 三层词条注入（T1/T2，T3 专属符文）
+if Config.AFFIX_TAG_TEMPER_ENTRIES and Config.AFFIX_TAG_LOOKUP then
+    for _, entry in ipairs(Config.AFFIX_TAG_TEMPER_ENTRIES) do
+        local def = Config.AFFIX_TAG_LOOKUP[entry.id]
+        if def then
+            Config.TEMPER_ATTRIBUTES[#Config.TEMPER_ATTRIBUTES + 1] = {
+                id            = def.id,
+                name          = def.name,
+                maxValue      = entry.maxValue,
+                fmt           = "pct",
+                -- 额外字段：标记为三层词条
+                affixTier     = entry.affixTier,
+                isTagAffix    = true,
+                minTemperTier = entry.minTemperTier,  -- "orange" / "red"
+            }
+        end
+    end
+end
 
 -- 档位定义（白/绿/蓝/紫/橙/红）
 Config.TEMPER_TIERS = {

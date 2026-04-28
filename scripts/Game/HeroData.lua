@@ -165,6 +165,7 @@ function HeroData._InitCoreDefaults()
     HeroData.towerData = nil
     HeroData.limitedBanner = nil
     HeroData.relicData = nil
+    HeroData.skillTags = {}  -- { [heroId] = { [tagId] = tier, ... } }
 
     print("[HeroData] Core defaults initialized")
 end
@@ -194,6 +195,7 @@ function HeroData._SerializeCore()
         deployed = HeroData.deployed,
         stats = statsSnapshot and statsSnapshot() or HeroData.stats,
         redeemData = HeroData.redeemData,
+        skillTags = HeroData.skillTags,
         lastSaveTime = os.time(),
     }
 end
@@ -344,6 +346,9 @@ function HeroData._DeserializeCore(_saved, saveData)
 
     -- redeemData
     HeroData.redeemData = saveData.redeemData or {}
+
+    -- skillTags
+    HeroData.skillTags = saveData.skillTags or {}
 
     -- 记录是否需要排行榜重传（由 _MigrateCore 设置）
     HeroData._needLeaderboardResync = saveData._needLeaderboardResync or false
@@ -1050,6 +1055,66 @@ function HeroData.GetAdvanceLevel(heroId)
     return (h and h.advanceLevel) or 0
 end
 
+-- ============================================================================
+-- 技能标签系统
+-- ============================================================================
+
+--- 获取英雄某技能标签的当前等级
+---@param heroId string
+---@param tagId string
+---@return number  0 表示未解锁
+function HeroData.GetTagTier(heroId, tagId)
+    local ht = HeroData.skillTags[heroId]
+    return (ht and ht[tagId]) or 0
+end
+
+--- 设置英雄某技能标签的等级
+---@param heroId string
+---@param tagId string
+---@param tier number
+function HeroData.SetTagTier(heroId, tagId, tier)
+    if not HeroData.skillTags[heroId] then
+        HeroData.skillTags[heroId] = {}
+    end
+    HeroData.skillTags[heroId][tagId] = tier
+end
+
+--- 判断英雄是否满足某标签的解锁条件
+---@param heroId string
+---@param tagDef table  Config.HERO_SKILL_TAGS 中的单个 tag 定义
+---@return boolean
+function HeroData.IsTagUnlocked(heroId, tagDef)
+    local unlock = tagDef.unlock
+    if not unlock then return true end
+    local h = HeroData.heroes[heroId]
+    if not h then return false end
+    -- 星级要求
+    if unlock.star and (h.star or 0) < unlock.star then
+        return false
+    end
+    -- 进阶要求
+    if unlock.advance and (h.advanceLevel or 0) < unlock.advance then
+        return false
+    end
+    return true
+end
+
+--- 获取英雄所有已解锁标签及其当前等级
+---@param heroId string
+---@return table[]  { tagDef, tier }
+function HeroData.GetActiveSkillTags(heroId)
+    local tagDefs = Config.HERO_SKILL_TAGS[heroId]
+    if not tagDefs then return {} end
+    local result = {}
+    for _, tagDef in ipairs(tagDefs) do
+        local tier = HeroData.GetTagTier(heroId, tagDef.id)
+        if tier > 0 and HeroData.IsTagUnlocked(heroId, tagDef) then
+            result[#result + 1] = { tagDef = tagDef, tier = tier }
+        end
+    end
+    return result
+end
+
 --- 获取下一个进阶门槛（如果当前等级恰好在门槛处）
 --- 返回 nil 表示无需进阶
 ---@param heroId string
@@ -1615,6 +1680,7 @@ SaveRegistry.Register("_core", {
         lastSaveTime = "core",
         currencies = "currency",
         redeemData = "meta_game",
+        skillTags = "core",
     },
     initDefault = HeroData._InitCoreDefaults,
     migrate = HeroData._MigrateCore,

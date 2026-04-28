@@ -252,6 +252,9 @@ function HeroSkills.InitTowerSkills(tower)
         natPulseTimer       = 0,
         natActiveCd         = 0,
     }
+
+    -- 技能标签初始化（从 Config.HERO_SKILL_TAGS 读取，结合持久化层级）
+    HeroSkills.InitTagState(tower)
 end
 
 -- ============================================================================
@@ -299,6 +302,9 @@ function HeroSkills.OnCritHit(tower, target, damage)
     if mod and mod.OnCritHit then
         mod.OnCritHit(tower, target, damage)
     end
+
+    -- 技能标签：on_crit 触发
+    HeroSkills.ApplyTags(tower, target, "on_crit", { damage = damage })
 end
 
 ---@param tower table
@@ -391,6 +397,14 @@ function HeroSkills.OnHit(tower, target, killed)
         if math.random() < tower.runeBonus.killReset then
             tower.attackTimer = 0
         end
+    end
+
+    -- 技能标签：on_hit 触发
+    HeroSkills.ApplyTags(tower, target, "on_hit", { damage = tower.attack, killed = killed })
+
+    -- 技能标签：on_kill 触发
+    if killed then
+        HeroSkills.ApplyTags(tower, target, "on_kill", { damage = tower.attack })
     end
 end
 
@@ -764,6 +778,293 @@ function HeroSkills.CheckCritSplash(tower, target, damage)
 end
 
 -- ============================================================================
+-- 技能标签系统
+-- ============================================================================
+
+local AffixTagResolver = require("Game.AffixTagResolver")
+
+--- 初始化塔的技能标签状态
+--- 从 Config.HERO_SKILL_TAGS 读取定义，结合 HeroData 持久化层级
+---@param tower table
+function HeroSkills.InitTagState(tower)
+    local heroId = tower.typeDef.id
+    local tagDefs = Config.HERO_SKILL_TAGS[heroId]
+    if not tagDefs then
+        tower.tags = {}
+        return
+    end
+
+    tower.tags = {}
+    for _, tagDef in ipairs(tagDefs) do
+        local tier = HeroData.GetTagTier(heroId, tagDef.id)
+        local unlocked = HeroData.IsTagUnlocked(heroId, tagDef)
+
+        -- 如果解锁条件满足但 tier 为0，且 tagDef 默认 tier > 0，自动激活
+        if unlocked and tier == 0 and tagDef.tier and tagDef.tier > 0 then
+            tier = tagDef.tier
+            HeroData.SetTagTier(heroId, tagDef.id, tier)
+        end
+
+        -- 检查依赖标签
+        local reqMet = true
+        if tagDef.requires then
+            for _, reqId in ipairs(tagDef.requires) do
+                if HeroData.GetTagTier(heroId, reqId) <= 0 then
+                    reqMet = false
+                    break
+                end
+            end
+        end
+
+        tower.tags[tagDef.id] = {
+            def      = tagDef,
+            tier     = (unlocked and reqMet) and tier or 0,
+            maxTier  = tagDef.maxTier or 1,
+            unlocked = unlocked,
+            reqMet   = reqMet,
+            -- 运行时状态（用于 cooldown / stacks 等）
+            cd       = 0,
+            stacks   = 0,
+            timer    = 0,
+        }
+
+        -- 被动标签立即应用属性加成
+        if tagDef.type == "passive" and tier > 0 and unlocked and reqMet then
+            local eff = tagDef.effects and tagDef.effects[tier]
+            if eff then
+                if eff.atkSpdBonus then
+                    tower.atkSpdBonus = (tower.atkSpdBonus or 0) + eff.atkSpdBonus
+                end
+                if eff.critRate then
+                    tower.critRate = (tower.critRate or 0) + eff.critRate
+                end
+                if eff.critDmg then
+                    tower.critDmg = (tower.critDmg or 0) + eff.critDmg
+                end
+                if eff.rangeBonus then
+                    tower.range = (tower.range or 0) + eff.rangeBonus
+                end
+            end
+        end
+    end
+end
+
+--- 获取标签当前层级的效果表
+---@param tower table
+---@param tagId string
+---@return table|nil effect, table|nil tagState
+function HeroSkills.GetTagEffect(tower, tagId)
+    local ts = tower.tags and tower.tags[tagId]
+    if not ts or ts.tier <= 0 then return nil, nil end
+    local eff = ts.def.effects and ts.def.effects[ts.tier]
+    return eff, ts
+end
+
+--- 按触发类型批量应用标签
+--- triggerType: "on_hit" | "on_crit" | "on_kill"
+---@param tower table
+---@param target table|nil  目标敌人（on_kill 时可能已死亡）
+---@param triggerType string
+---@param extra table|nil   附加参数 { damage, killed, ... }
+function HeroSkills.ApplyTags(tower, target, triggerType, extra)
+    if not tower.tags then return end
+
+    for tagId, ts in pairs(tower.tags) do
+        if ts.tier > 0 and ts.def.type == triggerType then
+            local eff = ts.def.effects and ts.def.effects[ts.tier]
+            if eff then
+                HeroSkills.ApplyTag(tower, target, ts, eff, extra)
+            end
+        end
+    end
+end
+
+--- 应用单个标签效果
+--- 通用效果在此处理，特殊效果委托给英雄模块
+---@param tower table
+---@param target table|nil
+---@param tagState table  tower.tags[tagId]
+---@param eff table       当前 tier 的效果数值
+---@param extra table|nil
+function HeroSkills.ApplyTag(tower, target, tagState, eff, extra)
+    local tagDef = tagState.def
+    local tagId  = tagDef.id
+
+    -- 查询第3层词条加成
+    local tagBonus = AffixTagResolver.GetTagBonus(tower, tagId)
+
+    -- 概率检查（通用：eff.chance）
+    if eff.chance then
+        local finalChance = eff.chance + (tagBonus.tagChance_add or 0)
+        if math.random() > finalChance then return end
+    end
+
+    local Enemy = GetEnemy()
+
+    -- ================================================================
+    -- 通用效果分支（按效果字段匹配）
+    -- 英雄模块可在自己的 OnHit/OnCritHit 中做更精细的处理，
+    -- 这里只处理数据驱动的通用效果
+    -- ================================================================
+
+    -- 减速效果
+    if eff.slowRate and target and target.alive then
+        local slowRate = eff.slowRate + (tagBonus.tagSlowRate_add or 0)
+        local slowDur  = (eff.slowDuration or eff.duration or 2.0) + (tagBonus.tagSlowDur_add or 0)
+        Enemy.ApplySlow(target, slowDur, slowRate)
+    end
+
+    -- DOT 效果
+    if eff.dotMultiplier and target and target.alive then
+        -- dotMultiplier 作为 tower.dotMultiplier 的加成
+        local mult = eff.dotMultiplier + (tagBonus.tagDotMult_add or 0)
+        tower.tagDotMultiplier = (tower.tagDotMultiplier or 1.0) * mult
+    end
+
+    if eff.dotAtkPct and target and target.alive then
+        local dotDmg = tower.attack * (eff.dotAtkPct + (tagBonus.tagDotPct_add or 0))
+        local dotDur = eff.dotDuration or 3.0
+        Enemy.ApplyDOT(target, dotDmg, dotDur)
+    end
+
+    -- 物理易伤
+    if eff.physVuln and target and target.alive then
+        local vuln = eff.physVuln + (tagBonus.tagVuln_add or 0)
+        local dur  = (eff.duration or 3.0) + (tagBonus.tagDur_add or 0)
+        target.physVuln = math.max(target.physVuln or 0, vuln)
+        target.physVulnTimer = math.max(target.physVulnTimer or 0, dur)
+    end
+
+    -- 破甲
+    if eff.armorBreak and target and target.alive then
+        local breakAmt = eff.armorBreak * (1 + (tagBonus.tagArmorBreak_amp or 0))
+        target.armorBreak = math.min((target.armorBreak or 0) + breakAmt, 1.0)
+    end
+
+    if eff.defReducePerStack and target and target.alive then
+        local reduce = eff.defReducePerStack * (1 + (tagBonus.tagArmorBreak_amp or 0))
+        target.defReduce = math.min((target.defReduce or 0) + reduce, 0.80)
+    end
+
+    -- 增伤标记
+    if eff.ampRate and target and target.alive then
+        local amp = eff.ampRate + (tagBonus.tagAmp_add or 0)
+        target.ampDamage = math.max(target.ampDamage or 0, amp)
+    end
+
+    -- 攻速爆发（on_kill 类）
+    if eff.atkSpdBurst then
+        local burst = eff.atkSpdBurst + (tagBonus.tagAtkSpd_add or 0)
+        local dur   = eff.burstDuration or 3.0
+        tower.hstate.killAtkBurst = burst
+        tower.hstate.killAtkBurstTimer = dur
+    end
+
+    -- 击杀加伤（on_kill 类叠层）
+    if eff.killDmgBonus then
+        local bonus = eff.killDmgBonus + (tagBonus.tagDmgBonus_add or 0)
+        local max   = eff.maxStacks or 3
+        tower.hstate.killDmgStacks = math.min((tower.hstate.killDmgStacks or 0) + 1, max)
+        tower.hstate.killDmgBonus  = bonus
+    end
+
+    -- 眩晕
+    if eff.stunChance and target and target.alive then
+        local stunChance = eff.stunChance + (tagBonus.tagStunChance_add or 0)
+        if math.random() < stunChance then
+            local stunDur = (eff.stunDuration or 1.0) + (tagBonus.tagStunDur_add or 0)
+            HeroSkills.ApplyStun(target, stunDur)
+        end
+    end
+
+    -- 溅射
+    if eff.splashRange and target and target.alive then
+        local range = eff.splashRange + (tagBonus.tagSplashRange_add or 0)
+        local rangeSq = range * range
+        local splashDmg = (extra and extra.damage or tower.attack) * (eff.splashPct or 0.50)
+        for _, e in ipairs(State.enemies) do
+            if e.alive and e ~= target then
+                local dx = e.x - target.x
+                local dy = e.y - target.y
+                if dx * dx + dy * dy < rangeSq then
+                    Enemy.TakeDamage(e, splashDmg)
+                end
+            end
+        end
+    end
+
+    -- 治疗削弱
+    if eff.healReduction and target and target.alive then
+        target.healReduction = math.max(target.healReduction or 0, eff.healReduction)
+    end
+
+    -- 连锁
+    if eff.chainRange and target and target.alive then
+        local chainRange = eff.chainRange + (tagBonus.tagChainRange_add or 0)
+        local maxTargets = eff.chainMaxTargets or 2
+        local rangeSq = chainRange * chainRange
+        local count = 0
+        local chainDmg = (extra and extra.damage or tower.attack) * (eff.chainDmgPct or 0.50)
+        for _, e in ipairs(State.enemies) do
+            if e.alive and e ~= target and count < maxTargets then
+                local dx = e.x - target.x
+                local dy = e.y - target.y
+                if dx * dx + dy * dy < rangeSq then
+                    Enemy.TakeDamage(e, chainDmg)
+                    count = count + 1
+                end
+            end
+        end
+    end
+end
+
+--- 升级标签（供 UI / 技能书 调用）
+---@param heroId string
+---@param tagId string
+---@return boolean success, string|nil error
+function HeroSkills.UpgradeTag(heroId, tagId)
+    local tagDefs = Config.HERO_SKILL_TAGS[heroId]
+    if not tagDefs then return false, "hero_no_tags" end
+
+    local tagDef
+    for _, td in ipairs(tagDefs) do
+        if td.id == tagId then tagDef = td; break end
+    end
+    if not tagDef then return false, "tag_not_found" end
+
+    -- 检查解锁条件
+    if not HeroData.IsTagUnlocked(heroId, tagDef) then
+        return false, "tag_locked"
+    end
+
+    -- 检查依赖
+    if tagDef.requires then
+        for _, reqId in ipairs(tagDef.requires) do
+            if HeroData.GetTagTier(heroId, reqId) <= 0 then
+                return false, "requires_" .. reqId
+            end
+        end
+    end
+
+    local curTier = HeroData.GetTagTier(heroId, tagDef.id)
+    local maxTier = tagDef.maxTier or 1
+    if curTier >= maxTier then return false, "max_tier" end
+
+    -- 消耗技能书（如果有配置）
+    local cost = Config.SKILL_BOOK_COST and Config.SKILL_BOOK_COST[curTier + 1]
+    if cost then
+        local Currency = require("Game.Currency")
+        if not Currency.CanAfford("skill_book", cost) then
+            return false, "not_enough_skill_book"
+        end
+        Currency.Spend("skill_book", cost, "UpgradeTag_" .. tagId)
+    end
+
+    HeroData.SetTagTier(heroId, tagDef.id, curTier + 1)
+    return true
+end
+
+-- ============================================================================
 -- 每波重置
 -- ============================================================================
 
@@ -781,6 +1082,20 @@ function HeroSkills.OnWaveStart()
             tower.hstate.abyssMarkTimer   = 0
             tower.hstate.bonusCritRate    = 0
             tower.hstate.bonusCritDmg     = 0
+            -- 标签系统运行时状态重置
+            tower.hstate.killAtkBurst      = nil
+            tower.hstate.killAtkBurstTimer = nil
+            tower.hstate.killDmgStacks     = 0
+            tower.hstate.killDmgBonus      = 0
+        end
+        -- 标签运行时状态重置（cd / stacks / timer）
+        if tower.tags then
+            for _, ts in pairs(tower.tags) do
+                ts.cd     = 0
+                ts.stacks = 0
+                ts.timer  = 0
+            end
+            tower.tagDotMultiplier = nil
         end
     end
     for _, e in ipairs(State.enemies) do
@@ -796,6 +1111,12 @@ function HeroSkills.OnWaveStart()
         e.igniteSource = nil
         e.igniteTickTimer = nil
         e._igniteSpreadDone = nil
+        -- 标签系统 enemy 字段清理
+        e.physVuln = nil
+        e.physVulnTimer = nil
+        e.armorBreak = nil
+        e.defReduce = nil
+        e.healReduction = nil
     end
 end
 

@@ -251,53 +251,48 @@ Config.SPD_BONUS_CURVE = {
 Config.SPD_BONUS_MAX = 0.30
 
 -- ============================================================================
--- 元素系统（暗黑4风格）
+-- 伤害类型系统（物理/法术/真实）
 -- ============================================================================
--- 5种元素定义
-Config.ELEMENTS = {
-    fire      = { name = "炎", color = { 255, 100, 30 },  icon = "image/element_fire.png" },
-    ice       = { name = "冰", color = { 100, 200, 255 }, icon = "image/element_ice.png" },
-    lightning = { name = "雷", color = { 200, 180, 255 }, icon = "image/element_lightning.png" },
-    poison    = { name = "毒", color = { 100, 220, 80 },  icon = "image/element_poison.png" },
-    shadow    = { name = "暗", color = { 180, 100, 255 }, icon = "image/element_shadow.png" },
+Config.DAMAGE_TYPES = {
+    physical = { name = "物理", color = { 255, 150, 50 },  icon = "image/dmg_physical.png" },
+    magical  = { name = "法术", color = { 100, 160, 255 }, icon = "image/dmg_magical.png" },
+    pure     = { name = "真实", color = { 255, 255, 255 }, icon = "image/dmg_pure.png" },
 }
 
--- 英雄元素映射（heroId → element）
-Config.HERO_ELEMENT = {
-    -- N 级
-    skeleton_grunt  = "shadow",
-    bat_minion      = "shadow",
-    hell_hound      = "fire",
-    -- R 级
-    skeleton_archer = "shadow",
-    demon_warrior   = "fire",
-    ghost_assassin  = "ice",
-    stone_golem     = "lightning",
-    -- SR 级
-    necromancer     = "shadow",
-    inferno_flame   = "fire",
-    armor_breaker   = "lightning",
-    frost_witch     = "ice",
-    war_drummer     = "fire",
-    -- SSR 级
-    shadow_mage     = "shadow",
-    abyss_hunter    = "poison",
-    plague_doctor   = "poison",
-    storm_lord      = "lightning",
-    -- UR 级
-    nature_elf      = "poison",
-    fallen_archangel = "lightning",
-    void_dragon     = "shadow",
-    crimson_night    = "shadow",
-    ember_wraith     = "fire",
-    -- 限定 UR
-    glacial_sovereign = "ice",
-    -- LR 级
-    fate_weaver     = "fire",
-    eternal_archfiend = "shadow",
-    -- 主角
-    leader          = "shadow",
+-- 英雄伤害类型映射（heroId → damageType）
+Config.HERO_DAMAGE_TYPE = {
+    -- === 物理系 ===
+    skeleton_grunt   = "physical",
+    bat_minion       = "physical",
+    skeleton_archer  = "physical",
+    demon_warrior    = "physical",
+    ghost_assassin   = "physical",
+    armor_breaker    = "physical",
+    abyss_hunter     = "physical",
+    crimson_night    = "physical",
+    stone_golem      = "physical",
+    war_drummer      = "physical",
+    fallen_archangel = "physical",
+    eternal_archfiend = "physical",
+    leader           = "physical",
+    -- === 法术系 ===
+    hell_hound       = "magical",
+    necromancer      = "magical",
+    inferno_flame    = "magical",
+    frost_witch      = "magical",
+    shadow_mage      = "magical",
+    storm_lord       = "magical",
+    glacial_sovereign = "magical",
+    ember_wraith     = "magical",
+    plague_doctor    = "magical",
+    nature_elf       = "magical",
+    fate_weaver      = "magical",
+    void_dragon      = "magical",
 }
+
+-- 向后兼容：保留旧表引用（映射到新系统）
+Config.ELEMENTS = Config.DAMAGE_TYPES
+Config.HERO_ELEMENT = Config.HERO_DAMAGE_TYPE
 
 Config.LEVEL_COST_CAP = 8078000
 

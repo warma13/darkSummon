@@ -194,18 +194,36 @@ local function BuildRarityBadge(rarity, rarityColor)
     }
 end
 
---- 创建元素图标
+--- 伤害类型短标签映射
+local DMG_TYPE_SHORT = {
+    physical = "物",
+    magical  = "法",
+    pure     = "真",
+}
+
+--- 创建伤害类型徽章（替代旧元素图标）
 local function BuildElemIcon(heroId, size)
-    local elemId = Config.HERO_ELEMENT[heroId]
-    local elemDef = elemId and Config.ELEMENTS[elemId]
-    if not elemDef then return nil end
+    local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
+    local dmgDef = dmgTypeId and Config.DAMAGE_TYPES[dmgTypeId]
+    if not dmgDef then return nil end
     size = size or 16
+    local shortLabel = DMG_TYPE_SHORT[dmgTypeId] or "?"
     return UI.Panel {
         position = "absolute",
         bottom = 1, right = 1,
         width = size, height = size,
-        backgroundImage = elemDef.icon,
-        backgroundFit = "contain",
+        borderRadius = math.floor(size / 2),
+        backgroundColor = { dmgDef.color[1], dmgDef.color[2], dmgDef.color[3], 200 },
+        justifyContent = "center",
+        alignItems = "center",
+        children = {
+            UI.Label {
+                text = shortLabel,
+                fontSize = math.max(7, math.floor(size * 0.55)),
+                fontColor = { 255, 255, 255, 240 },
+                fontWeight = "bold",
+            },
+        },
     }
 end
 

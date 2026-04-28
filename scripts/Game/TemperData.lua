@@ -38,41 +38,52 @@ local function RollTier()
     return Config.TEMPER_TIERS[1]
 end
 
---- 随机选取属性
+--- 淬炼品质等级映射（数值越大品质越高）
+local TEMPER_TIER_ORDER = {
+    white = 1, green = 2, blue = 3, purple = 4, orange = 5, red = 6,
+}
+
+--- 随机选取属性（根据当前品质档位过滤三层词条，排除已占用词条）
+---@param tierId string  当前淬炼档位 id（"white"~"red"）
+---@param excludeIds table|nil  已占用的属性 id 集合 { [id]=true, ... }
 ---@return table  Config.TEMPER_ATTRIBUTES 中的一项
-local function RollAttribute()
-    local idx = math.random(1, #Config.TEMPER_ATTRIBUTES)
-    return Config.TEMPER_ATTRIBUTES[idx]
+local function RollAttribute(tierId, excludeIds)
+    local tierLv = TEMPER_TIER_ORDER[tierId] or 1
+    -- 构建当前品质可用的属性池（排除已占用词条）
+    local pool = {}
+    for _, attr in ipairs(Config.TEMPER_ATTRIBUTES) do
+        -- 排重：跳过已占用的词条
+        if excludeIds and excludeIds[attr.id] then
+            -- skip
+        elseif attr.minTemperTier then
+            -- 三层词条：需要品质达标才可出现
+            local reqLv = TEMPER_TIER_ORDER[attr.minTemperTier] or 99
+            if tierLv >= reqLv then
+                pool[#pool + 1] = attr
+            end
+        else
+            -- 原有词条：无品质限制，始终可出
+            pool[#pool + 1] = attr
+        end
+    end
+    if #pool == 0 then pool = Config.TEMPER_ATTRIBUTES end
+    local idx = math.random(1, #pool)
+    return pool[idx]
 end
 
 --- 计算淬炼属性值
---- "攻击力"词条在各部位加成该部位自身属性，值 = 1级基础值 × 档位倍率
---- 其他属性直接用 maxValue × 档位倍率比例
+--- 所有属性统一使用 maxValue × 档位比例 计算
 ---@param attrDef table  属性定义
 ---@param tierDef table  档位定义
----@param slotId string  部位ID
----@return number value  属性数值
----@return string statKey  实际作用的属性key（"atk"词条在不同部位映射不同属性）
+---@param slotId string  部位ID（保留参数兼容性）
+---@return number value  属性数值（×VALUE_SCALE 整数）
+---@return string statKey  实际作用的属性key
 local function CalcTemperValue(attrDef, tierDef, slotId)
     local mult = tierDef.valueMin + math.random() * (tierDef.valueMax - tierDef.valueMin)
-
-    if attrDef.id == "atk" then
-        -- "攻击力"词条: 加成该部位自身属性的1级基础值 × 档位倍率
-        -- 所有部位属性均为百分比，不做取整
-        local slotDef = GetSlotDef(slotId)
-        if not slotDef then return 0, "atk" end
-        local base = Config.EQUIP_STAT_BASE[slotDef.stat] or 0.002
-        local value = base * mult
-        -- 乘以精度因子存为整数，避免 SafeTable 的 math.floor 截断
-        return math.floor(value * VALUE_SCALE + 0.5), slotDef.stat
-    else
-        -- 通用属性: maxValue × 档位比例
-        -- 将 valueMin~valueMax (0.5~1.5) 映射到属性值范围
-        -- 实际值 = maxValue × (mult / 1.5) 使红档上限 = maxValue
-        local value = attrDef.maxValue * (mult / 1.5)
-        -- 乘以精度因子存为整数，避免 SafeTable 的 math.floor 截断
-        return math.floor(value * VALUE_SCALE + 0.5), attrDef.id
-    end
+    -- 通用公式: maxValue × (mult / 1.5)，使红档上限 = maxValue
+    local value = attrDef.maxValue * (mult / 1.5)
+    -- 乘以精度因子存为整数，避免 SafeTable 的 math.floor 截断
+    return math.floor(value * VALUE_SCALE + 0.5), attrDef.id
 end
 
 -- ============================================================================
@@ -228,11 +239,21 @@ function TemperData.DoTemper(heroId, slotId)
     -- 累计次数+1
     temper.totalAttempts = temper.totalAttempts + 1
 
-    -- 刷新所有未锁定孔位（100%成功，同步刷新）
+    -- 刷新所有未锁定孔位（100%成功，同步刷新，完全排重）
+    -- 收集已锁定孔位的词条 id 作为排除集
+    local usedIds = {}
+    for i = 1, unlockedSlots do
+        local s = temper.slots[i]
+        if s and s.locked and s.attrId then
+            usedIds[s.attrId] = true
+        end
+    end
+
     local refreshed = {}
     for _, idx in ipairs(candidates) do
-        local attrDef = RollAttribute()
         local tierDef = RollTier()
+        local attrDef = RollAttribute(tierDef.id, usedIds)
+        usedIds[attrDef.id] = true  -- 本次 roll 结果也加入排除集
         local value, statKey = CalcTemperValue(attrDef, tierDef, slotId)
 
         temper.slots[idx] = {
@@ -350,6 +371,34 @@ function TemperData.GetTotalBonus(heroId)
     return total
 end
 
+--- 获取英雄所有装备上的三层词条列表（供 AffixTagResolver 消费）
+--- 只返回 isTagAffix 标记的词条，格式: { {id, value}, ... }
+---@param heroId string
+---@return table[]
+function TemperData.GetTemperStats(heroId)
+    local result = {}
+    for _, slotDef in ipairs(Config.EQUIP_SLOTS) do
+        local temper = TemperData.GetTemper(heroId, slotDef.id)
+        if temper then
+            for _, slot in pairs(temper.slots) do
+                if slot and slot.attrId then
+                    -- 检查对应属性定义是否为三层词条
+                    for _, attr in ipairs(Config.TEMPER_ATTRIBUTES) do
+                        if attr.id == slot.attrId and attr.isTagAffix then
+                            result[#result + 1] = {
+                                id    = slot.attrId,
+                                value = slot.value / VALUE_SCALE,
+                            }
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return result
+end
+
 --- 获取淬炼对装备主属性的额外加成
 --- 每次淬炼 +1% 的每级基础成长（EQUIP_STAT_BASE × 0.01 × 淬炼次数）
 ---@param heroId string
@@ -371,19 +420,11 @@ end
 --- 格式化淬炼属性值
 ---@param slot table  孔位数据 { attrId, statKey, value, tierId, ... }
 ---@param slotId string  部位ID
----@return string  如 "+12 攻击" 或 "+0.15% 暴击率"
+---@return string  如 "+12.0% 攻击力" 或 "+15.0% 暴击率"
 function TemperData.FormatSlotValue(slot, slotId)
     if not slot then return "" end
 
-    -- "攻击力"词条在不同部位显示不同属性名
     local displayName = slot.attrName or slot.attrId
-    if slot.attrId == "atk" then
-        local slotDef = GetSlotDef(slotId)
-        if slotDef then
-            displayName = slotDef.statName
-        end
-    end
-
     -- 从 SafeTable 读出的是缩放后的整数，需除以 VALUE_SCALE 还原
     local realValue = slot.value / VALUE_SCALE
     -- 所有属性均为百分比
@@ -398,24 +439,14 @@ function TemperData.GetSlotQuality(slot, slotId)
     if not slot or not slot.value then return 0 end
     local realValue = slot.value / VALUE_SCALE
 
-    if slot.attrId == "atk" then
-        -- 攻击力词条：最大值 = 部位基础值 × 红档上限倍率(1.5)
-        local slotDef = GetSlotDef(slotId)
-        if not slotDef then return 0 end
-        local base = Config.EQUIP_STAT_BASE[slotDef.stat] or 0.002
-        local maxVal = base * 1.5
-        if maxVal <= 0 then return 0 end
-        return math.floor(realValue / maxVal * 100 + 0.5)
-    else
-        -- 通用属性：最大值 = attrDef.maxValue（红档上限 mult=1.5 → maxValue×1.5/1.5=maxValue）
-        for _, attr in ipairs(Config.TEMPER_ATTRIBUTES) do
-            if attr.id == slot.attrId then
-                if attr.maxValue <= 0 then return 0 end
-                return math.floor(realValue / attr.maxValue * 100 + 0.5)
-            end
+    -- 通用逻辑：最大值 = attrDef.maxValue（红档上限 mult=1.5 → maxValue×1.5/1.5=maxValue）
+    for _, attr in ipairs(Config.TEMPER_ATTRIBUTES) do
+        if attr.id == slot.attrId then
+            if attr.maxValue <= 0 then return 0 end
+            return math.floor(realValue / attr.maxValue * 100 + 0.5)
         end
-        return 0
     end
+    return 0
 end
 
 return TemperData
