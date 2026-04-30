@@ -1,2 +1,13 @@
 .build/
 dist/
+.tmp/
+logs/
+.project/
+.emmylua/
+darkSummon/
+engine-docs/
+examples/
+templates/
+urhox-libs/
+schemas/
+lua-tools/
