@@ -11,3 +11,4 @@ templates/
 urhox-libs/
 schemas/
 lua-tools/
+*.meta

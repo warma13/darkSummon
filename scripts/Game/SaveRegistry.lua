@@ -35,7 +35,7 @@ local initialized = false
 local modulesLoaded = false
 
 -- 存档版本号
-local SAVE_VERSION = 2
+local SAVE_VERSION = 3
 
 -- ============================================================================
 -- 模块预加载（确保所有数据模块的 Register 已执行）

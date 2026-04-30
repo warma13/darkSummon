@@ -2,7 +2,7 @@
 -- 版本检测：通过排行榜存储版本号之和，比对是否为最新版本
 local M = {}
 
-local VERSION_STRING = "v1.0.76"
+local VERSION_STRING = "v1.0.87"
 local LB_KEY = "lb_version"
 
 --- 解析版本号，按层级加权计算

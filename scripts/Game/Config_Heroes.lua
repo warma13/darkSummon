@@ -429,6 +429,10 @@ Config.CURRENCY = {
     rune_generic    = { name = "符文",     icon = "rune",     color = { 180, 100, 255 }, image = "image/rune_generic_20260427025545.png", usage = "深渊裂隙掉落的随机符文", category = "rune" },
     rune_seal       = { name = "符文封印", icon = "seal",     color = { 40, 200, 160 },  image = "image/currency_rune_seal.png",    usage = "洗练锁定", category = "rune" },
     abyss_crystal   = { name = "深渊结晶", icon = "acrystal", color = { 200, 60, 255 },  image = "image/currency_abyss_crystal.png", usage = "定向洗练", category = "rune" },
+    -- 技能书（多阶）
+    skill_book_1    = { name = "初级技能书", icon = "book1",   color = { 120, 200, 100 }, usage = "技能标签升级", category = "skill_book" },
+    skill_book_2    = { name = "中级技能书", icon = "book2",   color = { 80, 140, 220 },  usage = "技能标签升级", category = "skill_book" },
+    skill_book_3    = { name = "高级技能书", icon = "book3",   color = { 220, 80, 80 },   usage = "技能标签升级", category = "skill_book" },
     -- 活动货币
     emerald_token   = { name = "翠影凭证", icon = "emerald",  color = { 100, 220, 140 }, image = "image/emerald_certificate.png", usage = "翠影秘境兑换", category = "event" },
     joy_coin        = { name = "欢乐币",   icon = "joy",      color = { 255, 200, 60 },  image = "image/currency_joy_coin.png",   usage = "小游戏兑换", category = "event" },

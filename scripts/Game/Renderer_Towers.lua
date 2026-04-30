@@ -9,7 +9,10 @@ local Grid        = require("Game.Grid")
 local SpriteSheet = ctx.SpriteSheet
 local rgba        = ctx.rgba
 local HeroAnim         = require("Game.HeroAnim")
-local LeaderWingEffect = require("Game.LeaderWingEffect")
+local LeaderWingEffect   = require("Game.LeaderWingEffect")
+local LeaderWeaponEffect = require("Game.LeaderWeaponEffect")
+local LeaderAuraEffect     = require("Game.LeaderAuraEffect")
+local LeaderParticleEffect = require("Game.LeaderParticleEffect")
 local Debuff           = require("Game.Debuff")
 local Tower            = require("Game.Tower")
 local HeroSkills       = require("Game.HeroSkills")
@@ -767,9 +770,19 @@ function Renderer.DrawTowers(vg, ox, oy)
             nvgStroke(vg)
         end
 
+        -- 主角光环特效（最底层，固定在地面不随角色漂浮）
+        if tower.typeDef.isLeader and not isDragged then
+            LeaderAuraEffect.Draw(vg, cx, baseCy, size, tower)
+        end
+
         -- 主角翅膀特效（在 nvgSave/Scale 块之外绘制，不受攻击压缩影响）
         if tower.typeDef.isLeader and not isDragged then
             LeaderWingEffect.Draw(vg, cx, cy, size)
+        end
+
+        -- 主角粒子光效（环绕角色飞舞，在翅膀之后、图标之前）
+        if tower.typeDef.isLeader and not isDragged then
+            LeaderParticleEffect.Draw(vg, cx, cy, size, tower)
         end
 
         -- 塔图标（出生缩放 × 攻击压缩弹出，锚点在脚底）
@@ -785,6 +798,11 @@ function Renderer.DrawTowers(vg, ox, oy)
         end
         DrawTowerIcon(vg, tower.typeDef.icon, cx, cy, size, tower.typeDef.color, tower.star, towerAlpha, tower)
         nvgRestore(vg)
+
+        -- 主角武器特效（在塔图标之后绘制，叠在角色上层）
+        if tower.typeDef.isLeader and not isDragged then
+            LeaderWeaponEffect.Draw(vg, cx, cy, size, tower)
+        end
 
         -- ─── 头顶文字标签（减益 + 增益） ───
         if not isDragged and Renderer.fontId >= 0 and Renderer.showBuffDebuffLabels then

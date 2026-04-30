@@ -412,6 +412,16 @@ local function HandleEnemyDeath(enemy)
     local s = State.currentStage - 1
     local dropScale = 1.0 + s * Config.KILL_DROP.stageScale + s * s * (Config.KILL_DROP.stageQuadratic or 0)
 
+    -- 幸运掉落：取所有塔中最高的 luckyDrop 加成
+    local luckyDrop = 0
+    for _, t in ipairs(State.towers) do
+        local ld = t.runeBonus and t.runeBonus.luckyDrop or 0
+        if ld > luckyDrop then luckyDrop = ld end
+    end
+    if luckyDrop > 0 then
+        dropScale = dropScale * (1 + luckyDrop)
+    end
+
     -- 冥晶（紫色）→ 掉落物
     local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
     if crystalBase > 0 then

@@ -147,6 +147,10 @@ function GameLoop.HandleUpdate(eventType, eventData)
 
     -- 试练塔连续挑战倒计时（用 rawDt，独立于 GameUI.Update）
     TrialTower.UpdateCountdown(rawDt)
+
+    -- 英雄详情面板每秒属性刷新（用 rawDt，不受加速影响）
+    local HeroDetail = require("Game.HeroUI.HeroDetail")
+    HeroDetail.Tick(rawDt)
 end
 
 -- ============================================================================

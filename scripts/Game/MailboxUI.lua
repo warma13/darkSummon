@@ -480,12 +480,16 @@ function MailboxUI.Refresh()
 
     -- 用 VirtualList 渲染邮件
     mailListData = mails
+    local INITIAL_VISIBLE_ROWS = 8
+    local vpHeight = INITIAL_VISIBLE_ROWS * (MAIL_ITEM_HEIGHT + 8)
+
     local vlist = UI.VirtualList {
         width = "100%",
         height = "100%",
         data = mailListData,
         itemHeight = MAIL_ITEM_HEIGHT,
         itemGap = 8,
+        viewportHeight = vpHeight,
         poolBuffer = 3,
         createItem = _CreateMailItem,
         bindItem = _BindMailItem,

@@ -178,7 +178,7 @@ function ChestData.Open(chestId, count)
     local available = ChestData.GetCount(chestId)
     if available <= 0 then return false, "宝箱数量不足" end
 
-    count = math.min(count, available, 100)
+    count = math.min(count, available, 1000)
 
     -- 每次开箱独立记录
     local drops = {}    -- { {type, id, name, amount, rarity}, ... } 按顺序记录每个掉落
