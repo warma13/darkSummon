@@ -478,6 +478,7 @@ function NormalPool.CreateButtonArea(UI, pageRoot, RARITY_COLORS, currentTab, re
     local canSingle = RecruitData.CanAfford(Config.RECRUIT_SINGLE_COST)
     local canTen = RecruitData.CanAfford(Config.RECRUIT_TEN_COST)
     local canHundred = RecruitData.CanAfford(Config.RECRUIT_HUNDRED_COST)
+    local canThousand = RecruitData.CanAfford(Config.RECRUIT_THOUSAND_COST)
 
     local buttons = {}
 
@@ -596,6 +597,46 @@ function NormalPool.CreateButtonArea(UI, pageRoot, RARITY_COLORS, currentTab, re
                 text = "招募百次",
                 fontSize = 14,
                 fontColor = canHundred and { 255, 255, 255, 255 } or { 120, 110, 140, 180 },
+                fontWeight = "bold",
+            },
+        },
+    }
+
+    -- 千连按钮
+    buttons[#buttons + 1] = UI.Panel {
+        flex = 1,
+        height = 56,
+        borderRadius = 10,
+        backgroundColor = canThousand and { 120, 40, 140, 255 } or { 45, 25, 50, 200 },
+        borderWidth = 1,
+        borderColor = canThousand and { 220, 100, 255, 200 } or { 70, 40, 80, 100 },
+        justifyContent = "center",
+        alignItems = "center",
+        gap = 2,
+        onClick = function(self)
+            if canThousand then
+                GachaResult.DoRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, 1000, false, refreshFn)
+            else
+                GachaResult.ShowBuyPopup(UI, pageRoot, 1000, "void_pact", refreshFn)
+            end
+        end,
+        children = {
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 3,
+                children = {
+                    Currency.IconWidget(UI, "void_pact", 16),
+                    UI.Label {
+                        text = tostring(Config.RECRUIT_THOUSAND_COST),
+                        fontSize = 14,
+                        fontColor = { 255, 220, 80, 255 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            UI.Label {
+                text = "招募千次",
+                fontSize = 14,
+                fontColor = canThousand and { 255, 255, 255, 255 } or { 120, 110, 140, 180 },
                 fontWeight = "bold",
             },
         },

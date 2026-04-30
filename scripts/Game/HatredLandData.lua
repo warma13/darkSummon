@@ -292,6 +292,7 @@ function HL.ConsumeTicket()
         return false
     end
     local data = HL.GetData()
+    -- 扣券（不增加 todayAttempts，券是额外次数，不应挤占免费次数）
     for i, slot in ipairs(InventoryData.items) do
         if slot.id == "hatred_ticket" then
             slot.count = slot.count - 1
@@ -299,7 +300,6 @@ function HL.ConsumeTicket()
             break
         end
     end
-    data.todayAttempts = data.todayAttempts + 1
     data.totalAttempts = (data.totalAttempts or 0) + 1
     HeroData.Save()
     return true

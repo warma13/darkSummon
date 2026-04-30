@@ -119,6 +119,7 @@ function AchievementData.EnsureData()
             loginClaimed = {},  -- { ["1"]=true, ["3"]=true, ... }
             rankCampaignClaimed = {},  -- { ["100"]=true, ... } 主线排名
             rankTowerClaimed    = {},  -- { ["100"]=true, ... } 试练塔排名
+
             chestClaimed   = {},  -- { ["10"]=true, ... } 开宝箱次数
             recruitClaimed = {},  -- { ["10"]=true, ... } 招募次数
             totalLoginDays = 0,

@@ -66,6 +66,16 @@ RD.DUNGEON_DEFS = {
         bonusCurrency  = nil,
         cover          = "image/dungeon_treasure.png",
     },
+    {
+        key            = "skill_book",
+        name           = "秘典藏书阁",
+        emoji          = "📕",
+        desc           = "古老藏书阁中蕴藏着技能奥秘",
+        accentColor    = { 200, 100, 80, 255 },
+        rewardCurrency = "skill_book",
+        bonusCurrency  = nil,
+        cover          = "image/dungeon_library.png",
+    },
 }
 
 -- 按 key 索引
@@ -76,10 +86,11 @@ end
 
 -- 副本 key → 专属挑战券物品 ID
 RD.DUNGEON_TICKET_MAP = {
-    crystal = "dungeon_ticket_crystal",
-    stone   = "dungeon_ticket_stone",
-    iron    = "dungeon_ticket_iron",
-    chest   = "dungeon_ticket_chest",
+    crystal    = "dungeon_ticket_crystal",
+    stone      = "dungeon_ticket_stone",
+    iron       = "dungeon_ticket_iron",
+    chest      = "dungeon_ticket_chest",
+    skill_book = "dungeon_ticket_skill_book",
 }
 
 -- ============================================================================
@@ -208,6 +219,36 @@ local CHEST_WAVE_REWARDS = {
     [20] = { id = "platinum", count = 1 },
 }
 
+--- 技能书副本每波奖励定义（多阶技能书，类似宝箱按波次掉落）
+--- 1次全通关(diff0): 📗11 📘6 📕3
+--- 4次全通关/日(diff0): 📗44 📘24 📕12
+--- 大约刚好够升1个R英雄tier2或SR英雄tier2
+local SKILL_BOOK_WAVE_REWARDS = {
+    -- 前段 w1-w7: 主产📗初级
+    [1]  = { id = "skill_book_1", count = 1 },
+    [2]  = { id = "skill_book_1", count = 1 },
+    [3]  = { id = "skill_book_1", count = 2 },
+    [4]  = { id = "skill_book_1", count = 1 },
+    [5]  = { id = "skill_book_1", count = 2 },   -- boss波
+    [6]  = { id = "skill_book_1", count = 2 },
+    [7]  = { id = "skill_book_1", count = 2 },
+    -- 中段 w8-w14: 📘中级登场
+    [8]  = { id = "skill_book_2", count = 1 },
+    [9]  = { id = "skill_book_2", count = 1 },
+    [10] = { id = "skill_book_2", count = 2 },   -- boss波
+    [11] = { id = "skill_book_2", count = 1 },
+    [12] = { id = "skill_book_2", count = 1 },
+    [13] = { id = "skill_book_3", count = 1 },
+    [14] = { id = "skill_book_3", count = 1 },
+    -- 后段 w15-w20: 📕高级登场
+    [15] = { id = "skill_book_3", count = 1 },   -- boss波
+    [16] = { id = "skill_book_1", count = 0 },
+    [17] = { id = "skill_book_2", count = 0 },
+    [18] = { id = "skill_book_1", count = 0 },
+    [19] = { id = "skill_book_2", count = 0 },
+    [20] = { id = "skill_book_3", count = 0 },   -- 最终boss不掉书
+}
+
 --- 获取宝箱副本某波的奖励定义
 ---@param wave number 1~20
 ---@return table|nil  { id = "wood", count = 1 }
@@ -215,8 +256,16 @@ function RD.GetChestWaveReward(wave)
     return CHEST_WAVE_REWARDS[wave]
 end
 
+--- 获取技能书副本某波的奖励定义
+---@param wave number 1~20
+---@return table|nil  { id = "skill_book_1"|"skill_book_2"|"skill_book_3", count = N }
+function RD.GetSkillBookWaveReward(wave)
+    return SKILL_BOOK_WAVE_REWARDS[wave]
+end
+
 --- 每波主要奖励数量（按锚点曲线分布，总量 = FULL_CLEAR_TARGET）
 --- 宝箱副本返回该波宝箱数量（具体类型用 GetChestWaveReward 查询）
+--- 技能书副本返回该波技能书数量（具体类型用 GetSkillBookWaveReward 查询）
 ---@param dungeonKey string
 ---@param wave number 1~20
 ---@param diffLevel number|nil 难度等级（默认0），影响奖励倍率
@@ -233,6 +282,11 @@ function RD.GetWaveReward(dungeonKey, wave, diffLevel)
         return cr and (cr.count * rewardMult) or 0
     end
 
+    if def.rewardCurrency == "skill_book" then
+        local sr = SKILL_BOOK_WAVE_REWARDS[wave]
+        return sr and (sr.count * rewardMult) or 0
+    end
+
     local currId = def.rewardCurrency
     local knots = REWARD_KNOTS[currId]
     if not knots then return 0 end
@@ -247,7 +301,7 @@ end
 ---@param dungeonKey string
 ---@param maxWave number 打到第几波
 ---@param diffLevel number|nil 难度等级（默认0）
----@return table rewards {currencyId = amount} 或 {chests = {chestId=count}}
+---@return table rewards {currencyId=amount} 或 {chests={id=count}} 或 {skill_books={id=count}}
 function RD.CalcTotalRewards(dungeonKey, maxWave, diffLevel)
     local def = RD.DUNGEON_MAP[dungeonKey]
     if not def then return {} end
@@ -264,6 +318,17 @@ function RD.CalcTotalRewards(dungeonKey, maxWave, diffLevel)
             end
         end
         return { chests = chests }
+    end
+
+    if def.rewardCurrency == "skill_book" then
+        local books = {}  -- bookId -> count
+        for w = 1, maxWave do
+            local sr = SKILL_BOOK_WAVE_REWARDS[w]
+            if sr and sr.count > 0 then
+                books[sr.id] = (books[sr.id] or 0) + sr.count * rewardMult
+            end
+        end
+        return { skill_books = books }
     end
 
     local total = 0
@@ -325,6 +390,7 @@ function RD.GetData()
                 stone   = 0,
                 iron    = 0,
                 chest   = 0,
+                skill_book = 0,
             },
             -- 今日已挑战次数（每日重置）
             todayAttempts = {
@@ -332,6 +398,7 @@ function RD.GetData()
                 stone   = 0,
                 iron    = 0,
                 chest   = 0,
+                skill_book = 0,
             },
             -- 今日已用广告续次次数（每日重置）
             todayAdAttempts = {
@@ -339,6 +406,7 @@ function RD.GetData()
                 stone   = 0,
                 iron    = 0,
                 chest   = 0,
+                skill_book = 0,
             },
             lastResetDate = TodayStr(),
             selectedDifficulty = 0,
@@ -363,8 +431,19 @@ function RD.GetData()
     -- 兼容旧存档：补充 todayAdAttempts
     if not HeroData.resourceDungeon.todayAdAttempts then
         HeroData.resourceDungeon.todayAdAttempts = {
-            crystal = 0, stone = 0, iron = 0, chest = 0,
+            crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0,
         }
+    end
+
+    -- 兼容旧存档：补充 skill_book 副本数据
+    if HeroData.resourceDungeon.bestWave.skill_book == nil then
+        HeroData.resourceDungeon.bestWave.skill_book = 0
+    end
+    if HeroData.resourceDungeon.todayAttempts.skill_book == nil then
+        HeroData.resourceDungeon.todayAttempts.skill_book = 0
+    end
+    if HeroData.resourceDungeon.todayAdAttempts.skill_book == nil then
+        HeroData.resourceDungeon.todayAdAttempts.skill_book = 0
     end
 
     -- 每日重置检查
@@ -647,6 +726,15 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
             if count > 0 then
                 Currency.GrantReward({ type = "chest", id = chestId, amount = count }, "ResourceDungeon")
                 rewardDefs[#rewardDefs + 1] = { type = "chest", id = chestId, amount = count }
+            end
+        end
+    elseif def.rewardCurrency == "skill_book" then
+        -- 技能书副本：按阶级发放多种技能书
+        local books = rewards.skill_books or {}
+        for bookId, count in pairs(books) do
+            if count > 0 then
+                Currency.GrantReward({ type = "currency", id = bookId, amount = count }, "ResourceDungeon")
+                rewardDefs[#rewardDefs + 1] = { type = "currency", id = bookId, amount = count }
             end
         end
     else

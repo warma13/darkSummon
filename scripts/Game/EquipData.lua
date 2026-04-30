@@ -50,7 +50,8 @@ function EquipData.GetSlotInfo(heroId, slotId)
     if not tierDef or not slotDef then return nil end
 
     local fullName = tierDef.names[slotId] or (tierDef.name .. slotDef.name)
-    local statBonus = EquipData.CalcStatBonus(slotDef.stat, e.level, tierDef.id)
+    local transcendLv = e.transcendLv or 0
+    local statBonus = EquipData.CalcStatBonus(slotDef.stat, e.level, tierDef.id, transcendLv)
 
     return {
         level = e.level,
@@ -59,19 +60,25 @@ function EquipData.GetSlotInfo(heroId, slotId)
         slotDef = slotDef,
         fullName = fullName,
         statBonus = statBonus,
+        transcendLv = transcendLv,
     }
 end
 
---- 计算装备属性加成
+--- 计算装备属性加成（含超越等级）
 ---@param statType string  "atk"/"dmgBonus"/"critDmg"/"elemDmg"
 ---@param level number
 ---@param tierId string  "green"/"blue"/...
+---@param transcendLv number|nil  超越等级
 ---@return number
-function EquipData.CalcStatBonus(statType, level, tierId)
+function EquipData.CalcStatBonus(statType, level, tierId, transcendLv)
     local base = Config.EQUIP_STAT_BASE[statType] or 0.002
     local mult = Config.EQUIP_TIER_MULT[tierId] or 1.0
     local value = base * level * mult
-    -- 所有属性均为百分比，保留小数
+    -- 超越加成：每超越等级 = base × redMult × TRANSCEND_STAT_RATE
+    if (transcendLv or 0) > 0 then
+        local redMult = Config.EQUIP_TIER_MULT["red"] or 5.0
+        value = value + base * transcendLv * redMult * Config.TRANSCEND_STAT_RATE
+    end
     return value
 end
 
@@ -120,7 +127,7 @@ function EquipData.CheckBreakthrough(heroId, slotId)
         return true, {
             tierIdx = e.tierIdx + 1,
             nextTier = nextTier,
-            cost = nextTier.breakCost,
+            cost = tier.breakCost,
         }
     end
     return false, nil
@@ -274,7 +281,77 @@ function EquipData.Breakthrough(heroId, slotId)
     return true, "突破成功! " .. info.nextTier.name .. "品质"
 end
 
---- 一键升级所有部位（升到各自品质段上限）
+--- 获取超越升级费用（锻魂铁）
+---@param transcendLv number 当前超越等级
+---@return number
+function EquipData.GetTranscendCost(transcendLv)
+    local cost = Config.TRANSCEND_COST_BASE + transcendLv * Config.TRANSCEND_COST_GROWTH
+    return math.min(cost, Config.TRANSCEND_COST_MAX)
+end
+
+--- 超越升级（单次）
+---@param heroId string
+---@param slotId string
+---@return boolean, string
+function EquipData.TranscendUpgrade(heroId, slotId)
+    local equips = EquipData.GetHeroEquips(heroId)
+    local e = equips[slotId]
+    local tier = Config.EQUIP_TIERS[e.tierIdx]
+
+    -- 必须红色满级
+    if e.tierIdx < #Config.EQUIP_TIERS or e.level < tier.maxLevel then
+        return false, "需要红色品质满级才能超越"
+    end
+
+    local transcendLv = e.transcendLv or 0
+    local cost = EquipData.GetTranscendCost(transcendLv)
+    if (HeroData.currencies.forge_iron or 0) < cost then
+        return false, "锻魂铁不足(需" .. cost .. ")"
+    end
+
+    HeroData.currencies.forge_iron = HeroData.currencies.forge_iron - cost
+    e.transcendLv = transcendLv + 1
+    HeroData.Save(true)
+    return true, "超越成功 +" .. e.transcendLv
+end
+
+--- 批量超越升级
+---@param heroId string
+---@param slotId string
+---@param maxCount number 最多升多少级（-1=升满）
+---@return number upgraded
+---@return number totalCost
+function EquipData.TranscendUpgradeMulti(heroId, slotId, maxCount)
+    local equips = EquipData.GetHeroEquips(heroId)
+    local e = equips[slotId]
+    local tier = Config.EQUIP_TIERS[e.tierIdx]
+
+    if e.tierIdx < #Config.EQUIP_TIERS or e.level < tier.maxLevel then
+        return 0, 0
+    end
+
+    if maxCount < 0 then maxCount = 999999 end
+    local upgraded = 0
+    local totalCost = 0
+
+    while upgraded < maxCount do
+        local transcendLv = e.transcendLv or 0
+        local cost = EquipData.GetTranscendCost(transcendLv)
+        if (HeroData.currencies.forge_iron or 0) < cost then break end
+
+        HeroData.currencies.forge_iron = HeroData.currencies.forge_iron - cost
+        e.transcendLv = transcendLv + 1
+        totalCost = totalCost + cost
+        upgraded = upgraded + 1
+    end
+
+    if upgraded > 0 then
+        HeroData.Save(true)
+    end
+    return upgraded, totalCost
+end
+
+--- 一键升级所有部位（升到各自品质段上限，满级红色则超越）
 ---@param heroId string
 ---@return number totalUpgraded
 ---@return number totalCost
@@ -283,6 +360,12 @@ function EquipData.UpgradeAllSlots(heroId)
     local totalCost = 0
     for _, slot in ipairs(Config.EQUIP_SLOTS) do
         local up, cost = EquipData.UpgradeMulti(heroId, slot.id, -1)
+        totalUpgraded = totalUpgraded + up
+        totalCost = totalCost + cost
+    end
+    -- 满级红色的部位尝试超越升级
+    for _, slot in ipairs(Config.EQUIP_SLOTS) do
+        local up, cost = EquipData.TranscendUpgradeMulti(heroId, slot.id, -1)
         totalUpgraded = totalUpgraded + up
         totalCost = totalCost + cost
     end
@@ -333,7 +416,7 @@ function EquipData.GetTotalBonus(heroId)
         local e = equips[slot.id]
         if e then
             local tier = Config.EQUIP_TIERS[e.tierIdx]
-            local bonus = EquipData.CalcStatBonus(slot.stat, e.level, tier.id)
+            local bonus = EquipData.CalcStatBonus(slot.stat, e.level, tier.id, e.transcendLv or 0)
             -- 武器特殊处理：fmt="pct" 且 stat="atk" → 路由到 atk_pct（百分比攻击力）
             if slot.fmt == "pct" and slot.stat == "atk" then
                 total["atk_pct"] = (total["atk_pct"] or 0) + bonus

@@ -7,6 +7,7 @@ local Currency = require("Game.Currency")
 local Toast = require("Game.Toast")
 local RelicData = require("Game.RelicData")
 local RelicCalc = require("Game.RelicCalc")
+local HeroSkills = require("Game.HeroSkills")
 
 local HeroDetail = {}
 
@@ -25,6 +26,14 @@ local selectedRelicSlot = "power"
 --- 遗物标签页：当前预览的遗物 { id, quality } 或 nil
 local selectedRelicView = nil
 
+--- header 战力 Label 引用（供 _refreshTab 动态更新）
+---@type any
+local headerPowerLabel = nil
+
+--- 每秒属性自动刷新：计时器 + 缓存的刷新回调
+local detailRefreshAccum = 0
+local detailRefreshCallback = nil  -- 指向 ctx._refreshTab
+
 --- 英雄标签页定义（普通英雄）
 local DETAIL_TABS = {
     { key = "info",    label = "信息" },
@@ -41,12 +50,47 @@ local LEADER_TABS = {
     { key = "relic",   label = "遗物" },
 }
 
+--- 获取当前详情面板打开的英雄ID（供 HeroUI.Refresh 保存/恢复状态）
+function HeroDetail.GetCurrentHeroId()
+    return detailHeroId
+end
+
 --- 页面重建时清理局部状态
 function HeroDetail.OnPageClear()
+    HeroDetail.StopAutoRefresh()
     detailContentContainer = nil
     detailHeroId = nil
+    headerPowerLabel = nil
     selectedRelicSlot = "power"
     selectedRelicView = nil
+end
+
+-- ============================================================================
+-- 每秒属性自动刷新（由 GameLoop.HandleUpdate 驱动）
+-- ============================================================================
+
+local DETAIL_REFRESH_INTERVAL = 1.0  -- 秒
+
+--- 每帧由 GameLoop 调用，累计 dt 到达 1 秒时触发一次刷新
+function HeroDetail.Tick(dt)
+    if not detailRefreshCallback then return end
+    detailRefreshAccum = detailRefreshAccum + dt
+    if detailRefreshAccum >= DETAIL_REFRESH_INTERVAL then
+        detailRefreshAccum = detailRefreshAccum - DETAIL_REFRESH_INTERVAL
+        detailRefreshCallback()
+    end
+end
+
+--- 启动属性自动刷新
+function HeroDetail.StartAutoRefresh(refreshFn)
+    detailRefreshCallback = refreshFn
+    detailRefreshAccum = 0
+end
+
+--- 停止属性自动刷新
+function HeroDetail.StopAutoRefresh()
+    detailRefreshCallback = nil
+    detailRefreshAccum = 0
 end
 
 local function ShowToast(msg)
@@ -57,6 +101,21 @@ end
 -- 属性行 / 技能图标
 -- ============================================================================
 
+--- 格式化属性值为显示字符串
+---@param value number|string
+---@param fmt string|nil  "pct"=百分比, nil=整数/大数
+---@return string
+local function FormatStatValue(value, fmt)
+    if fmt == "pct" then
+        return string.format("%.1f%%", (value or 0) * 100)
+    elseif type(value) == "number" then
+        local FormatBigNum = require("Game.HeroUI").FormatBigNum
+        return FormatBigNum(value)
+    else
+        return tostring(value)
+    end
+end
+
 --- 创建属性行
 ---@param UI any
 ---@param S table
@@ -64,16 +123,9 @@ end
 ---@param value number|string
 ---@param color table|nil
 ---@param fmt string|nil  "pct"=百分比, nil=整数
-local function CreateStatRow(UI, S, label, value, color, fmt)
-    local FormatBigNum = require("Game.HeroUI").FormatBigNum
-    local display
-    if fmt == "pct" then
-        display = string.format("%.1f%%", (value or 0) * 100)
-    elseif type(value) == "number" then
-        display = FormatBigNum(value)
-    else
-        display = tostring(value)
-    end
+---@param valueId string|nil  可选 id，用于 FindById 增量更新
+local function CreateStatRow(UI, S, label, value, color, fmt, valueId)
+    local display = FormatStatValue(value, fmt)
     return UI.Panel {
         width = "100%",
         flexDirection = "row",
@@ -83,7 +135,7 @@ local function CreateStatRow(UI, S, label, value, color, fmt)
         paddingTop = 4, paddingBottom = 4,
         children = {
             UI.Label { text = label, fontSize = 13, fontColor = S.dim },
-            UI.Label { text = display, fontSize = 13, fontColor = color or S.white, fontWeight = "bold" },
+            UI.Label { id = valueId, text = display, fontSize = 13, fontColor = color or S.white, fontWeight = "bold" },
         },
     }
 end
@@ -151,6 +203,214 @@ local function CreateSkillIcon(UI, skillDef, unlocked, selected, onClick)
 end
 
 -- ============================================================================
+-- 统一属性计算（header 战力 + BuildInfoTab 共用）
+-- ============================================================================
+
+--- 计算英雄全量属性（含装备/神裔/遗物/技能/标签/词条/称号）
+---@param heroId string
+---@return table stats  完整属性表（atk 已乘法叠加，含 critRate/critDmg/armorPen/dmgBonus/elemDmgBonus/spdBonus/atkSpeedDisplay/power）
+local function ComputeFullStats(heroId)
+    local stats = HeroData.GetHeroStats(heroId)
+    local EquipData = require("Game.EquipData")
+    local eqBonus = EquipData.GetTotalBonus(heroId)
+
+    -- 神裔降临加成
+    local DivineBlessDB = require("Game.DivineBlessData")
+    local divineAtkPct  = DivineBlessDB.GetBuffValue("atk_pct")
+    local divineSpdPct  = DivineBlessDB.GetBuffValue("spd_pct")
+    local divineCritPct = DivineBlessDB.GetBuffValue("crit_pct")
+
+    -- 遗物被动加成
+    local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
+    if RelicData and RelicData.GetPassiveBonus then
+        local rb = RelicData.GetPassiveBonus()
+        relicAtkPct    = rb.atkPct or 0
+        relicSpdPct    = rb.spdPct or 0
+        relicCritDmgPct = rb.critDmgPct or 0
+    end
+
+    -- 技能被动加成（critRate / critDmg）
+    local skillCritRate, skillCritDmg = 0, 0
+    local skillDefs0 = Config.HERO_SKILLS and Config.HERO_SKILLS[heroId] or {}
+    for _, skill in ipairs(skillDefs0) do
+        if skill.type == "passive" then
+            skillCritRate = skillCritRate + (skill.critRate or 0)
+            skillCritDmg  = skillCritDmg  + (skill.critDmg or 0)
+        end
+    end
+
+    -- 标签被动加成
+    local tagCritRate, tagCritDmg, tagAtkSpdBonus, tagArmorIgnore = 0, 0, 0, 0
+    local tagDefs0 = Config.HERO_SKILL_TAGS and Config.HERO_SKILL_TAGS[heroId]
+    local mockTags = {}
+    if tagDefs0 then
+        for _, tagDef in ipairs(tagDefs0) do
+            local tier = HeroData.GetTagTier(heroId, tagDef.id)
+            local unlocked = HeroData.IsTagUnlocked(heroId, tagDef)
+            local reqMet = true
+            if tagDef.requires then
+                for _, reqId in ipairs(tagDef.requires) do
+                    if HeroData.GetTagTier(heroId, reqId) <= 0 then reqMet = false; break end
+                end
+            end
+            local activeTier = (unlocked and reqMet) and tier or 0
+            mockTags[tagDef.id] = { def = tagDef, tier = activeTier }
+            if tagDef.type == "passive" and activeTier > 0 then
+                local eff = tagDef.effects and tagDef.effects[activeTier]
+                if eff then
+                    tagCritRate    = tagCritRate    + (eff.critRate or 0)
+                    tagCritDmg     = tagCritDmg     + (eff.critDmg or 0)
+                    tagAtkSpdBonus = tagAtkSpdBonus + (eff.atkSpdBonus or 0)
+                    tagArmorIgnore = tagArmorIgnore + (eff.armorIgnore or 0)
+                end
+            end
+        end
+    end
+
+    -- 词条三层加成（AffixTagResolver）
+    local affixCritRate, affixCritDmg, affixAtkPct, affixArmorPen, affixDmgBonus = 0, 0, 0, 0, 0
+    local affixSpdBonus = 0
+    do
+        local ok, ATR = pcall(require, "Game.AffixTagResolver")
+        if ok and ATR then
+            local towerDef = nil
+            for _, td in ipairs(Config.TOWER_TYPES) do
+                if td.id == heroId then towerDef = td; break end
+            end
+            if not towerDef and Config.LEADER_HERO and Config.LEADER_HERO.id == heroId then
+                towerDef = Config.LEADER_HERO
+            end
+            if towerDef then
+                local mockTower = { typeDef = towerDef, tags = mockTags }
+                local affixes = ATR.CollectAffixes(heroId)
+                local ab = ATR.Resolve(mockTower, affixes)
+                affixAtkPct    = ab.atk_pct or 0
+                affixCritRate  = ab.critRate_add or 0
+                affixCritDmg   = ab.critDmg_add or 0
+                affixArmorPen  = ab.armorPen_add or 0
+                affixDmgBonus  = ab.skillDmg_pct or 0
+                affixSpdBonus  = ab.spdBonus_add or 0
+            end
+        end
+    end
+
+    -- 攻击力 = (基础+装备) × (1+装备%+神裔%) × (1+遗物%) × (1+词条%)
+    stats.atk = (stats.atk + (eqBonus.atk or 0))
+              * (1 + (eqBonus.atk_pct or 0) + divineAtkPct)
+              * (1 + relicAtkPct)
+              * (1 + affixAtkPct)
+    stats.critRate = (stats.critRate or 0) + (eqBonus.critRate or 0) + divineCritPct
+                   + skillCritRate + tagCritRate + affixCritRate
+    stats.critDmg = (stats.critDmg or 0) + (eqBonus.critDmg or 0) + relicCritDmgPct
+                  + skillCritDmg + tagCritDmg + affixCritDmg
+    stats.armorPen = (stats.armorPen or 0) + (eqBonus.armorPen or 0) + tagArmorIgnore + affixArmorPen
+    stats.dmgBonus = (stats.dmgBonus or 0) + (eqBonus.dmgBonus or 0) + affixDmgBonus
+
+    -- 称号加成
+    local okTD, TitleDataMod = pcall(require, "Game.TitleData")
+    if okTD and TitleDataMod then
+        local tAtk = TitleDataMod.GetGlobalAtkBonus and TitleDataMod.GetGlobalAtkBonus() or 0
+        if tAtk > 0 then stats.atk = stats.atk * (1 + tAtk) end
+        local tSpd = TitleDataMod.GetGlobalSpdBonus and TitleDataMod.GetGlobalSpdBonus() or 0
+        if tSpd > 0 then stats.spdBonusTitle = tSpd end
+    end
+
+    -- 元素伤害
+    local heroDmgType = Config.HERO_DAMAGE_TYPE[heroId]
+    if heroDmgType and eqBonus.elemDmg and eqBonus.elemDmg > 0 then
+        if not stats.elemDmgBonus then stats.elemDmgBonus = {} end
+        stats.elemDmgBonus[heroDmgType] = (stats.elemDmgBonus[heroDmgType] or 0) + eqBonus.elemDmg
+    end
+
+    -- 计算实际攻速（次/s）
+    local totalSpdBonus = (stats.spdBonus or 0) + (eqBonus.spd_pct or 0)
+                        + divineSpdPct + relicSpdPct + tagAtkSpdBonus + affixSpdBonus
+                        + (stats.spdBonusTitle or 0)
+    do
+        local baseSpeed = nil
+        for _, td in ipairs(Config.TOWER_TYPES) do
+            if td.id == heroId then baseSpeed = td.baseSpeed; break end
+        end
+        if not baseSpeed and Config.LEADER_HERO and Config.LEADER_HERO.id == heroId then
+            baseSpeed = Config.LEADER_HERO.baseSpeed
+        end
+        if baseSpeed then
+            local interval = baseSpeed / (1 + totalSpdBonus)
+            stats.atkSpeedDisplay = string.format("%.2f/s", 1 / interval)
+            stats.atkSpeedValue = 1 / interval  -- 数值，用于战力计算
+        else
+            stats.atkSpeedDisplay = tostring(stats.spd)
+            stats.atkSpeedValue = stats.spd or 0
+        end
+    end
+
+    -- 战力 = 攻击力 + 攻速数值
+    stats.power = stats.atk + stats.atkSpeedValue
+
+    return stats
+end
+
+-- ============================================================================
+-- 运行时属性查询（战斗中从 State.towers 获取实时数据）
+-- ============================================================================
+
+--- 从 State.towers 中查找英雄对应的 tower 实例
+---@param heroId string
+---@return table|nil tower  找到的 tower 实例，未上场返回 nil
+local function FindTowerByHeroId(heroId)
+    local ok, State = pcall(require, "Game.State")
+    if not ok or not State or not State.towers then return nil end
+    for _, tower in ipairs(State.towers) do
+        if tower and tower.typeDef and tower.typeDef.id == heroId then
+            return tower
+        end
+    end
+    return nil
+end
+
+--- 获取英雄运行时属性（优先从 tower 实例取实时值，未上场 fallback 到静态计算）
+---@param heroId string
+---@return table stats  { atk, atkSpeedDisplay, critRate, critDmg, armorPen, dmgBonus, elemDmgBonus, power }
+---@return boolean isRuntime  是否来自运行时 tower 数据
+local function GetRuntimeStats(heroId)
+    local tower = FindTowerByHeroId(heroId)
+    if not tower then
+        return ComputeFullStats(heroId), false
+    end
+
+    local Tower = require("Game.Tower")
+    local stats = {}
+
+    -- 攻击力（含光环/全局/皮肤/称号/击杀叠加/自然平攻等）
+    stats.atk = HeroSkills.GetEffectiveAttack(tower)
+
+    -- 攻速（含光环/技能加速等）
+    local interval = HeroSkills.GetEffectiveSpeed(tower)
+    stats.atkSpeedDisplay = string.format("%.2f/s", 1.0 / interval)
+    stats.atkSpeedValue = 1.0 / interval
+
+    -- 暴击率（含光环/技能/标签加成）
+    stats.critRate = HeroSkills.GetEffectiveCritRate(tower)
+
+    -- 暴击伤害/穿甲/伤害加成（含减益修正）
+    stats.critDmg  = Tower.GetEffectiveCritDmg(tower)
+    stats.armorPen = Tower.GetEffectiveArmorPen(tower)
+    stats.dmgBonus = Tower.GetEffectiveDmgBonus and Tower.GetEffectiveDmgBonus(tower) or (tower.dmgBonus or 0)
+
+    -- 元素伤害加成（从静态数据获取，运行时不变）
+    local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
+    if dmgTypeId then
+        local staticStats = ComputeFullStats(heroId)
+        stats.elemDmgBonus = staticStats.elemDmgBonus
+    end
+
+    -- 战力 = 攻击力 + 攻速数值
+    stats.power = stats.atk + stats.atkSpeedValue
+
+    return stats, true
+end
+
+-- ============================================================================
 -- 标签页：信息（属性 + 技能）
 -- ============================================================================
 
@@ -181,41 +441,30 @@ local function BuildInfoTab(ctx, heroId, heroDef)
         }
     end
 
-    local stats = HeroData.GetHeroStats(heroId)
-    local EquipData = require("Game.EquipData")
-    local eqBonus = EquipData.GetTotalBonus(heroId)
-    stats.atk = stats.atk + (eqBonus.atk or 0)
-    stats.critDmg = (stats.critDmg or 0) + (eqBonus.critDmg or 0)
-    stats.dmgBonus = (stats.dmgBonus or 0) + (eqBonus.dmgBonus or 0)
-    local heroDmgType = Config.HERO_DAMAGE_TYPE[heroId]
-    if heroDmgType and eqBonus.elemDmg and eqBonus.elemDmg > 0 then
-        if not stats.elemDmgBonus then stats.elemDmgBonus = {} end
-        stats.elemDmgBonus[heroDmgType] = (stats.elemDmgBonus[heroDmgType] or 0) + eqBonus.elemDmg
-    end
-
-    -- 计算实际攻速（次/s）= 1 / 攻击间隔
-    -- 攻击间隔 = baseSpeed / (1 + spdBonus + 装备攻速%)
-    local atkSpeedDisplay
-    do
-        local baseSpeed = nil
-        for _, td in ipairs(Config.TOWER_TYPES) do
-            if td.id == heroId then baseSpeed = td.baseSpeed; break end
-        end
-        if not baseSpeed and Config.LEADER_HERO and Config.LEADER_HERO.id == heroId then
-            baseSpeed = Config.LEADER_HERO.baseSpeed
-        end
-        if baseSpeed then
-            local interval = baseSpeed / (1 + (stats.spdBonus or 0) + (eqBonus.spd_pct or 0))
-            atkSpeedDisplay = string.format("%.2f/s", 1 / interval)
-        else
-            atkSpeedDisplay = tostring(stats.spd)
-        end
-    end
+    local stats = GetRuntimeStats(heroId)
+    local atkSpeedDisplay = stats.atkSpeedDisplay
 
     local children = {}
 
-    -- 属性区
+    -- 属性区（带 id 以支持每秒增量更新）
+    local statChildren = {
+        CreateStatRow(UI, S, "攻击", stats.atk, { 255, 120, 80, 255 }, nil, "detail_atk"),
+        CreateStatRow(UI, S, "攻速", atkSpeedDisplay, { 100, 180, 255, 255 }, nil, "detail_spd"),
+        CreateStatRow(UI, S, "暴击率", stats.critRate, { 255, 220, 80, 255 }, "pct", "detail_critRate"),
+        CreateStatRow(UI, S, "暴击伤害", stats.critDmg, { 255, 160, 60, 255 }, "pct", "detail_critDmg"),
+        CreateStatRow(UI, S, "穿甲", stats.armorPen, { 200, 140, 255, 255 }, "pct", "detail_armorPen"),
+        CreateStatRow(UI, S, "伤害加成", stats.dmgBonus or 0, { 255, 100, 100, 255 }, "pct", "detail_dmgBonus"),
+    }
+    do
+        local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
+        local dmgDef = dmgTypeId and Config.DAMAGE_TYPES[dmgTypeId]
+        if dmgTypeId and dmgDef then
+            local dmgBonus = stats.elemDmgBonus and stats.elemDmgBonus[dmgTypeId] or 0
+            statChildren[#statChildren + 1] = CreateStatRow(UI, S, dmgDef.name .. "伤害", dmgBonus, dmgDef.color, "pct", "detail_elemDmg")
+        end
+    end
     children[#children + 1] = UI.Panel {
+        id = "detail_stat_panel",
         width = "100%",
         backgroundColor = { 35, 25, 18, 200 },
         borderRadius = 8,
@@ -223,21 +472,7 @@ local function BuildInfoTab(ctx, heroId, heroDef)
         borderColor = { 70, 55, 40, 150 },
         paddingTop = 6, paddingBottom = 6,
         gap = 2,
-        children = {
-            CreateStatRow(UI, S, "攻击", stats.atk, { 255, 120, 80, 255 }),
-            CreateStatRow(UI, S, "攻速", atkSpeedDisplay, { 100, 180, 255, 255 }),
-            CreateStatRow(UI, S, "暴击率", stats.critRate, { 255, 220, 80, 255 }, "pct"),
-            CreateStatRow(UI, S, "暴击伤害", stats.critDmg, { 255, 160, 60, 255 }, "pct"),
-            CreateStatRow(UI, S, "穿甲", stats.armorPen, { 200, 140, 255, 255 }, "pct"),
-            CreateStatRow(UI, S, "伤害加成", stats.dmgBonus or 0, { 255, 100, 100, 255 }, "pct"),
-            (function()
-                local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
-                local dmgDef = dmgTypeId and Config.DAMAGE_TYPES[dmgTypeId]
-                if not dmgTypeId or not dmgDef then return nil end
-                local dmgBonus = stats.elemDmgBonus and stats.elemDmgBonus[dmgTypeId] or 0
-                return CreateStatRow(UI, S, dmgDef.name .. "伤害", dmgBonus, dmgDef.color, "pct")
-            end)(),
-        },
+        children = statChildren,
     }
 
     -- 伤害类型 & 定位
@@ -419,9 +654,18 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                 text = "技能标签", fontSize = 12, fontColor = S.dim, marginLeft = 6,
             }
 
-            for _, tagDef in ipairs(tagDefs) do
+            for i, tagDef in ipairs(tagDefs) do
                 local tier = HeroData.GetTagTier(heroId, tagDef.id)
                 local unlocked = HeroData.IsTagUnlocked(heroId, tagDef)
+
+                -- 顺序解锁：前一个标签 tier > 0 才能解锁后一个
+                local seqLocked = false
+                if i > 1 then
+                    local prevTag = tagDefs[i - 1]
+                    if HeroData.GetTagTier(heroId, prevTag.id) <= 0 then
+                        seqLocked = true
+                    end
+                end
                 local effectDesc = ""
                 if tier > 0 and tagDef.effects and tagDef.effects[tier] then
                     effectDesc = tagDef.effects[tier].desc or ""
@@ -446,12 +690,104 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                     and (" Lv" .. tier .. "/" .. tagDef.maxTier)
                     or (" 0/" .. tagDef.maxTier)
 
+                -- 升级费用计算
+                local maxTier = tagDef.maxTier or 1
+                local costTable = Config.SKILL_BOOK_COST and Config.SKILL_BOOK_COST[rarity]
+                local costMap = (tier < maxTier and costTable) and costTable[tier] or nil
+                local canUpgrade = unlocked and not seqLocked and tier < maxTier and costMap
+                local hasBooks = false
+                if canUpgrade then
+                    hasBooks = true
+                    for bookId, amount in pairs(costMap) do
+                        if not Currency.Has(bookId, amount) then
+                            hasBooks = false
+                            break
+                        end
+                    end
+                end
+
+                -- 升级按钮
+                local upgradeBtn = nil
+                if unlocked and not seqLocked and tier < maxTier then
+                    -- 构建消耗图标children
+                    local costChildren = {}
+                    if costMap then
+                        local BOOK_ORD = { "skill_book_1", "skill_book_2", "skill_book_3" }
+                        for _, bid in ipairs(BOOK_ORD) do
+                            if costMap[bid] then
+                                local cd = Config.CURRENCY[bid]
+                                local bColor = cd and cd.color or {180,180,180}
+                                costChildren[#costChildren + 1] = UI.Panel {
+                                    width = 11, height = 11, borderRadius = 3,
+                                    backgroundColor = { bColor[1], bColor[2], bColor[3], 200 },
+                                    justifyContent = "center", alignItems = "center",
+                                    children = {
+                                        UI.Label { text = cd and cd.icon and cd.icon:sub(1,1):upper() or "?",
+                                            fontSize = 7, fontColor = {255,255,255,240}, pointerEvents = "none" },
+                                    },
+                                }
+                                costChildren[#costChildren + 1] = UI.Label {
+                                    text = tostring(costMap[bid]), fontSize = 8,
+                                    fontColor = { 255, 255, 255, 220 },
+                                    pointerEvents = "none",
+                                    marginRight = 2,
+                                }
+                            end
+                        end
+                    end
+                    local tagIdCap = tagDef.id  -- capture for closure
+                    -- 消耗图标面板（按钮左侧）
+                    local costPanel = #costChildren > 0 and UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 1,
+                        children = costChildren,
+                    } or nil
+                    upgradeBtn = UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 3,
+                        children = {
+                            costPanel,
+                            UI.Button {
+                                text = "升级",
+                                fontSize = 9,
+                                height = 20, minWidth = 36,
+                                paddingLeft = 6, paddingRight = 6,
+                                variant = hasBooks and "primary" or "outline",
+                                disabled = not hasBooks,
+                                onClick = function()
+                                    local ok, err = HeroSkills.UpgradeTag(heroId, tagIdCap)
+                                    if ok then
+                                        Toast.Show("标签升级成功！")
+                                        if ctx._refreshTab then ctx._refreshTab() else ctx.ShowHeroDetail(heroId) end
+                                    else
+                                        local errMsgs = {
+                                            not_enough_skill_book = "技能书不足",
+                                            max_tier = "已满级",
+                                            tag_locked = "标签未解锁",
+                                            prev_tag_required = "需要先升级前置标签",
+                                        }
+                                        Toast.Show(errMsgs[err] or ("升级失败: " .. (err or "")))
+                                    end
+                                end,
+                            },
+                        },
+                    }
+                elseif tier >= maxTier then
+                    upgradeBtn = UI.Label {
+                        text = "已满级", fontSize = 9,
+                        fontColor = { 160, 200, 120, 180 },
+                    }
+                elseif seqLocked and unlocked then
+                    upgradeBtn = UI.Label {
+                        text = "需升级前置", fontSize = 9,
+                        fontColor = { 180, 150, 100, 160 },
+                    }
+                end
+
                 tagChildren[#tagChildren + 1] = UI.Panel {
                     width = "100%",
                     flexDirection = "row", alignItems = "center",
                     paddingLeft = 6, paddingRight = 6,
                     gap = 4,
-                    opacity = unlocked and 1.0 or 0.5,
+                    opacity = (unlocked and not seqLocked) and 1.0 or 0.5,
                     children = {
                         -- 类型标签
                         UI.Panel {
@@ -467,15 +803,20 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                         UI.Label {
                             text = tagDef.name .. tierText,
                             fontSize = 11,
-                            fontColor = unlocked and { 230, 220, 200, 220 } or { 160, 150, 130, 150 },
+                            fontColor = (unlocked and not seqLocked) and { 230, 220, 200, 220 } or { 160, 150, 130, 150 },
                             fontWeight = tier > 0 and "bold" or "normal",
+                            flexShrink = 1,
                         },
                         -- 解锁条件
                         UI.Label {
                             text = unlockText,
                             fontSize = 9,
-                            fontColor = unlocked and { 160, 200, 120, 180 } or { 160, 150, 130, 130 },
+                            fontColor = (unlocked and not seqLocked) and { 160, 200, 120, 180 } or { 160, 150, 130, 130 },
                         },
+                        -- 占位弹性空间
+                        UI.Panel { flexGrow = 1 },
+                        -- 升级按钮
+                        upgradeBtn,
                     },
                 }
 
@@ -488,7 +829,7 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                             UI.Label {
                                 text = effectDesc,
                                 fontSize = 10,
-                                fontColor = unlocked
+                                fontColor = (unlocked and not seqLocked)
                                     and { 200, 190, 170, 200 }
                                     or { 140, 130, 120, 120 },
                             },
@@ -496,6 +837,38 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                     }
                 end
             end
+
+            -- 技能书余额（三阶，图片+数量）
+            local BOOK_BAL_ORDER = { "skill_book_1", "skill_book_2", "skill_book_3" }
+            local balChildren = {}
+            for _, bid in ipairs(BOOK_BAL_ORDER) do
+                local cnt = Currency.Get(bid)
+                local cd = Config.CURRENCY[bid]
+                local bColor = cd and cd.color or {180,180,180}
+                balChildren[#balChildren + 1] = UI.Panel {
+                    width = 12, height = 12, borderRadius = 3,
+                    backgroundColor = { bColor[1], bColor[2], bColor[3], 200 },
+                    justifyContent = "center", alignItems = "center",
+                    children = {
+                        UI.Label { text = cd and cd.icon and cd.icon:sub(1,1):upper() or "?",
+                            fontSize = 7, fontColor = {255,255,255,240}, pointerEvents = "none" },
+                    },
+                }
+                balChildren[#balChildren + 1] = UI.Label {
+                    text = ctx.FormatBigNum(cnt), fontSize = 10,
+                    fontColor = { 180, 160, 120, 200 },
+                    pointerEvents = "none",
+                    marginRight = 6,
+                }
+            end
+            tagChildren[#tagChildren + 1] = UI.Panel {
+                width = "100%",
+                flexDirection = "row", alignItems = "center",
+                justifyContent = "flex-end",
+                paddingLeft = 6, paddingRight = 6,
+                marginTop = 2,
+                children = balChildren,
+            }
 
             children[#children + 1] = UI.Panel {
                 width = "100%",
@@ -1191,68 +1564,85 @@ local function BuildCostumeTab(ctx, heroId)
 
     local children = {}
 
-    -- ── 槽位行 ────────────────────────────────────────────────────────────────
-    local wingDef = CostumeData.GetEquippedDef("wing")
-    local slotRow = UI.Panel {
+    -- ── 装备槽位行（水平一行显示所有槽位） ──────────────────────────────────
+    local function MakeSlotCell(slotDef)
+        local def = CostumeData.GetEquippedDef(slotDef.id)
+        local bc = def and (def.rarityColor or { 120, 80, 200, 200 }) or { 70, 55, 42, 150 }
+        -- 图标内容
+        local iconContent
+        if def then
+            if slotDef.id == "wing" then
+                iconContent = { FrameIcon(40, def, def.iconFrame or 0) }
+            else
+                iconContent = { UI.Panel { width = 40, height = 40, backgroundImage = def.preview, backgroundFit = "contain" } }
+            end
+        else
+            local slotLabels = { wing = "翼", weapon = "武", aura = "环", particle = "粒" }
+            local label = slotLabels[slotDef.id] or "?"
+            iconContent = { UI.Label { text = label, fontSize = 14, fontColor = { 100, 80, 65, 200 } } }
+        end
+        return UI.Panel {
+            flexGrow = 1, flexShrink = 1, flexBasis = 0,
+            flexDirection = "column",
+            alignItems = "center",
+            gap = 4,
+            backgroundColor = { 40, 28, 20, 220 },
+            borderRadius = 10,
+            borderWidth = 1,
+            borderColor = def and bc or { 90, 65, 48, 200 },
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 6, paddingRight = 6,
+            children = {
+                -- 图标
+                UI.Panel {
+                    width = 40, height = 40,
+                    borderRadius = 8,
+                    backgroundColor = { 55, 38, 28, 255 },
+                    borderWidth = 1,
+                    borderColor = bc,
+                    justifyContent = "center", alignItems = "center",
+                    overflow = "hidden",
+                    children = iconContent,
+                },
+                -- 槽位名
+                UI.Label { text = slotDef.label, fontSize = 10, fontColor = S.dim },
+                -- 装备名 / 空置
+                UI.Label {
+                    text = def and def.name or "空置",
+                    fontSize = 11,
+                    fontColor = def and (def.rarityColor or S.white) or S.dimLocked,
+                    fontWeight = def and "bold" or "normal",
+                },
+                -- 卸下按钮
+                def and UI.Panel {
+                    paddingLeft = 8, paddingRight = 8,
+                    paddingTop = 3, paddingBottom = 3,
+                    borderRadius = 5,
+                    backgroundColor = { 70, 50, 38, 200 },
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        CostumeData.Equip(slotDef.id, nil)
+                        ctx.ShowHeroDetail(heroId)
+                    end,
+                    children = {
+                        UI.Label { text = "卸下", fontSize = 10, fontColor = { 180, 160, 140, 220 } },
+                    },
+                } or nil,
+            },
+        }
+    end
+
+    local slotCells = {}
+    for _, slotDef in ipairs(CostumeData.SLOTS) do
+        slotCells[#slotCells + 1] = MakeSlotCell(slotDef)
+    end
+
+    children[#children + 1] = UI.Panel {
         width = "100%",
         flexDirection = "row",
-        alignItems = "center",
-        gap = 10,
-        backgroundColor = { 40, 28, 20, 220 },
-        borderRadius = 10,
-        borderWidth = 1,
-        borderColor = { 90, 65, 48, 200 },
-        paddingTop = 10, paddingBottom = 10,
-        paddingLeft = 12, paddingRight = 12,
-        children = {
-            -- 槽位图标
-            UI.Panel {
-                width = 44, height = 44,
-                flexShrink = 0,
-                borderRadius = 8,
-                backgroundColor = { 55, 38, 28, 255 },
-                borderWidth = 1,
-                borderColor = wingDef and (wingDef.rarityColor or { 120, 80, 200, 200 }) or { 70, 55, 42, 150 },
-                justifyContent = "center", alignItems = "center",
-                overflow = "hidden",
-                children = wingDef and {
-                    FrameIcon(44, wingDef, wingDef.iconFrame or 0),
-                } or {
-                    UI.Label { text = "翼", fontSize = 18, fontColor = { 100, 80, 65, 200 } },
-                },
-            },
-            -- 槽位名 + 装备状态
-            UI.Panel {
-                flexGrow = 1,
-                gap = 2,
-                children = {
-                    UI.Label { text = "翅膀", fontSize = 12, fontColor = S.dim },
-                    UI.Label {
-                        text = wingDef and wingDef.name or "空置",
-                        fontSize = 14,
-                        fontColor = wingDef and (wingDef.rarityColor or S.white) or S.dimLocked,
-                        fontWeight = wingDef and "bold" or "normal",
-                    },
-                },
-            },
-            -- 卸下按钮（已装备时显示）
-            wingDef and UI.Panel {
-                paddingLeft = 10, paddingRight = 10,
-                paddingTop = 5, paddingBottom = 5,
-                borderRadius = 6,
-                backgroundColor = { 70, 50, 38, 200 },
-                justifyContent = "center", alignItems = "center",
-                onClick = function(self)
-                    CostumeData.Equip("wing", nil)
-                    ctx.ShowHeroDetail(heroId)
-                end,
-                children = {
-                    UI.Label { text = "卸下", fontSize = 11, fontColor = { 180, 160, 140, 220 } },
-                },
-            } or nil,
-        },
+        gap = 8,
+        children = slotCells,
     }
-    children[#children + 1] = slotRow
 
     -- ── 翅膀分类列表 ──────────────────────────────────────────────────────────
     children[#children + 1] = UI.Panel {
@@ -1360,6 +1750,289 @@ local function BuildCostumeTab(ctx, heroId)
             },
         }
         children[#children + 1] = card
+    end
+
+    -- ── 武器分类标题 ──────────────────────────────────────────────────────────
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        marginTop = 10,
+        children = {
+            UI.Panel { width = 3, height = 14, borderRadius = 2, backgroundColor = { 255, 180, 50, 255 } },
+            UI.Label { text = "武器", fontSize = 13, fontColor = S.dim, fontWeight = "bold" },
+        },
+    }
+
+    -- ── 武器时装卡片列表 ──────────────────────────────────────────────────────
+    for _, def in ipairs(CostumeData.WEAPON_COSTUMES) do
+        local isOwned = CostumeData.IsOwned(def.id)
+        local isEquipped = CostumeData.IsEquipped("weapon", def.id)
+        local rc = def.rarityColor or RARITY_COLOR[def.rarity] or { 180, 180, 180, 255 }
+
+        local wcard = UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 10,
+            backgroundColor = isEquipped and { 50, 40, 25, 240 } or (isOwned and { 38, 27, 20, 200 } or { 28, 24, 32, 180 }),
+            borderRadius = 10,
+            borderWidth = isEquipped and 2 or 1,
+            borderColor = isEquipped and rc or (isOwned and { 70, 55, 42, 120 } or { 50, 45, 60, 80 }),
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 10, paddingRight = 10,
+            children = {
+                UI.Panel {
+                    width = 54, height = 54,
+                    flexShrink = 0,
+                    borderRadius = 8,
+                    backgroundColor = { 30, 20, 40, 255 },
+                    borderWidth = 1,
+                    borderColor = rc,
+                    overflow = "hidden",
+                    children = {
+                        UI.Panel {
+                            width = 54, height = 54,
+                            backgroundImage = def.preview,
+                            backgroundFit = "contain",
+                        },
+                        UI.Panel {
+                            position = "absolute",
+                            top = 2, left = 2,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 3,
+                            backgroundColor = { 0, 0, 0, 160 },
+                            children = {
+                                UI.Label { text = def.rarity or "N", fontSize = 8, fontColor = rc, fontWeight = "bold" },
+                            },
+                        },
+                    },
+                },
+                UI.Panel {
+                    flexGrow = 1, flexShrink = 1,
+                    gap = 3,
+                    children = {
+                        UI.Label { text = def.name, fontSize = 13, fontColor = rc, fontWeight = "bold" },
+                        UI.Label { text = def.desc or "", fontSize = 10, fontColor = { 180, 165, 150, 180 } },
+                    },
+                },
+                UI.Panel {
+                    width = 54, flexShrink = 0,
+                    paddingTop = 7, paddingBottom = 7,
+                    borderRadius = 8,
+                    backgroundColor = isEquipped and { 80, 55, 110, 240 }
+                        or (isOwned and { 60, 100, 80, 220 } or { 45, 40, 55, 180 }),
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        if isOwned and not isEquipped then
+                            CostumeData.Equip("weapon", def.id)
+                            ctx.ShowHeroDetail(heroId)
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = isEquipped and "已装备" or (isOwned and "装备" or "未解锁"),
+                            fontSize = 11,
+                            fontColor = isEquipped and { 200, 170, 255, 220 }
+                                or (isOwned and { 220, 255, 220, 255 } or { 120, 110, 130, 180 }),
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        }
+        children[#children + 1] = wcard
+    end
+
+    -- ── 光环分类标题 ──────────────────────────────────────────────────────────
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        marginTop = 10,
+        children = {
+            UI.Panel { width = 3, height = 14, borderRadius = 2, backgroundColor = { 200, 160, 255, 255 } },
+            UI.Label { text = "光环", fontSize = 13, fontColor = S.dim, fontWeight = "bold" },
+        },
+    }
+
+    -- ── 光环时装卡片列表 ──────────────────────────────────────────────────────
+    for _, def in ipairs(CostumeData.AURA_COSTUMES) do
+        local isOwned = CostumeData.IsOwned(def.id)
+        local isEquipped = CostumeData.IsEquipped("aura", def.id)
+        local rc = def.rarityColor or RARITY_COLOR[def.rarity] or { 180, 180, 180, 255 }
+
+        local acard = UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 10,
+            backgroundColor = isEquipped and { 50, 40, 25, 240 } or (isOwned and { 38, 27, 20, 200 } or { 28, 24, 32, 180 }),
+            borderRadius = 10,
+            borderWidth = isEquipped and 2 or 1,
+            borderColor = isEquipped and rc or (isOwned and { 70, 55, 42, 120 } or { 50, 45, 60, 80 }),
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 10, paddingRight = 10,
+            children = {
+                UI.Panel {
+                    width = 54, height = 54,
+                    flexShrink = 0,
+                    borderRadius = 8,
+                    backgroundColor = { 30, 20, 40, 255 },
+                    borderWidth = 1,
+                    borderColor = rc,
+                    overflow = "hidden",
+                    children = {
+                        UI.Panel {
+                            width = 54, height = 54,
+                            backgroundImage = def.preview,
+                            backgroundFit = "contain",
+                        },
+                        UI.Panel {
+                            position = "absolute",
+                            top = 2, left = 2,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 3,
+                            backgroundColor = { 0, 0, 0, 160 },
+                            children = {
+                                UI.Label { text = def.rarity or "N", fontSize = 8, fontColor = rc, fontWeight = "bold" },
+                            },
+                        },
+                    },
+                },
+                UI.Panel {
+                    flexGrow = 1, flexShrink = 1,
+                    gap = 3,
+                    children = {
+                        UI.Label { text = def.name, fontSize = 13, fontColor = rc, fontWeight = "bold" },
+                        UI.Label { text = def.desc or "", fontSize = 10, fontColor = { 180, 165, 150, 180 } },
+                    },
+                },
+                UI.Panel {
+                    width = 54, flexShrink = 0,
+                    paddingTop = 7, paddingBottom = 7,
+                    borderRadius = 8,
+                    backgroundColor = isEquipped and { 80, 55, 110, 240 }
+                        or (isOwned and { 60, 100, 80, 220 } or { 45, 40, 55, 180 }),
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        if isOwned and not isEquipped then
+                            CostumeData.Equip("aura", def.id)
+                            ctx.ShowHeroDetail(heroId)
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = isEquipped and "已装备" or (isOwned and "装备" or "未解锁"),
+                            fontSize = 11,
+                            fontColor = isEquipped and { 200, 170, 255, 220 }
+                                or (isOwned and { 220, 255, 220, 255 } or { 120, 110, 130, 180 }),
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        }
+        children[#children + 1] = acard
+    end
+
+    -- ── 粒子光效分类标题 ──────────────────────────────────────────────────────
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        marginTop = 10,
+        pointerEvents = "auto",
+        children = {
+            UI.Panel { width = 3, height = 14, borderRadius = 2, backgroundColor = { 120, 200, 255, 255 } },
+            UI.Label { text = "粒子光效", fontSize = 13, fontColor = S.dim, fontWeight = "bold" },
+        },
+    }
+
+    -- ── 粒子光效时装卡片列表 ──────────────────────────────────────────────────
+    for _, def in ipairs(CostumeData.PARTICLE_COSTUMES) do
+        local isOwned = CostumeData.IsOwned(def.id)
+        local isEquipped = CostumeData.IsEquipped("particle", def.id)
+        local rc = def.rarityColor or RARITY_COLOR[def.rarity] or { 180, 180, 180, 255 }
+
+        local pcard = UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 10,
+            backgroundColor = isEquipped and { 25, 40, 55, 240 } or (isOwned and { 20, 30, 38, 200 } or { 28, 24, 32, 180 }),
+            borderRadius = 10,
+            borderWidth = isEquipped and 2 or 1,
+            borderColor = isEquipped and rc or (isOwned and { 42, 60, 70, 120 } or { 50, 45, 60, 80 }),
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 10, paddingRight = 10,
+            children = {
+                UI.Panel {
+                    width = 54, height = 54,
+                    flexShrink = 0,
+                    borderRadius = 8,
+                    backgroundColor = { 20, 30, 45, 255 },
+                    borderWidth = 1,
+                    borderColor = rc,
+                    overflow = "hidden",
+                    children = {
+                        UI.Panel {
+                            width = 54, height = 54,
+                            backgroundImage = def.preview,
+                            backgroundFit = "contain",
+                        },
+                        UI.Panel {
+                            position = "absolute",
+                            top = 2, left = 2,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 3,
+                            backgroundColor = { 0, 0, 0, 160 },
+                            children = {
+                                UI.Label { text = def.rarity or "N", fontSize = 8, fontColor = rc, fontWeight = "bold" },
+                            },
+                        },
+                    },
+                },
+                UI.Panel {
+                    flexGrow = 1, flexShrink = 1,
+                    gap = 3,
+                    children = {
+                        UI.Label { text = def.name, fontSize = 13, fontColor = rc, fontWeight = "bold" },
+                        UI.Label { text = def.desc or "", fontSize = 10, fontColor = { 150, 175, 200, 180 } },
+                    },
+                },
+                UI.Panel {
+                    width = 54, flexShrink = 0,
+                    paddingTop = 7, paddingBottom = 7,
+                    borderRadius = 8,
+                    backgroundColor = isEquipped and { 55, 80, 110, 240 }
+                        or (isOwned and { 60, 100, 80, 220 } or { 45, 40, 55, 180 }),
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        if isOwned and not isEquipped then
+                            CostumeData.Equip("particle", def.id)
+                            ctx.ShowHeroDetail(heroId)
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = isEquipped and "已装备" or (isOwned and "装备" or "未解锁"),
+                            fontSize = 11,
+                            fontColor = isEquipped and { 170, 200, 255, 220 }
+                                or (isOwned and { 220, 255, 220, 255 } or { 120, 110, 130, 180 }),
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        }
+        children[#children + 1] = pcard
     end
 
     return UI.Panel {
@@ -2344,19 +3017,8 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
     local rarityColor = ctx.GetRarityColor(rarity)
     local rarityBorder = ctx.GetRarityBorderColor(rarity)
     local tierInfo = HeroData.GetStarTierInfo(heroId)
-    local stats = HeroData.GetHeroStats(heroId)
-    local EquipData = require("Game.EquipData")
-    local eqBonus = EquipData.GetTotalBonus(heroId)
-    stats.atk = stats.atk + (eqBonus.atk or 0)
-    -- 称号加成
-    local okTD2, TD2 = pcall(require, "Game.TitleData")
-    if okTD2 then
-        local tAtk = TD2.GetGlobalAtkBonus()
-        if tAtk > 0 then stats.atk = stats.atk * (1 + tAtk) end
-        local tSpd = TD2.GetGlobalSpdBonus()
-        if tSpd > 0 then stats.spd = stats.spd * (1 + tSpd) end
-    end
-    local power = stats.atk + stats.spd
+    local stats = ComputeFullStats(heroId)
+    local power = stats.power
     local HeroAvatar = require("Game.HeroAvatar")
 
     -- 星级显示
@@ -2446,14 +3108,16 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
 
     -- 等级 + 战力
     if isUnlocked then
+        headerPowerLabel = UI.Label { text = "战力:" .. FormatBigNum(power), fontSize = 12, fontColor = S.powerYellow }
         topChildren[#topChildren + 1] = UI.Panel {
             flexDirection = "row", gap = 10, alignItems = "center",
             children = {
                 UI.Label { text = "Lv." .. level, fontSize = 14, fontColor = S.gold, fontWeight = "bold" },
-                UI.Label { text = "战力:" .. FormatBigNum(power), fontSize = 12, fontColor = S.powerYellow },
+                headerPowerLabel,
             },
         }
     else
+        headerPowerLabel = nil
         topChildren[#topChildren + 1] = UI.Label { text = "未解锁", fontSize = 13, fontColor = S.dimLocked }
     end
 
@@ -2560,6 +3224,7 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
         scrollY = true,
         width = "100%",
         pointerEvents = "auto",
+
         children = { detailContentContainer },
     }
 
@@ -2694,11 +3359,12 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
     end
 
     local bottomBar = UI.Panel {
-        position = "absolute",
-        bottom = 8, left = 8, right = 8,
+        width = "100%",
+        flexShrink = 0,
         flexDirection = "row",
         alignItems = "center",
-        zIndex = 10,
+        paddingLeft = 8, paddingRight = 8,
+        paddingTop = 4, paddingBottom = 6,
         children = { leftSlot, centerSlot, rightSlot },
     }
 
@@ -2720,10 +3386,59 @@ function HeroDetail.ShowHeroDetail(ctx, heroId)
     -- 填充内容
     RefreshDetailContent(ctx, heroId, heroDef)
 
-    -- 轻量刷新：仅重建当前标签页内容（不重建头部和框架）
+    -- 轻量刷新：重建标签页内容（用于标签切换/装备变更等）
     ctx._refreshTab = function()
         RefreshDetailContent(ctx, heroId, heroDef)
+        -- 同步更新 header 战力显示
+        if headerPowerLabel then
+            local freshStats = GetRuntimeStats(heroId)
+            headerPowerLabel:SetText("战力:" .. FormatBigNum(freshStats.power))
+        end
     end
+
+    -- 每秒增量刷新属性值（使用 FindById + SetText，不重建 UI）
+    local function incrementalStatRefresh()
+        if not detailContentContainer then return end
+        if detailTab ~= "info" then return end  -- 仅信息标签需要刷新
+
+        local rtStats = GetRuntimeStats(heroId)
+
+        local panel = detailContentContainer:FindById("detail_stat_panel")
+        if not panel then return end
+
+        local atkLabel = panel:FindById("detail_atk")
+        if atkLabel then atkLabel:SetText(FormatStatValue(rtStats.atk)) end
+
+        local spdLabel = panel:FindById("detail_spd")
+        if spdLabel then spdLabel:SetText(FormatStatValue(rtStats.atkSpeedDisplay)) end
+
+        local critLabel = panel:FindById("detail_critRate")
+        if critLabel then critLabel:SetText(FormatStatValue(rtStats.critRate, "pct")) end
+
+        local critDmgLabel = panel:FindById("detail_critDmg")
+        if critDmgLabel then critDmgLabel:SetText(FormatStatValue(rtStats.critDmg, "pct")) end
+
+        local apLabel = panel:FindById("detail_armorPen")
+        if apLabel then apLabel:SetText(FormatStatValue(rtStats.armorPen, "pct")) end
+
+        local dmgLabel = panel:FindById("detail_dmgBonus")
+        if dmgLabel then dmgLabel:SetText(FormatStatValue(rtStats.dmgBonus or 0, "pct")) end
+
+        local elemLabel = panel:FindById("detail_elemDmg")
+        if elemLabel then
+            local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
+            local elemBonus = rtStats.elemDmgBonus and rtStats.elemDmgBonus[dmgTypeId] or 0
+            elemLabel:SetText(FormatStatValue(elemBonus, "pct"))
+        end
+
+        -- 同步更新 header 战力
+        if headerPowerLabel then
+            headerPowerLabel:SetText("战力:" .. FormatBigNum(rtStats.power))
+        end
+    end
+
+    -- 启动每秒属性自动刷新（增量更新）
+    HeroDetail.StartAutoRefresh(incrementalStatRefresh)
 
     -- 半透明遮罩
     local oldOverlay = ctx.GetHeroDetailOverlay()
@@ -2743,6 +3458,7 @@ end
 
 --- 隐藏英雄详情面板
 function HeroDetail.HideHeroDetail(ctx)
+    HeroDetail.StopAutoRefresh()
     local overlay = ctx.GetHeroDetailOverlay()
     if overlay then
         local pageRoot = ctx.GetPageRoot()
@@ -2750,6 +3466,7 @@ function HeroDetail.HideHeroDetail(ctx)
         ctx.SetHeroDetailOverlay(nil)
         detailContentContainer = nil
         detailHeroId = nil
+        headerPowerLabel = nil
         -- 刷新英雄收藏列表（合成/重生等操作后数据已变更）
         ctx.Refresh()
     end

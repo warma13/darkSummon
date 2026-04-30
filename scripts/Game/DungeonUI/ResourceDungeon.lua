@@ -111,15 +111,7 @@ function ResourceDungeon._BuildCard(UI, S, ctx, def)
     end
 
     local rewardChildren = {}
-    if def.rewardCurrency ~= "chest" and currDef then
-        rewardChildren = {
-            Currency.IconWidget(UI, def.rewardCurrency, 13),
-            UI.Label {
-                text = currDef.name, fontSize = 11,
-                fontColor = currDef.color or S.dim, pointerEvents = "none",
-            },
-        }
-    else
+    if def.rewardCurrency == "chest" then
         rewardChildren = {
             UI.Panel {
                 width = 13, height = 13,
@@ -131,6 +123,37 @@ function ResourceDungeon._BuildCard(UI, S, ctx, def)
             UI.Label {
                 text = "宝箱", fontSize = 11,
                 fontColor = S.gold, pointerEvents = "none",
+            },
+        }
+    elseif def.rewardCurrency == "skill_book" then
+        local BOOK_COLORS = {
+            { 120, 200, 100 }, { 80, 140, 220 }, { 220, 80, 80 },
+        }
+        local BOOK_LABELS = { "初", "中", "高" }
+        rewardChildren = {}
+        for bi = 1, 3 do
+            local bc = BOOK_COLORS[bi]
+            rewardChildren[#rewardChildren + 1] = UI.Panel {
+                width = 13, height = 13, borderRadius = 3,
+                backgroundColor = { bc[1], bc[2], bc[3], 200 },
+                justifyContent = "center", alignItems = "center",
+                pointerEvents = "none", flexShrink = 0,
+                children = {
+                    UI.Label { text = BOOK_LABELS[bi], fontSize = 8,
+                        fontColor = {255,255,255,240}, pointerEvents = "none" },
+                },
+            }
+        end
+        rewardChildren[#rewardChildren + 1] = UI.Label {
+            text = "技能书", fontSize = 11,
+            fontColor = { 120, 200, 100 }, pointerEvents = "none",
+        }
+    elseif currDef then
+        rewardChildren = {
+            Currency.IconWidget(UI, def.rewardCurrency, 13),
+            UI.Label {
+                text = currDef.name, fontSize = 11,
+                fontColor = currDef.color or S.dim, pointerEvents = "none",
             },
         }
     end
@@ -528,12 +551,16 @@ function ResourceDungeon._BuildWaveCell(UI, S, ctx, def, wave, bestWave)
     local chestReward = nil
     ---@type string|nil
     local chestImage = nil
+    ---@type table|nil
+    local skillBookReward = nil
     if def.rewardCurrency == "chest" then
         chestReward = RD.GetChestWaveReward(wave)
         if chestReward then
             local ct = Config.CHEST_TYPES_MAP[chestReward.id]
             chestImage = ct and ct.image
         end
+    elseif def.rewardCurrency == "skill_book" then
+        skillBookReward = RD.GetSkillBookWaveReward(wave)
     elseif reward > 0 then
         rewardText = "+" .. ctx.FormatNum(reward)
     end
@@ -558,6 +585,27 @@ function ResourceDungeon._BuildWaveCell(UI, S, ctx, def, wave, bestWave)
                     text = countLabel, fontSize = 8,
                     fontColor = S.gold, pointerEvents = "none",
                 } or nil,
+            },
+        }
+    elseif skillBookReward and skillBookReward.count > 0 then
+        local sbCd = Config.CURRENCY[skillBookReward.id]
+        local sbColor = sbCd and sbCd.color or {180,180,180}
+        bottomChild = UI.Panel {
+            flexDirection = "row", alignItems = "center", gap = 1,
+            children = {
+                UI.Panel {
+                    width = 16, height = 16, borderRadius = 4,
+                    backgroundColor = { sbColor[1], sbColor[2], sbColor[3], 200 },
+                    justifyContent = "center", alignItems = "center",
+                    children = {
+                        UI.Label { text = sbCd and sbCd.name and sbCd.name:sub(1,3) or "书",
+                            fontSize = 7, fontColor = {255,255,255,240}, pointerEvents = "none" },
+                    },
+                },
+                UI.Label {
+                    text = "+" .. skillBookReward.count, fontSize = 8,
+                    fontColor = def.accentColor, pointerEvents = "none",
+                },
             },
         }
     else
@@ -612,6 +660,14 @@ function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def, selectedDiff)
                 local count = cr.count * diffDef.rewardMult
                 rewardText = (ct and ct.name or cr.id) .. " ×" .. count
                 rewardImage = ct and ct.image
+            end
+        elseif def.rewardCurrency == "skill_book" then
+            local sbr = RD.GetSkillBookWaveReward(w)
+            if sbr and sbr.count > 0 then
+                local cd = Config.CURRENCY[sbr.id]
+                local count = sbr.count * diffDef.rewardMult
+                rewardText = (cd and cd.name or sbr.id) .. " ×" .. count
+                rewardImage = cd and cd.image
             end
         else
             local currDef = Config.CURRENCY[def.rewardCurrency]
@@ -677,6 +733,27 @@ function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def, selectedDiff)
             end
         end
         totalText = table.concat(parts, " ")
+    elseif def.rewardCurrency == "skill_book" then
+        local sb = totalRewards.skill_books or {}
+        local SB_ORD = { "skill_book_1", "skill_book_2", "skill_book_3" }
+        totalText = nil  -- 使用图片面板代替文本
+        ---@type table
+        totalBookChildren = {}
+        for _, bid in ipairs(SB_ORD) do
+            if sb[bid] and sb[bid] > 0 then
+                local cd = Config.CURRENCY[bid]
+                totalBookChildren[#totalBookChildren + 1] = UI.Panel {
+                    width = 14, height = 14,
+                    backgroundImage = cd and cd.image or ("image/currency_" .. bid .. ".png"),
+                    backgroundScaleMode = "aspectFit",
+                }
+                totalBookChildren[#totalBookChildren + 1] = UI.Label {
+                    text = tostring(sb[bid]), fontSize = 11,
+                    fontWeight = "bold", fontColor = S.gold, pointerEvents = "none",
+                    marginRight = 4,
+                }
+            end
+        end
     else
         local total = totalRewards[def.rewardCurrency] or 0
         local currDef = Config.CURRENCY[def.rewardCurrency]
@@ -699,9 +776,12 @@ function ResourceDungeon._BuildRewardPreview(UI, S, ctx, def, selectedDiff)
                 text = "全通关总计", fontSize = 12,
                 fontWeight = "bold", fontColor = S.gold, pointerEvents = "none",
             },
-            UI.Label {
+            totalText and UI.Label {
                 text = totalText, fontSize = 12,
                 fontWeight = "bold", fontColor = S.gold, pointerEvents = "none",
+            } or UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 2,
+                children = totalBookChildren,
             },
         },
     }
@@ -979,6 +1059,20 @@ function ResourceDungeon.OnSweep(UI, S, ctx, def)
                         }
                     end
                 end
+            elseif def.rewardCurrency == "skill_book" then
+                local sb = rewards.skill_books or {}
+                local SB_ORD = { "skill_book_1", "skill_book_2", "skill_book_3" }
+                for _, bid in ipairs(SB_ORD) do
+                    if sb[bid] and sb[bid] > 0 then
+                        local cd = Config.CURRENCY[bid]
+                        items[#items + 1] = {
+                            icon = cd and cd.image or "📕",
+                            name = cd and cd.name or bid,
+                            amount = sb[bid] * count,
+                            color = cd and cd.color or def.accentColor,
+                        }
+                    end
+                end
             else
                 local amount = rewards[def.rewardCurrency] or 0
                 local currDef = Config.CURRENCY[def.rewardCurrency]
@@ -1019,6 +1113,20 @@ function ResourceDungeon.OnSweep(UI, S, ctx, def)
                                 name = ctDef.name,
                                 amount = chests[ctDef.id] * successCount,
                                 borderColor = ctDef.borderColor or nil,
+                            }
+                        end
+                    end
+                elseif def.rewardCurrency == "skill_book" then
+                    local sb = totalRewards.skill_books or {}
+                    local SB_ORD = { "skill_book_1", "skill_book_2", "skill_book_3" }
+                    for _, bid in ipairs(SB_ORD) do
+                        if sb[bid] and sb[bid] > 0 then
+                            local cd = Config.CURRENCY[bid]
+                            rewardItems[#rewardItems + 1] = {
+                                icon = cd and cd.image or "📕",
+                                name = cd and cd.name or bid,
+                                amount = sb[bid] * successCount,
+                                color = cd and cd.color or nil,
                             }
                         end
                     end

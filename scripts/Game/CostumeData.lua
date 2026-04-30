@@ -34,9 +34,87 @@ M.WING_COSTUMES = {
 
 }
 
--- 按 slot 分组（扩展时在此添加 ARMOR_COSTUMES / AURA_COSTUMES 等）
+-- 武器皮肤列表
+M.WEAPON_COSTUMES = {
+    {
+        id         = "weapon_void_scepter",
+        name       = "虚空权杖",
+        desc       = "来自深渊的暗影权杖，顶端的紫色宝石蕴含毁灭之力，击败憎恨之地Boss可得",
+        type       = "weapon",
+        weaponType = "staff",     -- 法杖：竖直握持，攻击为前刺
+        preview    = "image/weapon_void_scepter_20260430064038.png",
+        owned      = false,
+        rarity     = "SSR",
+        rarityColor = { 255, 180, 50, 255 },
+        scoreBonus = 800,
+        atkBonus   = 0.02,
+    },
+    {
+        id         = "weapon_magic_broom",
+        name       = "魔法扫帚",
+        desc       = "缠绕紫色魔法光带的扫帚，帚尾散发星光粒子，挥舞时留下梦幻轨迹",
+        type       = "weapon",
+        weaponType = "blade",
+        preview    = "image/weapon_magic_broom_20260430094920.png",
+        owned      = false,
+        rarity     = "SR",
+        rarityColor = { 160, 120, 255, 255 },
+        scoreBonus = 500,
+        atkBonus   = 0.012,
+    },
+    {
+        id         = "weapon_dragon_blade",
+        name       = "龙骨巨剑",
+        desc       = "由远古龙骨铸成的巨剑，剑身缠绕不灭龙魂之火，挥斩时龙吟阵阵",
+        type       = "weapon",
+        weaponType = "blade",     -- 剑：斜向握持，攻击为挥斩
+        preview    = "image/weapon_dragon_blade_20260430091553.png",
+        owned      = false,
+        rarity     = "SSR",
+        rarityColor = { 200, 60, 60, 255 },
+        scoreBonus = 800,
+        atkBonus   = 0.02,
+    },
+}
+
+-- 粒子光效时装列表
+M.PARTICLE_COSTUMES = {
+    {
+        id         = "particle_starfly",
+        name       = "星光流萤",
+        desc       = "环绕角色飞舞的星光粒子，如同夏夜流萤般灵动闪烁，攻击时星辉爆发",
+        type       = "particle",
+        preview    = "image/particle_glow_20260430105243.png",
+        owned      = false,
+        rarity     = "SR",
+        rarityColor = { 120, 200, 255, 255 },   -- 冰蓝色
+        scoreBonus = 600,
+        atkBonus   = 0.015,
+    },
+}
+
+-- 光环时装列表
+M.AURA_COSTUMES = {
+    {
+        id         = "aura_divine_ring",
+        name       = "神圣光环",
+        desc       = "紫金色神秘能量光环，散发古老符文之力，在脚下缓缓旋转",
+        type       = "aura",
+        preview    = "image/aura_divine_ring_20260430082349.png",
+        owned      = false,
+        rarity     = "SSR",
+        rarityColor = { 200, 160, 255, 255 },
+        scoreBonus = 600,
+        atkBonus   = 0.015,
+    },
+}
+
+-- 按 slot 分组
 M.SLOTS = {
-    { id = "wing", label = "翅膀", icon = "image/icon_wing_slot.png", costumes = M.WING_COSTUMES },
+    { id = "wing",   label = "翅膀", icon = "image/icon_wing_slot.png", costumes = M.WING_COSTUMES },
+    { id = "weapon", label = "武器", costumes = M.WEAPON_COSTUMES },
+    { id = "aura",     label = "光环", costumes = M.AURA_COSTUMES },
+    { id = "particle", label = "粒子", costumes = M.PARTICLE_COSTUMES },
 }
 
 -- ============================================================================
@@ -46,6 +124,9 @@ M.SLOTS = {
 ---@type table<string, string|nil>  slot -> costumeId（已装备）
 local _equipped = {
     wing = nil,
+    weapon = nil,
+    aura = nil,
+    particle = nil,
 }
 
 ---@type table<string, boolean>  costumeId -> true（动态解锁，补充 owned=false 的初始状态）
@@ -64,8 +145,12 @@ end
 function M.GetEquippedDef(slot)
     local id = _equipped[slot]
     if not id then return nil end
-    for _, def in ipairs(M.WING_COSTUMES) do
-        if def.id == id then return def end
+    for _, s in ipairs(M.SLOTS) do
+        if s.id == slot and s.costumes then
+            for _, def in ipairs(s.costumes) do
+                if def.id == id then return def end
+            end
+        end
     end
     return nil
 end
@@ -244,7 +329,7 @@ SaveRegistry.Register("costumeData", {
     group = "meta_game",
     order = 57,  -- 在 costumeSignInData(56) 之后
     initDefault = function()
-        _equipped = { wing = nil }
+        _equipped = { wing = nil, weapon = nil }
         _unlockedExtra = {}
         HeroData.costumeData = nil
     end,

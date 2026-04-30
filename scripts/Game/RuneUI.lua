@@ -450,6 +450,54 @@ function RuneUI.CreateBagPanel()
         local series = RuneData.GetSeries(rune.seriesId)
         local quality = RuneData.GetQuality(rune.qualityId)
         local isSelected = (selectedRune and selectedRune.runeId == rune.runeId)
+        local isLocked = rune.locked == true
+
+        local cellChildren = {
+            -- 符文图标铺满格子（普通流式子元素撑起高度）
+            (series and series.icon) and UI.Panel {
+                width = "100%", flexGrow = 1,
+                backgroundImage = series.icon, backgroundFit = "cover",
+                borderRadius = 6,
+                pointerEvents = "none",
+            } or UI.Panel {
+                width = "100%", flexGrow = 1,
+                justifyContent = "center", alignItems = "center",
+                pointerEvents = "none",
+                children = {
+                    UI.Label { text = series and series.emoji or "🔮", fontSize = 24, pointerEvents = "none" },
+                },
+            },
+            -- 底部品质名
+            UI.Panel {
+                width = "100%", height = 14, flexShrink = 0,
+                justifyContent = "center", alignItems = "center",
+                backgroundColor = { quality.color[1], quality.color[2], quality.color[3], 180 },
+                borderBottomLeftRadius = 5, borderBottomRightRadius = 5,
+                pointerEvents = "none",
+                children = {
+                    UI.Label {
+                        text = quality.name, fontSize = 8, fontWeight = "bold",
+                        fontColor = {255,255,255,255}, pointerEvents = "none",
+                    },
+                },
+            },
+        }
+
+        -- 锁定标记（左上角）
+        if isLocked then
+            cellChildren[#cellChildren + 1] = UI.Panel {
+                position = "absolute", top = 2, left = 2,
+                width = 16, height = 16,
+                backgroundColor = {0, 0, 0, 160},
+                borderRadius = 8,
+                justifyContent = "center", alignItems = "center",
+                pointerEvents = "none",
+                children = {
+                    UI.Label { text = "🔒", fontSize = 9, pointerEvents = "none" },
+                },
+            }
+        end
+
         gridItems[#gridItems + 1] = UI.Panel {
             width = itemSize, height = itemSize,
             justifyContent = "center",
@@ -464,36 +512,7 @@ function RuneUI.CreateBagPanel()
                 selectedSource = "bag"
                 RuneUI.Refresh()
             end,
-            children = {
-                -- 符文图标铺满格子（普通流式子元素撑起高度）
-                (series and series.icon) and UI.Panel {
-                    width = "100%", flexGrow = 1,
-                    backgroundImage = series.icon, backgroundFit = "cover",
-                    borderRadius = 6,
-                    pointerEvents = "none",
-                } or UI.Panel {
-                    width = "100%", flexGrow = 1,
-                    justifyContent = "center", alignItems = "center",
-                    pointerEvents = "none",
-                    children = {
-                        UI.Label { text = series and series.emoji or "🔮", fontSize = 24, pointerEvents = "none" },
-                    },
-                },
-                -- 底部品质名
-                UI.Panel {
-                    width = "100%", height = 14, flexShrink = 0,
-                    justifyContent = "center", alignItems = "center",
-                    backgroundColor = { quality.color[1], quality.color[2], quality.color[3], 180 },
-                    borderBottomLeftRadius = 5, borderBottomRightRadius = 5,
-                    pointerEvents = "none",
-                    children = {
-                        UI.Label {
-                            text = quality.name, fontSize = 8, fontWeight = "bold",
-                            fontColor = {255,255,255,255}, pointerEvents = "none",
-                        },
-                    },
-                },
-            },
+            children = cellChildren,
         }
     end
 
@@ -569,45 +588,142 @@ function RuneUI.CreateRuneDetailOverlay()
     -- 词条列表
     local affixChildren = {}
     for i, affix in ipairs(rune.affixes) do
-        affixChildren[#affixChildren + 1] = UI.Panel {
-            width = "100%",
-            flexDirection = "row",
-            alignItems = "center",
-            justifyContent = "space-between",
-            paddingTop = 2, paddingBottom = 2,
-            children = {
-                UI.Panel {
-                    flexDirection = "row", alignItems = "center", gap = 4,
-                    flexShrink = 1,
-                    children = {
-                        UI.Label {
-                            text = RuneData.FormatAffix(affix),
-                            fontSize = 13, fontColor = {220,210,240,255},
-                        },
-                        UI.Label {
-                            text = RuneData.FormatAffixRange(affix, rune.qualityId),
-                            fontSize = 10, fontColor = {140,130,160,180},
+        -- 查找词条描述
+        local descText = nil
+        local def = RuneConfig.AFFIX_MAP[affix.id]
+        if def and def.desc then
+            descText = def.desc
+        end
+
+        local rowContent = {
+            -- 值行
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                alignItems = "center",
+                justifyContent = "space-between",
+                children = {
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 4,
+                        flexShrink = 1,
+                        children = {
+                            UI.Label {
+                                text = RuneData.FormatAffix(affix),
+                                fontSize = 13, fontColor = {220,210,240,255},
+                            },
+                            UI.Label {
+                                text = RuneData.FormatAffixRange(affix, rune.qualityId),
+                                fontSize = 10, fontColor = {140,130,160,180},
+                            },
                         },
                     },
-                },
-                UI.Panel {
-                    flexDirection = "row", alignItems = "center", gap = 4,
-                    children = {
-                        affix.locked and UI.Label {
-                            text = "🔒", fontSize = 12,
-                        } or nil,
-                        UI.Button {
-                            text = affix.locked and "解锁" or "锁定",
-                            fontSize = 9, variant = "outline",
-                            height = 22, paddingLeft = 6, paddingRight = 6,
-                            onClick = function(self)
-                                RuneData.ToggleAffixLock(rune, i)
-                                RuneUI.Refresh()
-                            end,
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 4,
+                        children = {
+                            affix.locked and UI.Label {
+                                text = "🔒", fontSize = 12,
+                            } or nil,
+                            UI.Button {
+                                text = affix.locked and "解锁" or "锁定",
+                                fontSize = 9, variant = "outline",
+                                height = 22, paddingLeft = 6, paddingRight = 6,
+                                onClick = function(self)
+                                    RuneData.ToggleAffixLock(rune, i)
+                                    RuneUI.Refresh()
+                                end,
+                            },
                         },
                     },
                 },
             },
+        }
+        -- 描述行
+        if descText then
+            rowContent[#rowContent + 1] = UI.Label {
+                text = descText,
+                fontSize = 10, fontColor = {160,155,180,150},
+            }
+        end
+
+        affixChildren[#affixChildren + 1] = UI.Panel {
+            width = "100%",
+            paddingTop = 2, paddingBottom = 2,
+            children = rowContent,
+        }
+    end
+
+    -- 标签词条（独立显示）
+    if rune.tagAffix then
+        local tagAffix = rune.tagAffix
+        local tagColor = { 200, 120, 255 }
+        -- 获取标签词条层级颜色
+        local cat = RuneConfig.AFFIX_CATEGORY and RuneConfig.AFFIX_CATEGORY[tagAffix.id]
+        if cat then
+            local tier = tonumber(cat:sub(6, 6))
+            if tier and Config.AFFIX_TIER_COLORS and Config.AFFIX_TIER_COLORS[tier] then
+                tagColor = Config.AFFIX_TIER_COLORS[tier]
+            end
+        end
+
+        -- 查找标签词条描述
+        local tagDescText = nil
+        local tagDef = RuneConfig.AFFIX_MAP[tagAffix.id]
+        if tagDef and tagDef.desc then
+            tagDescText = tagDef.desc
+            if tagDef.tier and Config.FormatAffixDesc then
+                tagDescText = Config.FormatAffixDesc(tagDef, tagAffix.value, tagAffix.value2)
+            end
+        end
+
+        local tagContent = {
+            -- 值行
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 4,
+                children = {
+                    -- "标签" 徽标
+                    UI.Panel {
+                        paddingLeft = 4, paddingRight = 4,
+                        paddingTop = 1, paddingBottom = 1,
+                        backgroundColor = { tagColor[1], tagColor[2], tagColor[3], 40 },
+                        borderRadius = 3,
+                        borderWidth = 1,
+                        borderColor = { tagColor[1], tagColor[2], tagColor[3], 80 },
+                        children = {
+                            UI.Label {
+                                text = "标签",
+                                fontSize = 8, fontColor = { tagColor[1], tagColor[2], tagColor[3], 200 },
+                            },
+                        },
+                    },
+                    UI.Label {
+                        text = RuneData.FormatAffix(tagAffix),
+                        fontSize = 13, fontColor = { tagColor[1], tagColor[2], tagColor[3], 255 },
+                    },
+                    UI.Label {
+                        text = RuneData.FormatAffixRange(tagAffix, rune.qualityId),
+                        fontSize = 10, fontColor = {140,130,160,180},
+                    },
+                },
+            },
+        }
+        -- 描述行
+        if tagDescText then
+            tagContent[#tagContent + 1] = UI.Label {
+                text = tagDescText,
+                fontSize = 10, fontColor = {160,155,180,150},
+                paddingLeft = 4,
+            }
+        end
+
+        affixChildren[#affixChildren + 1] = UI.Panel {
+            width = "100%",
+            paddingTop = 4,
+            borderTopWidth = 1,
+            borderColor = {80,60,120,60},
+            children = tagContent,
         }
     end
 
@@ -682,12 +798,36 @@ function RuneUI.CreateRuneDetailOverlay()
         end,
     }
 
-    -- 分解（仅背包中的符文）
+    -- 锁定/解锁（仅背包中的符文）
     if not isEquipped then
+        local isLocked = RuneData.IsRuneLocked(rune)
+        buttons[#buttons + 1] = UI.Button {
+            text = isLocked and "🔒解锁" or "🔒锁定",
+            fontSize = 12,
+            variant = isLocked and "primary" or "outline",
+            flex = 1, height = 36,
+            onClick = function(self)
+                local ok, msg = RuneData.ToggleRuneLock(rune)
+                local Toast = require("Game.Toast")
+                Toast.Show(msg, {100,255,100})
+                RuneUI.Refresh()
+            end,
+        }
+    end
+
+    -- 分解（仅背包中的未锁定符文）
+    if not isEquipped then
+        local isLocked = RuneData.IsRuneLocked(rune)
         buttons[#buttons + 1] = UI.Button {
             text = "分解", fontSize = 12, variant = "outline",
             flex = 1, height = 36,
+            disabled = isLocked,
             onClick = function(self)
+                if RuneData.IsRuneLocked(rune) then
+                    local Toast = require("Game.Toast")
+                    Toast.Show("符文已锁定，无法分解", {255,200,80})
+                    return
+                end
                 -- 高品质符文（传说/神话）弹窗确认
                 if rune.qualityId == "red" or rune.qualityId == "orange" then
                     RuneUI._showDecomposeConfirm(rune)
@@ -737,6 +877,7 @@ function RuneUI.CreateRuneDetailOverlay()
     -- 弹窗覆盖层
     return UI.Panel {
         position = "absolute", top = 0, left = 0, right = 0, bottom = 0,
+        zIndex = 50,
         backgroundColor = {0, 0, 0, 160},
         justifyContent = "center", alignItems = "center",
         pointerEvents = "auto",
@@ -964,6 +1105,7 @@ function RuneUI._showDecomposeConfirm(rune)
 
     decomposeConfirmOverlay = UI.Panel {
         position = "absolute", top = 0, left = 0, right = 0, bottom = 0,
+        zIndex = 80,
         backgroundColor = {0,0,0,160},
         justifyContent = "center", alignItems = "center",
         pointerEvents = "auto",

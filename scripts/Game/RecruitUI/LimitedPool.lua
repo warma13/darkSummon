@@ -359,6 +359,8 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
     local canTen     = isActive and LBD.CanAfford(bannerCfg, bannerCfg.tenCost)
     local hundredCost = bannerCfg.hundredCost or (bannerCfg.tenCost * 9)
     local canHundred = isActive and LBD.CanAfford(bannerCfg, hundredCost)
+    local thousandCost = bannerCfg.thousandCost or (bannerCfg.tenCost * 90)
+    local canThousand = isActive and LBD.CanAfford(bannerCfg, thousandCost)
     local tc = GetThemeColor(bannerCfg)
 
     -- 锁定状态：只显示解锁倒计时，无招募按钮
@@ -534,6 +536,50 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
                 text = "招募百次",
                 fontSize = 14,
                 fontColor = canHundred and { 255, 255, 255, 255 } or { 100, 110, 130, 180 },
+                fontWeight = "bold",
+            },
+        },
+    }
+
+    -- 千连
+    buttons[#buttons + 1] = UI.Panel {
+        flex = 1, height = 56,
+        borderRadius = 10,
+        backgroundColor = canThousand and { 120, 40, 140, 255 } or { 40, 20, 45, 200 },
+        borderWidth = 1,
+        borderColor = canThousand and { 220, 100, 255, 200 } or { 70, 40, 80, 100 },
+        justifyContent = "center",
+        alignItems = "center",
+        gap = 2,
+        onClick = function()
+            if not isActive then
+                local Toast = require("Game.Toast")
+                Toast.Show("限定池已结束", { 255, 100, 100 })
+                return
+            end
+            if canThousand then
+                GachaResult.DoLimitedRecruitAndShow(UI, pageRoot, RARITY_COLORS, currentTab, 1000, refreshFn, bannerCfg)
+            else
+                GachaResult.ShowBuyPopup(UI, pageRoot, 1000, bannerCfg.currency, refreshFn)
+            end
+        end,
+        children = {
+            UI.Panel {
+                flexDirection = "row", alignItems = "center", gap = 3,
+                children = {
+                    Currency.IconWidget(UI, bannerCfg.currency, 16),
+                    UI.Label {
+                        text = tostring(thousandCost),
+                        fontSize = 14,
+                        fontColor = { tc[1], tc[2], tc[3], 255 },
+                        fontWeight = "bold",
+                    },
+                },
+            },
+            UI.Label {
+                text = "招募千次",
+                fontSize = 14,
+                fontColor = canThousand and { 255, 255, 255, 255 } or { 100, 110, 130, 180 },
                 fontWeight = "bold",
             },
         },

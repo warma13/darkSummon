@@ -4,8 +4,10 @@
 
 local ExchangeShopData = require("Game.ExchangeShopData")
 local RuneShopData     = require("Game.RuneShopData")
+local MysteryShopData  = require("Game.MysteryShopData")
 local RuneData         = require("Game.RuneData")
 local RuneConfig       = require("Game.Config_Runes")
+local CostumeData      = require("Game.CostumeData")
 local Currency         = require("Game.Currency")
 local Config           = require("Game.Config")
 local RewardIcon       = require("Game.RewardIcon")
@@ -80,9 +82,12 @@ function ExchangeShopUI.Refresh()
     if activeTab == "essence" then
         pageRoot:AddChild(createEssenceShopGrid())
         pageRoot:AddChild(createEssenceBottomBar())
-    else
+    elseif activeTab == "rune" then
         pageRoot:AddChild(createRuneShopContent())
         pageRoot:AddChild(createRuneBottomBar())
+    elseif activeTab == "mystery" then
+        pageRoot:AddChild(createMysteryShopGrid())
+        pageRoot:AddChild(createMysteryBottomBar())
     end
 
     -- 初始化 Tooltip 浮窗层
@@ -109,7 +114,7 @@ end
 function createHeader()
     local children = {
         UI.Label {
-            text = activeTab == "essence" and "兑换商店" or "符文商店",
+            text = activeTab == "mystery" and "神秘商店" or (activeTab == "essence" and "兑换商店" or "符文商店"),
             fontSize = 18,
             fontColor = S.gold,
             fontWeight = "bold",
@@ -117,25 +122,7 @@ function createHeader()
         },
     }
 
-    if activeTab == "essence" then
-        -- 暗影精粹余额
-        local essenceAmount = Currency.Get("shadow_essence")
-        local essenceDef = Config.CURRENCY.shadow_essence
-        children[#children + 1] = UI.Panel {
-            flexDirection = "row", alignItems = "center", gap = 4,
-            paddingLeft = 10, paddingRight = 10, paddingTop = 4, paddingBottom = 4,
-            backgroundColor = { 50, 40, 70, 200 }, borderRadius = 14,
-            borderWidth = 1, borderColor = { 140, 100, 200, 120 },
-            children = {
-                essenceDef and essenceDef.image and UI.Panel {
-                    width = 20, height = 20,
-                    backgroundImage = essenceDef.image, backgroundFit = "contain",
-                } or nil,
-                UI.Label { text = tostring(essenceAmount), fontSize = 14, fontColor = S.essenceColor, fontWeight = "bold" },
-            },
-        }
-    end
-    -- 符文货币移到底部栏显示
+    -- 所有货币移到底部栏显示
 
     return UI.Panel {
         width = "100%", height = 48, flexShrink = 0,
@@ -155,6 +142,7 @@ function createTabBar()
     local tabs = {
         { id = "essence", label = "精粹商店" },
         { id = "rune",    label = "符文商店" },
+        { id = "mystery", label = "神秘商店" },
     }
     local tabChildren = {}
     for _, t in ipairs(tabs) do
@@ -323,6 +311,35 @@ function createEssenceBottomBar()
                     end)
                 end,
             },
+            -- 暗影精粹余额
+            (function()
+                local essenceAmount = Currency.Get("shadow_essence")
+                local essenceDef = Config.CURRENCY.shadow_essence
+                local fullName = essenceDef and essenceDef.name or "暗影精粹"
+                return UI.Panel {
+                    flexDirection = "row", alignItems = "center", gap = 4,
+                    marginLeft = 8,
+                    paddingLeft = 8, paddingRight = 8, paddingTop = 3, paddingBottom = 3,
+                    backgroundColor = { 50, 40, 70, 200 }, borderRadius = 10,
+                    borderWidth = 1, borderColor = { 140, 100, 200, 100 },
+                    pointerEvents = "auto",
+                    onClick = function(self)
+                        Tooltip.Show({
+                            title = fullName .. "  ×" .. essenceAmount,
+                            desc = "通关憎恨之地掉落，用于兑换商店兑换英雄碎片和材料",
+                            anchor = self,
+                            titleColor = { S.essenceColor[1], S.essenceColor[2], S.essenceColor[3], 255 },
+                        })
+                    end,
+                    children = {
+                        essenceDef and essenceDef.image and UI.Panel {
+                            width = 14, height = 14,
+                            backgroundImage = essenceDef.image, backgroundFit = "contain",
+                        } or nil,
+                        UI.Label { text = tostring(essenceAmount), fontSize = 12, fontColor = S.essenceColor, fontWeight = "bold" },
+                    },
+                }
+            end)(),
         },
     }
 end
@@ -887,6 +904,247 @@ function showRuneConfirmDialog(item, index)
     })
 
     confirmLayer:SetVisible(true)
+end
+
+-- ============================================================================
+-- 神秘商店（幽影珠兑换时装）
+-- ============================================================================
+
+function createMysteryShopGrid()
+    local items = MysteryShopData.SHOP_ITEMS
+    local cards = {}
+    for _, item in ipairs(items) do
+        cards[#cards + 1] = createMysteryItemCard(item)
+    end
+    return UI.ScrollView {
+        width = "100%", flexGrow = 1, flexShrink = 1,
+        children = {
+            UI.Panel {
+                width = "100%", flexDirection = "row", flexWrap = "wrap",
+                justifyContent = "center",
+                paddingTop = 10, paddingBottom = 20, paddingLeft = 8, paddingRight = 8,
+                gap = 10,
+                children = cards,
+            },
+        },
+    }
+end
+
+function createMysteryItemCard(item)
+    local bought = MysteryShopData.IsBought(item.id)
+    local canAfford = Currency.Has("shadow_orb", item.cost)
+    local rc = item.rarityColor or { 180, 180, 180, 255 }
+    local borderC = bought and { 60, 50, 80, 100 } or { rc[1], rc[2], rc[3], 150 }
+
+    local cardChildren = {}
+
+    -- 预览图
+    cardChildren[#cardChildren + 1] = UI.Panel {
+        width = "100%", height = 80,
+        justifyContent = "center", alignItems = "center",
+        marginTop = 6, opacity = bought and 0.4 or 1.0,
+        children = {
+            UI.Panel {
+                width = 60, height = 60,
+                backgroundImage = item.icon,
+                backgroundFit = "contain",
+            },
+        },
+    }
+
+    -- 稀有度标签
+    cardChildren[#cardChildren + 1] = UI.Panel {
+        position = "absolute", top = 2, left = 2,
+        backgroundColor = { 0, 0, 0, 180 }, borderRadius = 4,
+        paddingLeft = 5, paddingRight = 5, paddingTop = 1, paddingBottom = 1,
+        children = {
+            UI.Label { text = item.rarity or "N", fontSize = 9, fontColor = rc, fontWeight = "bold" },
+        },
+    }
+
+    -- 名称
+    cardChildren[#cardChildren + 1] = UI.Label {
+        text = item.name, fontSize = 12, fontColor = rc, fontWeight = "bold",
+        textAlign = "center",
+        marginTop = 2,
+    }
+
+    -- 价格
+    local orbDef = Config.CURRENCY.shadow_orb
+    cardChildren[#cardChildren + 1] = UI.Panel {
+        flexDirection = "row", alignItems = "center", justifyContent = "center",
+        gap = 3, width = "100%", marginTop = 3,
+        children = {
+            orbDef and orbDef.image and UI.Panel {
+                width = 14, height = 14, backgroundImage = orbDef.image, backgroundFit = "contain",
+            } or nil,
+            UI.Label {
+                text = tostring(item.cost), fontSize = 13,
+                fontColor = (not bought and canAfford) and { 200, 140, 255 } or S.red,
+                fontWeight = "bold",
+            },
+        },
+    }
+
+    -- 兑换按钮
+    cardChildren[#cardChildren + 1] = UI.Panel {
+        width = "100%", alignItems = "center", marginTop = 4, marginBottom = 6,
+        children = {
+            UI.Button {
+                text = bought and "已拥有" or "兑换", fontSize = 12,
+                width = 72, height = 28, borderRadius = 14,
+                variant = bought and "outline" or "primary", disabled = bought,
+                onClick = function() showMysteryConfirmDialog(item) end,
+            },
+        },
+    }
+
+    return UI.Panel {
+        width = 110, flexDirection = "column", alignItems = "center",
+        backgroundColor = bought and { 30, 25, 40, 180 } or S.bgCard,
+        borderRadius = 8, borderWidth = 1, borderColor = borderC,
+        overflow = "visible", position = "relative",
+        children = cardChildren,
+    }
+end
+
+function showMysteryConfirmDialog(item)
+    if not confirmLayer then return end
+    confirmLayer:ClearChildren()
+
+    local bought = MysteryShopData.IsBought(item.id)
+    local canAfford = Currency.Has("shadow_orb", item.cost)
+    local rc = item.rarityColor or { 180, 180, 180, 255 }
+    local orbDef = Config.CURRENCY.shadow_orb
+
+    confirmLayer:AddChild(UI.Panel {
+        position = "absolute", top = 0, left = 0, right = 0, bottom = 0,
+        backgroundColor = { 0, 0, 0, 180 },
+        justifyContent = "center", alignItems = "center",
+        pointerEvents = "auto",
+        onClick = function() confirmLayer:SetVisible(false) end,
+        children = {
+            UI.Panel {
+                width = 260,
+                backgroundColor = { 35, 28, 55, 252 },
+                borderRadius = 14, borderWidth = 2, borderColor = { rc[1], rc[2], rc[3], 200 },
+                paddingTop = 18, paddingBottom = 18, paddingLeft = 18, paddingRight = 18,
+                gap = 12, alignItems = "center",
+                pointerEvents = "auto",
+                onClick = function() end, -- 阻止冒泡
+                children = {
+                    -- 关闭按钮
+                    UI.Panel {
+                        position = "absolute", top = 8, right = 10,
+                        pointerEvents = "auto",
+                        onClick = function() confirmLayer:SetVisible(false) end,
+                        children = { UI.Label { text = "✕", fontSize = 16, fontColor = S.gray } },
+                    },
+                    -- 预览
+                    UI.Panel {
+                        width = 80, height = 80,
+                        borderRadius = 12, borderWidth = 2, borderColor = rc,
+                        backgroundColor = { 25, 18, 40, 255 },
+                        justifyContent = "center", alignItems = "center",
+                        children = {
+                            UI.Panel { width = 64, height = 64, backgroundImage = item.icon, backgroundFit = "contain" },
+                        },
+                    },
+                    -- 名称 + 稀有度
+                    UI.Label { text = item.name, fontSize = 16, fontColor = rc, fontWeight = "bold" },
+                    UI.Label { text = item.rarity .. " 时装", fontSize = 12, fontColor = S.gray },
+                    -- 描述
+                    UI.Label { text = item.desc or "", fontSize = 11, fontColor = { 180, 170, 200, 200 }, textAlign = "center" },
+                    -- 分割线
+                    UI.Panel { width = "100%", height = 1, backgroundColor = { 100, 70, 150, 100 } },
+                    -- 价格
+                    UI.Panel {
+                        flexDirection = "row", alignItems = "center", gap = 6,
+                        children = {
+                            UI.Label { text = "需要", fontSize = 13, fontColor = S.gray },
+                            orbDef and orbDef.image and UI.Panel {
+                                width = 18, height = 18, backgroundImage = orbDef.image, backgroundFit = "contain",
+                            } or nil,
+                            UI.Label {
+                                text = tostring(item.cost),
+                                fontSize = 15, fontWeight = "bold",
+                                fontColor = canAfford and { 200, 140, 255 } or S.red,
+                            },
+                        },
+                    },
+                    -- 购买按钮
+                    UI.Button {
+                        text = bought and "已拥有" or (canAfford and "购买" or "幽影珠不足"),
+                        fontSize = 14, width = 160, height = 38, borderRadius = 19,
+                        variant = (not bought and canAfford) and "primary" or "outline",
+                        disabled = bought or not canAfford,
+                        onClick = function()
+                            local ok, msg = MysteryShopData.Purchase(item.id)
+                            confirmLayer:SetVisible(false)
+                            if ok then
+                                RewardDisplay.Show(UI, pageRoot, {
+                                    title = "兑换成功",
+                                    rewards = {
+                                        { icon = item.icon, name = item.name, amount = 1, borderColor = rc },
+                                    },
+                                    onClose = function() ExchangeShopUI.Refresh() end,
+                                })
+                            else
+                                Toast.Show(msg, S.red)
+                            end
+                        end,
+                    },
+                },
+            },
+        },
+    })
+    confirmLayer:SetVisible(true)
+end
+
+function createMysteryBottomBar()
+    local orbAmount = Currency.Get("shadow_orb")
+    local orbDef = Config.CURRENCY.shadow_orb
+    return UI.Panel {
+        width = "100%", height = 50, flexShrink = 0,
+        flexDirection = "row", alignItems = "center",
+        paddingLeft = 12, paddingRight = 12,
+        backgroundColor = { 28, 22, 42, 250 },
+        borderColor = { 80, 60, 120, 120 }, borderWidth = { top = 1 },
+        children = {
+            UI.Button {
+                text = "返回", fontSize = 15, width = 80, height = 36,
+                borderRadius = 8, variant = "outline",
+                onClick = function() if _onBack then _onBack() end end,
+            },
+            UI.Panel { flexGrow = 1 },
+            -- 暗影宝珠余额
+            (function()
+                local fullName = orbDef and orbDef.name or "暗影宝珠"
+                return UI.Panel {
+                    flexDirection = "row", alignItems = "center", gap = 4,
+                    paddingLeft = 8, paddingRight = 8, paddingTop = 3, paddingBottom = 3,
+                    backgroundColor = { 50, 30, 70, 200 }, borderRadius = 10,
+                    borderWidth = 1, borderColor = { 160, 80, 200, 100 },
+                    pointerEvents = "auto",
+                    onClick = function(self)
+                        Tooltip.Show({
+                            title = fullName .. "  ×" .. orbAmount,
+                            desc = "通关憎恨之地掉落的稀有货币，用于神秘商店兑换限定时装",
+                            anchor = self,
+                            titleColor = { 200, 140, 255, 255 },
+                        })
+                    end,
+                    children = {
+                        orbDef and orbDef.image and UI.Panel {
+                            width = 14, height = 14,
+                            backgroundImage = orbDef.image, backgroundFit = "contain",
+                        } or nil,
+                        UI.Label { text = tostring(orbAmount), fontSize = 12, fontColor = { 200, 140, 255 }, fontWeight = "bold" },
+                    },
+                }
+            end)(),
+        },
+    }
 end
 
 return ExchangeShopUI
