@@ -515,7 +515,7 @@ function WB.ConsumeTicket()
         return false
     end
     local data = WB.GetData()
-    -- 扣券
+    -- 扣券（不增加 todayAttempts，券是额外次数，不应挤占免费次数）
     for i, slot in ipairs(InventoryData.items) do
         if slot.id == "boss_ticket" then
             slot.count = slot.count - 1
@@ -525,7 +525,6 @@ function WB.ConsumeTicket()
             break
         end
     end
-    data.todayAttempts = data.todayAttempts + 1
     data.totalAttempts = (data.totalAttempts or 0) + 1
     HeroData.Save()
     return true
@@ -649,7 +648,9 @@ function WB.FormatDamage(damage)
     if not damage or damage ~= damage or damage == math.huge or damage == -math.huge then
         return "0"
     end
-    if damage >= 10000000000000000 then
+    if damage >= 100000000000000000000 then
+        return string.format("%.1f垓", damage / 100000000000000000000)
+    elseif damage >= 10000000000000000 then
         return string.format("%.1f京", damage / 10000000000000000)
     elseif damage >= 1000000000000 then
         return string.format("%.1f兆", damage / 1000000000000)

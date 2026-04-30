@@ -205,7 +205,7 @@ function HeroCard.CreateHeroCard(ctx, heroDef, mode)
         borderRadius = 6,
         borderWidth = 1.5,
         borderColor = borderColor,
-        onClick = isComingSoon and nil or function(self)
+        onTap = isComingSoon and nil or function(event, self)
             if mode == "detail" then
                 ctx.ShowHeroDetail(heroId)
             else
@@ -277,6 +277,10 @@ function HeroCard.CreateHeroGrid(ctx, mode)
     local UI = ctx.GetUI()
     local rows = BuildRowData(ctx, mode)
 
+    -- 初始可视行数：初始化时 layout 未就绪，需显式指定 viewportHeight
+    local INITIAL_VISIBLE_ROWS = 6
+    local vpHeight = INITIAL_VISIBLE_ROWS * (ROW_HEIGHT + ROW_GAP)
+
     local vlist = UI.VirtualList {
         width = "100%",
         flexGrow = 1,
@@ -284,6 +288,7 @@ function HeroCard.CreateHeroGrid(ctx, mode)
         data = rows,
         itemHeight = ROW_HEIGHT,
         itemGap = ROW_GAP,
+        viewportHeight = vpHeight,
         poolBuffer = 2,
         paddingTop = 4,
         paddingBottom = 10,

@@ -417,6 +417,8 @@ Config.SKILL_BOOK_COST = {
     SSR = { [0] = { skill_book_1 = 16, skill_book_2 = 5 },                     { skill_book_1 = 24, skill_book_2 = 10 },                 { skill_book_1 = 30, skill_book_2 = 18, skill_book_3 = 6 } },
     UR  = { [0] = { skill_book_1 = 20, skill_book_2 = 8, skill_book_3 = 2 },   { skill_book_1 = 32, skill_book_2 = 14, skill_book_3 = 3 }, { skill_book_1 = 40, skill_book_2 = 24, skill_book_3 = 10 } },
     LR  = { [0] = { skill_book_1 = 28, skill_book_2 = 12, skill_book_3 = 4 },  { skill_book_1 = 44, skill_book_2 = 20, skill_book_3 = 6 }, { skill_book_1 = 56, skill_book_2 = 32, skill_book_3 = 16 } },
+    -- 主角（none 稀有度）与 UR 同级
+    none = { [0] = { skill_book_1 = 20, skill_book_2 = 8, skill_book_3 = 2 },   { skill_book_1 = 32, skill_book_2 = 14, skill_book_3 = 3 }, { skill_book_1 = 40, skill_book_2 = 24, skill_book_3 = 10 } },
 }
 
 -- ============================================================================

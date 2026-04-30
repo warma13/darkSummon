@@ -126,29 +126,27 @@ function ResourceDungeon._BuildCard(UI, S, ctx, def)
             },
         }
     elseif def.rewardCurrency == "skill_book" then
-        rewardChildren = {
-            UI.Panel {
-                width = 13, height = 13,
-                backgroundImage = "image/currency_skill_book_1.png",
-                backgroundFit = "contain",
+        local BOOK_COLORS = {
+            { 120, 200, 100 }, { 80, 140, 220 }, { 220, 80, 80 },
+        }
+        local BOOK_LABELS = { "初", "中", "高" }
+        rewardChildren = {}
+        for bi = 1, 3 do
+            local bc = BOOK_COLORS[bi]
+            rewardChildren[#rewardChildren + 1] = UI.Panel {
+                width = 13, height = 13, borderRadius = 3,
+                backgroundColor = { bc[1], bc[2], bc[3], 200 },
+                justifyContent = "center", alignItems = "center",
                 pointerEvents = "none", flexShrink = 0,
-            },
-            UI.Panel {
-                width = 13, height = 13,
-                backgroundImage = "image/currency_skill_book_2.png",
-                backgroundFit = "contain",
-                pointerEvents = "none", flexShrink = 0,
-            },
-            UI.Panel {
-                width = 13, height = 13,
-                backgroundImage = "image/currency_skill_book_3.png",
-                backgroundFit = "contain",
-                pointerEvents = "none", flexShrink = 0,
-            },
-            UI.Label {
-                text = "技能书", fontSize = 11,
-                fontColor = { 120, 200, 100 }, pointerEvents = "none",
-            },
+                children = {
+                    UI.Label { text = BOOK_LABELS[bi], fontSize = 8,
+                        fontColor = {255,255,255,240}, pointerEvents = "none" },
+                },
+            }
+        end
+        rewardChildren[#rewardChildren + 1] = UI.Label {
+            text = "技能书", fontSize = 11,
+            fontColor = { 120, 200, 100 }, pointerEvents = "none",
         }
     elseif currDef then
         rewardChildren = {
@@ -591,14 +589,18 @@ function ResourceDungeon._BuildWaveCell(UI, S, ctx, def, wave, bestWave)
         }
     elseif skillBookReward and skillBookReward.count > 0 then
         local sbCd = Config.CURRENCY[skillBookReward.id]
-        local sbImage = sbCd and sbCd.image or "image/currency_skill_book_1.png"
+        local sbColor = sbCd and sbCd.color or {180,180,180}
         bottomChild = UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 1,
             children = {
                 UI.Panel {
-                    width = 16, height = 16,
-                    backgroundImage = sbImage,
-                    backgroundScaleMode = "aspectFit",
+                    width = 16, height = 16, borderRadius = 4,
+                    backgroundColor = { sbColor[1], sbColor[2], sbColor[3], 200 },
+                    justifyContent = "center", alignItems = "center",
+                    children = {
+                        UI.Label { text = sbCd and sbCd.name and sbCd.name:sub(1,3) or "书",
+                            fontSize = 7, fontColor = {255,255,255,240}, pointerEvents = "none" },
+                    },
                 },
                 UI.Label {
                     text = "+" .. skillBookReward.count, fontSize = 8,

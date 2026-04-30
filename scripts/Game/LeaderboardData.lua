@@ -5,6 +5,7 @@
 local HeroData = require("Game.HeroData")
 local Config = require("Game.Config")
 local TodayKey = require("Game.DateUtil").TodayKey
+local TodayStr = require("Game.DateUtil").TodayStr
 
 local LB = {}
 
@@ -451,6 +452,9 @@ function LB.SyncAll()
             LB.UploadEmeraldProgress(bestTier, bestWave)
         end
     end
+
+    -- 每日排名结算幽影珠（前50名奖励）
+    LB.TryDailyOrbSettle()
 end
 
 -- ============================================================================
@@ -620,6 +624,89 @@ function LB.FormatWorldBoss(encoded)
     else
         return tostring(math.floor(damage))
     end
+end
+
+-- ============================================================================
+-- 每日排名结算：前50名幽影珠奖励（主线 + 试练塔）
+-- 第1名=3，第2-3名=2，第4-50名=1，每日结算一次
+-- ============================================================================
+
+--- 根据排名计算幽影珠奖励数量
+---@param rank number|nil
+---@return number
+function LB.CalcOrbReward(rank)
+    if not rank or rank <= 0 then return 0 end
+    if rank == 1 then return 3 end
+    if rank <= 3 then return 2 end
+    if rank <= 50 then return 1 end
+    return 0
+end
+
+--- 确保 stats 中有结算日期字段
+local function _EnsureSettleData()
+    if not HeroData.stats then HeroData.stats = {} end
+    if not HeroData.stats.lastOrbSettleDate then
+        HeroData.stats.lastOrbSettleDate = ""
+    end
+end
+
+--- 尝试每日排名结算（异步获取排名后自动发放幽影珠）
+--- 登录时由 SyncAll 末尾触发，每日仅结算一次
+function LB.TryDailyOrbSettle()
+    if not clientCloud then return end
+    _EnsureSettleData()
+
+    local today = TodayStr()
+    if HeroData.stats.lastOrbSettleDate == today then
+        print("[LB] Orb settle already done today: " .. today)
+        return
+    end
+
+    -- 异步获取两个排名，都到位后结算
+    local pending = 2
+    local campaignRank = nil
+    local towerRank = nil
+
+    local function _TrySettle()
+        pending = pending - 1
+        if pending > 0 then return end
+
+        -- 两个排名都已获取，计算奖励
+        local orbCampaign = LB.CalcOrbReward(campaignRank)
+        local orbTower = LB.CalcOrbReward(towerRank)
+        local totalOrb = orbCampaign + orbTower
+
+        if totalOrb > 0 then
+            local Currency = require("Game.Currency")
+            Currency.GrantReward(
+                { type = "currency", id = "shadow_orb", amount = totalOrb },
+                "DailyRankSettle"
+            )
+            print(string.format("[LB] Daily orb settle: campaign rank=%s (+%d) tower rank=%s (+%d) total=+%d",
+                tostring(campaignRank), orbCampaign,
+                tostring(towerRank), orbTower,
+                totalOrb))
+        else
+            print(string.format("[LB] Daily orb settle: no reward (campaign rank=%s, tower rank=%s)",
+                tostring(campaignRank), tostring(towerRank)))
+        end
+
+        -- 标记今日已结算（无论有无奖励都标记，避免重复请求）
+        HeroData.stats.lastOrbSettleDate = today
+        HeroData.Save()
+    end
+
+    LB.FetchMyRank(LB.KEY_CAMPAIGN, function(rank, _score)
+        campaignRank = rank
+        print("[LB] OrbSettle campaign rank = " .. tostring(rank))
+        _TrySettle()
+    end)
+
+    LB.FetchMyRank(LB.KEY_TOWER, function(rank, _score)
+        towerRank = rank
+        print("[LB] OrbSettle tower rank = " .. tostring(rank))
+        _TrySettle()
+    end)
 end
 
 return LB

@@ -716,10 +716,15 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                         for _, bid in ipairs(BOOK_ORD) do
                             if costMap[bid] then
                                 local cd = Config.CURRENCY[bid]
+                                local bColor = cd and cd.color or {180,180,180}
                                 costChildren[#costChildren + 1] = UI.Panel {
-                                    width = 11, height = 11,
-                                    backgroundImage = cd and cd.image or ("image/currency_" .. bid .. ".png"),
-                                    backgroundScaleMode = "aspectFit",
+                                    width = 11, height = 11, borderRadius = 3,
+                                    backgroundColor = { bColor[1], bColor[2], bColor[3], 200 },
+                                    justifyContent = "center", alignItems = "center",
+                                    children = {
+                                        UI.Label { text = cd and cd.icon and cd.icon:sub(1,1):upper() or "?",
+                                            fontSize = 7, fontColor = {255,255,255,240}, pointerEvents = "none" },
+                                    },
                                 }
                                 costChildren[#costChildren + 1] = UI.Label {
                                     text = tostring(costMap[bid]), fontSize = 8,
@@ -839,10 +844,15 @@ local function BuildInfoTab(ctx, heroId, heroDef)
             for _, bid in ipairs(BOOK_BAL_ORDER) do
                 local cnt = Currency.Get(bid)
                 local cd = Config.CURRENCY[bid]
+                local bColor = cd and cd.color or {180,180,180}
                 balChildren[#balChildren + 1] = UI.Panel {
-                    width = 12, height = 12,
-                    backgroundImage = cd and cd.image or ("image/currency_" .. bid .. ".png"),
-                    backgroundScaleMode = "aspectFit",
+                    width = 12, height = 12, borderRadius = 3,
+                    backgroundColor = { bColor[1], bColor[2], bColor[3], 200 },
+                    justifyContent = "center", alignItems = "center",
+                    children = {
+                        UI.Label { text = cd and cd.icon and cd.icon:sub(1,1):upper() or "?",
+                            fontSize = 7, fontColor = {255,255,255,240}, pointerEvents = "none" },
+                    },
                 }
                 balChildren[#balChildren + 1] = UI.Label {
                     text = ctx.FormatBigNum(cnt), fontSize = 10,
@@ -1554,68 +1564,85 @@ local function BuildCostumeTab(ctx, heroId)
 
     local children = {}
 
-    -- ── 槽位行 ────────────────────────────────────────────────────────────────
-    local wingDef = CostumeData.GetEquippedDef("wing")
-    local slotRow = UI.Panel {
+    -- ── 装备槽位行（水平一行显示所有槽位） ──────────────────────────────────
+    local function MakeSlotCell(slotDef)
+        local def = CostumeData.GetEquippedDef(slotDef.id)
+        local bc = def and (def.rarityColor or { 120, 80, 200, 200 }) or { 70, 55, 42, 150 }
+        -- 图标内容
+        local iconContent
+        if def then
+            if slotDef.id == "wing" then
+                iconContent = { FrameIcon(40, def, def.iconFrame or 0) }
+            else
+                iconContent = { UI.Panel { width = 40, height = 40, backgroundImage = def.preview, backgroundFit = "contain" } }
+            end
+        else
+            local slotLabels = { wing = "翼", weapon = "武", aura = "环", particle = "粒" }
+            local label = slotLabels[slotDef.id] or "?"
+            iconContent = { UI.Label { text = label, fontSize = 14, fontColor = { 100, 80, 65, 200 } } }
+        end
+        return UI.Panel {
+            flexGrow = 1, flexShrink = 1, flexBasis = 0,
+            flexDirection = "column",
+            alignItems = "center",
+            gap = 4,
+            backgroundColor = { 40, 28, 20, 220 },
+            borderRadius = 10,
+            borderWidth = 1,
+            borderColor = def and bc or { 90, 65, 48, 200 },
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 6, paddingRight = 6,
+            children = {
+                -- 图标
+                UI.Panel {
+                    width = 40, height = 40,
+                    borderRadius = 8,
+                    backgroundColor = { 55, 38, 28, 255 },
+                    borderWidth = 1,
+                    borderColor = bc,
+                    justifyContent = "center", alignItems = "center",
+                    overflow = "hidden",
+                    children = iconContent,
+                },
+                -- 槽位名
+                UI.Label { text = slotDef.label, fontSize = 10, fontColor = S.dim },
+                -- 装备名 / 空置
+                UI.Label {
+                    text = def and def.name or "空置",
+                    fontSize = 11,
+                    fontColor = def and (def.rarityColor or S.white) or S.dimLocked,
+                    fontWeight = def and "bold" or "normal",
+                },
+                -- 卸下按钮
+                def and UI.Panel {
+                    paddingLeft = 8, paddingRight = 8,
+                    paddingTop = 3, paddingBottom = 3,
+                    borderRadius = 5,
+                    backgroundColor = { 70, 50, 38, 200 },
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        CostumeData.Equip(slotDef.id, nil)
+                        ctx.ShowHeroDetail(heroId)
+                    end,
+                    children = {
+                        UI.Label { text = "卸下", fontSize = 10, fontColor = { 180, 160, 140, 220 } },
+                    },
+                } or nil,
+            },
+        }
+    end
+
+    local slotCells = {}
+    for _, slotDef in ipairs(CostumeData.SLOTS) do
+        slotCells[#slotCells + 1] = MakeSlotCell(slotDef)
+    end
+
+    children[#children + 1] = UI.Panel {
         width = "100%",
         flexDirection = "row",
-        alignItems = "center",
-        gap = 10,
-        backgroundColor = { 40, 28, 20, 220 },
-        borderRadius = 10,
-        borderWidth = 1,
-        borderColor = { 90, 65, 48, 200 },
-        paddingTop = 10, paddingBottom = 10,
-        paddingLeft = 12, paddingRight = 12,
-        children = {
-            -- 槽位图标
-            UI.Panel {
-                width = 44, height = 44,
-                flexShrink = 0,
-                borderRadius = 8,
-                backgroundColor = { 55, 38, 28, 255 },
-                borderWidth = 1,
-                borderColor = wingDef and (wingDef.rarityColor or { 120, 80, 200, 200 }) or { 70, 55, 42, 150 },
-                justifyContent = "center", alignItems = "center",
-                overflow = "hidden",
-                children = wingDef and {
-                    FrameIcon(44, wingDef, wingDef.iconFrame or 0),
-                } or {
-                    UI.Label { text = "翼", fontSize = 18, fontColor = { 100, 80, 65, 200 } },
-                },
-            },
-            -- 槽位名 + 装备状态
-            UI.Panel {
-                flexGrow = 1,
-                gap = 2,
-                children = {
-                    UI.Label { text = "翅膀", fontSize = 12, fontColor = S.dim },
-                    UI.Label {
-                        text = wingDef and wingDef.name or "空置",
-                        fontSize = 14,
-                        fontColor = wingDef and (wingDef.rarityColor or S.white) or S.dimLocked,
-                        fontWeight = wingDef and "bold" or "normal",
-                    },
-                },
-            },
-            -- 卸下按钮（已装备时显示）
-            wingDef and UI.Panel {
-                paddingLeft = 10, paddingRight = 10,
-                paddingTop = 5, paddingBottom = 5,
-                borderRadius = 6,
-                backgroundColor = { 70, 50, 38, 200 },
-                justifyContent = "center", alignItems = "center",
-                onClick = function(self)
-                    CostumeData.Equip("wing", nil)
-                    ctx.ShowHeroDetail(heroId)
-                end,
-                children = {
-                    UI.Label { text = "卸下", fontSize = 11, fontColor = { 180, 160, 140, 220 } },
-                },
-            } or nil,
-        },
+        gap = 8,
+        children = slotCells,
     }
-    children[#children + 1] = slotRow
 
     -- ── 翅膀分类列表 ──────────────────────────────────────────────────────────
     children[#children + 1] = UI.Panel {
@@ -1723,6 +1750,289 @@ local function BuildCostumeTab(ctx, heroId)
             },
         }
         children[#children + 1] = card
+    end
+
+    -- ── 武器分类标题 ──────────────────────────────────────────────────────────
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        marginTop = 10,
+        children = {
+            UI.Panel { width = 3, height = 14, borderRadius = 2, backgroundColor = { 255, 180, 50, 255 } },
+            UI.Label { text = "武器", fontSize = 13, fontColor = S.dim, fontWeight = "bold" },
+        },
+    }
+
+    -- ── 武器时装卡片列表 ──────────────────────────────────────────────────────
+    for _, def in ipairs(CostumeData.WEAPON_COSTUMES) do
+        local isOwned = CostumeData.IsOwned(def.id)
+        local isEquipped = CostumeData.IsEquipped("weapon", def.id)
+        local rc = def.rarityColor or RARITY_COLOR[def.rarity] or { 180, 180, 180, 255 }
+
+        local wcard = UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 10,
+            backgroundColor = isEquipped and { 50, 40, 25, 240 } or (isOwned and { 38, 27, 20, 200 } or { 28, 24, 32, 180 }),
+            borderRadius = 10,
+            borderWidth = isEquipped and 2 or 1,
+            borderColor = isEquipped and rc or (isOwned and { 70, 55, 42, 120 } or { 50, 45, 60, 80 }),
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 10, paddingRight = 10,
+            children = {
+                UI.Panel {
+                    width = 54, height = 54,
+                    flexShrink = 0,
+                    borderRadius = 8,
+                    backgroundColor = { 30, 20, 40, 255 },
+                    borderWidth = 1,
+                    borderColor = rc,
+                    overflow = "hidden",
+                    children = {
+                        UI.Panel {
+                            width = 54, height = 54,
+                            backgroundImage = def.preview,
+                            backgroundFit = "contain",
+                        },
+                        UI.Panel {
+                            position = "absolute",
+                            top = 2, left = 2,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 3,
+                            backgroundColor = { 0, 0, 0, 160 },
+                            children = {
+                                UI.Label { text = def.rarity or "N", fontSize = 8, fontColor = rc, fontWeight = "bold" },
+                            },
+                        },
+                    },
+                },
+                UI.Panel {
+                    flexGrow = 1, flexShrink = 1,
+                    gap = 3,
+                    children = {
+                        UI.Label { text = def.name, fontSize = 13, fontColor = rc, fontWeight = "bold" },
+                        UI.Label { text = def.desc or "", fontSize = 10, fontColor = { 180, 165, 150, 180 } },
+                    },
+                },
+                UI.Panel {
+                    width = 54, flexShrink = 0,
+                    paddingTop = 7, paddingBottom = 7,
+                    borderRadius = 8,
+                    backgroundColor = isEquipped and { 80, 55, 110, 240 }
+                        or (isOwned and { 60, 100, 80, 220 } or { 45, 40, 55, 180 }),
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        if isOwned and not isEquipped then
+                            CostumeData.Equip("weapon", def.id)
+                            ctx.ShowHeroDetail(heroId)
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = isEquipped and "已装备" or (isOwned and "装备" or "未解锁"),
+                            fontSize = 11,
+                            fontColor = isEquipped and { 200, 170, 255, 220 }
+                                or (isOwned and { 220, 255, 220, 255 } or { 120, 110, 130, 180 }),
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        }
+        children[#children + 1] = wcard
+    end
+
+    -- ── 光环分类标题 ──────────────────────────────────────────────────────────
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        marginTop = 10,
+        children = {
+            UI.Panel { width = 3, height = 14, borderRadius = 2, backgroundColor = { 200, 160, 255, 255 } },
+            UI.Label { text = "光环", fontSize = 13, fontColor = S.dim, fontWeight = "bold" },
+        },
+    }
+
+    -- ── 光环时装卡片列表 ──────────────────────────────────────────────────────
+    for _, def in ipairs(CostumeData.AURA_COSTUMES) do
+        local isOwned = CostumeData.IsOwned(def.id)
+        local isEquipped = CostumeData.IsEquipped("aura", def.id)
+        local rc = def.rarityColor or RARITY_COLOR[def.rarity] or { 180, 180, 180, 255 }
+
+        local acard = UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 10,
+            backgroundColor = isEquipped and { 50, 40, 25, 240 } or (isOwned and { 38, 27, 20, 200 } or { 28, 24, 32, 180 }),
+            borderRadius = 10,
+            borderWidth = isEquipped and 2 or 1,
+            borderColor = isEquipped and rc or (isOwned and { 70, 55, 42, 120 } or { 50, 45, 60, 80 }),
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 10, paddingRight = 10,
+            children = {
+                UI.Panel {
+                    width = 54, height = 54,
+                    flexShrink = 0,
+                    borderRadius = 8,
+                    backgroundColor = { 30, 20, 40, 255 },
+                    borderWidth = 1,
+                    borderColor = rc,
+                    overflow = "hidden",
+                    children = {
+                        UI.Panel {
+                            width = 54, height = 54,
+                            backgroundImage = def.preview,
+                            backgroundFit = "contain",
+                        },
+                        UI.Panel {
+                            position = "absolute",
+                            top = 2, left = 2,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 3,
+                            backgroundColor = { 0, 0, 0, 160 },
+                            children = {
+                                UI.Label { text = def.rarity or "N", fontSize = 8, fontColor = rc, fontWeight = "bold" },
+                            },
+                        },
+                    },
+                },
+                UI.Panel {
+                    flexGrow = 1, flexShrink = 1,
+                    gap = 3,
+                    children = {
+                        UI.Label { text = def.name, fontSize = 13, fontColor = rc, fontWeight = "bold" },
+                        UI.Label { text = def.desc or "", fontSize = 10, fontColor = { 180, 165, 150, 180 } },
+                    },
+                },
+                UI.Panel {
+                    width = 54, flexShrink = 0,
+                    paddingTop = 7, paddingBottom = 7,
+                    borderRadius = 8,
+                    backgroundColor = isEquipped and { 80, 55, 110, 240 }
+                        or (isOwned and { 60, 100, 80, 220 } or { 45, 40, 55, 180 }),
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        if isOwned and not isEquipped then
+                            CostumeData.Equip("aura", def.id)
+                            ctx.ShowHeroDetail(heroId)
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = isEquipped and "已装备" or (isOwned and "装备" or "未解锁"),
+                            fontSize = 11,
+                            fontColor = isEquipped and { 200, 170, 255, 220 }
+                                or (isOwned and { 220, 255, 220, 255 } or { 120, 110, 130, 180 }),
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        }
+        children[#children + 1] = acard
+    end
+
+    -- ── 粒子光效分类标题 ──────────────────────────────────────────────────────
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        alignItems = "center",
+        gap = 6,
+        marginTop = 10,
+        pointerEvents = "auto",
+        children = {
+            UI.Panel { width = 3, height = 14, borderRadius = 2, backgroundColor = { 120, 200, 255, 255 } },
+            UI.Label { text = "粒子光效", fontSize = 13, fontColor = S.dim, fontWeight = "bold" },
+        },
+    }
+
+    -- ── 粒子光效时装卡片列表 ──────────────────────────────────────────────────
+    for _, def in ipairs(CostumeData.PARTICLE_COSTUMES) do
+        local isOwned = CostumeData.IsOwned(def.id)
+        local isEquipped = CostumeData.IsEquipped("particle", def.id)
+        local rc = def.rarityColor or RARITY_COLOR[def.rarity] or { 180, 180, 180, 255 }
+
+        local pcard = UI.Panel {
+            width = "100%",
+            flexDirection = "row",
+            alignItems = "center",
+            gap = 10,
+            backgroundColor = isEquipped and { 25, 40, 55, 240 } or (isOwned and { 20, 30, 38, 200 } or { 28, 24, 32, 180 }),
+            borderRadius = 10,
+            borderWidth = isEquipped and 2 or 1,
+            borderColor = isEquipped and rc or (isOwned and { 42, 60, 70, 120 } or { 50, 45, 60, 80 }),
+            paddingTop = 8, paddingBottom = 8,
+            paddingLeft = 10, paddingRight = 10,
+            children = {
+                UI.Panel {
+                    width = 54, height = 54,
+                    flexShrink = 0,
+                    borderRadius = 8,
+                    backgroundColor = { 20, 30, 45, 255 },
+                    borderWidth = 1,
+                    borderColor = rc,
+                    overflow = "hidden",
+                    children = {
+                        UI.Panel {
+                            width = 54, height = 54,
+                            backgroundImage = def.preview,
+                            backgroundFit = "contain",
+                        },
+                        UI.Panel {
+                            position = "absolute",
+                            top = 2, left = 2,
+                            paddingLeft = 4, paddingRight = 4,
+                            paddingTop = 1, paddingBottom = 1,
+                            borderRadius = 3,
+                            backgroundColor = { 0, 0, 0, 160 },
+                            children = {
+                                UI.Label { text = def.rarity or "N", fontSize = 8, fontColor = rc, fontWeight = "bold" },
+                            },
+                        },
+                    },
+                },
+                UI.Panel {
+                    flexGrow = 1, flexShrink = 1,
+                    gap = 3,
+                    children = {
+                        UI.Label { text = def.name, fontSize = 13, fontColor = rc, fontWeight = "bold" },
+                        UI.Label { text = def.desc or "", fontSize = 10, fontColor = { 150, 175, 200, 180 } },
+                    },
+                },
+                UI.Panel {
+                    width = 54, flexShrink = 0,
+                    paddingTop = 7, paddingBottom = 7,
+                    borderRadius = 8,
+                    backgroundColor = isEquipped and { 55, 80, 110, 240 }
+                        or (isOwned and { 60, 100, 80, 220 } or { 45, 40, 55, 180 }),
+                    justifyContent = "center", alignItems = "center",
+                    onClick = function(self)
+                        if isOwned and not isEquipped then
+                            CostumeData.Equip("particle", def.id)
+                            ctx.ShowHeroDetail(heroId)
+                        end
+                    end,
+                    children = {
+                        UI.Label {
+                            text = isEquipped and "已装备" or (isOwned and "装备" or "未解锁"),
+                            fontSize = 11,
+                            fontColor = isEquipped and { 170, 200, 255, 220 }
+                                or (isOwned and { 220, 255, 220, 255 } or { 120, 110, 130, 180 }),
+                            fontWeight = "bold",
+                        },
+                    },
+                },
+            },
+        }
+        children[#children + 1] = pcard
     end
 
     return UI.Panel {
