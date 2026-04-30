@@ -14,14 +14,17 @@ local ANIM_SPLIT = Cfg.ANIM_SPLIT
 -- 预加载的图案纹理 id（索引=kind）
 local kindImages_ = {}
 
--- 菜单按钮位置缓存（供 main.lua 碰撞检测用）
+-- 按钮碰撞区域缓存（供 MiniGame.lua 碰撞检测用）
 M.menuBtns   = {}
--- 打乱道具按钮位置缓存（供 main.lua 碰撞检测用）
 M.shuffleBtn = nil
--- 撤回道具按钮位置缓存（供 main.lua 碰撞检测用）
 M.undoBtn    = nil
--- 移出道具按钮位置缓存（供 main.lua 碰撞检测用）
 M.moveOutBtn = nil
+M.backBtn     = nil   -- HUD 右上角返回按钮
+M.menuBackBtn = nil   -- 菜单页面返回按钮
+M.overlayRestartBtn = nil  -- 胜负弹窗"重开"按钮
+M.overlayBackBtn    = nil  -- 胜负弹窗"返回"按钮
+M.confirmYesBtn     = nil  -- 确认弹窗"确定"按钮
+M.confirmNoBtn      = nil  -- 确认弹窗"取消"按钮
 
 -- ── 初始化 / 销毁 ─────────────────────────────────────────────────────────────
 
@@ -167,14 +170,44 @@ end
 
 -- ── HUD 绘制 ─────────────────────────────────────────────────────────────────
 
-local function drawHUD(vg)
-    local rem = 0
-    for _, c in ipairs(Board.allCards) do if not c.removed then rem = rem + 1 end end
-    nvgFontFace(vg, "sans"); nvgFontSize(vg, 14)
-    nvgTextAlign(vg, NVG_ALIGN_LEFT + NVG_ALIGN_TOP)
-    nvgFillColor(vg, nvgRGBA(210,210,255,210))
-    nvgText(vg, 12, 8, string.format("%s  剩余 %d 张  槽位 %d/7  [R]重开 [ESC]菜单",
-        LEVELS[Board.curLvl].name, rem, #Board.slot))
+local function getHudSafeTop()
+    local safeTop = 0
+    if GetSafeAreaInsets then
+        local rect = GetSafeAreaInsets(false)
+        safeTop = rect.min.y / graphics:GetDPR()
+    end
+    return safeTop
+end
+
+local function drawHUD(vg, LW)
+    local safeTop = getHudSafeTop()
+    local rowY = safeTop + 6  -- 安全区下方留 6px
+
+    -- 左侧「返回」按钮
+    local bW, bH = 56, 28
+    local bx = 10
+    local by = rowY
+    M.backBtn = { x = bx, y = by, w = bW, h = bH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, bx, by, bW, bH, bH / 2)
+    nvgFillColor(vg, nvgRGBA(80, 60, 120, 200)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(180, 150, 220, 160))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontFace(vg, "sans"); nvgFontSize(vg, 13)
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFillColor(vg, nvgRGBA(220, 210, 255, 230))
+    nvgText(vg, bx + bW / 2, by + bH / 2, "返回")
+
+    -- 中间关卡名
+    nvgFontSize(vg, 15)
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFillColor(vg, nvgRGBA(210, 210, 255, 220))
+    nvgText(vg, LW / 2, rowY + bH / 2, LEVELS[Board.curLvl].name)
+
+    -- 右侧分数
+    nvgFontSize(vg, 13)
+    nvgTextAlign(vg, NVG_ALIGN_RIGHT + NVG_ALIGN_MIDDLE)
+    nvgFillColor(vg, nvgRGBA(255, 215, 80, 220))
+    nvgText(vg, LW - 14, rowY + bH / 2, Board.score .. "分")
 end
 
 -- ── 道具按钮绘制（底部居中）─────────────────────────────────────────────────
@@ -199,7 +232,8 @@ local function drawUndoBtn(vg, LW, LH)
             if c == Board.lastSlotCard then hasCard = true; break end
         end
     end
-    local enabled = uses > 0 and hasCard and not Board.shuffleAnim
+    local canAd   = uses == 0 and not Board.undoAdUsed
+    local enabled = (uses > 0 and hasCard or canAd) and not Board.shuffleAnim
                     and not Board.undoAnim and #Board.anims == 0
     nvgBeginPath(vg); nvgRoundedRect(vg, bx, by, bW, bH, bH/2)
     nvgFillColor(vg, enabled and nvgRGBA(80,160,255,220) or nvgRGBA(70,70,80,160))
@@ -209,7 +243,8 @@ local function drawUndoBtn(vg, LW, LH)
     nvgFontFace(vg, "sans"); nvgFontSize(vg, 14)
     nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
     nvgFillColor(vg, enabled and nvgRGBA(255,255,255,240) or nvgRGBA(140,140,145,200))
-    nvgText(vg, bx + bW/2, by + bH/2, "撤回 x" .. uses)
+    local label = canAd and "撤回 ▶" or ("撤回 x" .. uses)
+    nvgText(vg, bx + bW/2, by + bH/2, label)
 end
 
 -- ── 暂存区（移出三张）绘制 ───────────────────────────────────────────────────
@@ -261,7 +296,8 @@ local function drawMoveOutBtn(vg, LW, LH)
     local by     = LH - BTN_BOT_PAD - bH
     M.moveOutBtn = { x=bx, y=by, w=bW, h=bH }
 
-    local enabled = uses > 0 and #Board.slot >= 3
+    local canAd   = uses == 0 and not Board.moveOutAdUsed
+    local enabled = (uses > 0 and #Board.slot >= 3 or canAd)
                     and not Board.shuffleAnim and not Board.undoAnim
                     and #Board.anims == 0 and #Board.moveAnims == 0
     nvgBeginPath(vg); nvgRoundedRect(vg, bx, by, bW, bH, bH/2)
@@ -272,7 +308,8 @@ local function drawMoveOutBtn(vg, LW, LH)
     nvgFontFace(vg, "sans"); nvgFontSize(vg, 14)
     nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
     nvgFillColor(vg, enabled and nvgRGBA(255,255,255,240) or nvgRGBA(140,140,145,200))
-    nvgText(vg, bx + bW/2, by + bH/2, "移出 x" .. uses)
+    local label = canAd and "移出 ▶" or ("移出 x" .. uses)
+    nvgText(vg, bx + bW/2, by + bH/2, label)
 end
 
 local function drawShuffleBtn(vg, LW, LH)
@@ -283,7 +320,8 @@ local function drawShuffleBtn(vg, LW, LH)
     local by     = LH - BTN_BOT_PAD - bH
     M.shuffleBtn = { x=bx, y=by, w=bW, h=bH }
 
-    local enabled = uses > 0 and not Board.shuffleAnim
+    local canAd   = uses == 0 and not Board.shuffleAdUsed
+    local enabled = (uses > 0 or canAd) and not Board.shuffleAnim
     -- 背景
     nvgBeginPath(vg); nvgRoundedRect(vg, bx, by, bW, bH, bH/2)
     nvgFillColor(vg, enabled and nvgRGBA(240,175,40,230) or nvgRGBA(70,70,80,160))
@@ -295,7 +333,8 @@ local function drawShuffleBtn(vg, LW, LH)
     nvgFontFace(vg, "sans"); nvgFontSize(vg, 14)
     nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
     nvgFillColor(vg, enabled and nvgRGBA(40,20,0,255) or nvgRGBA(140,140,145,200))
-    nvgText(vg, bx + bW/2, by + bH/2, "打乱 x" .. uses)
+    local label = canAd and "打乱 ▶" or ("打乱 x" .. uses)
+    nvgText(vg, bx + bW/2, by + bH/2, label)
 end
 
 -- ── 菜单绘制 ─────────────────────────────────────────────────────────────────
@@ -444,12 +483,6 @@ local function drawMenu(vg, LW, LH)
             nvgFillColor(vg, nvgRGBA(255, 200, 100, 200))
             nvgText(vg, cardX + cardW - 10, cy + cardH / 2, "入门")
             nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
-        elseif i == #LEVELS then
-            nvgTextAlign(vg, NVG_ALIGN_RIGHT + NVG_ALIGN_MIDDLE)
-            nvgFontSize(vg, 11)
-            nvgFillColor(vg, nvgRGBA(255, 100, 100, 180))
-            nvgText(vg, cardX + cardW - 10, cy + cardH / 2, "无尽")
-            nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
         end
     end
 
@@ -492,6 +525,19 @@ local function drawMenu(vg, LW, LH)
     nvgFontSize(vg, 12)
     nvgFillColor(vg, nvgRGBA(120, 110, 150, 130))
     nvgText(vg, cx, btnY + BH + 22, "通关后自动进入下一关")
+
+    -- ── 返回按钮（左上角）────────────────────────────────────────────────────
+    local mbW, mbH = 72, 34
+    local mbx, mby = 14, 14
+    M.menuBackBtn = { x = mbx, y = mby, w = mbW, h = mbH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, mbx, mby, mbW, mbH, mbH / 2)
+    nvgFillColor(vg, nvgRGBA(100, 60, 160, 200)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(180, 140, 240, 160))
+    nvgStrokeWidth(vg, 1.2); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFillColor(vg, nvgRGBA(230, 220, 255, 240))
+    nvgText(vg, mbx + mbW / 2, mby + mbH / 2, "< 返回")
 end
 
 -- ── 飞行动画绘制 ─────────────────────────────────────────────────────────────
@@ -593,14 +639,47 @@ end
 
 -- ── 遮罩覆盖层绘制 ───────────────────────────────────────────────────────────
 
-local function drawOverlay(vg, LW, LH, title, tr, tg, tb, hint)
-    nvgBeginPath(vg); nvgRect(vg,0,0,LW,LH)
-    nvgFillColor(vg, nvgRGBA(0,0,0,165)); nvgFill(vg)
-    nvgFontFace(vg,"sans"); nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
-    nvgFontSize(vg, 50); nvgFillColor(vg, nvgRGBA(tr,tg,tb,255))
-    nvgText(vg, LW/2, LH/2-40, title)
-    nvgFontSize(vg, 20); nvgFillColor(vg, nvgRGBA(220,220,220,210))
-    nvgText(vg, LW/2, LH/2+22, hint)
+local function drawOverlay(vg, LW, LH, title, tr, tg, tb, subtitle)
+    nvgBeginPath(vg); nvgRect(vg, 0, 0, LW, LH)
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 165)); nvgFill(vg)
+    nvgFontFace(vg, "sans"); nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFontSize(vg, 50); nvgFillColor(vg, nvgRGBA(tr, tg, tb, 255))
+    nvgText(vg, LW / 2, LH / 2 - 50, title)
+
+    -- 副标题（可选）
+    if subtitle then
+        nvgFontSize(vg, 16); nvgFillColor(vg, nvgRGBA(200, 190, 220, 180))
+        nvgText(vg, LW / 2, LH / 2, subtitle)
+    end
+
+    -- 两个按钮：重开 / 返回，水平居中
+    local btnW, btnH = 100, 40
+    local gap = 20
+    local totalW = btnW * 2 + gap
+    local startX = math.floor((LW - totalW) / 2)
+    local btnY   = LH / 2 + (subtitle and 28 or 14)
+
+    -- 重开按钮
+    local rx = startX
+    M.overlayRestartBtn = { x = rx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, rx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(80, 160, 255, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(160, 210, 255, 160))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 17)
+    nvgFillColor(vg, nvgRGBA(255, 255, 255, 240))
+    nvgText(vg, rx + btnW / 2, btnY + btnH / 2, "重新开始")
+
+    -- 返回按钮
+    local bx = startX + btnW + gap
+    M.overlayBackBtn = { x = bx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, bx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(80, 60, 120, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(180, 150, 220, 160))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 17)
+    nvgFillColor(vg, nvgRGBA(220, 210, 255, 230))
+    nvgText(vg, bx + btnW / 2, btnY + btnH / 2, "返回")
 end
 
 -- ── 渲染入口 ─────────────────────────────────────────────────────────────────
@@ -624,19 +703,273 @@ function M.render(vg, LW, LH, DPR)
         drawAnims(vg)
         drawMoveOutAnims(vg)
         drawUndoAnim(vg)
-        drawHUD(vg)
+        drawHUD(vg, LW)
         drawMoveOutBtn(vg, LW, LH)
         drawUndoBtn(vg, LW, LH)
         drawShuffleBtn(vg, LW, LH)
 
         local st = Board.state
         if st == "win" then
-            drawOverlay(vg, LW, LH, "全部通关！",   255,220, 60, "点击返回菜单")
+            drawOverlay(vg, LW, LH, "全部通关！", 255, 220, 60)
         elseif st == "lose" then
-            drawOverlay(vg, LW, LH, "游戏结束",     255,100, 80, "槽位已满 — 点击重新开始")
+            if Board.showRescueConfirm then
+                M.drawRescueDialog(vg, LW, LH)
+            else
+                M.drawLoseDialog(vg, LW, LH)
+            end
+        else
+            -- playing 状态下清空 overlay 按钮缓存
+            M.overlayRestartBtn = nil
+            M.overlayBackBtn    = nil
+        end
+
+        -- 免广券确认弹窗（覆盖在最上层）
+        if Board.showTicketConfirm then
+            M.drawTicketConfirmDialog(vg, LW, LH)
+        else
+            M.ticketUseBtn = nil
+            M.ticketAdBtn  = nil
+        end
+
+        -- 退出确认弹窗（覆盖在最上层）
+        if Board.showExitConfirm then
+            M.drawConfirmDialog(vg, LW, LH)
+        else
+            M.confirmYesBtn = nil
+            M.confirmNoBtn  = nil
         end
     end
     nvgEndFrame(vg)
+end
+
+-- ── 失败弹窗（卡片样式）──────────────────────────────────────────────────────
+
+function M.drawLoseDialog(vg, LW, LH)
+    -- 半透明遮罩
+    nvgBeginPath(vg); nvgRect(vg, 0, 0, LW, LH)
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 165)); nvgFill(vg)
+
+    -- 弹窗卡片
+    local dW, dH = 260, 160
+    local dx = math.floor((LW - dW) / 2)
+    local dy = math.floor((LH - dH) / 2)
+    nvgBeginPath(vg); nvgRoundedRect(vg, dx, dy, dW, dH, 12)
+    nvgFillColor(vg, nvgRGBA(35, 28, 60, 245)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(200, 80, 80, 160))
+    nvgStrokeWidth(vg, 1.5); nvgStroke(vg)
+
+    -- 标题
+    nvgFontFace(vg, "sans")
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFontSize(vg, 22)
+    nvgFillColor(vg, nvgRGBA(255, 100, 80, 255))
+    nvgText(vg, LW / 2, dy + 35, "游戏结束")
+
+    -- 副标题
+    nvgFontSize(vg, 14)
+    nvgFillColor(vg, nvgRGBA(200, 190, 220, 180))
+    nvgText(vg, LW / 2, dy + 60, "槽位已满")
+
+    -- 两个按钮
+    local btnW, btnH = 100, 36
+    local gap = 20
+    local totalBW = btnW * 2 + gap
+    local startX = math.floor((LW - totalBW) / 2)
+    local btnY   = dy + dH - btnH - 20
+
+    -- 重新开始按钮
+    local rx = startX
+    M.overlayRestartBtn = { x = rx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, rx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(80, 160, 255, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(160, 210, 255, 160))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(255, 255, 255, 240))
+    nvgText(vg, rx + btnW / 2, btnY + btnH / 2, "重新开始")
+
+    -- 返回按钮
+    local bx = startX + btnW + gap
+    M.overlayBackBtn = { x = bx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, bx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(70, 60, 100, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(140, 120, 180, 140))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(220, 210, 255, 230))
+    nvgText(vg, bx + btnW / 2, btnY + btnH / 2, "返回")
+end
+
+-- ── 救场弹窗（失败时提示看广告获得移出道具）────────────────────────────────
+
+function M.drawRescueDialog(vg, LW, LH)
+    -- 半透明遮罩
+    nvgBeginPath(vg); nvgRect(vg, 0, 0, LW, LH)
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 165)); nvgFill(vg)
+
+    -- 弹窗卡片
+    local dW, dH = 270, 170
+    local dx = math.floor((LW - dW) / 2)
+    local dy = math.floor((LH - dH) / 2)
+    nvgBeginPath(vg); nvgRoundedRect(vg, dx, dy, dW, dH, 12)
+    nvgFillColor(vg, nvgRGBA(35, 28, 60, 245)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(80, 160, 255, 160))
+    nvgStrokeWidth(vg, 1.5); nvgStroke(vg)
+
+    -- 标题
+    nvgFontFace(vg, "sans")
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFontSize(vg, 20)
+    nvgFillColor(vg, nvgRGBA(255, 100, 80, 255))
+    nvgText(vg, LW / 2, dy + 32, "槽位已满！")
+
+    -- 提示文字
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(220, 210, 240, 220))
+    nvgText(vg, LW / 2, dy + 60, "看广告获得「移出」道具继续游戏")
+
+    -- 两个按钮
+    local btnW, btnH = 105, 38
+    local gap = 20
+    local totalBW = btnW * 2 + gap
+    local startX = math.floor((LW - totalBW) / 2)
+    local btnY   = dy + dH - btnH - 22
+
+    -- 看广告按钮（主按钮）
+    local ax = startX
+    M.rescueAdBtn = { x = ax, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, ax, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(80, 160, 255, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(160, 210, 255, 160))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(255, 255, 255, 240))
+    nvgText(vg, ax + btnW / 2, btnY + btnH / 2, "看广告继续")
+
+    -- 放弃按钮
+    local gx = startX + btnW + gap
+    M.rescueGiveUpBtn = { x = gx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, gx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(70, 60, 100, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(140, 120, 180, 140))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(220, 210, 255, 200))
+    nvgText(vg, gx + btnW / 2, btnY + btnH / 2, "放弃")
+end
+
+-- ── 免广券确认弹窗 ───────────────────────────────────────────────────────────
+
+function M.drawTicketConfirmDialog(vg, LW, LH)
+    local _ok, ARD = pcall(require, "Game.AdReliefData")
+    local tickets = (_ok and ARD and ARD.GetTickets) and ARD.GetTickets() or 0
+
+    -- 半透明遮罩
+    nvgBeginPath(vg); nvgRect(vg, 0, 0, LW, LH)
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 140)); nvgFill(vg)
+
+    -- 弹窗卡片
+    local dW, dH = 260, 150
+    local dx = math.floor((LW - dW) / 2)
+    local dy = math.floor((LH - dH) / 2)
+    nvgBeginPath(vg); nvgRoundedRect(vg, dx, dy, dW, dH, 12)
+    nvgFillColor(vg, nvgRGBA(35, 28, 60, 240)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(100, 200, 160, 160))
+    nvgStrokeWidth(vg, 1.5); nvgStroke(vg)
+
+    -- 标题
+    nvgFontFace(vg, "sans")
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFontSize(vg, 18)
+    nvgFillColor(vg, nvgRGBA(230, 220, 255, 240))
+    nvgText(vg, LW / 2, dy + 35, "是否使用免广券？")
+
+    -- 券数量
+    nvgFontSize(vg, 14)
+    nvgFillColor(vg, nvgRGBA(160, 220, 180, 200))
+    nvgText(vg, LW / 2, dy + 58, "剩余: " .. tickets .. " 张")
+
+    -- 两个按钮
+    local btnW, btnH = 100, 36
+    local gap = 20
+    local totalBW = btnW * 2 + gap
+    local startX = math.floor((LW - totalBW) / 2)
+    local btnY   = dy + dH - btnH - 18
+
+    -- 使用免广券按钮
+    local ux = startX
+    M.ticketUseBtn = { x = ux, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, ux, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(60, 160, 120, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(120, 220, 180, 140))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 14)
+    nvgFillColor(vg, nvgRGBA(255, 255, 255, 240))
+    nvgText(vg, ux + btnW / 2, btnY + btnH / 2, "使用免广券")
+
+    -- 看广告按钮
+    local ax = startX + btnW + gap
+    M.ticketAdBtn = { x = ax, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, ax, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(70, 60, 100, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(140, 120, 180, 140))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 14)
+    nvgFillColor(vg, nvgRGBA(220, 210, 255, 230))
+    nvgText(vg, ax + btnW / 2, btnY + btnH / 2, "看广告")
+end
+
+-- ── 确认弹窗绘制 ─────────────────────────────────────────────────────────────
+
+function M.drawConfirmDialog(vg, LW, LH)
+    -- 半透明遮罩
+    nvgBeginPath(vg); nvgRect(vg, 0, 0, LW, LH)
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 140)); nvgFill(vg)
+
+    -- 弹窗卡片
+    local dW, dH = 240, 130
+    local dx = math.floor((LW - dW) / 2)
+    local dy = math.floor((LH - dH) / 2)
+    nvgBeginPath(vg); nvgRoundedRect(vg, dx, dy, dW, dH, 12)
+    nvgFillColor(vg, nvgRGBA(35, 28, 60, 240)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(140, 110, 200, 160))
+    nvgStrokeWidth(vg, 1.5); nvgStroke(vg)
+
+    -- 提示文字
+    nvgFontFace(vg, "sans")
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+    nvgFontSize(vg, 18)
+    nvgFillColor(vg, nvgRGBA(230, 220, 255, 240))
+    nvgText(vg, LW / 2, dy + 38, "确定要退出吗？")
+
+    -- 两个按钮
+    local btnW, btnH = 85, 36
+    local gap = 20
+    local totalBW = btnW * 2 + gap
+    local startX = math.floor((LW - totalBW) / 2)
+    local btnY   = dy + dH - btnH - 18
+
+    -- 确定按钮
+    local yx = startX
+    M.confirmYesBtn = { x = yx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, yx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(200, 80, 80, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(255, 140, 140, 140))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(255, 255, 255, 240))
+    nvgText(vg, yx + btnW / 2, btnY + btnH / 2, "确定")
+
+    -- 取消按钮
+    local nx = startX + btnW + gap
+    M.confirmNoBtn = { x = nx, y = btnY, w = btnW, h = btnH }
+    nvgBeginPath(vg); nvgRoundedRect(vg, nx, btnY, btnW, btnH, 8)
+    nvgFillColor(vg, nvgRGBA(70, 60, 100, 220)); nvgFill(vg)
+    nvgStrokeColor(vg, nvgRGBA(140, 120, 180, 140))
+    nvgStrokeWidth(vg, 1); nvgStroke(vg)
+    nvgFontSize(vg, 15)
+    nvgFillColor(vg, nvgRGBA(220, 210, 255, 230))
+    nvgText(vg, nx + btnW / 2, btnY + btnH / 2, "取消")
 end
 
 return M

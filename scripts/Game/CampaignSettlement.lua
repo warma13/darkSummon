@@ -4,7 +4,7 @@
 local State    = require("Game.State")
 local HeroData = require("Game.HeroData")
 local ChestData = require("Game.ChestData")
-local Currency = require("Game.Currency")
+local Currency     = require("Game.Currency")
 
 local CS = {}
 
@@ -41,6 +41,10 @@ function CS.SettleStageClear(stageNum, score)
     end
 
     print("[CampaignSettlement] Stage " .. stageNum .. " clear! void_pact +" .. voidPact)
+
+    -- 劳动奖章产出
+    local ok3, LMD = pcall(require, "Game.LaborMedalData")
+    if ok3 then LMD.EarnMedals("campaign") end
 
     return {
         stageNum = stageNum,

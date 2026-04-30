@@ -491,6 +491,16 @@ local CODES = {
         end,
     },
     {
+        code = "VIP413248871",
+        desc = "专属奖励：免广券 ×1000",
+        color = { 100, 220, 180 },
+        allowedUser = 413248871,
+        reward = function()
+            local ARD = require("Game.AdReliefData")
+            ARD.AddTickets(1000)
+        end,
+    },
+    {
         code = "SELECT100",
         desc = "招募自选包 x100",
         color = { 255, 160, 60 },

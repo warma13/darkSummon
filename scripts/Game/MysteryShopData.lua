@@ -1,6 +1,7 @@
 -- Game/MysteryShopData.lua
 -- 神秘商店数据：幽影珠兑换时装
 -- 网格显示，与精粹商店风格一致
+-- v1.1
 
 local Currency    = require("Game.Currency")
 local CostumeData = require("Game.CostumeData")

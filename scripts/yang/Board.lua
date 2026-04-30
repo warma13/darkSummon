@@ -28,20 +28,28 @@ M.slot     = {}
 ---@type table[]
 M.anims    = {}
 
-M.shuffleUses = 3   -- 每关可用次数
+M.shuffleUses = 0   -- 每关可用次数（看广告获得）
 M.shuffleAnim = nil  -- 打乱动画状态（nil = 无动画）
+M.shuffleAdUsed = false -- 本局是否已看过广告
 
-M.undoUses     = 3   -- 每关撤回次数
+M.undoUses     = 0   -- 每关撤回次数（看广告获得）
 M.lastSlotCard = nil -- 最近一张落入槽位的牌（用于撤回）
 M.undoAnim     = nil -- 撤回飞行动画状态
+M.undoAdUsed   = false -- 本局是否已看过广告
 
-M.moveOutUses  = 3   -- 移出三张道具次数
+M.moveOutUses  = 0   -- 移出三张道具次数（看广告获得）
+M.moveOutAdUsed = false -- 本局是否已看过广告
+M.score        = 0   -- 累计得分（消除一次 +1）
 M.overflowCols = {{},{},{}}  -- 3列暂存区，每列堆叠的牌
 M.moveAnims    = {}  -- 移出飞行动画列表
 M.OVERFLOW_X   = 0  -- 暂存区3列居中起始 X（newGame/init 后更新）
 
 M.transAnim    = nil -- 关卡切换滑入动画 { t, dur, startX, targetX }
 M.entryActive  = false -- 第一关入场动画进行中
+M.showExitConfirm = false -- 是否显示退出确认弹窗
+M.showTicketConfirm = false -- 是否显示免广券确认弹窗
+M.ticketConfirmCb   = nil   -- 免广券弹窗确认后的回调 fun()
+M.showRescueConfirm = false -- 是否显示救场（移出道具）确认弹窗
 
 -- ── 视觉参数（newGame 后更新）────────────────────────────────────────────────
 M.CW          = 42; M.CH          = 50
@@ -85,12 +93,15 @@ function M.init()
     M.SLOT_FACE_H = M.SLOT_CH - M.SLOT_SHADOW
     M.SLOT_STEP   = M.SLOT_CW
     M.SLOT_X      = math.floor((M.LW - M.SLOT_CW * SLOT_MAX) / 2)
-    M.shuffleUses = 3
+    M.shuffleUses = 0
     M.shuffleAnim = nil
-    M.undoUses     = 3
+    M.shuffleAdUsed = false
+    M.undoUses     = 0
     M.lastSlotCard = nil
     M.undoAnim     = nil
-    M.moveOutUses  = 3
+    M.undoAdUsed   = false
+    M.moveOutUses  = 0
+    M.moveOutAdUsed = false
     M.overflowCols = {{},{},{}}
     M.moveAnims    = {}
     M.OVERFLOW_X   = math.floor((M.LW - (2 * M.SLOT_STEP + M.SLOT_CW)) / 2)
@@ -156,38 +167,52 @@ end
 
 local function refreshCardState()
     local groups, maxLayer = buildGroups()
+
+    -- 第一步：计算每张牌被多少层直接覆盖（遍历所有更高层，不要求连续）
+    local coverMap = {}  -- card → coverLayers
     for _, c in ipairs(M.allCards) do
         if not c.removed and c.moldType == 1 then
-            -- 1) 收集所有上层与 c 有 AABB 重叠的牌
-            local covers = {}
+            local coverLayers = 0
             for ln = c.layerNum + 1, maxLayer do
                 if groups[ln] then
                     for _, above in ipairs(groups[ln]) do
                         if overlaps(c, above) then
-                            covers[#covers + 1] = above
+                            coverLayers = coverLayers + 1
+                            break
                         end
                     end
                 end
             end
-            -- 2) 对每张覆盖牌 top，计算在 top 位置处的堆叠深度：
-            --    top 自身算 1 层，再看 c 与 top 之间有多少【不同层】
-            --    的覆盖牌同时也与 top 重叠（即同一位置的连续叠层）
-            local maxDepth = 0
-            for _, top in ipairs(covers) do
-                local layerSet = {}
-                for _, mid in ipairs(covers) do
-                    if mid.layerNum < top.layerNum and overlaps(top, mid) then
-                        layerSet[mid.layerNum] = true
+            coverMap[c] = coverLayers
+        end
+    end
+
+    -- 第二步：从高层往低层传播 hidden 状态
+    -- 规则：如果一张 hidden 牌（coverLayers >= 2）与下方某牌重叠，
+    -- 下方牌也必须是 hidden（因为上方牌不渲染会露出下方牌）
+    for ln = maxLayer, 1, -1 do
+        if groups[ln] then
+            for _, c in ipairs(groups[ln]) do
+                if coverMap[c] >= 2 then  -- c 是 hidden
+                    for lnBelow = ln - 1, 1, -1 do
+                        if groups[lnBelow] then
+                            for _, below in ipairs(groups[lnBelow]) do
+                                if overlaps(c, below) and coverMap[below] < 2 then
+                                    coverMap[below] = 2  -- 强制 hidden
+                                end
+                            end
+                        end
                     end
                 end
-                local depth = 1  -- top 自身
-                for _ in pairs(layerSet) do depth = depth + 1 end
-                if depth > maxDepth then maxDepth = depth end
             end
-            if     maxDepth == 0 then c.state = "bright"
-            elseif maxDepth <  3 then c.state = "dim"
-            else                      c.state = "hidden"
-            end
+        end
+    end
+
+    -- 第三步：赋值状态
+    for c, cover in pairs(coverMap) do
+        if     cover == 0 then c.state = "bright"
+        elseif cover == 1 then c.state = "dim"
+        else                    c.state = "hidden"
         end
     end
 end
@@ -213,6 +238,7 @@ local function eliminate()
         end
     end
     if #eliminated > 0 then
+        M.score = M.score + (#eliminated / 3)  -- 每3张=1次消除=1分
         AudioManager.PlaySFX("card_match")
     end
     return eliminated
@@ -278,12 +304,17 @@ function M.newGame(lvl)
     M.curLvl     = lvl
     M.allCards    = {}; M.piles = {}; M.slot = {}; M.anims = {}
     M.state       = "playing"
-    M.shuffleUses = cfg.shuffleUses
+    M.shuffleUses = 0
     M.shuffleAnim = nil
-    M.undoUses     = cfg.undoUses
+    M.shuffleAdUsed = false
+    M.undoUses     = 0
     M.lastSlotCard = nil
     M.undoAnim     = nil
-    M.moveOutUses  = cfg.moveOutUses
+    M.undoAdUsed   = false
+    M.moveOutUses  = 0
+    M.moveOutAdUsed = false
+    M.showRescueConfirm = false
+    if lvl == 1 then M.score = 0 end  -- 从头开始时清零，过关保持累加
     M.overflowCols = {{},{},{}}
     M.moveAnims    = {}
     M.OVERFLOW_X   = 0  -- computeLayout 中重新计算
@@ -455,6 +486,10 @@ local function checkWinLose()
         end
     elseif #M.slot >= SLOT_MAX then
         M.state = "lose"
+        -- 如果移出道具还没用过广告，自动弹出救场弹窗
+        if not M.moveOutAdUsed then
+            M.showRescueConfirm = true
+        end
     end
 end
 
@@ -862,7 +897,6 @@ function M.update(dt)
         if a.t >= 1.0 then
             table.remove(M.anims, i)
             a.card.slotX = a.dstX
-            AudioManager.PlaySFX("card_move")
             pushSlot(a.card)
             M.lastSlotCard = a.card  -- 记录最近落槽的牌，供撤回使用
             checkWinLose()

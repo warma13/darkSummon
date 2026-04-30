@@ -2,39 +2,42 @@
 -- yang/MiniGame.lua  ·  羊了个羊 · 小游戏封装模块
 -- ============================================================================
 --
--- 【快速接入】
---
---   local MiniGame = require "yang.MiniGame"
---
---   -- ① 启动
---   MiniGame.start({
---       startLvl = 1,          -- 可选，从第几关开始（默认 1）
---       onDone = function(result)
---           -- result = "win"   全部关卡通关
---           -- result = "exit"  玩家按 ESC 主动退出
---           -- 在此处恢复宿主游戏逻辑 ...
---       end,
---   })
---
---   -- ② 在宿主的 Update / 鼠标 / 键盘 处理函数首行加一句跳过即可
---   function HostUpdate(et, ed)
---       if MiniGame.isActive() then return end
---       -- ... 宿主逻辑 ...
---   end
---
---   -- ③ 强制退出（不触发 onDone）
---   MiniGame.stop()
---
--- 【原理说明】
+-- 【事件架构】
 --   · NanoVG 使用独立 context（nvgCreate），与宿主渲染完全隔离。
---   · Update / MouseButtonDown / KeyDown 与宿主共用事件总线；
---     mini-game 内部通过 active_ 标志快速跳过，宿主通过 isActive() 让路。
---   · 全局事件只订阅一次（require 时），vg 事件随 start/stop 订阅/取消。
+--   · Update / Mouse / Touch / KeyDown 由宿主统一分发
+--     （GameLoop / InputHandler / Bootstrap），本模块不独立订阅。
+--   · start() 时调用 UI.SetEnabled(false) 冻结宿主 UI 事件通道，
+--     stop() 时调用 UI.SetEnabled(true) 恢复，彻底阻断 UI 层穿透。
 -- ============================================================================
 
 local Board        = require "yang.Board"
 local Renderer     = require "yang.Renderer"
 local AudioManager = require "Game.AudioManager"
+local AdHelper     = require "Game.AdHelper"
+local UI           = require "urhox-libs/UI"
+local Toast        = require "Game.Toast"
+
+local _ok_ard, _ARD = pcall(require, "Game.AdReliefData")
+if not _ok_ard then _ARD = nil end
+
+--- 优先使用免广券（弹窗确认），没有券才看广告
+---@param onSuccess fun()
+local function useTicketOrAd(onSuccess)
+    -- 1) 免广卡（当日看满20次自动激活）
+    if _ARD and _ARD.IsAdFreeToday and _ARD.IsAdFreeToday() then
+        Toast.Show("免广卡生效", { 100, 220, 180 })
+        onSuccess()
+        return
+    end
+    -- 2) 有免广券 → 弹窗让用户选择
+    if _ARD and _ARD.GetTickets and _ARD.GetTickets() > 0 then
+        Board.ticketConfirmCb   = onSuccess
+        Board.showTicketConfirm = true
+        return
+    end
+    -- 3) 没有券 → 直接看广告
+    AdHelper.ShowRewardAd(onSuccess)
+end
 
 local M        = {}
 local vg_      = nil
@@ -44,7 +47,9 @@ local active_  = false
 local bgmNode_ = nil
 local bgmSrc_  = nil
 
--- ── 全局事件处理函数（引擎通过字符串名查找，必须为全局）────────────────────────
+-- ============================================================================
+-- 全局事件处理函数（引擎通过字符串名查找，必须为全局）
+-- ============================================================================
 
 function _YangMG_Render(eventType, eventData)
     if not active_ then return end
@@ -56,55 +61,128 @@ function _YangMG_Update(eventType, eventData)
     Board.update(eventData["TimeStep"]:GetFloat())
 end
 
+--- 辅助：检测点击是否在按钮区域内
+local function hitBtn(btn, mx, my)
+    return btn and mx >= btn.x and mx <= btn.x + btn.w
+               and my >= btn.y and my <= btn.y + btn.h
+end
+
+--- 鼠标/触摸按下（兼容两种事件：MouseButtonDown 有 Button 字段，TouchBegin 没有）
 function _YangMG_MouseDown(eventType, eventData)
     if not active_ then return end
-    if eventData["Button"]:GetInt() ~= MOUSEB_LEFT then return end
+    -- 兼容鼠标事件(有Button字段)和触摸事件(无Button字段)
+    local btnVar = eventData["Button"]
+    if btnVar and btnVar:GetInt() ~= MOUSEB_LEFT then return end
     local mx = eventData["X"]:GetInt() / DPR_
     local my = eventData["Y"]:GetInt() / DPR_
 
-    -- 菜单界面：点击按钮开始游戏
-    if Board.state == "menu" then
-        for _, btn in ipairs(Renderer.menuBtns) do
-            if mx >= btn.x and mx <= btn.x + btn.w and
-               my >= btn.y and my <= btn.y + btn.h then
-                Board.newGame(btn.lvl)
-                break
+    -- ── 免广券确认弹窗 ────────────────────────────────────────────────────────
+    if Board.showTicketConfirm then
+        if hitBtn(Renderer.ticketUseBtn, mx, my) then
+            -- 使用免广券
+            Board.showTicketConfirm = false
+            local cb = Board.ticketConfirmCb
+            Board.ticketConfirmCb = nil
+            if cb and _ARD and _ARD.UseTicket then
+                _ARD.UseTicket()
+                Toast.Show("已使用免广券（剩余 " .. _ARD.GetTickets() .. "）", { 100, 220, 180 })
+                cb()
+            end
+        elseif hitBtn(Renderer.ticketAdBtn, mx, my) then
+            -- 选择看广告
+            Board.showTicketConfirm = false
+            local cb = Board.ticketConfirmCb
+            Board.ticketConfirmCb = nil
+            if cb then
+                AdHelper.ShowRewardAd(cb)
             end
         end
         return
     end
 
-    -- 全关通关 → 通知宿主
-    if Board.state == "win" then
-        M.stop()
-        if onDone_ then onDone_("win") end
+    -- ── 确认弹窗最高优先级 ──────────────────────────────────────────────────
+    if Board.showExitConfirm then
+        if hitBtn(Renderer.confirmYesBtn, mx, my) then
+            -- 确定 → 退出小游戏
+            Board.showExitConfirm = false
+            M.stop()
+            if onDone_ then onDone_("exit") end
+        elseif hitBtn(Renderer.confirmNoBtn, mx, my) then
+            -- 取消
+            Board.showExitConfirm = false
+        end
+        -- 弹窗显示期间吞掉所有点击
         return
     end
 
-    -- 失败 → 退回内部菜单，让玩家自行选择重试
-    if Board.state == "lose" then
-        Board.state = "menu"
+    -- ── 救场弹窗（失败时看广告获得移出道具）────────────────────────────────
+    if Board.state == "lose" and Board.showRescueConfirm then
+        if hitBtn(Renderer.rescueAdBtn, mx, my) then
+            Board.showRescueConfirm = false
+            useTicketOrAd(function()
+                Board.moveOutAdUsed = true
+                Board.moveOutUses = 1
+                Board.moveOutCards()
+            end)
+        elseif hitBtn(Renderer.rescueGiveUpBtn, mx, my) then
+            Board.showRescueConfirm = false
+        end
+        return
+    end
+
+    -- ── 通关/失败界面：响应 overlay 按钮 ────────────────────────────────────
+    if Board.state == "win" or Board.state == "lose" then
+        if hitBtn(Renderer.overlayRestartBtn, mx, my) then
+            Board.newGame(1)
+        elseif hitBtn(Renderer.overlayBackBtn, mx, my) then
+            Board.showExitConfirm = true
+        end
+        return
+    end
+
+    -- ── HUD 返回按钮 ────────────────────────────────────────────────────────
+    if hitBtn(Renderer.backBtn, mx, my) then
+        Board.showExitConfirm = true
         return
     end
 
     -- 动画期间封锁所有点击
     if Board.shuffleAnim or Board.undoAnim or #Board.moveAnims > 0 then return end
 
-    -- 道具按钮
-    local mob = Renderer.moveOutBtn
-    if mob and mx >= mob.x and mx <= mob.x + mob.w
-           and my >= mob.y and my <= mob.y + mob.h then
-        Board.moveOutCards(); return
+    -- 道具按钮（看广告获得 1 次使用，每局每个道具限 1 次）
+    -- 广告不可用时（如预览环境）也直接授予
+    if hitBtn(Renderer.moveOutBtn, mx, my) then
+        if Board.moveOutUses > 0 then
+            Board.moveOutCards()
+        elseif not Board.moveOutAdUsed then
+            useTicketOrAd(function()
+                Board.moveOutAdUsed = true
+                Board.moveOutUses = 1
+            end)
+        end
+        return
     end
-    local ub = Renderer.undoBtn
-    if ub and mx >= ub.x and mx <= ub.x + ub.w
-          and my >= ub.y and my <= ub.y + ub.h then
-        Board.undoCard(); return
+    if hitBtn(Renderer.undoBtn, mx, my) then
+        if Board.undoUses > 0 then
+            Board.undoCard()
+        elseif not Board.undoAdUsed then
+            useTicketOrAd(function()
+                Board.undoAdUsed = true
+                Board.undoUses = 1
+            end)
+        end
+        return
     end
-    local sb = Renderer.shuffleBtn
-    if sb and mx >= sb.x and mx <= sb.x + sb.w
-          and my >= sb.y and my <= sb.y + sb.h then
-        Board.shuffleCards(); return
+    if hitBtn(Renderer.shuffleBtn, mx, my) then
+        if Board.shuffleUses > 0 then
+            Board.shuffleCards()
+        elseif not Board.shuffleAdUsed then
+            useTicketOrAd(function()
+                Board.shuffleAdUsed = true
+                Board.shuffleUses = 1
+            end)
+        end
+        return
     end
 
     -- 暂存区顶牌
@@ -125,35 +203,42 @@ function _YangMG_MouseDown(eventType, eventData)
     if card then Board.onCardClick(card) end
 end
 
+--- 鼠标/触摸移动（当前无拖拽需求，预留接口供宿主统一路由）
+function _YangMG_MouseMove(eventType, eventData)
+    if not active_ then return end
+    -- 暂无拖拽逻辑，留空
+end
+
+--- 鼠标/触摸释放（当前无拖拽需求，预留接口供宿主统一路由）
+function _YangMG_MouseUp(eventType, eventData)
+    if not active_ then return end
+    -- 暂无拖拽逻辑，留空
+end
+
 function _YangMG_KeyDown(eventType, eventData)
     if not active_ then return end
     local key = eventData["Key"]:GetInt()
     if key == KEY_ESCAPE then
-        if Board.state == "menu" then
-            -- 菜单界面按 ESC → 退出小游戏
-            M.stop()
-            if onDone_ then onDone_("exit") end
+        if Board.showExitConfirm then
+            -- 弹窗中按 ESC → 关闭弹窗
+            Board.showExitConfirm = false
         else
-            -- 游戏中按 ESC → 回到内部菜单
-            Board.state = "menu"
+            -- 游戏中按 ESC → 弹出确认返回弹窗
+            Board.showExitConfirm = true
         end
     elseif key == KEY_R then
-        if Board.state == "playing" or Board.state == "lose" then
+        if not Board.showExitConfirm and
+           (Board.state == "playing" or Board.state == "lose") then
             Board.newGame(Board.curLvl)
         end
     end
 end
 
--- ── 一次性订阅全局事件（require 时执行，避免重复注册）────────────────────────
--- NanoVGRender 依赖 vg context，在 start/stop 里动态管理。
+-- ============================================================================
+-- 公开接口
+-- ============================================================================
 
-SubscribeToEvent("Update",          "_YangMG_Update")
-SubscribeToEvent("MouseButtonDown", "_YangMG_MouseDown")
-SubscribeToEvent("KeyDown",         "_YangMG_KeyDown")
-
--- ── 公开接口 ──────────────────────────────────────────────────────────────────
-
---- 查询小游戏是否正在运行（宿主在自己的事件处理函数里调用）
+--- 查询小游戏是否正在运行
 function M.isActive()
     return active_
 end
@@ -167,6 +252,9 @@ function M.start(opts)
     onDone_ = opts.onDone
     active_ = true
 
+    -- ★ 冻结宿主 UI 事件通道，阻止点击穿透到 UI 组件树
+    UI.SetEnabled(false)
+
     local g = GetGraphics()
     DPR_    = g:GetDPR()
     LW_     = g:GetWidth()  / DPR_
@@ -178,7 +266,7 @@ function M.start(opts)
 
     vg_ = nvgCreate(1)
     Renderer.init(vg_)
-    Board.newGame(opts.startLvl or 1)
+    Board.newGame(1)
 
     -- 用 vg 作为 sender，保证只渲染自己的 context
     SubscribeToEvent(vg_, "NanoVGRender", "_YangMG_Render")
@@ -191,18 +279,22 @@ function M.start(opts)
         bgmRes.looped = true
         bgmNode_ = audioScene:CreateChild("YangBGM")
         bgmSrc_ = bgmNode_:CreateComponent("SoundSource")
-        bgmSrc_.soundType = SOUND_MUSIC
+        bgmSrc_.soundType = "Music"  -- 与主游戏一致，受 Music 通道音量/静音控制
+        bgmSrc_.gain = AudioManager.GetBGMVolume()
         bgmSrc_:Play(bgmRes)
-        bgmSrc_.gain = 2.0
     end
 
-    print("[YangMiniGame] 启动，从第" .. (opts.startLvl or 1) .. "关开始")
+    print("[YangMiniGame] 启动，显示菜单")
 end
 
 --- 强制退出小游戏，不触发 onDone
 function M.stop()
     if not active_ then return end
     active_ = false
+
+    -- ★ 恢复宿主 UI 事件通道
+    UI.SetEnabled(true)
+
     if bgmSrc_ then
         bgmSrc_:Stop()
         bgmSrc_ = nil

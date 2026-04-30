@@ -11,6 +11,7 @@ local InventoryData = require("Game.InventoryData")
 local TodayStr = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
+local LaborDayData = require("Game.LaborDayData")
 
 local WB = {}
 
@@ -576,6 +577,7 @@ function WB.ClaimReward(totalDamage, difficultyLevel)
 
     -- 计算奖励（招募券自选包，含难度加成）
     local frostPact = WB.CalcRewards(totalDamage, difficultyLevel)
+    frostPact = LaborDayData.ApplyMultiplier(frostPact)
     if frostPact > 0 then
         InventoryData.Add("recruit_ticket_select_box", frostPact)
     end
@@ -621,6 +623,9 @@ function WB.ClaimReward(totalDamage, difficultyLevel)
             end
         end
     end
+
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("world_boss") end
 
     HeroData.Save(true)
 

@@ -5,8 +5,9 @@
 ---@diagnostic disable-next-line: undefined-global
 local cjson = cjson
 local Config = require("Game.Config")
-local HeroData = require("Game.HeroData")
+local HeroData     = require("Game.HeroData")
 local SaveRegistry = require("Game.SaveRegistry")
+
 
 local ChestData = {}
 

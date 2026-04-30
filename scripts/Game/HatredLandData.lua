@@ -8,6 +8,7 @@ local Toast = require("Game.Toast")
 local SaveRegistry = require("Game.SaveRegistry")
 local InventoryData = require("Game.InventoryData")
 local TodayStr = require("Game.DateUtil").TodayStr
+local LaborDayData = require("Game.LaborDayData")
 
 local HL = {}
 
@@ -386,6 +387,10 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
     end
 
     local calc = HL.CalcRewards(totalDamage, difficultyLevel)
+    -- 劳动加倍（一次结算只消耗一次机会）
+    local laborMult = LaborDayData.ConsumeDouble()
+    calc.essence = math.floor(calc.essence * laborMult)
+    calc.shards  = math.floor(calc.shards * laborMult)
     local hasReward = calc.essence > 0 or calc.shards > 0
 
     -- 发放遗物精华
@@ -420,6 +425,10 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
         local drop = RelicData.RollDrop(dropKey)
         relicDropResult = RelicData.ProcessDrop(drop)
     end
+
+    -- 劳动奖章产出
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("hatred_land") end
 
     HeroData.Save(true)
 

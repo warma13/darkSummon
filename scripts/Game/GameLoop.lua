@@ -38,8 +38,15 @@ end
 ---@param eventType string
 ---@param eventData UpdateEventData
 function GameLoop.HandleUpdate(eventType, eventData)
+    -- 小游戏活跃时：分发 Update 到对应小游戏，跳过宿主逻辑
     if MiniGameUI.isActive() then
-        _YangMG_Update(eventType, eventData)
+        local YangMG = require("yang.MiniGame")
+        local AutoChessMG = require("autochess.MiniGame")
+        if YangMG.isActive() then
+            _YangMG_Update(eventType, eventData)
+        elseif AutoChessMG.isActive() then
+            _AutoChessMG_Update(eventType, eventData)
+        end
         return
     end
 

@@ -13,6 +13,7 @@ local SaveRegistry = require("Game.SaveRegistry")
 local TodayKey = require("Game.DateUtil").TodayKey
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
+local LaborDayData = require("Game.LaborDayData")
 
 local Emerald = {}
 
@@ -706,6 +707,9 @@ function Emerald.EndSession(session)
     local tokens = Emerald.CalcTokenReward(session.currentWave, session.difficultyId, session.affixBonusPct)
     session.tokenReward = tokens
 
+    -- 劳动加倍
+    tokens = LaborDayData.ApplyMultiplier(tokens)
+
     -- 发放翠影凭证
     if tokens > 0 then
         Currency.GrantReward({ type = "currency", id = CURRENCY_ID, amount = tokens }, "EmeraldDungeon")
@@ -781,6 +785,10 @@ function Emerald.EndSession(session)
             displayName = "秘境券（首次通关）", displayIcon = "image/icon_ticket.png",
         }
     end
+
+    -- 劳动奖章产出
+    local okLM, LMDD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMDD.EarnMedals("emerald_dungeon") end
 
     local result = {
         tokens = tokens,
@@ -886,6 +894,7 @@ function Emerald.DoSweep(difficultyId, affixBonusPct)
 
     local bestWaves = Emerald.GetBestWaves(difficultyId)
     local tokens = Emerald.CalcTokenReward(bestWaves, difficultyId, affixBonusPct or 0)
+    tokens = LaborDayData.ApplyMultiplier(tokens)
 
     -- 发放翠影凭证
     if tokens > 0 then
