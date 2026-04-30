@@ -6,7 +6,9 @@ local State = require("Game.State")
 local Grid = require("Game.Grid")
 local Tower = require("Game.Tower")
 local Renderer = require("Game.Renderer")
-local MiniGameUI = require("Game.MiniGameUI")
+local MiniGameUI        = require("Game.MiniGameUI")
+local YangMiniGame      = require("yang.MiniGame")
+local AutoChessMiniGame = require("autochess.MiniGame")
 
 local UI     -- 延迟注入
 
@@ -53,6 +55,8 @@ end
 
 --- 按下开始拖拽
 local function HandlePointerDown(x, y)
+    -- 小游戏运行时，宿主输入全部跳过（双重防护）
+    if MiniGameUI.isActive() then return end
     -- 非战斗页禁用拖拽
     if State.activeTab ~= "battle" then return end
 
@@ -91,6 +95,7 @@ end
 
 --- 移动更新拖拽位置
 local function HandlePointerMove(x, y)
+    if MiniGameUI.isActive() then return end
     if State.activeTab ~= "battle" then return end
     if not State.dragPending and not State.dragging then return end
 
@@ -111,6 +116,7 @@ end
 
 --- 释放结束拖拽
 local function HandlePointerUp(x, y)
+    if MiniGameUI.isActive() then return end
     if State.activeTab ~= "battle" then return end
 
     -- 点击（未拖动）→ 选中/取消选中英雄
@@ -169,7 +175,12 @@ end
 
 function InputHandler.HandleMouseDown(eventType, eventData)
     if MiniGameUI.isActive() then
-        _YangMG_MouseDown(eventType, eventData)
+        -- 只转发给当前激活的小游戏，避免穿透
+        if AutoChessMiniGame.isActive() then
+            _AutoChessMG_MouseDown(eventType, eventData)
+        elseif YangMiniGame.isActive() then
+            _YangMG_MouseDown(eventType, eventData)
+        end
         return
     end
     if UI.IsPointerOverUI() then return end
@@ -181,7 +192,14 @@ function InputHandler.HandleMouseDown(eventType, eventData)
 end
 
 function InputHandler.HandleMouseMove(eventType, eventData)
-    if MiniGameUI.isActive() then return end
+    if MiniGameUI.isActive() then
+        if AutoChessMiniGame.isActive() then
+            _AutoChessMG_MouseMove(eventType, eventData)
+        elseif YangMiniGame.isActive() then
+            _YangMG_MouseMove(eventType, eventData)
+        end
+        return
+    end
     if InputDedup("mouse") then return end
     if not State.dragging and not State.dragPending then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
@@ -189,7 +207,14 @@ function InputHandler.HandleMouseMove(eventType, eventData)
 end
 
 function InputHandler.HandleMouseUp(eventType, eventData)
-    if MiniGameUI.isActive() then return end
+    if MiniGameUI.isActive() then
+        if AutoChessMiniGame.isActive() then
+            _AutoChessMG_MouseUp(eventType, eventData)
+        elseif YangMiniGame.isActive() then
+            _YangMG_MouseUp(eventType, eventData)
+        end
+        return
+    end
     if InputDedup("mouse") then return end
     local button = eventData["Button"]:GetInt()
     if button ~= MOUSEB_LEFT then return end
@@ -202,7 +227,14 @@ end
 -- ============================================================================
 
 function InputHandler.HandleTouchBegin(eventType, eventData)
-    if MiniGameUI.isActive() then return end
+    if MiniGameUI.isActive() then
+        if AutoChessMiniGame.isActive() then
+            _AutoChessMG_MouseDown(eventType, eventData)
+        elseif YangMiniGame.isActive() then
+            _YangMG_MouseDown(eventType, eventData)
+        end
+        return
+    end
     if UI.IsPointerOverUI() then return end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
@@ -210,14 +242,28 @@ function InputHandler.HandleTouchBegin(eventType, eventData)
 end
 
 function InputHandler.HandleTouchMove(eventType, eventData)
-    if MiniGameUI.isActive() then return end
+    if MiniGameUI.isActive() then
+        if AutoChessMiniGame.isActive() then
+            _AutoChessMG_MouseMove(eventType, eventData)
+        elseif YangMiniGame.isActive() then
+            _YangMG_MouseMove(eventType, eventData)
+        end
+        return
+    end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
     HandlePointerMove(x, y)
 end
 
 function InputHandler.HandleTouchEnd(eventType, eventData)
-    if MiniGameUI.isActive() then return end
+    if MiniGameUI.isActive() then
+        if AutoChessMiniGame.isActive() then
+            _AutoChessMG_MouseUp(eventType, eventData)
+        elseif YangMiniGame.isActive() then
+            _YangMG_MouseUp(eventType, eventData)
+        end
+        return
+    end
     if InputDedup("touch") then return end
     local x, y = ScreenToLogical(eventData["X"]:GetInt(), eventData["Y"]:GetInt())
     HandlePointerUp(x, y)

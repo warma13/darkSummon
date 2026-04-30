@@ -355,14 +355,6 @@ InventoryData.ITEM_DEFS = {
         rarity = "R",
         stackable = true,
     },
-    dungeon_ticket_skill_book = {
-        id = "dungeon_ticket_skill_book",
-        name = "秘典藏书阁挑战券",
-        desc = "可在秘典藏书阁消耗，额外挑战1次",
-        icon = "dungeon_ticket",
-        rarity = "R",
-        stackable = true,
-    },
     -- Boss 挑战券
     boss_ticket = {
         id = "boss_ticket",

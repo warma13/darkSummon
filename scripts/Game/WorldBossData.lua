@@ -11,6 +11,7 @@ local InventoryData = require("Game.InventoryData")
 local TodayStr = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
+local LaborDayData = require("Game.LaborDayData")
 
 local WB = {}
 
@@ -515,7 +516,7 @@ function WB.ConsumeTicket()
         return false
     end
     local data = WB.GetData()
-    -- 扣券（不增加 todayAttempts，券是额外次数，不应挤占免费次数）
+    -- 扣券
     for i, slot in ipairs(InventoryData.items) do
         if slot.id == "boss_ticket" then
             slot.count = slot.count - 1
@@ -525,6 +526,7 @@ function WB.ConsumeTicket()
             break
         end
     end
+    data.todayAttempts = data.todayAttempts + 1
     data.totalAttempts = (data.totalAttempts or 0) + 1
     HeroData.Save()
     return true
@@ -576,6 +578,7 @@ function WB.ClaimReward(totalDamage, difficultyLevel)
 
     -- 计算奖励（招募券自选包，含难度加成）
     local frostPact = WB.CalcRewards(totalDamage, difficultyLevel)
+    frostPact = LaborDayData.ApplyMultiplier(frostPact)
     if frostPact > 0 then
         InventoryData.Add("recruit_ticket_select_box", frostPact)
     end
@@ -622,6 +625,9 @@ function WB.ClaimReward(totalDamage, difficultyLevel)
         end
     end
 
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("world_boss") end
+
     HeroData.Save(true)
 
     print("[WorldBoss] Claimed reward: damage=" .. totalDamage
@@ -648,9 +654,7 @@ function WB.FormatDamage(damage)
     if not damage or damage ~= damage or damage == math.huge or damage == -math.huge then
         return "0"
     end
-    if damage >= 100000000000000000000 then
-        return string.format("%.1f垓", damage / 100000000000000000000)
-    elseif damage >= 10000000000000000 then
+    if damage >= 10000000000000000 then
         return string.format("%.1f京", damage / 10000000000000000)
     elseif damage >= 1000000000000 then
         return string.format("%.1f兆", damage / 1000000000000)

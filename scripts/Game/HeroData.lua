@@ -23,8 +23,7 @@ local _advMultCache = {}        -- advanceLevel(0-20) → multiplier
 -- 存档版本号：用于识别数据格式，触发迁移
 -- v1(无版本号): 排行榜上传 bestStage
 -- v2: 排行榜上传 bestGlobalWave
--- v3: WAVES_PER_STAGE 20→10，从 bestStage 重算 bestGlobalWave，排行榜 key→v5
-HeroData.SAVE_VERSION = 3
+HeroData.SAVE_VERSION = 2
 
 -- 英雄数据存储
 HeroData.heroes = {}       -- heroId -> { unlocked, fragments, level, star }
@@ -166,6 +165,7 @@ function HeroData._InitCoreDefaults()
     HeroData.towerData = nil
     HeroData.limitedBanner = nil
     HeroData.relicData = nil
+    HeroData.mineDungeonData = nil
     HeroData.skillTags = {}  -- { [heroId] = { [tagId] = tier, ... } }
 
     print("[HeroData] Core defaults initialized")
@@ -224,20 +224,6 @@ function HeroData._MigrateCore(saveData)
         end
         saveData._needLeaderboardResync = true
         print("[HeroData] Save migrated v1→v2: bestGlobalWave=" .. rawStats.bestGlobalWave)
-    end
-
-    -- v2→v3 迁移：WAVES_PER_STAGE 20→10，从 bestStage 重算 bestGlobalWave
-    if oldVersion < 3 then
-        local bestStage = rawStats.bestStage or 0
-        if bestStage > 0 then
-            -- bestStage 不受 WAVES_PER_STAGE 影响，用它和新的 WAVES_PER_STAGE 重算
-            local newGW = bestStage * Config.WAVES_PER_STAGE
-            local oldGW = rawStats.bestGlobalWave or 0
-            rawStats.bestGlobalWave = newGW
-            print("[HeroData] Save migrated v2→v3: bestGlobalWave " .. oldGW .. " → " .. newGW
-                .. " (bestStage=" .. bestStage .. ", WAVES_PER_STAGE=" .. Config.WAVES_PER_STAGE .. ")")
-        end
-        saveData._needLeaderboardResync = true
     end
 
     -- rank→star 迁移
@@ -1638,6 +1624,12 @@ end
 function HeroData.ClaimIdleRewards(rewards)
     if not rewards then return end
     local Currency = require("Game.Currency")
+    -- 劳动加倍（延迟加载避免循环依赖，一次结算只消耗一次机会）
+    local LaborDayData = require("Game.LaborDayData")
+    local laborMult = LaborDayData.ConsumeDouble()
+    rewards.nether_crystal = math.floor(rewards.nether_crystal * laborMult)
+    rewards.devour_stone   = math.floor(rewards.devour_stone * laborMult)
+    rewards.forge_iron     = math.floor(rewards.forge_iron * laborMult)
     Currency.Add("nether_crystal", rewards.nether_crystal)
     Currency.Add("devour_stone", rewards.devour_stone)
     Currency.Add("forge_iron", rewards.forge_iron)

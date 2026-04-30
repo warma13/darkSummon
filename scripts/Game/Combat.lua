@@ -276,10 +276,6 @@ local function CalcFinalDamage(tower, enemy, damage)
             if hs and hs.bonusCritDmg and hs.bonusCritDmg > 0 then
                 critDmg = critDmg + hs.bonusCritDmg
             end
-            -- 光环暴击伤害加成（cadence / probability_warp 标签）
-            if tower.auraCritDmgBuff and tower.auraCritDmgBuff > 0 then
-                critDmg = critDmg + tower.auraCritDmgBuff
-            end
             local critReduce = enemy.critDmgReduce or 0
             if critReduce > 0 then
                 critDmg = critDmg * (1 - critReduce)

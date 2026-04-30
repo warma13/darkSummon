@@ -74,11 +74,15 @@ local CONFIG = {
     --   { totalCards = 240, kindCount = 6, shuffleUses = 1, undoUses = 2 },
     levels = {
         { totalCards = 18                   },  -- 第1关  入门
-        { totalCards = 150,  kindCount = 8  },  -- 第2关
+        { totalCards = 150,  kindCount = 10 },  -- 第2关
         { totalCards = 240,  kindCount = 10 },  -- 第3关
         { totalCards = 480,  kindCount = 13 },  -- 第4关
         { totalCards = 900,  kindCount = 15 },  -- 第5关
-        { totalCards = 1500, kindCount = 21 },  -- 第6关  无尽
+        { totalCards = 1500, kindCount = 21 },  -- 第6关
+        { totalCards = 2100, kindCount = 25 },  -- 第7关
+        { totalCards = 2700, kindCount = 30 },  -- 第8关
+        { totalCards = 3600, kindCount = 35 },  -- 第9关
+        { totalCards = 4500, kindCount = 40 },  -- 第10关
     },
 }
 -- ============================================================================

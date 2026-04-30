@@ -9,6 +9,7 @@ local SaveRegistry = require("Game.SaveRegistry")
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
 
+
 local TrialTowerData = {}
 
 -- ============================================================================

@@ -11,6 +11,7 @@ local State = require("Game.State")
 local Toast = require("Game.Toast")
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
+local LaborDayData = require("Game.LaborDayData")
 
 local Abyss = {}
 
@@ -360,6 +361,11 @@ function Abyss.ClaimReward(clearedWave, difficultyId)
         waveDrops[w] = drops
     end
 
+    -- 劳动加倍（一次结算只消耗一次机会）
+    local laborMult = LaborDayData.ConsumeDouble()
+    totalDust  = math.floor(totalDust * laborMult)
+    totalSeals = math.floor(totalSeals * laborMult)
+
     -- 发放裂隙之尘
     if totalDust > 0 then
         Currency.GrantReward({ type = "currency", id = "rift_dust", amount = totalDust }, "AbyssRift")
@@ -606,6 +612,10 @@ function Abyss.EndSession(session)
     for _, sid in ipairs(runeOrder2) do
         rewardDefs[#rewardDefs + 1] = { type = "rune", id = sid, amount = runeCounts2[sid] }
     end
+
+    -- 劳动奖章产出
+    local okLM, LMDD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMDD.EarnMedals("abyss_rift") end
 
     local result = {
         totalDust = session.totalDust,

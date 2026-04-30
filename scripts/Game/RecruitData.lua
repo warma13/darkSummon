@@ -103,8 +103,7 @@ end
 ---@return table|string  results数组 或 错误信息
 function RecruitData.DoPull(pullCount, isFree)
     local rd = HeroData.recruitData
-    local cost = pullCount >= 1000 and Config.RECRUIT_THOUSAND_COST
-              or pullCount >= 100 and Config.RECRUIT_HUNDRED_COST
+    local cost = pullCount >= 100 and Config.RECRUIT_HUNDRED_COST
               or pullCount == 10 and Config.RECRUIT_TEN_COST
               or Config.RECRUIT_SINGLE_COST
 

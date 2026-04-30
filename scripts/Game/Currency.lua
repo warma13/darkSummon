@@ -67,9 +67,8 @@ Currency.TYPES = {
     "rune_seal",        -- 符文封印（洗练锁定用）
     "abyss_crystal",    -- 深渊结晶（定向洗练用）
     "emerald_token",    -- 翠影凭证（翠影秘境活动用）
-    "skill_book_1",     -- 初级技能书（技能标签升级用）
-    "skill_book_2",     -- 中级技能书（技能标签升级用）
-    "skill_book_3",     -- 高级技能书（技能标签升级用）
+    "joy_coin",         -- 欢乐币（小游戏兑换用）
+    "labor_medal",      -- 劳动奖章（劳动节限时活动用）
 }
 
 --- 获取货币显示信息
@@ -323,6 +322,8 @@ function Currency.EnsureFields()
         rune_seal = 0,
         abyss_crystal = 0,
         emerald_token = 0,
+        joy_coin = 0,
+        labor_medal = 0,
     }
     for key, default in pairs(defaults) do
         if HeroData.currencies[key] == nil then

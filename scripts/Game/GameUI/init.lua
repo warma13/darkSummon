@@ -1605,20 +1605,6 @@ function GameUI.Update(dt)
     end
 
     GameUI.UpdateHUD()
-
-    -- ======== 英雄信息面板：独立 dt 累加器驱动属性刷新（绕过 os.clock） ========
-    do
-        local REFRESH_INTERVAL = 0.5  -- 每 0.5 秒刷新一次
-        GameUI._heroStatTimer = (GameUI._heroStatTimer or 0) + dt
-        if GameUI._heroStatTimer >= REFRESH_INTERVAL then
-            GameUI._heroStatTimer = 0
-            local refs = hudCache.refs
-            if refs and refs.heroInfoPanel and State.selectedTower then
-                GameUI.UpdateHeroInfoValues(State.selectedTower, refs.heroInfoPanel)
-            end
-        end
-    end
-
     GameUI.UpdateAfkTimer()
     EquipUI.Update(dt)
     -- 时装签到预览动画

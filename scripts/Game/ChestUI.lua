@@ -398,7 +398,6 @@ function ChestUI.CreateOpenButton()
                     MakeBtn(1),
                     MakeBtn(10),
                     MakeBtn(100),
-                    MakeBtn(1000),
                 },
             },
         },

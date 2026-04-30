@@ -11,7 +11,7 @@ local _ctx = nil
 
 -- 确认弹窗状态
 local _divineConfirmOverlay = nil  ---@type any
-local _divineConfirmEntry   = nil  ---@type DivineEntry
+local _divineConfirmEntry   = nil  ---@type table
 local _divineConfirmIndex   = nil  ---@type number
 
 -- ============================================================================
@@ -192,7 +192,7 @@ end
 -- 神裔卡片
 -- ============================================================================
 
----@param entry DivineEntry
+---@param entry table
 ---@param index number
 ---@param isActive boolean
 ---@param isWeekend boolean

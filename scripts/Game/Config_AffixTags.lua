@@ -114,81 +114,121 @@ Config.AFFIX_TAG_SYSTEM = {
     },
 
     -- ========================================================================
-    -- 第3层：效果类别词条 —— 按 HERO_SKILL_TAGS 的 category 字段匹配
-    -- 每个类别覆盖 8-23 个标签（跨 8-15 个英雄），换英雄不废
+    -- 第3层：技能标签词条 —— 精确匹配 HERO_SKILL_TAGS 的标签 id
     -- ========================================================================
     tag_affixes = {
-        -- === dot：持续伤害类 (18标签, 覆盖~10英雄) ===
+        -- === 控制标签 ===
         {
-            id         = "cat_dot_amp",
-            name       = "蚀骨侵蚀",
-            desc       = "[持续伤害]类技能：伤害+{v}%，持续时间+{v2}秒",
-            categories = { "dot" },
-            stat       = "tagDotDmg_pct",  stat2 = "tagDotDur_add",
-            minVal     = 0.06, maxVal = 0.16,
-            minVal2    = 0.2,  maxVal2 = 0.6,
-            tier       = 3,
+            id    = "tag_frost_eff",
+            name  = "寒霜共鸣",
+            desc  = "带[寒霜]标签的技能：减速率+{v}%，持续时间+{v2}秒",
+            tags  = { "frost" },
+            stat  = "tagSlowRate_add",  stat2 = "tagSlowDur_add",
+            minVal = 0.08, maxVal = 0.20,
+            minVal2 = 0.3,  maxVal2 = 1.0,
+            tier  = 3,
         },
-        -- === burst：爆发伤害类 (23标签, 覆盖~15英雄) ===
         {
-            id         = "cat_burst_dmg",
-            name       = "致命一击",
-            desc       = "[爆发伤害]类技能：伤害+{v}%",
-            categories = { "burst" },
-            stat       = "tagBurstDmg_pct",
-            minVal     = 0.08, maxVal = 0.22,
-            tier       = 3,
+            id    = "tag_frozen_chance",
+            name  = "极寒之心",
+            desc  = "带[冰封]标签的技能：冰封概率+{v}%",
+            tags  = { "frozen", "absolute_zero" },
+            stat  = "tagFreezeChance_add",
+            minVal = 0.05, maxVal = 0.15,
+            tier  = 3,
         },
-        -- === control：控制效果类 (10标签, 覆盖~6英雄) ===
+
+        -- === 物理输出标签 ===
         {
-            id         = "cat_control_eff",
-            name       = "寒霜枷锁",
-            desc       = "[控制效果]类技能：控制概率+{v}%，持续时间+{v2}秒",
-            categories = { "control" },
-            stat       = "tagCtrlChance_add",  stat2 = "tagCtrlDur_add",
-            minVal     = 0.04, maxVal = 0.12,
-            minVal2    = 0.2,  maxVal2 = 0.5,
-            tier       = 3,
+            id    = "tag_armorbreak_amp",
+            name  = "锐利碎甲",
+            desc  = "带[破甲]标签的技能：每层破甲效果+{v}%",
+            tags  = { "armor_break", "shatter", "aftershock" },
+            stat  = "tagArmorBreak_amp",
+            minVal = 0.15, maxVal = 0.40,
+            tier  = 3,
         },
-        -- === defense_shred：削弱防御类 (10标签, 覆盖~7英雄) ===
         {
-            id         = "cat_shred_amp",
-            name       = "锐利碎甲",
-            desc       = "[削弱防御]类技能：破甲/穿透效果+{v}%",
-            categories = { "defense_shred" },
-            stat       = "tagShredAmp_pct",
-            minVal     = 0.06, maxVal = 0.18,
-            tier       = 3,
+            id    = "tag_assassin_burst",
+            name  = "暗影猎杀",
+            desc  = "带[暗刺]标签的技能：首击伤害+{v}%",
+            tags  = { "dark_stab", "lethal" },
+            stat  = "tagAssassinBurst_pct",
+            minVal = 0.15, maxVal = 0.40,  -- 条件词条允许偏强, 从50%→40%
+            tier  = 3,
         },
-        -- === buff_aura：增益光环类 (11标签, 覆盖~5英雄) ===
+
+        -- === 法术输出标签 ===
         {
-            id         = "cat_buff_amp",
-            name       = "战歌回响",
-            desc       = "[增益光环]类技能：增益效果+{v}%",
-            categories = { "buff_aura" },
-            stat       = "tagBuffAmp_pct",
-            minVal     = 0.06, maxVal = 0.18,
-            tier       = 3,
+            id    = "tag_burn_dmg",
+            name  = "燎原之火",
+            desc  = "带[燃烧/灼烧]标签的技能伤害+{v}%",
+            tags  = { "scorch", "ignite", "prairie_fire", "searing" },
+            stat  = "tagBurnDmg_pct",
+            minVal = 0.12, maxVal = 0.35,  -- 覆盖4个标签过广, 从45%→35%
+            tier  = 3,
         },
-        -- === on_kill：击杀触发类 (10标签, 覆盖~9英雄) ===
         {
-            id         = "cat_onkill_bonus",
-            name       = "猎杀本能",
-            desc       = "[击杀触发]类技能：触发效果+{v}%",
-            categories = { "on_kill" },
-            stat       = "tagOnKillAmp_pct",
-            minVal     = 0.08, maxVal = 0.22,
-            tier       = 3,
+            id    = "tag_chain_amp",
+            name  = "连锁裂变",
+            desc  = "带[链式]标签的技能：链式跳跃数+{v}，每跳衰减-{v2}%",
+            tags  = { "dark_chain", "shadow_chain", "ember_chain" },
+            stat  = "tagChainBounce_add", stat2 = "tagChainDecay_reduce",
+            minVal = 1, maxVal = 2,        -- +3跳过强, 从3→2
+            minVal2 = 0.03, maxVal2 = 0.10, -- 衰减减少也相应收敛
+            tier  = 3,
         },
-        -- === stack_ramp：层数叠加类 (8标签, 覆盖~7英雄) ===
         {
-            id         = "cat_stack_eff",
-            name       = "厚积薄发",
-            desc       = "[层数叠加]类技能：每层效果+{v}%",
-            categories = { "stack_ramp" },
-            stat       = "tagStackAmp_pct",
-            minVal     = 0.04, maxVal = 0.12,
-            tier       = 3,
+            id    = "tag_dot_amp",
+            name  = "蚀骨侵蚀",
+            desc  = "带[DOT]标签的技能：持续伤害+{v}%，持续时间+{v2}秒",
+            tags  = { "plague", "infect_spread", "ulcerate", "burn_stack" },
+            stat  = "tagDotDmg_pct", stat2 = "tagDotDur_add",
+            minVal = 0.15, maxVal = 0.40,
+            minVal2 = 0.5,  maxVal2 = 2.0,
+            tier  = 3,
+        },
+
+        -- === 暴击标签 ===
+        {
+            id    = "tag_infernal_crit",
+            name  = "魔焰共振",
+            desc  = "带[魔焰]标签的技能：每层暴击率额外+{v}%",
+            tags  = { "infernal_stack" },
+            stat  = "tagInfernalCrit_add",
+            minVal = 0.02, maxVal = 0.06,
+            tier  = 3,
+        },
+        {
+            id    = "tag_erosion_pure",
+            name  = "永恒侵蚀·真",
+            desc  = "带[侵蚀]标签的技能：真伤转化率+{v}%",
+            tags  = { "erosion" },
+            stat  = "tagErosionPure_add",
+            minVal = 0.08, maxVal = 0.20,
+            tier  = 3,
+        },
+
+        -- === 辅助标签 ===
+        {
+            id    = "tag_buff_amp",
+            name  = "战歌回响",
+            desc  = "带[战歌/光环]标签的技能：增益效果+{v}%",
+            tags  = { "war_song", "inspire", "hero_song", "shadow_domain", "nature_aura" },
+            stat  = "tagBuffAmp_pct",
+            minVal = 0.12, maxVal = 0.35,
+            tier  = 3,
+        },
+
+        -- === 标记/易伤标签 ===
+        {
+            id    = "tag_mark_vuln",
+            name  = "猎物标记",
+            desc  = "带[标记]标签的技能：易伤效果+{v}%",
+            tags  = { "abyss_mark", "hunt_announce", "penetrate_mark", "weakness_lock" },
+            stat  = "tagMarkVuln_add",
+            minVal = 0.08, maxVal = 0.25,
+            tier  = 3,
         },
     },
 }
@@ -223,14 +263,18 @@ Config.AFFIX_TAG_RUNE_ENTRIES = {
     { id = "stype_aura_range",     affixTier = 2, weight = 2 },
     { id = "stype_passive_trigger",affixTier = 2, weight = 2 },
 
-    -- 第3层：效果类别（权重 1，稀有毕业词条，每条覆盖多英雄）
-    { id = "cat_dot_amp",       affixTier = 3, weight = 1 },
-    { id = "cat_burst_dmg",     affixTier = 3, weight = 1 },
-    { id = "cat_control_eff",   affixTier = 3, weight = 1 },
-    { id = "cat_shred_amp",     affixTier = 3, weight = 1 },
-    { id = "cat_buff_amp",      affixTier = 3, weight = 1 },
-    { id = "cat_onkill_bonus",  affixTier = 3, weight = 1 },
-    { id = "cat_stack_eff",     affixTier = 3, weight = 1 },
+    -- 第3层：技能标签（权重 1，稀有毕业词条）
+    { id = "tag_frost_eff",       affixTier = 3, weight = 1 },
+    { id = "tag_frozen_chance",   affixTier = 3, weight = 1 },
+    { id = "tag_armorbreak_amp",  affixTier = 3, weight = 1 },
+    { id = "tag_assassin_burst",  affixTier = 3, weight = 1 },
+    { id = "tag_burn_dmg",        affixTier = 3, weight = 1 },
+    { id = "tag_chain_amp",       affixTier = 3, weight = 1 },
+    { id = "tag_dot_amp",         affixTier = 3, weight = 1 },
+    { id = "tag_infernal_crit",   affixTier = 3, weight = 1 },
+    { id = "tag_erosion_pure",    affixTier = 3, weight = 1 },
+    { id = "tag_buff_amp",        affixTier = 3, weight = 1 },
+    { id = "tag_mark_vuln",       affixTier = 3, weight = 1 },
 }
 
 -- ============================================================================

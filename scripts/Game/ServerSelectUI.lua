@@ -585,14 +585,59 @@ function ServerSelectUI.ShowAnnouncementPopup()
                                         fontSize = 12,
                                         fontColor = { 180, 220, 190, 180 },
                                     },
+                                },
+                            },
+                        },
+                    },
+
+                    -- 限时活动区
+                    UI.Panel {
+                        width = "100%",
+                        gap = 8,
+                        children = {
+                            UI.Label {
+                                text = "[ 限时活动 ]",
+                                fontSize = 15,
+                                fontColor = { 255, 100, 100, 255 },
+                                fontWeight = "bold",
+                            },
+                            UI.Panel {
+                                width = "100%",
+                                backgroundColor = { 60, 20, 30, 200 },
+                                borderRadius = 8,
+                                borderWidth = 1,
+                                borderColor = { 255, 80, 80, 80 },
+                                paddingTop = 10, paddingBottom = 10,
+                                paddingLeft = 12, paddingRight = 12,
+                                gap = 4,
+                                children = {
                                     UI.Label {
-                                        text = "进群领福利，招募券100抽",
+                                        text = "评价截图找群主领取",
                                         fontSize = 13,
-                                        fontColor = { 255, 200, 60, 255 },
-                                        fontWeight = "bold",
+                                        fontColor = { 255, 220, 180, 230 },
+                                    },
+                                    UI.Panel {
+                                        flexDirection = "row",
+                                        alignItems = "center",
+                                        gap = 4,
+                                        children = {
+                                            UI.Label {
+                                                text = "招募自选包",
+                                                fontSize = 13,
+                                                fontColor = { 255, 160, 60, 255 },
+                                                fontWeight = "bold",
+                                            },
+                                            UI.Label {
+                                                text = " x100",
+                                                fontSize = 14,
+                                                fontColor = { 255, 200, 60, 255 },
+                                                fontWeight = "bold",
+                                            },
+                                        },
                                     },
                                 },
                             },
+
                         },
                     },
 

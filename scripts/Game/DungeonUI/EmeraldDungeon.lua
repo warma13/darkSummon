@@ -942,12 +942,10 @@ function EmeraldDungeon.OnSweep(UI, S, ctx, diff)
         end,
         onConfirm = function(count)
             local totalTokens = 0
-            local successCount = 0
             for i = 1, count do
                 local ok, tokens = EmeraldData.DoSweep(diff.id, affixOpt.bonusPct)
                 if ok then
                     totalTokens = totalTokens + tokens
-                    successCount = successCount + 1
                 else
                     if i == 1 then return end  -- 第一次就失败，不显示结果
                     break
@@ -966,7 +964,7 @@ function EmeraldDungeon.OnSweep(UI, S, ctx, diff)
             end
 
             RewardDisplay.Show(UI, root, {
-                title = diff.name .. " · 扫荡完成 ×" .. successCount,
+                title = diff.name .. " · 扫荡完成 ×" .. count,
                 rewards = rewardItems,
                 onClose = function()
                     ctx.Refresh()

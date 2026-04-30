@@ -38,8 +38,15 @@ end
 ---@param eventType string
 ---@param eventData UpdateEventData
 function GameLoop.HandleUpdate(eventType, eventData)
+    -- 小游戏活跃时：分发 Update 到对应小游戏，跳过宿主逻辑
     if MiniGameUI.isActive() then
-        _YangMG_Update(eventType, eventData)
+        local YangMG = require("yang.MiniGame")
+        local AutoChessMG = require("autochess.MiniGame")
+        if YangMG.isActive() then
+            _YangMG_Update(eventType, eventData)
+        elseif AutoChessMG.isActive() then
+            _AutoChessMG_Update(eventType, eventData)
+        end
         return
     end
 
@@ -140,10 +147,6 @@ function GameLoop.HandleUpdate(eventType, eventData)
 
     -- 试练塔连续挑战倒计时（用 rawDt，独立于 GameUI.Update）
     TrialTower.UpdateCountdown(rawDt)
-
-    -- 英雄详情面板每秒属性刷新（用 rawDt，不受加速影响）
-    local HeroDetail = require("Game.HeroUI.HeroDetail")
-    HeroDetail.Tick(rawDt)
 end
 
 -- ============================================================================

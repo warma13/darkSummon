@@ -35,7 +35,7 @@ local initialized = false
 local modulesLoaded = false
 
 -- 存档版本号
-local SAVE_VERSION = 3
+local SAVE_VERSION = 2
 
 -- ============================================================================
 -- 模块预加载（确保所有数据模块的 Register 已执行）
@@ -69,6 +69,7 @@ local DATA_MODULE_PATHS = {
     "Game.DropEventData",
     "Game.BlackMarketData",
     "Game.TitleData",
+    "Game.MineDungeonData",
 }
 
 --- 确保所有数据模块已加载（触发它们底部的 SaveRegistry.Register 调用）

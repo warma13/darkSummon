@@ -5,8 +5,9 @@
 ---@diagnostic disable-next-line: undefined-global
 local cjson = cjson
 local Config = require("Game.Config")
-local HeroData = require("Game.HeroData")
+local HeroData     = require("Game.HeroData")
 local SaveRegistry = require("Game.SaveRegistry")
+
 
 local ChestData = {}
 
@@ -177,7 +178,7 @@ function ChestData.Open(chestId, count)
     local available = ChestData.GetCount(chestId)
     if available <= 0 then return false, "宝箱数量不足" end
 
-    count = math.min(count, available, 1000)
+    count = math.min(count, available, 100)
 
     -- 每次开箱独立记录
     local drops = {}    -- { {type, id, name, amount, rarity}, ... } 按顺序记录每个掉落

@@ -455,8 +455,44 @@ function GameUI.CreateCurrencyDisplay()
                     },
                 },
             },
-            -- 小游戏入口按钮（已隐藏）
-            -- ctx.UI.Panel { id = "miniGameBtn", ... },
+            -- 小游戏入口按钮
+            ctx.UI.Panel {
+                id = "miniGameBtn",
+                width = 56, height = 56,
+                borderRadius = 10,
+                borderWidth = 1,
+                borderColor = { 140, 100, 220, 180 },
+                overflow = "hidden",
+                pointerEvents = "auto",
+                marginTop = 4,
+                onClick = function(self)
+                    GameUI.ShowMiniGameOverlay(true)
+                end,
+                children = {
+                    ctx.UI.Panel {
+                        width = 56, height = 56,
+                        backgroundColor = { 25, 15, 45, 220 },
+                        justifyContent = "center",
+                        alignItems = "center",
+                        children = {
+                            ctx.UI.Label {
+                                text = "🎮", fontSize = 28,
+                            },
+                        },
+                    },
+                    ctx.UI.Panel {
+                        position = "absolute",
+                        bottom = 2, left = 0, right = 0,
+                        alignItems = "center",
+                        children = {
+                            ctx.UI.Label {
+                                text = "小游戏", fontSize = 10,
+                                fontColor = { 180, 140, 255, 255 },
+                            },
+                        },
+                    },
+                },
+            },
         },
     }
 end

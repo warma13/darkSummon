@@ -18,6 +18,7 @@ local RewardIcon            = require("Game.RewardIcon")
 local DailyDealData        = require("Game.DailyDealData")
 local AdReliefData         = require("Game.AdReliefData")
 local TodayStr = require("Game.DateUtil").TodayStr
+local LaborDayData = require("Game.LaborDayData")
 
 local FormatNum = ctx.FormatNum
 
@@ -919,6 +920,11 @@ end
 --- 实际发放挂机奖励（货币+宝箱，统一走 GrantReward）
 ---@param rewards table
 local function GrantAfkRewards(rewards)
+    -- 劳动加倍（一次结算只消耗一次机会）
+    local laborMult = LaborDayData.ConsumeDouble()
+    rewards.nether_crystal = math.floor(rewards.nether_crystal * laborMult)
+    rewards.devour_stone   = math.floor(rewards.devour_stone * laborMult)
+    rewards.forge_iron     = math.floor(rewards.forge_iron * laborMult)
     Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = rewards.nether_crystal }, "Afk")
     Currency.GrantReward({ type = "currency", id = "devour_stone", amount = rewards.devour_stone }, "Afk")
     Currency.GrantReward({ type = "currency", id = "forge_iron", amount = rewards.forge_iron }, "Afk")

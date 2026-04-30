@@ -54,10 +54,9 @@ function CollectionPopup.ShowCollectionDetailPopup(ctx)
     end
 
     detailPopupContentContainer = UI.Panel {
-        flexGrow = 1, flexShrink = 1, flexBasis = 0,
+        flexGrow = 1, flexShrink = 1,
         width = "100%",
         flexDirection = "column",
-        overflow = "hidden",
     }
 
     local popup = UI.Panel {

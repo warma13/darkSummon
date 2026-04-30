@@ -788,8 +788,6 @@ function HeroUI.Refresh()
     local wasPopupOpen = (collectionOverlay ~= nil)
     local wasDetailPopupOpen = (collectionDetailOverlay ~= nil)
     local wasInventoryOpen = InventoryUI.IsVisible()
-    local wasHeroDetailOpen = (heroDetailOverlay ~= nil)
-    local savedDetailHeroId = wasHeroDetailOpen and HeroDetail.GetCurrentHeroId() or nil
 
     pageRoot:ClearChildren()
     collectionOverlay = nil
@@ -816,8 +814,6 @@ function HeroUI.Refresh()
         HeroUI.ShowCollectionDetailPopup()
     elseif wasInventoryOpen then
         InventoryUI.Show(UI, pageRoot)
-    elseif wasHeroDetailOpen and savedDetailHeroId then
-        HeroUI.ShowHeroDetail(savedDetailHeroId)
     end
 end
 
