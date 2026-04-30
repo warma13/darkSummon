@@ -418,6 +418,8 @@ end
 --- 仅更新：等级/星级行、攻击、攻速、射程、暴击率、暴伤、破甲、伤害加成
 function GameUI.UpdateHeroInfoValues(tower, panel)
     if not tower or not panel then return end
+    local _atk = HeroSkills.GetEffectiveAttack(tower)
+    print(string.format("[HeroInfo] Refresh atk=%s children=%d", tostring(_atk), panel:GetNumChildren()))
 
     local tierInfo = HeroData.GetStarTierInfo(tower.typeDef.id)
 

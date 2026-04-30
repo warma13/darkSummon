@@ -98,29 +98,29 @@ end
 --- 基础属性词条（权重60%）
 --- 平衡：单条红品最大值 × coeff(1.35) 的 DPS 贡献 ≈ 5-8%
 RuneConfig.AFFIX_BASE = {
-    { id = "atk_pct",    name = "攻击力",   minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 10 },  -- 8%×0.71=5.7% DPS
-    { id = "spd_pct",    name = "攻击速度", minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 10 },  -- 8%×0.6 =4.8% DPS
-    { id = "critRate",   name = "暴击率",   minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 10 },  -- 8%×0.69=5.5% DPS
-    { id = "critDmg",    name = "暴击伤害", minVal = 0.04, maxVal = 0.18, unit = "%",  weight = 10 },  -- 18%×0.30=5.4% DPS
-    { id = "armorPen",   name = "穿甲",     minVal = 0.01, maxVal = 0.05, unit = "%",  weight = 8  },  -- 5%×1.3 =6.5% DPS
-    { id = "dmgBonus",   name = "伤害加成", minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 8  },  -- 8%×0.76=6.1% DPS
-    { id = "range",      name = "攻击范围", minVal = 5,    maxVal = 15,   unit = "px", weight = 4  },  -- 功能性
+    { id = "atk_pct",    name = "攻击力",   desc = "提升英雄攻击力",         minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 10 },  -- 8%×0.71=5.7% DPS
+    { id = "spd_pct",    name = "攻击速度", desc = "提升英雄攻速",           minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 10 },  -- 8%×0.6 =4.8% DPS
+    { id = "critRate",   name = "暴击率",   desc = "提升暴击触发概率",       minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 10 },  -- 8%×0.69=5.5% DPS
+    { id = "critDmg",    name = "暴击伤害", desc = "提升暴击时的伤害倍率",   minVal = 0.04, maxVal = 0.18, unit = "%",  weight = 10 },  -- 18%×0.30=5.4% DPS
+    { id = "armorPen",   name = "穿甲",     desc = "无视目标部分护甲",       minVal = 0.01, maxVal = 0.05, unit = "%",  weight = 8  },  -- 5%×1.3 =6.5% DPS
+    { id = "dmgBonus",   name = "伤害加成", desc = "提升最终伤害（独立乘区）", minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 8  },  -- 8%×0.76=6.1% DPS
+    { id = "range",      name = "攻击范围", desc = "扩大英雄攻击范围",       minVal = 5,    maxVal = 15,   unit = "px", weight = 4  },  -- 功能性
 }
 
 --- 特殊效果词条（权重40%）
 --- vulnMark 独立乘区无敌方抵抗, 每1%≈1.0% DPS, 需严格控制
 RuneConfig.AFFIX_SPECIAL = {
-    { id = "chain",      name = "连锁概率",   minVal = 0.03, maxVal = 0.12, unit = "%",  weight = 8 },  -- 功能性, 适度削减
-    { id = "slow_amp",   name = "减速强化",   minVal = 0.03, maxVal = 0.12, unit = "%",  weight = 7 },  -- 功能性
-    { id = "dot_amp",    name = "DOT强化",     minVal = 0.05, maxVal = 0.20, unit = "%",  weight = 7 },  -- DOT专属
-    { id = "cdr",        name = "技能冷却缩减", minVal = 0.02, maxVal = 0.08, unit = "%", weight = 6 },  -- 功能性
-    { id = "killReset",  name = "击杀回复",   minVal = 0.01, maxVal = 0.05, unit = "%",  weight = 5 },  -- 功能性
-    { id = "vulnMark",   name = "易伤标记",   minVal = 0.02, maxVal = 0.06, unit = "%",  weight = 5 },  -- 6%×1.0=6.0% DPS
-    { id = "elemMastery",name = "元素精通",   minVal = 0.03, maxVal = 0.10, unit = "%",  weight = 4 },  -- typeDmg区
-    { id = "luckyDrop",  name = "幸运掉落",   minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 4 },  -- 经济性
+    { id = "chain",      name = "连锁概率",   desc = "攻击有概率连锁弹射到附近敌人",       minVal = 0.03, maxVal = 0.12, unit = "%",  weight = 8 },  -- 功能性, 适度削减
+    { id = "slow_amp",   name = "减速强化",   desc = "增强所有减速效果的幅度",             minVal = 0.03, maxVal = 0.12, unit = "%",  weight = 7 },  -- 功能性
+    { id = "dot_amp",    name = "DOT强化",     desc = "增强所有持续伤害效果",               minVal = 0.05, maxVal = 0.20, unit = "%",  weight = 7 },  -- DOT专属
+    { id = "cdr",        name = "技能冷却缩减", desc = "缩短英雄技能冷却时间",              minVal = 0.02, maxVal = 0.08, unit = "%", weight = 6 },  -- 功能性
+    { id = "killReset",  name = "击杀回复",   desc = "击杀敌人时回复技能冷却",             minVal = 0.01, maxVal = 0.05, unit = "%",  weight = 5 },  -- 功能性
+    { id = "vulnMark",   name = "易伤标记",   desc = "攻击使目标受到更多伤害（独立乘区）", minVal = 0.02, maxVal = 0.06, unit = "%",  weight = 5 },  -- 6%×1.0=6.0% DPS
+    { id = "elemMastery",name = "元素精通",   desc = "提升英雄元素反应和属性伤害",         minVal = 0.03, maxVal = 0.10, unit = "%",  weight = 4 },  -- typeDmg区
+    { id = "luckyDrop",  name = "幸运掉落",   desc = "提升击杀后的资源掉落概率",           minVal = 0.02, maxVal = 0.08, unit = "%",  weight = 4 },  -- 经济性
 }
 
---- 合并词条池（供洗练使用）
+--- 常规词条池（基础+特殊，不含标签词条）
 RuneConfig.ALL_AFFIXES = {}
 for _, a in ipairs(RuneConfig.AFFIX_BASE) do
     RuneConfig.ALL_AFFIXES[#RuneConfig.ALL_AFFIXES + 1] = { def = a, category = "base" }
@@ -129,9 +129,12 @@ for _, a in ipairs(RuneConfig.AFFIX_SPECIAL) do
     RuneConfig.ALL_AFFIXES[#RuneConfig.ALL_AFFIXES + 1] = { def = a, category = "special" }
 end
 
+--- 标签词条池（独立，每符文最多1条）
+RuneConfig.TAG_AFFIXES = {}
+
 -- 按 ID 查词条定义
 RuneConfig.AFFIX_MAP = {}
-RuneConfig.AFFIX_CATEGORY = {}   -- id -> "base" / "special"
+RuneConfig.AFFIX_CATEGORY = {}   -- id -> "base" / "special" / "tag_t1" / "tag_t2" / "tag_t3"
 for _, entry in ipairs(RuneConfig.ALL_AFFIXES) do
     RuneConfig.AFFIX_MAP[entry.def.id] = entry.def
     RuneConfig.AFFIX_CATEGORY[entry.def.id] = entry.category
@@ -147,6 +150,20 @@ for _, a in ipairs(RuneConfig.AFFIX_SPECIAL) do
     RuneConfig._totalSpecialWeight = RuneConfig._totalSpecialWeight + a.weight
 end
 RuneConfig._totalAffixWeight = RuneConfig._totalBaseWeight + RuneConfig._totalSpecialWeight
+
+--- 标签词条出现概率（按符文品质）
+RuneConfig.TAG_AFFIX_CHANCE = {
+    white  = 0.05,   -- 普通品质 5%
+    green  = 0.10,   -- 精良品质 10%
+    blue   = 0.15,   -- 稀有品质 15%
+    purple = 0.25,   -- 史诗品质 25%
+    orange = 0.40,   -- 传说品质 40%
+    red    = 0.60,   -- 神话品质 60%
+}
+
+--- 标签词条洗练费用
+RuneConfig.TAG_REFORGE_COST_DUST    = 60    -- 裂隙之尘
+RuneConfig.TAG_REFORGE_COST_CRYSTAL = 1     -- 深渊结晶
 
 -- ============================================================================
 -- 符文槽位（每英雄3个）
@@ -267,6 +284,7 @@ RuneConfig.CURRENCIES = {
 
 -- ============================================================================
 -- 三层词条注入（来自 Config_AffixTags 的角色/技能/标签词条）
+-- 注入到独立的 TAG_AFFIXES 池，不混入常规词条池
 -- ============================================================================
 do
     local Config = require("Game.Config")
@@ -277,27 +295,34 @@ do
                 local affixDef = {
                     id      = def.id,
                     name    = def.name,
+                    desc    = def.desc,
                     minVal  = def.minVal,
                     maxVal  = def.maxVal,
+                    minVal2 = def.minVal2,
+                    maxVal2 = def.maxVal2,
                     unit    = "%",
                     weight  = entry.weight,
+                    stat    = def.stat,
+                    stat2   = def.stat2,
+                    tier    = entry.affixTier,
                     -- 额外字段：标记为三层词条
                     affixTier = entry.affixTier,
                     isTagAffix = true,
                 }
-                RuneConfig.ALL_AFFIXES[#RuneConfig.ALL_AFFIXES + 1] = {
-                    def = affixDef, category = "tag_t" .. entry.affixTier,
+                -- 注入到独立标签词条池
+                RuneConfig.TAG_AFFIXES[#RuneConfig.TAG_AFFIXES + 1] = {
+                    def = affixDef,
+                    category = "tag_t" .. entry.affixTier,
                 }
                 RuneConfig.AFFIX_MAP[def.id] = affixDef
                 RuneConfig.AFFIX_CATEGORY[def.id] = "tag_t" .. entry.affixTier
             end
         end
-        -- 重算总权重（含新注入词条）
-        local tw = 0
-        for _, e in ipairs(RuneConfig.ALL_AFFIXES) do
-            tw = tw + e.def.weight
+        -- 计算标签词条总权重
+        RuneConfig._totalTagWeight = 0
+        for _, e in ipairs(RuneConfig.TAG_AFFIXES) do
+            RuneConfig._totalTagWeight = RuneConfig._totalTagWeight + e.def.weight
         end
-        RuneConfig._totalAffixWeight = tw
     end
 end
 

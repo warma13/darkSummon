@@ -29,6 +29,11 @@ local fontId = -1
 local toastVg = nil
 local toastFontId = -1
 
+-- StartGame 加载超时保护
+local STARTGAME_TIMEOUT = 30   -- LoadSlot 回调最大等待时间（秒）
+local startGameTimer = -1      -- -1 表示未激活
+local startGameTimedOut = false -- 超时标记，防止回调再处理
+
 -- ============================================================================
 -- 初始化子系统
 -- ============================================================================
@@ -196,15 +201,30 @@ function Bootstrap.Start()
     print("=== " .. Config.TITLE .. " Ready ===")
 end
 
---- 每帧调用：检测 SlotSave 加载超时
+--- 每帧调用：检测 SlotSave 加载超时 + StartGame 超时
 function Bootstrap.Tick(dt)
-    if Bootstrap._slotInitDone or Bootstrap._slotTimeout == nil then return end
-    Bootstrap._slotTimer = Bootstrap._slotTimer + dt
-    if Bootstrap._slotTimer >= Bootstrap._slotTimeout then
-        Bootstrap._slotInitDone = true  -- 防止重复触发
-        print("[Main] SlotSaveSystem init timeout after " .. Bootstrap._slotTimeout .. "s")
-        local ServerSelectUI = require("Game.ServerSelectUI")
-        ServerSelectUI.SetLoadState("error", "存档加载超时，请重试")
+    -- SlotSaveSystem.Init 超时检测
+    if not Bootstrap._slotInitDone and Bootstrap._slotTimeout then
+        Bootstrap._slotTimer = Bootstrap._slotTimer + dt
+        if Bootstrap._slotTimer >= Bootstrap._slotTimeout then
+            Bootstrap._slotInitDone = true  -- 防止重复触发
+            print("[Main] SlotSaveSystem init timeout after " .. Bootstrap._slotTimeout .. "s")
+            local ServerSelectUI = require("Game.ServerSelectUI")
+            ServerSelectUI.SetLoadState("error", "存档加载超时，请重试")
+        end
+    end
+
+    -- StartGame LoadSlot 超时检测
+    if startGameTimer >= 0 then
+        startGameTimer = startGameTimer + dt
+        if startGameTimer >= STARTGAME_TIMEOUT then
+            startGameTimer = -1
+            startGameTimedOut = true
+            print("[StartGame] LoadSlot timed out after " .. STARTGAME_TIMEOUT .. "s, returning to server select")
+            GameUI.HideLoading()
+            Toast.Show("加载超时，请重试")
+            GameUI.ShowServerSelect(true)
+        end
     end
 end
 
@@ -226,8 +246,18 @@ function StartGame(serverId)
     -- 显示加载提示，避免黑屏
     GameUI.ShowLoading("加载中")
 
+    -- 超时保护：启动计时器
+    startGameTimer = 0
+    startGameTimedOut = false
+
     -- 异步加载槽位（serverId 即为 slotId）
     SlotSaveSystem.LoadSlot(serverId, function(success, isNewSlot)
+        -- 如果已超时并处理过，忽略迟到的回调
+        if startGameTimedOut then
+            print("[StartGame] Callback arrived after timeout, ignoring")
+            return
+        end
+        startGameTimer = -1  -- 取消超时计时器
         GameUI.HideLoading()
 
         if not success then

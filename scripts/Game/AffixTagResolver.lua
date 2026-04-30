@@ -118,11 +118,21 @@ function AffixTagResolver.Resolve(tower, affixes)
             end
 
         elseif def.tier == 3 then
-            -- 第3层：精确匹配英雄的技能标签 id
-            if AffixTagResolver._matchTags(heroTags, def.tags) then
-                bonus[def.stat] = (bonus[def.stat] or 0) + affix.value
-                if def.stat2 and affix.value2 then
-                    bonus[def.stat2] = (bonus[def.stat2] or 0) + affix.value2
+            -- 第3层：按效果类别匹配英雄的技能标签 category
+            if def.categories then
+                if AffixTagResolver._matchCategories(heroId, heroTags, def.categories) then
+                    bonus[def.stat] = (bonus[def.stat] or 0) + affix.value
+                    if def.stat2 and affix.value2 then
+                        bonus[def.stat2] = (bonus[def.stat2] or 0) + affix.value2
+                    end
+                end
+            elseif def.tags then
+                -- 兼容旧格式（精确标签匹配）
+                if AffixTagResolver._matchTags(heroTags, def.tags) then
+                    bonus[def.stat] = (bonus[def.stat] or 0) + affix.value
+                    if def.stat2 and affix.value2 then
+                        bonus[def.stat2] = (bonus[def.stat2] or 0) + affix.value2
+                    end
                 end
             end
         end
@@ -137,12 +147,39 @@ end
 -- 快捷接口：获取指定标签 id 的第3层词条加成
 -- 用于 HeroSkills.ApplyTag 中实时查询
 -- ============================================================================
+-- ============================================================================
+-- 类别词条 → ApplyTag 细粒度 stat 映射
+-- 类别词条的通用 stat 会被展开为 ApplyTag 能直接消费的具体字段
+-- ============================================================================
+local CATEGORY_STAT_EXPAND = {
+    -- dot 类别: 持续伤害增幅 → DOT 倍率 + 持续时间
+    tagDotDmg_pct  = { "tagDotMult_add", "tagDotPct_add" },
+    tagDotDur_add  = { "tagDur_add" },
+    -- burst 类别: 爆发伤害增幅 → 通用伤害加成
+    tagBurstDmg_pct = { "tagDmgBonus_add" },
+    -- control 类别: 控制概率 → 减速/眩晕/冰封概率
+    tagCtrlChance_add = { "tagSlowRate_add", "tagStunChance_add" },
+    tagCtrlDur_add    = { "tagSlowDur_add", "tagStunDur_add", "tagDur_add" },
+    -- defense_shred 类别: 破防效果 → 破甲增幅 + 易伤
+    tagShredAmp_pct = { "tagArmorBreak_amp", "tagVuln_add" },
+    -- buff_aura 类别: 增益效果 → 通用 buff 增幅
+    tagBuffAmp_pct  = { "tagAmp_add", "tagAtkSpd_add" },
+    -- on_kill 类别: 击杀触发 → 击杀伤害加成
+    tagOnKillAmp_pct = { "tagDmgBonus_add", "tagAtkSpd_add" },
+    -- stack_ramp 类别: 叠层效果增幅 → 通用数值增幅
+    tagStackAmp_pct  = { "tagDotMult_add", "tagAmp_add" },
+}
+
 ---@param tower table 英雄实例
 ---@param tagId string 技能标签 id
 ---@return table bonus  { [stat] = value }
 function AffixTagResolver.GetTagBonus(tower, tagId)
     local bonus = {}
     local heroId = tower.typeDef and tower.typeDef.id or ""
+
+    -- 查找该标签的 category
+    local tagDef = Config.FindTagDef(heroId, tagId)
+    local tagCategory = tagDef and tagDef.category or nil
 
     -- 收集该英雄所有词条
     local affixes = AffixTagResolver.CollectAffixes(heroId)
@@ -153,14 +190,48 @@ function AffixTagResolver.GetTagBonus(tower, tagId)
         local def = Config.AFFIX_TAG_LOOKUP[affix.id]
         if not def or def.tier ~= 3 then goto continue end
 
-        -- 检查此词条是否覆盖目标标签
-        for _, t in ipairs(def.tags) do
-            if t == tagId then
+        local matched = false
+
+        -- 新格式：按 category 匹配
+        if def.categories and tagCategory then
+            for _, cat in ipairs(def.categories) do
+                if cat == tagCategory then
+                    matched = true
+                    break
+                end
+            end
+        end
+
+        -- 兼容旧格式：按 tag id 精确匹配
+        if not matched and def.tags then
+            for _, t in ipairs(def.tags) do
+                if t == tagId then
+                    matched = true
+                    break
+                end
+            end
+        end
+
+        if matched then
+            -- 类别词条：将通用 stat 展开为 ApplyTag 可消费的细粒度 stat
+            local expandTargets = CATEGORY_STAT_EXPAND[def.stat]
+            if expandTargets then
+                for _, eStat in ipairs(expandTargets) do
+                    bonus[eStat] = (bonus[eStat] or 0) + affix.value
+                end
+            else
                 bonus[def.stat] = (bonus[def.stat] or 0) + affix.value
-                if def.stat2 and affix.value2 then
+            end
+
+            if def.stat2 and affix.value2 then
+                local expandTargets2 = CATEGORY_STAT_EXPAND[def.stat2]
+                if expandTargets2 then
+                    for _, eStat in ipairs(expandTargets2) do
+                        bonus[eStat] = (bonus[eStat] or 0) + affix.value2
+                    end
+                else
                     bonus[def.stat2] = (bonus[def.stat2] or 0) + affix.value2
                 end
-                break
             end
         end
 
@@ -197,9 +268,15 @@ function AffixTagResolver.GetMatchableAffixes(heroId, heroTags)
         end
     end
 
-    -- 第3层
+    -- 第3层：按 category 或 tags 匹配
     for _, def in ipairs(system.tag_affixes) do
-        if AffixTagResolver._matchTags(heroTags, def.tags) then
+        local matched = false
+        if def.categories then
+            matched = AffixTagResolver._matchCategories(heroId, heroTags, def.categories)
+        elseif def.tags then
+            matched = AffixTagResolver._matchTags(heroTags, def.tags)
+        end
+        if matched then
             result[#result + 1] = def
         end
     end
@@ -243,7 +320,26 @@ function AffixTagResolver._matchSkillTypes(heroId, heroTags, targetTypes)
     return false
 end
 
---- 第3层：检查英雄是否拥有目标标签（已解锁）
+--- 第3层（新）：检查英雄已解锁标签中是否有匹配目标 category 的
+---@param heroId string
+---@param heroTags table  { [tagId] = { tier = n } }
+---@param targetCategories string[]
+---@return boolean
+function AffixTagResolver._matchCategories(heroId, heroTags, targetCategories)
+    for tagId, tagState in pairs(heroTags) do
+        if tagState.tier and tagState.tier > 0 then
+            local tagDef = Config.FindTagDef(heroId, tagId)
+            if tagDef and tagDef.category then
+                for _, cat in ipairs(targetCategories) do
+                    if tagDef.category == cat then return true end
+                end
+            end
+        end
+    end
+    return false
+end
+
+--- 第3层（旧兼容）：检查英雄是否拥有目标标签（已解锁）
 ---@param heroTags table  { [tagId] = { tier = n } }
 ---@param targetTags string[]
 ---@return boolean

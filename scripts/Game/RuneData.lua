@@ -45,6 +45,32 @@ local function EnsureData()
     -- 兼容旧存档：补齐扫荡字段
     if d.abyssRift.bestWave == nil then d.abyssRift.bestWave = 0 end
     if d.abyssRift.lastDifficultyId == nil then d.abyssRift.lastDifficultyId = "" end
+
+    -- 兼容旧存档：将 affixes[] 中的标签词条迁移到独立 tagAffix 字段
+    local function MigrateTagAffix(rune)
+        if not rune or rune.tagAffix ~= nil then return end -- 已迁移过或新格式
+        local newAffixes = {}
+        for _, a in ipairs(rune.affixes or {}) do
+            local cat = RuneConfig.AFFIX_CATEGORY[a.id]
+            if cat and cat:sub(1, 4) == "tag_" and not rune.tagAffix then
+                rune.tagAffix = a  -- 取第一条标签词条
+            else
+                newAffixes[#newAffixes + 1] = a
+            end
+        end
+        if rune.tagAffix then
+            rune.affixes = newAffixes
+        end
+    end
+    for _, rune in ipairs(d.bag) do
+        MigrateTagAffix(rune)
+    end
+    for _, slots in pairs(d.equipped) do
+        for _, rune in pairs(slots) do
+            MigrateTagAffix(rune)
+        end
+    end
+
     return d
 end
 
@@ -92,7 +118,7 @@ local function RollSeries()
     return RuneConfig.SERIES[math.random(1, #RuneConfig.SERIES)]
 end
 
---- 加权随机选取一条词条（避免已有的重复）
+--- 加权随机选取一条常规词条（避免已有的重复）
 ---@param existingIds table  { [affixId] = true }
 ---@param category? string  "base" / "special" / nil(不限)
 ---@return table|nil  { id, name, minVal, maxVal, unit, weight }
@@ -106,6 +132,30 @@ local function RollAffix(existingIds, category)
                 pool[#pool + 1] = def
                 totalW = totalW + def.weight
             end
+        end
+    end
+    if #pool == 0 then return nil end
+
+    local r = math.random() * totalW
+    local acc = 0
+    for _, def in ipairs(pool) do
+        acc = acc + def.weight
+        if r <= acc then return def end
+    end
+    return pool[1]
+end
+
+--- 加权随机选取一条标签词条（独立池）
+---@param existingIds table  { [affixId] = true }
+---@return table|nil
+local function RollTagAffix(existingIds)
+    local pool = {}
+    local totalW = 0
+    for _, entry in ipairs(RuneConfig.TAG_AFFIXES) do
+        local def = entry.def
+        if not existingIds[def.id] then
+            pool[#pool + 1] = def
+            totalW = totalW + def.weight
         end
     end
     if #pool == 0 then return nil end
@@ -169,11 +219,29 @@ function RuneData.Generate(qualityMult)
         end
     end
 
+    -- 独立标签词条槽：按品质概率决定是否出现（最多1条）
+    local tagChance = RuneConfig.TAG_AFFIX_CHANCE[quality.id] or 0
+    ---@type table|nil
+    local tagAffix = nil
+    if math.random() < tagChance then
+        local tagDef = RollTagAffix(existingIds)
+        if tagDef then
+            tagAffix = {
+                id = tagDef.id,
+                name = tagDef.name,
+                value = CalcAffixValue(tagDef, quality),
+                unit = tagDef.unit,
+                locked = false,
+            }
+        end
+    end
+
     return {
         runeId = NextRuneId(),
         qualityId = quality.id,
         seriesId = series.id,
         affixes = affixes,
+        tagAffix = tagAffix,    -- 独立标签词条槽（nil 或单条）
         maxAffixes = quality.maxAffixes,
     }
 end
@@ -215,11 +283,27 @@ function RuneData.GenerateFixedQuality(qualityId)
         end
     end
 
+    -- 独立标签词条槽
+    local tagChance = RuneConfig.TAG_AFFIX_CHANCE[quality.id] or 0
+    ---@type table|nil
+    local tagAffix = nil
+    if math.random() < tagChance then
+        local tagDef = RollTagAffix(existingIds)
+        if tagDef then
+            tagAffix = {
+                id = tagDef.id, name = tagDef.name,
+                value = CalcAffixValue(tagDef, quality),
+                unit = tagDef.unit, locked = false,
+            }
+        end
+    end
+
     return {
         runeId = NextRuneId(),
         qualityId = quality.id,
         seriesId = series.id,
         affixes = affixes,
+        tagAffix = tagAffix,
         maxAffixes = quality.maxAffixes,
     }
 end
@@ -316,7 +400,7 @@ end
 function RuneData.IsSlotUnlocked(slotIdx)
     local slotDef = RuneConfig.SLOT_DEFS[slotIdx]
     if not slotDef then return false end
-    local bestStage = HeroData.stats.bestGlobalWave or 0
+    local bestStage = HeroData.stats.bestStage or 0
     return bestStage >= slotDef.unlockStage
 end
 
@@ -383,6 +467,12 @@ end
 ---@return string message
 ---@return table|nil rewards
 function RuneData.Decompose(runeId)
+    -- 先检查是否锁定
+    local check = RuneData.FindInBag(runeId)
+    if check and check.locked then
+        return false, "符文已锁定，无法分解", nil
+    end
+
     local rune = RuneData.RemoveFromBag(runeId)
     if not rune then
         return false, "符文不在背包中", nil
@@ -416,8 +506,8 @@ function RuneData.DecomposeByQuality(maxQualityIndex)
 
     for _, rune in ipairs(d.bag) do
         local q = RuneConfig.QUALITY_MAP[rune.qualityId]
-        if q and q.index <= maxQualityIndex then
-            -- 分解
+        if q and q.index <= maxQualityIndex and not rune.locked then
+            -- 分解（跳过锁定符文）
             local rewards = RuneConfig.DECOMPOSE[rune.qualityId] or {}
             for currId, amount in pairs(rewards) do
                 Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "RuneBatchDecompose")
@@ -440,7 +530,7 @@ end
 -- 洗练
 -- ============================================================================
 
---- 基础洗练（重随所有未锁定词条）
+--- 基础洗练（重随所有未锁定的常规词条，不影响标签词条）
 ---@param rune table  符文引用（可在背包或已装备）
 ---@return boolean success
 ---@return string msg
@@ -474,10 +564,15 @@ function RuneData.Reforge(rune)
         Currency.Spend("rune_seal", lockedCount)
     end
 
-    -- 生成预览：保留锁定词条，重随未锁定词条
+    -- 生成预览：保留锁定词条，重随未锁定词条（仅常规池）
     local quality = RuneConfig.QUALITY_MAP[rune.qualityId]
     local newAffixes = {}
     local existingIds = {}
+
+    -- 标签词条的 id 也要排除（避免常规洗练出标签词条的同名id）
+    if rune.tagAffix then
+        existingIds[rune.tagAffix.id] = true
+    end
 
     -- 保留锁定词条
     for _, a in ipairs(rune.affixes) do
@@ -490,7 +585,7 @@ function RuneData.Reforge(rune)
         end
     end
 
-    -- 重随未锁定词条
+    -- 重随未锁定词条（从常规池）
     local rerollCount = totalCount - lockedCount
     for _ = 1, rerollCount do
         local def = RollAffix(existingIds)
@@ -507,7 +602,7 @@ function RuneData.Reforge(rune)
     return true, "洗练完成", { affixes = newAffixes }
 end
 
---- 确认洗练结果（替换原词条）
+--- 确认洗练结果（替换原常规词条）
 ---@param rune table
 ---@param newAffixes table[]
 function RuneData.ApplyReforge(rune, newAffixes)
@@ -519,16 +614,16 @@ function RuneData.ApplyReforge(rune, newAffixes)
     HeroData.Save(true)
 end
 
---- 定向洗练（只从指定类别重随）
+--- 定向洗练（只从指定类别重随常规词条，不影响标签词条）
 ---@param rune table
 ---@param category string  "base" / "special"
 ---@return boolean, string, table|nil
 function RuneData.DirectedReforge(rune, category)
     if not rune then return false, "符文不存在", nil end
 
-    local bestStage = HeroData.stats.bestGlobalWave or 0
+    local bestStage = HeroData.stats.bestStage or 0
     if bestStage < RuneConfig.DIRECTED_UNLOCK_STAGE then
-        return false, "需通关第" .. RuneConfig.DIRECTED_UNLOCK_STAGE .. "波", nil
+        return false, "需通关第" .. RuneConfig.DIRECTED_UNLOCK_STAGE .. "关", nil
     end
 
     if not Currency.Has("rift_dust", RuneConfig.DIRECTED_COST_DUST) then
@@ -556,6 +651,11 @@ function RuneData.DirectedReforge(rune, category)
     local quality = RuneConfig.QUALITY_MAP[rune.qualityId]
     local newAffixes = {}
     local existingIds = {}
+
+    -- 排除标签词条 id
+    if rune.tagAffix then
+        existingIds[rune.tagAffix.id] = true
+    end
 
     for _, a in ipairs(rune.affixes) do
         if a.locked then
@@ -586,6 +686,55 @@ function RuneData.DirectedReforge(rune, category)
     return true, "定向洗练完成", { affixes = newAffixes }
 end
 
+--- 标签词条独立洗练（重随或新增标签词条槽）
+---@param rune table
+---@return boolean, string, table|nil  preview = { tagAffix = {...} | nil }
+function RuneData.TagReforge(rune)
+    if not rune then return false, "符文不存在", nil end
+
+    -- 检查材料
+    if not Currency.Has("rift_dust", RuneConfig.TAG_REFORGE_COST_DUST) then
+        return false, "裂隙之尘不足(需" .. RuneConfig.TAG_REFORGE_COST_DUST .. ")", nil
+    end
+    if not Currency.Has("abyss_crystal", RuneConfig.TAG_REFORGE_COST_CRYSTAL) then
+        return false, "深渊结晶不足(需" .. RuneConfig.TAG_REFORGE_COST_CRYSTAL .. ")", nil
+    end
+
+    -- 扣费
+    Currency.Spend("rift_dust", RuneConfig.TAG_REFORGE_COST_DUST)
+    Currency.Spend("abyss_crystal", RuneConfig.TAG_REFORGE_COST_CRYSTAL)
+
+    -- 排除常规词条 id
+    local existingIds = {}
+    for _, a in ipairs(rune.affixes) do
+        existingIds[a.id] = true
+    end
+
+    local quality = RuneConfig.QUALITY_MAP[rune.qualityId]
+    local tagDef = RollTagAffix(existingIds)
+    ---@type table|nil
+    local newTagAffix = nil
+    if tagDef then
+        newTagAffix = {
+            id = tagDef.id,
+            name = tagDef.name,
+            value = CalcAffixValue(tagDef, quality),
+            unit = tagDef.unit,
+            locked = false,
+        }
+    end
+
+    return true, "标签洗练完成", { tagAffix = newTagAffix }
+end
+
+--- 确认标签词条洗练结果
+---@param rune table
+---@param newTagAffix table|nil
+function RuneData.ApplyTagReforge(rune, newTagAffix)
+    rune.tagAffix = newTagAffix
+    HeroData.Save(true)
+end
+
 -- ============================================================================
 -- 词条锁定切换
 -- ============================================================================
@@ -600,6 +749,23 @@ function RuneData.ToggleAffixLock(rune, affixIndex)
     end
     rune.affixes[affixIndex].locked = not rune.affixes[affixIndex].locked
     return true, rune.affixes[affixIndex].locked and "已锁定" or "已解锁"
+end
+
+--- 切换符文整体锁定（防止分解）
+---@param rune table
+---@return boolean, string
+function RuneData.ToggleRuneLock(rune)
+    if not rune then return false, "符文不存在" end
+    rune.locked = not rune.locked
+    HeroData.Save()
+    return true, rune.locked and "已锁定" or "已解锁"
+end
+
+--- 符文是否被锁定
+---@param rune table
+---@return boolean
+function RuneData.IsRuneLocked(rune)
+    return rune and rune.locked == true
 end
 
 -- ============================================================================
@@ -620,6 +786,10 @@ function RuneData.GetTotalBonus(heroId)
         if rune then
             for _, affix in ipairs(rune.affixes) do
                 total[affix.id] = (total[affix.id] or 0) + affix.value
+            end
+            -- 独立标签词条
+            if rune.tagAffix then
+                total[rune.tagAffix.id] = (total[rune.tagAffix.id] or 0) + rune.tagAffix.value
             end
         end
     end

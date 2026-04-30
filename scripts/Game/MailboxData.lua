@@ -168,6 +168,28 @@ SaveRegistry.Register("mailboxData", {
             },
         })
 
+        MailboxData.SendOnce("comp_20260429_resource_gift", {
+            title = "资源补给礼包",
+            desc = "亲爱的召唤师，附上藏书阁挑战券与精粹资源，助您提升实力，请注意查收！",
+            rewards = {
+                { type = "item", id = "dungeon_ticket_skill_book", amount = 6 },
+                { type = "currency", id = "shadow_essence", amount = 2000 },
+                { type = "currency", id = "pale_jade", amount = 2000 },
+            },
+        })
+
+        -- ── 一次性重置所有技能标签为0 ──
+        do
+            local mails = MailboxData.EnsureData()
+            mails._sentIds = mails._sentIds or {}
+            if not mails._sentIds["reset_skill_tags_20260429"] then
+                HeroData.skillTags = {}
+                mails._sentIds["reset_skill_tags_20260429"] = true
+                HeroData.Save()
+                print("[MailboxData] Reset all skill tags to 0")
+            end
+        end
+
         -- ── 社区英雄设计活动奖励（按用户ID定向发放）──
         local myId = clientCloud and clientCloud.userId and tostring(clientCloud.userId) or ""
 

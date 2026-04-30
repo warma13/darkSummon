@@ -12,7 +12,7 @@ local LB = {}
 -- 排行榜 key 定义（iscores 中的 key）
 -- ============================================================================
 
-LB.KEY_CAMPAIGN    = "lb_campaign_v3"  -- 主线最高全局波次（直接存 globalWave，无编码）
+LB.KEY_CAMPAIGN    = "lb_campaign_v5"  -- 主线最高全局波次（v5: v4数据被旧WAVES_PER_STAGE=20污染，v3存档迁移后重传）
 LB.KEY_TOWER       = "lb_tower"        -- 试练塔最高层
 LB.KEY_DUNGEON     = "lb_dungeon"      -- 资源副本当天最高波次（每日重置上传）
 LB.KEY_WORLD_BOSS  = "lb_world_boss_v3"   -- 世界BOSS最高伤害（历史，v3：scoreMult替代attrMult）
@@ -121,7 +121,7 @@ end
 -- 分数上传
 -- ============================================================================
 
---- 上传主线最高全局波次到排行榜（v3：直接存 globalWave）
+--- 上传主线最高全局波次到排行榜（v5：直接存 globalWave，WAVES_PER_STAGE=10）
 ---@param bestGlobalWave number
 function LB.UploadCampaign(bestGlobalWave)
     if not bestGlobalWave or bestGlobalWave <= 0 then return end
@@ -576,7 +576,7 @@ end
 -- 主线关卡号显示格式化（关卡号 → "大关-小关"）
 -- ============================================================================
 
---- 格式化排行榜分数为可读字符串（v3：score 即 globalWave）
+--- 格式化排行榜分数为可读字符串（v5：score 即 globalWave，WAVES_PER_STAGE=10）
 ---@param score number 全局波次
 ---@return string
 function LB.FormatStage(score)

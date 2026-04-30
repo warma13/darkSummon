@@ -67,6 +67,9 @@ Currency.TYPES = {
     "rune_seal",        -- 符文封印（洗练锁定用）
     "abyss_crystal",    -- 深渊结晶（定向洗练用）
     "emerald_token",    -- 翠影凭证（翠影秘境活动用）
+    "skill_book_1",     -- 初级技能书（技能标签升级用）
+    "skill_book_2",     -- 中级技能书（技能标签升级用）
+    "skill_book_3",     -- 高级技能书（技能标签升级用）
 }
 
 --- 获取货币显示信息
