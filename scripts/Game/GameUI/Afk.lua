@@ -1107,6 +1107,17 @@ local function BuildIdlePage1()
                                             OfflinePush.ClaimPushRewards(pushResult)
                                         end
                                         GameUI._pendingOfflinePush = nil
+                                        -- 推关后刷新当前主线关卡到新进度
+                                        local BM = require("Game.BattleManager")
+                                        if not BM.IsActive() or BM.GetMode() == "campaign" then
+                                            local newStage = (HeroData.stats.bestStage or 0) + 1
+                                            BM.Enter("campaign", {
+                                                stageNum = newStage,
+                                                onWin    = function() GameUI.DoStageClear() end,
+                                                onLose   = function() GameUI.DoGameOver() end,
+                                            })
+                                            print("[Afk] Refreshed campaign to stage " .. newStage .. " after offline push")
+                                        end
                                     end
                                     -- 领取离线奖励后，重置在线挂机计时基准
                                     HeroData.stats.afkLastClaimTime = os.time()
@@ -1151,6 +1162,17 @@ local function BuildIdlePage1()
                                             OfflinePush2.ClaimPushRewards(pushResult2)
                                         end
                                         GameUI._pendingOfflinePush = nil
+                                        -- 推关后刷新当前主线关卡到新进度
+                                        local BM2 = require("Game.BattleManager")
+                                        if not BM2.IsActive() or BM2.GetMode() == "campaign" then
+                                            local newStage2 = (HeroData.stats.bestStage or 0) + 1
+                                            BM2.Enter("campaign", {
+                                                stageNum = newStage2,
+                                                onWin    = function() GameUI.DoStageClear() end,
+                                                onLose   = function() GameUI.DoGameOver() end,
+                                            })
+                                            print("[Afk] Refreshed campaign to stage " .. newStage2 .. " after offline push")
+                                        end
                                     end
                                     local pushTitle2 = "挂机收益"
                                     if pushResult2 and pushResult2.pushed > 0 then
