@@ -146,6 +146,10 @@ function DailyTaskData.ClaimTask(taskId)
     local ok2, WPD = pcall(require, "Game.WeeklyPointsData")
     if ok2 and WPD then WPD.AddPoints(pts) end
 
+    -- 劳动奖章产出
+    local okLM, LMD3 = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD3.EarnMedals("daily_task") end
+
     print("[DailyTask] Task " .. taskId .. " claimed, +" .. pts
         .. " pts (total=" .. data.totalPoints .. ")")
     return true, "+" .. pts .. " 积分"

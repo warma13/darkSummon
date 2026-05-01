@@ -15,9 +15,9 @@ local LDD = {}
 -- ============================================================================
 
 --- 活动开始日期（含）
-LDD.START_DATE = "2026-05-01"
---- 活动结束日期（含，共7天）
-LDD.END_DATE   = "2026-05-07"
+LDD.START_DATE = "2026-04-30"
+--- 活动结束日期（含，共8天）
+LDD.END_DATE   = "2026-05-08"
 --- 签到总天数
 LDD.TOTAL_DAYS = 7
 
@@ -28,40 +28,64 @@ LDD.TOTAL_DAYS = 7
 LDD.REWARDS = {
     {
         day = 1,
-        label = "暗影精粹×500",
-        rewards = { { type = "currency", id = "shadow_essence", amount = 500 } },
+        label = "暗影精粹×20000 + 劳动奖章×10",
+        rewards = {
+            { type = "currency", id = "shadow_essence", amount = 20000 },
+            { type = "currency", id = "labor_medal",    amount = 10 },
+        },
     },
     {
         day = 2,
-        label = "锻魂铁×2000",
-        rewards = { { type = "currency", id = "forge_iron", amount = 2000 } },
+        label = "招募自选包×100 + 劳动奖章×20",
+        rewards = {
+            { type = "item",     id = "recruit_ticket_select_box", amount = 100 },
+            { type = "currency", id = "labor_medal",               amount = 20 },
+        },
     },
     {
         day = 3,
-        label = "深渊结晶×5",
-        rewards = { { type = "currency", id = "abyss_crystal", amount = 5 } },
+        label = "招募自选包×200 + 深渊结晶×10 + 劳动奖章×30",
+        rewards = {
+            { type = "item",     id = "recruit_ticket_select_box", amount = 200 },
+            { type = "currency", id = "abyss_crystal",             amount = 10 },
+            { type = "currency", id = "labor_medal",               amount = 30 },
+        },
     },
     {
         day = 4,
-        label = "招募券×3",
-        rewards = { { type = "item", id = "recruit_ticket_select_box", amount = 3 } },
+        label = "暗影精粹×20000 + 神话符文箱×3 + 劳动奖章×40",
+        rewards = {
+            { type = "currency", id = "shadow_essence",          amount = 20000 },
+            { type = "item",     id = "random_mythic_rune_box",  amount = 3 },
+            { type = "currency", id = "labor_medal",             amount = 40 },
+        },
     },
     {
         day = 5,
-        label = "暗影精粹×1500",
-        rewards = { { type = "currency", id = "shadow_essence", amount = 1500 } },
+        label = "冥晶福袋×10 + 随机UR碎片箱×100 + 劳动奖章×50",
+        rewards = {
+            { type = "item", id = "nether_crystal_pack",  amount = 10 },
+            { type = "item", id = "random_ur_shard_box",  amount = 100 },
+            { type = "currency", id = "labor_medal",      amount = 50 },
+        },
     },
     {
         day = 6,
-        label = "随机神话符文箱×1",
-        rewards = { { type = "item", id = "random_mythic_rune_box", amount = 1 } },
+        label = "钻石宝箱×20 + 资源副本券×10 + 劳动奖章×60",
+        rewards = {
+            { type = "item",     id = "diamond_chest",    amount = 20 },
+            { type = "item",     id = "dungeon_ticket",   amount = 10 },
+            { type = "currency", id = "labor_medal",      amount = 60 },
+        },
     },
     {
         day = 7,
-        label = "万能UR碎片箱×3 + 暗影精粹×3000",
+        label = "深渊裂隙券×10 + 暗影精粹×40000 + 招募自选包×400 + 劳动奖章×80",
         rewards = {
-            { type = "item",     id = "ur_shard_box",    amount = 3 },
-            { type = "currency", id = "shadow_essence",  amount = 3000 },
+            { type = "item",     id = "dungeon_ticket",            amount = 10 },
+            { type = "currency", id = "shadow_essence",            amount = 40000 },
+            { type = "item",     id = "recruit_ticket_select_box", amount = 400 },
+            { type = "currency", id = "labor_medal",               amount = 80 },
         },
     },
 }

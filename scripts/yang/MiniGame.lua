@@ -44,8 +44,7 @@ local vg_      = nil
 local LW_, LH_, DPR_
 local onDone_  = nil
 local active_  = false
-local bgmNode_ = nil
-local bgmSrc_  = nil
+
 
 -- ============================================================================
 -- 全局事件处理函数（引擎通过字符串名查找，必须为全局）
@@ -271,18 +270,8 @@ function M.start(opts)
     -- 用 vg 作为 sender，保证只渲染自己的 context
     SubscribeToEvent(vg_, "NanoVGRender", "_YangMG_Render")
 
-    -- 停主游戏 BGM，播放暗黑消除 BGM
-    AudioManager.StopBGM()
-    local audioScene = AudioManager.GetScene()
-    local bgmRes = cache:GetResource("Sound", "audio/dark_match_bgm.ogg")
-    if bgmRes and audioScene then
-        bgmRes.looped = true
-        bgmNode_ = audioScene:CreateChild("YangBGM")
-        bgmSrc_ = bgmNode_:CreateComponent("SoundSource")
-        bgmSrc_.soundType = "Music"  -- 与主游戏一致，受 Music 通道音量/静音控制
-        bgmSrc_.gain = AudioManager.GetBGMVolume()
-        bgmSrc_:Play(bgmRes)
-    end
+    -- 切换到暗黑消除 BGM（通过 AudioManager 统一管理，自动循环）
+    AudioManager.PlayBGM("dark_match")
 
     print("[YangMiniGame] 启动，显示菜单")
 end
@@ -295,15 +284,7 @@ function M.stop()
     -- ★ 恢复宿主 UI 事件通道
     UI.SetEnabled(true)
 
-    if bgmSrc_ then
-        bgmSrc_:Stop()
-        bgmSrc_ = nil
-    end
-    if bgmNode_ then
-        bgmNode_:Remove()
-        bgmNode_ = nil
-    end
-    -- 恢复主游戏 BGM
+    -- 恢复主游戏 BGM（AudioManager 内部会先停当前 BGM）
     AudioManager.PlayBGM()
     if vg_ then
         UnsubscribeFromEvent(vg_, "NanoVGRender")

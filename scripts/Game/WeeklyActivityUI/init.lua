@@ -27,7 +27,8 @@ local LIMITED_SUB_TABS = {
     { id = "double",  icon = "image/banner_labor_day_double_20260430095938.png" },
     { id = "signin",  icon = "image/banner_labor_day_signin_20260430095907.png" },
     { id = "medal",   icon = "image/banner_labor_medal.png" },
-    { id = "mine",    icon = "image/banner_mine_dungeon.png" },
+    { id = "mine",    icon = "image/banner_mine_dungeon_20260501011829.png" },
+    { id = "garbage", icon = "image/banner_garbage_boss_20260501064756.png" },
 }
 
 -- 子模块（懒加载）
@@ -40,6 +41,7 @@ local DropEventUI      = nil
 local LaborDayUI       = nil
 local LaborMedalUI     = nil
 local MineDungeonUI    = nil
+local GarbageBossUI    = nil
 
 -- 子标签配置（week 字段控制显示条件：nil=始终显示，"market"=仅市场周）
 local ALL_SUB_TABS = {
@@ -134,6 +136,7 @@ function WeeklyActivityUI.CreatePage(uiModule)
         LaborDayUI       = require("Game.WeeklyActivityUI.LaborDay")
         LaborMedalUI    = require("Game.WeeklyActivityUI.LaborMedal")
         MineDungeonUI   = require("Game.WeeklyActivityUI.MineDungeon")
+        GarbageBossUI   = require("Game.WeeklyActivityUI.GarbageBoss")
     end
 
     -- 默认打开限时活动（如果有活动）；否则打开每周活动
@@ -649,6 +652,12 @@ function WeeklyActivityUI._RenderLimitedTab(area)
         -- 矿洞寻宝页
         if MineDungeonUI then
             area:AddChild(MineDungeonUI.BuildBanner(WeeklyActivityUI))
+        end
+    elseif activeLimitedSubTab == "garbage" then
+        -- 垃圾大扫除页
+        if GarbageBossUI then
+            area:AddChild(GarbageBossUI.BuildBanner(WeeklyActivityUI))
+            area:AddChild(GarbageBossUI.BuildMilestones(WeeklyActivityUI))
         end
     end
 end

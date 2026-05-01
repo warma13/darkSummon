@@ -187,6 +187,12 @@ Config.HERO_BASE_STATS = {
         critRate = 0, critRateGrowth = 0,
         critDmg  = 0, critDmgGrowth  = 0,
     },
+    dream_weave = {
+        atk = 3500, spd = 10,
+        armorPen = 0, armorPenGrowth = 0,
+        critRate = 0, critRateGrowth = 0,
+        critDmg  = 0, critDmgGrowth  = 0,
+    },
     -- 限定 UR
     glacial_sovereign = {
         atk = 3500, spd = 10,
@@ -284,6 +290,7 @@ Config.HERO_DAMAGE_TYPE = {
     storm_lord       = "magical",
     glacial_sovereign = "magical",
     ember_wraith     = "magical",
+    dream_weave      = "magical",
     plague_doctor    = "magical",
     nature_elf       = "magical",
     fate_weaver      = "magical",
@@ -547,7 +554,7 @@ Config.RECRUIT_POOL = {
     R   = { "skeleton_archer", "demon_warrior", "ghost_assassin", "stone_golem" },
     SR  = { "necromancer", "inferno_flame", "armor_breaker", "frost_witch", "war_drummer" },
     SSR = { "shadow_mage", "abyss_hunter", "plague_doctor", "storm_lord" },
-    UR  = { "fallen_archangel", "void_dragon", "crimson_night", "ember_wraith" },
+    UR  = { "fallen_archangel", "void_dragon", "crimson_night", "ember_wraith", "dream_weave" },
     LR  = { "fate_weaver", "eternal_archfiend" },
 }
 

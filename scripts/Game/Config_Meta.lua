@@ -401,6 +401,41 @@ Config.HERO_SKILLS = {
           starScale = true,
           buildDesc = function(f) return "对当前目标造成攻击力×" .. M(15.20, f) .. "暗影伤害，必定暴击；每层绯瞳额外+" .. M(1.90, f) .. "攻击力伤害并消耗绯瞳；击杀保留一半层数" end },
     },
+    dream_weave = {
+        { id = "dream_mark", name = "幻梦印记",
+          desc = "普攻叠加幻梦印记（最多4层，持续5秒）；满4层触发沉梦：眩晕目标1.5秒，造成攻击力×250%的幻梦伤害，并对周围敌人造成攻击力×120%的意识冲击",
+          type = "passive",
+          maxStacks = 4, stackDuration = 5.0,
+          stunDuration = 1.5,
+          burstAtkPct = 2.50, splashAtkPct = 1.20, splashRadius = 50,
+          starScale = true,
+          buildDesc = function(f)
+              return "普攻叠加幻梦印记（最多4层，持续5秒）；满4层沉梦：眩晕1.5秒，攻击力×"
+                  .. M(2.50, f) .. "幻梦伤害，周围攻击力×" .. M(1.20, f) .. "意识冲击"
+          end },
+        { id = "dream_resonance", name = "梦境共鸣",
+          desc = "散发幻梦光环，范围内友方攻速+25%、暴击率+15%；场上每有一个处于眩晕状态的敌人，光环额外+5%攻击力，最多+25%",
+          type = "passive",
+          auraRange = 110,
+          auraSpdBuff = 0.25, auraCritBuff = 0.15,
+          stunAtkBonusPerEnemy = 0.05, stunAtkBonusMax = 0.25,
+          starScale = true,
+          buildDesc = function(f)
+              return "范围内友方攻速+" .. P(0.25, f) .. "、暴击率+" .. P(0.15, f)
+                  .. "；每个眩晕敌人额外+" .. P(0.05, f) .. "攻击力，最多+" .. P(0.25, f)
+          end },
+        { id = "dreamscape", name = "万象沉梦",
+          desc = "对全屏敌人造成攻击力×700%的幻梦伤害并眩晕1.0秒；已有幻梦印记的敌人每层额外+80%攻击力伤害（冷却16秒）",
+          type = "active", interval = 16,
+          baseAtkPct = 7.0,
+          stunDuration = 1.0,
+          stackBonusPct = 0.80,
+          starScale = true,
+          buildDesc = function(f)
+              return "全屏攻击力×" .. M(7.0, f) .. "幻梦伤害，眩晕1.0秒；每层印记额外+"
+                  .. P(0.80, f) .. "攻击力伤害"
+          end },
+    },
 }
 
 -- ============================================================================
@@ -1246,6 +1281,61 @@ Config.HERO_SKILL_TAGS = {
             effects = {
                 [1] = { chainReaction = true, maxChain = 2, desc = "爆炸再次点燃的目标死亡时可再次爆炸（最多连锁2次）" },
                 [2] = { chainReaction = true, maxChain = 3, chainDmgAmp = 0.20, desc = "连锁爆炸最多3次，每次伤害+20%" },
+            },
+        },
+    },
+
+    dream_weave = {
+        {
+            id = "lucid_pulse", name = "清醒脉冲", type = "on_hit", category = "control",
+            tier = 1, maxTier = 3,
+            unlock = { star = 0 },
+            effects = {
+                [1] = { slowOnHit = 0.15, slowDuration = 1.0,
+                        desc = "普攻附带15%减速，持续1秒" },
+                [2] = { slowOnHit = 0.25, slowDuration = 1.5,
+                        desc = "普攻附带25%减速，持续1.5秒" },
+                [3] = { slowOnHit = 0.25, slowDuration = 1.5, stackSpeedUp = 0.15,
+                        desc = "普攻附带25%减速1.5秒；叠印记期间攻速+15%" },
+            },
+        },
+        {
+            id = "deep_slumber", name = "深层沉梦", type = "on_hit", category = "control",
+            tier = 0, maxTier = 3,
+            unlock = { star = 5 },
+            effects = {
+                [1] = { extraStunDuration = 0.3,
+                        desc = "沉梦眩晕时间+0.3秒" },
+                [2] = { extraStunDuration = 0.5, burstAtkPctBonus = 0.50,
+                        desc = "沉梦眩晕+0.5秒，爆发伤害+50%ATK" },
+                [3] = { extraStunDuration = 0.5, burstAtkPctBonus = 1.00, armorIgnore = 0.20,
+                        desc = "沉梦眩晕+0.5秒，爆发+100%ATK，无视20%护甲" },
+            },
+        },
+        {
+            id = "dream_echo", name = "梦境回响", type = "aura", category = "support",
+            tier = 0, maxTier = 3,
+            unlock = { star = 10 },
+            effects = {
+                [1] = { auraAtkBuff = 0.10,
+                        desc = "光环额外提供+10%攻击力" },
+                [2] = { auraAtkBuff = 0.15, auraCritDmg = 0.30,
+                        desc = "光环+15%攻击力，+30%暴击伤害" },
+                [3] = { auraAtkBuff = 0.20, auraCritDmg = 0.50, auraRangeBonus = 20,
+                        desc = "光环+20%攻击力，+50%暴击伤害，范围+20" },
+            },
+        },
+        {
+            id = "nightmare_wave", name = "噩梦潮汐", type = "active", category = "burst",
+            tier = 0, maxTier = 3,
+            unlock = { star = 15 },
+            effects = {
+                [1] = { cdReduction = 2.0,
+                        desc = "万象沉梦冷却-2秒" },
+                [2] = { cdReduction = 3.0, afterStunDot = 0.15, dotDuration = 3.0,
+                        desc = "冷却-3秒；眩晕结束后附加每秒ATK×15%的意识侵蚀，持续3秒" },
+                [3] = { cdReduction = 4.0, afterStunDot = 0.20, dotDuration = 4.0, globalDreamApply = 2,
+                        desc = "冷却-4秒；眩晕后ATK×20%侵蚀4秒；额外为全屏敌人施加2层幻梦印记" },
             },
         },
     },

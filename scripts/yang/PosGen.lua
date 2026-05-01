@@ -72,9 +72,22 @@ function M.yangAABBPos(layerNum, count, aboveCards, seed, isTypeA)
     end
     M.shuffle(valid, seed + layerNum * 31 + 7)
     while #valid > count do table.remove(valid) end
+    -- 当 AABB 过滤后位置不够时，从全网格补充，确保返回恰好 count 个
     if #valid < count then
-        print(string.format("[警告] 层%d 有效位置%d < 需求%d，可能牌堆过稀",
-            layerNum, #valid, count))
+        local usedSet = {}
+        for _, v in ipairs(valid) do
+            usedSet[v.px .. "," .. v.py] = true
+        end
+        local extra = {}
+        for _, p in ipairs(allPos) do
+            if not usedSet[p.px .. "," .. p.py] then
+                table.insert(extra, p)
+            end
+        end
+        M.shuffle(extra, seed + layerNum * 37 + 13)
+        while #valid < count and #extra > 0 do
+            table.insert(valid, table.remove(extra))
+        end
     end
     return valid
 end

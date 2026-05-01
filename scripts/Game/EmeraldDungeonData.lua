@@ -912,6 +912,10 @@ function Emerald.DoSweep(difficultyId, affixBonusPct)
         LBM.UploadEmeraldToken(data.tokenEarned)
     end
 
+    -- 劳动奖章产出
+    local okLM, LMDD2 = pcall(require, "Game.LaborMedalData")
+    if okLM then LMDD2.EarnMedals("emerald_dungeon") end
+
     -- 保存
     HeroData.Save(true)
 

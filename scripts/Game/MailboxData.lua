@@ -177,6 +177,13 @@ SaveRegistry.Register("mailboxData", {
                 { type = "currency", id = "pale_jade", amount = 2000 },
             },
         })
+        MailboxData.SendOnce("update_20260501_v1090", {
+            title = "v1.0.90 更新奖励",
+            desc = "亲爱的召唤师，新英雄【梦璃】降临！全服副本【垃圾大扫除】同步开启，附上通用副本挑战券，祝您游戏愉快！",
+            rewards = {
+                { type = "item", id = "dungeon_ticket", amount = 5 },
+            },
+        })
 
         -- ── 一次性重置所有技能标签为0 ──
         do

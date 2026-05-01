@@ -251,6 +251,10 @@ function EquipData.UpgradeMulti(heroId, slotId, maxCount)
     end
 
     if upgraded > 0 then
+        -- 劳动奖章产出
+        local okLM, LMD = pcall(require, "Game.LaborMedalData")
+        if okLM then LMD.EarnMedals("equip_enhance") end
+
         HeroData.Save(true)  -- 批量强化消耗锻铁，立即云端保存
     end
     return upgraded, totalCost

@@ -188,6 +188,10 @@ SpriteSheet.Register("ember_wraith", {
     path = "image/ember_wraith_spritesheet_20260426025527.png",
     cols = 3,   -- 0=idle, 1=attack, 2=projectile
 })
+SpriteSheet.Register("dream_weave", {
+    path = "image/dream_weave_spritesheet.png",
+    cols = 3,   -- 0=idle, 1=attack, 2=projectile
+})
 -- 注册世界BOSS精灵图
 SpriteSheet.Register("world_boss", {
     path = "image/world_boss_abyss_lord_20260414151439.png",
@@ -201,6 +205,11 @@ SpriteSheet.Register("emerald_boss", {
 -- 注册憎恨化身BOSS精灵图
 SpriteSheet.Register("hatred_boss", {
     path = "image/mobs/hatred_boss.png",
+    cols = 3,   -- 0=idle, 1=cast, 2=attack
+})
+-- 注册垃圾Boss精灵图
+SpriteSheet.Register("garbage_boss", {
+    path = "image/garbage_boss_spritesheet_20260501082141.png",
     cols = 3,   -- 0=idle, 1=cast, 2=attack
 })
 

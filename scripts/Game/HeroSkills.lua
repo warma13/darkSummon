@@ -88,6 +88,7 @@ local _modules = {
     nature_elf        = require("Game.Heroes.nature_elf"),
     crimson_night     = require("Game.Heroes.crimson_night"),
     ember_wraith      = require("Game.Heroes.ember_wraith"),
+    dream_weave       = require("Game.Heroes.dream_weave"),
 }
 
 -- 按 hook 类型缓存有实现的模块列表（避免每帧遍历所有模块）
@@ -239,6 +240,12 @@ function HeroSkills.InitTowerSkills(tower)
         resonanceBurnCount  = 0,
         resonanceAtkBonus   = 0,
         resonanceDotAmp     = 0,
+        -- Dream Weave: 幻梦印记（per-target）+ 梦境共鸣光环
+        dreamSpdBuff        = nil,   -- lucid_pulse 叠印记期间攻速加成
+        dreamAuraSpdBuff    = nil,   -- 被其他梦璃光环覆盖的攻速加成
+        dreamAuraCritBuff   = nil,   -- 被光环覆盖的暴击率加成
+        dreamAuraAtkBuff    = nil,   -- 被光环覆盖的攻击力加成
+        dreamAuraCritDmgBuff = nil,  -- 被光环覆盖的暴击伤害加成
         -- Nature Elf: 自然之力 + 鲜花环 + 翠意庇护（由 nature_elf 写入其他塔）
         naturalForce        = 0,
         naturalForceTimer   = 0,

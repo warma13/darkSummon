@@ -308,6 +308,22 @@ function StartGame(serverId)
             HeroData.stats.afkLastClaimTime = os.time()
             print("[StartGame] AFK initialized afkLastClaimTime for new save")
         end
+        -- 离线推关：在 lastSaveTime 重置之前计算
+        do
+            local okOP, OfflinePush = pcall(require, "Game.OfflinePush")
+            if okOP and OfflinePush and OfflinePush.CalcOfflinePushRewards then
+                local pushResult = OfflinePush.CalcOfflinePushRewards()
+                if pushResult then
+                    GameUI._pendingOfflinePush = pushResult
+                    print("[StartGame] OfflinePush: pushed " .. (pushResult.pushed or 0)
+                        .. " stages, bestStage " .. (pushResult.oldBestStage or 0)
+                        .. " → " .. (pushResult.newBestStage or 0))
+                else
+                    print("[StartGame] OfflinePush: skipped (too short or no save)")
+                end
+            end
+        end
+
         HeroData.lastSaveTime = os.time()
         HeroData.Save()
 

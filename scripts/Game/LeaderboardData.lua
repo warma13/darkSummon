@@ -22,6 +22,7 @@ LB.KEY_COSTUME         = "lb_costume"          -- 时装战力总加分
 LB.KEY_EMERALD_TOKEN    = "lb_emerald_token"    -- 翠影秘境累计凭证
 LB.KEY_EMERALD_PROGRESS = "lb_emerald_progress" -- 翠影秘境最高进度 (tier*100+wave)
 LB.KEY_HATRED_LAND      = "lb_hatred_land"      -- 憎恨之地最高伤害（历史总榜）
+LB.KEY_GARBAGE_BOSS     = "lb_garbage_boss"     -- 垃圾大扫除个人累计伤害
 
 --- 获取世界BOSS每日排行榜 key（每天一个，格式：lb_wbv3_20260415）
 ---@return string
@@ -384,6 +385,48 @@ function LB.FormatAbyss(score)
     return diffName .. "·第" .. wave .. "波"
 end
 
+-- ============================================================================
+-- 垃圾大扫除排行榜
+-- ============================================================================
+
+--- 上传垃圾大扫除个人累计伤害到排行榜
+---@param totalDamage number 个人累计总伤害
+function LB.UploadGarbageBoss(totalDamage)
+    if not totalDamage or totalDamage <= 0 then return end
+    if not clientCloud then return end
+    local encoded = LB.EncodeBossScore(totalDamage, 0)
+    clientCloud:SetInt(LB.KEY_GARBAGE_BOSS, encoded, {
+        ok = function()
+            print("[LB] Garbage Boss score uploaded: totalDamage=" .. totalDamage
+                .. " (encoded=" .. encoded .. ")")
+        end,
+        error = function(code, reason)
+            print("[LB] Garbage Boss upload FAILED: " .. tostring(code) .. " " .. tostring(reason))
+        end,
+    })
+end
+
+--- 格式化垃圾大扫除伤害分数（接收编码整数，内部解码）
+---@param encoded number 编码后的排行榜整数
+---@return string
+function LB.FormatGarbageBoss(encoded)
+    if not encoded or encoded <= 0 then return "—" end
+    local damage = LB.DecodeBossScore(encoded)
+    if damage >= 1e20 then
+        return string.format("%.1f垓", damage / 1e20)
+    elseif damage >= 1e16 then
+        return string.format("%.1f京", damage / 1e16)
+    elseif damage >= 1e12 then
+        return string.format("%.1f兆", damage / 1e12)
+    elseif damage >= 1e8 then
+        return string.format("%.1f亿", damage / 1e8)
+    elseif damage >= 1e4 then
+        return string.format("%.0f万", damage / 1e4)
+    else
+        return tostring(math.floor(damage))
+    end
+end
+
 --- 同步所有排行榜分数（游戏初始化 / Save 时调用）
 function LB.SyncAll()
     if not clientCloud then return end
@@ -450,6 +493,15 @@ function LB.SyncAll()
         local bestTier, bestWave = ED.GetBestProgress()
         if bestTier > 0 then
             LB.UploadEmeraldProgress(bestTier, bestWave)
+        end
+    end
+
+    -- 垃圾大扫除个人累计伤害
+    local ok6, GBD = pcall(require, "Game.GarbageBossData")
+    if ok6 then
+        local totalDmg = GBD.GetTotalDamage()
+        if totalDmg > 0 then
+            LB.UploadGarbageBoss(totalDmg)
         end
     end
 

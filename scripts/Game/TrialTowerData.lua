@@ -259,6 +259,10 @@ function TrialTowerData.ClearFloor(floor)
     local ok, LB = pcall(require, "Game.LeaderboardData")
     if ok then LB.UploadTower(floor) end
 
+    -- 劳动奖章产出
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("trial_tower") end
+
     -- 保存（试炼塔通关奖励，立即云端保存）
     HeroData.Save(true)
 

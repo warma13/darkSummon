@@ -31,6 +31,14 @@ local FEATURED_HEROES = {
         bgColor = { 60, 30, 10, 200 },
         borderColor = { 255, 120, 30, 150 },
     },
+    {
+        heroId = "dream_weave",
+        name   = "梦璃",
+        color  = { 155, 115, 207 },
+        image  = "image/dream_weave_portrait_20260501103213.png",
+        bgColor = { 40, 20, 60, 200 },
+        borderColor = { 155, 115, 207, 150 },
+    },
 }
 
 -- 当前轮播索引（模块级状态）

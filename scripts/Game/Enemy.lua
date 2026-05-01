@@ -154,6 +154,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
         isBoss = typeDef.isBoss or false,
         isWorldBoss = typeDef.isWorldBoss or false,
         isHatredBoss = typeDef.isHatredBoss or false,
+        isGarbageBoss = typeDef.isGarbageBoss or false,
         affixes = {},
         affixIds = {},    -- 用于快速查询
 

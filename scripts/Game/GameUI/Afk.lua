@@ -1062,6 +1062,13 @@ local function BuildIdlePage1()
                 alignItems = "center",
                 gap = 4,
             },
+            -- 离线推关区域（动态填充）
+            ctx.UI.Panel {
+                id = "idlePushArea",
+                width = "100%",
+                alignItems = "center",
+                gap = 4,
+            },
             -- 分隔线
             ctx.UI.Panel {
                 width = "90%", height = 1,
@@ -1092,16 +1099,41 @@ local function BuildIdlePage1()
                             if pendingRewards then
                                 if pendingRewards.isOffline then
                                     HeroData.ClaimIdleRewards(pendingRewards)
+                                    -- 同时领取离线推关奖励
+                                    local pushResult = GameUI._pendingOfflinePush
+                                    if pushResult and pushResult.pushed > 0 then
+                                        local okOP, OfflinePush = pcall(require, "Game.OfflinePush")
+                                        if okOP and OfflinePush then
+                                            OfflinePush.ClaimPushRewards(pushResult)
+                                        end
+                                        GameUI._pendingOfflinePush = nil
+                                    end
                                     -- 领取离线奖励后，重置在线挂机计时基准
                                     HeroData.stats.afkLastClaimTime = os.time()
                                     GameUI._afkStartTime = time.elapsedTime
                                     GameUI._afkLastDisplaySec = -1
                                     GameUI._pendingIdleRewards = nil
                                     GameUI.ShowPanel("idleRewardPanel", false)
+                                    -- 合并推关奖励到展示列表
                                     local rewardItems = BuildRewardItems(pendingRewards)
+                                    if pushResult and pushResult.pushed > 0 and pushResult.stageRewards then
+                                        local pr = pushResult.stageRewards
+                                        if pr.void_pact and pr.void_pact > 0 then
+                                            local vpDef = Config.CURRENCY and Config.CURRENCY["void_pact"]
+                                            rewardItems[#rewardItems + 1] = {
+                                                icon = vpDef and vpDef.image or "?",
+                                                name = vpDef and vpDef.name or "虚空契约",
+                                                amount = pr.void_pact,
+                                            }
+                                        end
+                                    end
                                     if #rewardItems > 0 and ctx.uiRoot then
+                                        local pushTitle = "离线收益"
+                                        if pushResult and pushResult.pushed > 0 then
+                                            pushTitle = "离线收益 (推进" .. pushResult.pushed .. "关)"
+                                        end
                                         RewardDisplay.Show(ctx.UI, ctx.uiRoot, {
-                                            title = "离线收益",
+                                            title = pushTitle,
                                             rewards = rewardItems,
                                         })
                                     end
@@ -1111,7 +1143,20 @@ local function BuildIdlePage1()
                                         Toast.Show("挂机不足" .. Config.IDLE_MIN_SECONDS .. "秒，无法领取")
                                         return
                                     end
-                                    GrantAndShowRewards(pendingRewards, "挂机收益")
+                                    -- 同时领取离线推关奖励（如果有）
+                                    local pushResult2 = GameUI._pendingOfflinePush
+                                    if pushResult2 and pushResult2.pushed > 0 then
+                                        local okOP2, OfflinePush2 = pcall(require, "Game.OfflinePush")
+                                        if okOP2 and OfflinePush2 then
+                                            OfflinePush2.ClaimPushRewards(pushResult2)
+                                        end
+                                        GameUI._pendingOfflinePush = nil
+                                    end
+                                    local pushTitle2 = "挂机收益"
+                                    if pushResult2 and pushResult2.pushed > 0 then
+                                        pushTitle2 = "挂机收益 (推进" .. pushResult2.pushed .. "关)"
+                                    end
+                                    GrantAndShowRewards(pendingRewards, pushTitle2)
                                 end
                             end
                         end,
@@ -1503,6 +1548,76 @@ function GameUI._refreshIdlePage1()
                     width = "90%", height = 1,
                     marginTop = 2, marginBottom = 2,
                     backgroundColor = { 100, 70, 160, 80 },
+                })
+            end
+        end
+    end
+
+    -- 填充离线推关区域
+    local pushArea = ctx.uiRoot:FindById("idlePushArea")
+    if pushArea then
+        pushArea:ClearChildren()
+        local pushResult = GameUI._pendingOfflinePush
+        if pushResult then
+            local pushed = pushResult.pushed or 0
+            -- 分隔线
+            pushArea:AddChild(ctx.UI.Panel {
+                width = "90%", height = 1,
+                marginTop = 2, marginBottom = 2,
+                backgroundColor = pushed > 0 and { 200, 160, 60, 120 } or { 120, 120, 140, 80 },
+            })
+            if pushed > 0 then
+                -- 推关标题
+                pushArea:AddChild(ctx.UI.Label {
+                    text = "离线推关 +" .. pushed .. " 关",
+                    fontSize = 15, fontWeight = "bold",
+                    fontColor = { 255, 200, 60, 255 },
+                })
+                -- 关卡进度
+                pushArea:AddChild(ctx.UI.Label {
+                    text = "第 " .. pushResult.oldBestStage .. " 关 → 第 " .. pushResult.newBestStage .. " 关",
+                    fontSize = 13,
+                    fontColor = { 200, 180, 130, 220 },
+                })
+                -- 推关额外奖励（虚空契约）
+                if pushResult.stageRewards then
+                    local pr = pushResult.stageRewards
+                    if pr.void_pact and pr.void_pact > 0 then
+                        local vpDef = Config.CURRENCY and Config.CURRENCY["void_pact"]
+                        pushArea:AddChild(ctx.UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = 8,
+                            children = {
+                                vpDef and vpDef.image and ctx.UI.Panel {
+                                    width = 20, height = 20,
+                                    backgroundImage = vpDef.image,
+                                    backgroundFit = "contain",
+                                } or ctx.UI.Label { text = "📜", fontSize = 16 },
+                                ctx.UI.Label {
+                                    text = (vpDef and vpDef.name or "虚空契约") .. ": +" .. pr.void_pact,
+                                    fontSize = 14,
+                                    fontColor = { 180, 120, 255, 255 },
+                                },
+                            },
+                        })
+                    end
+                end
+                -- 提示
+                pushArea:AddChild(ctx.UI.Label {
+                    text = "推关资源已合并到上方收益",
+                    fontSize = 11,
+                    fontColor = { 140, 130, 160, 160 },
+                })
+            else
+                -- 0关：卡关提示
+                pushArea:AddChild(ctx.UI.Label {
+                    text = "离线推关 +0 关（卡关中）",
+                    fontSize = 14,
+                    fontColor = { 180, 160, 140, 200 },
+                })
+                pushArea:AddChild(ctx.UI.Label {
+                    text = "提升阵容战力可加快推关速度",
+                    fontSize = 11,
+                    fontColor = { 140, 130, 160, 160 },
                 })
             end
         end

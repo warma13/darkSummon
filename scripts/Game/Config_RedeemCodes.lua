@@ -491,6 +491,16 @@ local CODES = {
         end,
     },
     {
+        code = "VIP1779057459J",
+        desc = "专属奖励：垃圾Boss挑战次数 ×1000",
+        color = { 80, 180, 60 },
+        allowedUser = 1779057459,
+        reward = function()
+            local GB = require("Game.GarbageBossData")
+            GB.AddBonusAttempts(1000)
+        end,
+    },
+    {
         code = "VIP413248871",
         desc = "专属奖励：免广券 ×1000",
         color = { 100, 220, 180 },

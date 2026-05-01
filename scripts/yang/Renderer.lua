@@ -526,9 +526,9 @@ local function drawMenu(vg, LW, LH)
     nvgFillColor(vg, nvgRGBA(120, 110, 150, 130))
     nvgText(vg, cx, btnY + BH + 22, "通关后自动进入下一关")
 
-    -- ── 返回按钮（左上角）────────────────────────────────────────────────────
+    -- ── 返回按钮（左上角，安全区偏移）─────────────────────────────────────────
     local mbW, mbH = 72, 34
-    local mbx, mby = 14, 14
+    local mbx, mby = 14, getHudSafeTop() + 6
     M.menuBackBtn = { x = mbx, y = mby, w = mbW, h = mbH }
     nvgBeginPath(vg); nvgRoundedRect(vg, mbx, mby, mbW, mbH, mbH / 2)
     nvgFillColor(vg, nvgRGBA(100, 60, 160, 200)); nvgFill(vg)

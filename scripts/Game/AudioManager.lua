@@ -11,7 +11,8 @@ local AudioManager = {}
 -- 配置：所有音频资源路径
 -- ============================================================
 local BGM = {
-    main = "audio/music.ogg",
+    main       = "audio/music.ogg",
+    dark_match = "audio/dark_match_bgm.ogg",
 }
 
 local SFX = {

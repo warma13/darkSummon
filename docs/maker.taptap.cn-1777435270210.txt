@@ -1,0 +1,97 @@
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_55_915][709][Script] [Enemy] Spawned 骷髅兵 HP=79304896800 SPD=180
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_55_915][709][Script] [BattleManager] Overload started! enemies=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_56_416][739][Script] [Enemy] Spawned 骷髅兵 HP=79304896800 SPD=180
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_56_843][763][Script] [Tower] Created 恶魔战士 ★1 Lv.7000 无星0星 ATK=176001494 at (3,3)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_56_844][763][Script] [Tower] Summon #1 cost=50 next=60
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_56_868][764][Script] [SpriteSheet] Loaded 'demon': image/demon_warrior_sprite.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_56_919][767][Script] [Enemy] Spawned 骷髅兵 HP=79304896800 SPD=180
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_008][771][Script] [Tower] Created 蝙蝠仆从 ★1 Lv.7000 无星0星 ATK=280828838 at (2,6)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_009][771][Script] [Tower] Summon #2 cost=60 next=70
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_033][772][Script] [SpriteSheet] Loaded 'bat_m': image/bat_minion_sprite.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_177][779][Script] [Tower] Created 恶魔战士 ★1 Lv.7000 无星0星 ATK=176001494 at (6,3)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_179][779][Script] [Tower] Summon #3 cost=70 next=80
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_337][787][Script] [Tower] Created 恶魔战士 ★1 Lv.7000 无星0星 ATK=176001494 at (4,6)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_339][787][Script] [Tower] Summon #4 cost=80 next=90
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_432][792][Script] [Enemy] Spawned 骷髅兵 HP=79304896800 SPD=180
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_465][793][Script] [Tower] Cannot summon: 暗魂不足
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_609][801][Script] [Tower] Cannot summon: 暗魂不足
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_775][810][Script] [Tower] Cannot summon: 暗魂不足
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_784][811][Script] [Enemy] 尸蛛 split into 2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_784][811][Script] [Enemy] 尸蛛 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_927][818][Script] [Enemy] 腐鼠 killed, reward=2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_57_929][818][Script] [Enemy] 腐鼠 killed, reward=2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_615][855][Script] [Enemy] 尸蛛 split into 2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_615][855][Script] [Enemy] 尸蛛 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_771][863][Script] [GrantReward] LootDrop | type=currency id=nether_crystal amt=9640
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_851][867][Script] [SlotSave] Encode OK for group equip (6157 bytes)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_852][867][Script] [SlotSave] Encode OK for group meta_game (8845 bytes)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_936][871][Script] [SlotSave] Cloud save OK (slot 1, seq=883)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_58_944][872][Script] [GrantReward] LootDrop | type=currency id=nether_crystal amt=9640
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_017][876][Script] [Enemy] 腐鼠 killed, reward=2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_047][877][Script] [GrantReward] LootDrop | type=currency id=nether_crystal amt=9640
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_280][890][Script] [Enemy] 骷髅兵 killed, reward=4
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_328][892][Script] [Enemy] 腐鼠 killed, reward=2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_640][909][Script] [GrantReward] LootDrop | type=currency id=nether_crystal amt=9640
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_947][926][Script] [Enemy] 尸蛛 split into 2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_00_59_947][926][Script] [Enemy] 尸蛛 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_127][935][Script] [Tower] Created 永恒魔君 ★2 Lv.7003 无星0星 ATK=7569308120 at (3,3)
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_128][935][Script] [Tower] Merged into 永恒魔君 ★2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_137][936]WARNINGNext log has been output too many times and will not be output again.
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_137][936][Script] [GrantReward] LootDrop | type=currency id=nether_crystal amt=9640
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_148][936][Script] [SpriteSheet] Loaded 'archfiend': image/eternal_archfiend_sprite.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_272][943]WARNINGNext log has been output too many times and will not be output again.
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_272][943][Script] [Enemy] 腐鼠 killed, reward=2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_296][944][Script] [BattleManager] Overload cleared, enemies=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_435][951][Script] [Enemy] 尸蛛 split into 2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_435][951][Script] [Enemy] 尸蛛 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_452][952][Script] [BattleManager] Overload started! enemies=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_478][953][Script] [Enemy] 骷髅兵 killed, reward=4
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_502][954][Script] [BattleManager] Overload cleared, enemies=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_951][978][Script] [Layout Warning] Overflow in 'Panel': children=495x51, container=494x51. Consider: flexShrink=1 on children, or increase container size.
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_951][978][Script] [Layout Warning] Overflow in 'Panel': children=495x44, container=494x44. Consider: flexShrink=1 on children, or increase container size.
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_952][978][Script] [Layout Warning] Overflow in 'Panel': children=495x44, container=494x44. Consider: flexShrink=1 on children, or increase container size.
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_00_952][978][Script] [Layout Warning] Overflow in 'Panel': children=5x19, container=17x17. Consider: flexShrink=1 on children, or increase container size.
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_01_336][997][Script] [Enemy] 骷髅兵 killed, reward=4
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_01_443][1002][Script] [Enemy] 骷髅兵 killed, reward=4
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_01_872][1024][Script] [Enemy] 骷髅兵 killed, reward=4
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_02_076][1034][Script] [Enemy] 尸蛛 split into 2
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_02_076][1034][Script] [Enemy] 尸蛛 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_03_448][1106][Script] [BattleManager] Wave 2/10 (normal) started, enemies=15
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_03_942][1133][Script] [Enemy] Spawned 亡灵侍僧 HP=72167456088 SPD=144
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_03_960][1133][Script] [MobImage] Loaded: image/mobs/undead_support.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_04_270][1150][Script] [Enemy] 亡灵侍僧 killed, reward=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_04_456][1160][Script] [Enemy] Spawned 亡灵侍僧 HP=72167456088 SPD=144
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_04_776][1177][Script] [Enemy] 亡灵侍僧 killed, reward=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_04_952][1186][Script] [Enemy] Spawned 亡灵侍僧 HP=72167456088 SPD=144
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_05_273][1203][Script] [Enemy] 亡灵侍僧 killed, reward=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_05_444][1212][Script] [Enemy] Spawned 亡灵侍僧 HP=72167456088 SPD=144
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_05_760][1229][Script] [Enemy] 亡灵侍僧 killed, reward=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_05_948][1239][Script] [Enemy] Spawned 亡灵侍僧 HP=72167456088 SPD=144
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_06_264][1256][Script] [Enemy] 亡灵侍僧 killed, reward=8
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_06_460][1266][Script] [Enemy] Spawned 怨灵 HP=51548182920 SPD=198
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_06_475][1266][Script] [MobImage] Loaded: image/mobs/undead_dodger.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_06_728][1280][Script] [Enemy] 怨灵 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_06_958][1292][Script] [Enemy] Spawned 怨灵 HP=51548182920 SPD=198
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_07_244][1307][Script] [Enemy] 怨灵 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_07_456][1318][Script] [Enemy] Spawned 怨灵 HP=51548182920 SPD=198
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_07_740][1333][Script] [Enemy] 怨灵 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_07_956][1344][Script] [Enemy] Spawned 怨灵 HP=51548182920 SPD=198
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_08_443][1370][Script] [Enemy] Spawned 怨灵 HP=51548182920 SPD=198
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_08_815][1390][Script] [Enemy] 怨灵 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_09_272][1414][Script] [Enemy] 怨灵 killed, reward=7
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_09_444][1423][Script] [Enemy] Spawned 白骨巨人 HP=309289097520 SPD=79
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_09_459][1423][Script] [MobImage] Loaded: image/mobs/undead_tank.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_09_772][1440][Script] [Enemy] 白骨巨人 killed, reward=10
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_10_452][1476][Script] [Enemy] Spawned 白骨巨人 HP=309289097520 SPD=79
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_10_790][1493][Script] [Enemy] 白骨巨人 killed, reward=10
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_11_449][1528][Script] [Enemy] Spawned 白骨巨人 HP=309289097520 SPD=79
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_11_790][1546][Script] [Enemy] 白骨巨人 killed, reward=10
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_12_440][1582][Script] [Enemy] Spawned 白骨巨人 HP=309289097520 SPD=79
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_12_776][1600][Script] [Enemy] 白骨巨人 killed, reward=10
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_13_457][1638][Script] [Enemy] Spawned 白骨巨人 HP=309289097520 SPD=79
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_13_785][1656][Script] [Enemy] 白骨巨人 killed, reward=10
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_13_808][1657][Script] [BattleManager] Wave 3/10 (elite) started, enemies=20
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_14_300][1684][Script] [Enemy] Spawned 亡灵蝙蝠 HP=34259715418 SPD=331
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_14_315][1684][Script] [MobImage] Loaded: image/mobs/undead_assassin.png
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_14_512][1695][Script] [Enemy] 亡灵蝙蝠 killed, reward=6
+fc345263-0f29-4532-be27-c8229e213cea:1 [2026-04-29 12_01_14_811][1711][Script] [Enemy] Spawned 亡灵蝙蝠 HP=34259715418 SPD=331

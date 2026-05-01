@@ -9,6 +9,7 @@ local Toast = require("Game.Toast")
 local TodayStr = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
+local LaborDayData = require("Game.LaborDayData")
 
 local RD = {}
 
@@ -716,13 +717,17 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
     -- 计算并发放奖励
     local rewards = RD.CalcTotalRewards(dungeonKey, clearedWave, diffLevel)
 
+    -- 劳动加倍（一次结算只消耗一次机会）
+    local laborMult = LaborDayData.ConsumeDouble()
+
     -- 标准化奖励定义（供 RewardController 展示）
     local rewardDefs = {}
 
     if def.rewardCurrency == "chest" then
-        -- 宝箱副本：按类型发放宝箱
+        -- 宝箱副本：按类型发放宝箱（宝箱数量加倍）
         local chests = rewards.chests or {}
         for chestId, count in pairs(chests) do
+            count = math.floor(count * laborMult)
             if count > 0 then
                 Currency.GrantReward({ type = "chest", id = chestId, amount = count }, "ResourceDungeon")
                 rewardDefs[#rewardDefs + 1] = { type = "chest", id = chestId, amount = count }
@@ -732,6 +737,7 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
         -- 技能书副本：按阶级发放多种技能书
         local books = rewards.skill_books or {}
         for bookId, count in pairs(books) do
+            count = math.floor(count * laborMult)
             if count > 0 then
                 Currency.GrantReward({ type = "currency", id = bookId, amount = count }, "ResourceDungeon")
                 rewardDefs[#rewardDefs + 1] = { type = "currency", id = bookId, amount = count }
@@ -740,6 +746,7 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
     else
         -- 货币副本：发放对应货币
         for currId, amount in pairs(rewards) do
+            amount = math.floor(amount * laborMult)
             Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "ResourceDungeon")
             rewardDefs[#rewardDefs + 1] = { type = "currency", id = currId, amount = amount }
         end
@@ -757,6 +764,10 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
         end
         if maxWave > 0 then LBMod.UploadDungeon(maxWave) end
     end
+
+    -- 劳动奖章产出
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("resource_dungeon") end
 
     HeroData.Save(true)  -- 副本通关奖励，立即云端保存
 

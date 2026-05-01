@@ -611,6 +611,10 @@ function RuneData.ApplyReforge(rune, newAffixes)
     for _, a in ipairs(rune.affixes) do
         a.locked = false
     end
+    -- 劳动奖章产出
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("rune_recast") end
+
     HeroData.Save(true)
 end
 
@@ -732,6 +736,10 @@ end
 ---@param newTagAffix table|nil
 function RuneData.ApplyTagReforge(rune, newTagAffix)
     rune.tagAffix = newTagAffix
+    -- 劳动奖章产出
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("rune_recast") end
+
     HeroData.Save(true)
 end
 

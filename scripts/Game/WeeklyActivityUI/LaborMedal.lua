@@ -21,23 +21,8 @@ function LaborMedal.BuildBanner(ctx)
     local UI = ctx.GetUI()
     local S  = ctx.GetS()
 
-    local balance   = Currency.Get("labor_medal")
-    local totalEarn = LMD.GetTotalEarned()
-    local isActive  = LMD.IsActive()
-
-    -- 下一个未达标里程碑
-    local nextThreshold = 0
-    for _, m in ipairs(LMD.MILESTONES) do
-        if totalEarn < m.threshold then
-            nextThreshold = m.threshold
-            break
-        end
-    end
-    if nextThreshold == 0 then
-        nextThreshold = LMD.MILESTONES[#LMD.MILESTONES].threshold
-    end
-
-    local progressPct = math.min(100, math.floor(totalEarn / nextThreshold * 100))
+    local balance    = Currency.Get("labor_medal")
+    local dailyEarn  = LMD.GetDailyEarned()
 
     return UI.Panel {
         width = "100%",
@@ -110,41 +95,25 @@ function LaborMedal.BuildBanner(ctx)
                             },
                         },
                     },
-                    -- 里程碑进度条
+                    -- 今日获得 / 上限
                     UI.Panel {
-                        width = "100%", gap = 4,
+                        width = "100%",
+                        flexDirection = "row",
+                        justifyContent = "space-between",
+                        alignItems = "center",
                         children = {
-                            UI.Panel {
-                                flexDirection = "row",
-                                justifyContent = "space-between",
-                                width = "100%",
-                                children = {
-                                    UI.Label {
-                                        text = "累计获得",
-                                        fontSize = 11,
-                                        fontColor = { 200, 170, 130, 200 },
-                                    },
-                                    UI.Label {
-                                        text = totalEarn .. " / " .. nextThreshold,
-                                        fontSize = 11,
-                                        fontColor = { 255, 180, 80, 255 },
-                                        fontWeight = "bold",
-                                    },
-                                },
+                            UI.Label {
+                                text = "今日获得",
+                                fontSize = 11,
+                                fontColor = { 200, 170, 130, 200 },
                             },
-                            UI.Panel {
-                                width = "100%", height = 8,
-                                backgroundColor = { 30, 15, 5, 200 },
-                                borderRadius = 4,
-                                overflow = "hidden",
-                                children = {
-                                    UI.Panel {
-                                        width = progressPct .. "%",
-                                        height = "100%",
-                                        backgroundColor = { 255, 160, 40, 255 },
-                                        borderRadius = 4,
-                                    },
-                                },
+                            UI.Label {
+                                text = dailyEarn .. " / " .. LMD.DAILY_CAP,
+                                fontSize = 13,
+                                fontColor = dailyEarn >= LMD.DAILY_CAP
+                                    and { 100, 200, 120, 255 }
+                                    or  { 255, 180, 80, 255 },
+                                fontWeight = "bold",
                             },
                         },
                     },
@@ -160,28 +129,29 @@ end
 function LaborMedal._BuildSourceHints(UI)
     local hints = {}
     for key, src in pairs(LMD.SOURCES) do
-        hints[#hints + 1] = { label = src.label, amount = src.amount }
+        local earned = LMD.IsSourceEarnedToday(key)
+        hints[#hints + 1] = { key = key, label = src.label, amount = src.amount, earned = earned }
     end
-    -- 按 amount 降序排列
-    table.sort(hints, function(a, b) return a.amount > b.amount end)
+    -- 已领取排前面，同组内按 amount 降序
+    table.sort(hints, function(a, b)
+        if a.earned ~= b.earned then return a.earned end
+        return a.amount > b.amount
+    end)
 
     local items = {}
     for _, h in ipairs(hints) do
+        local dotColor = h.earned and { 80, 220, 120, 255 } or { 255, 180, 80, 200 }
+        local txtColor = h.earned and { 80, 220, 120, 240 } or { 200, 180, 140, 180 }
+        local checkMark = h.earned and "✓ " or "• "
         items[#items + 1] = UI.Panel {
             flexDirection = "row",
             alignItems = "center",
             gap = 4,
             children = {
-                UI.Panel {
-                    width = 4, height = 4,
-                    borderRadius = 2,
-                    backgroundColor = { 255, 180, 80, 200 },
-                    flexShrink = 0,
-                },
                 UI.Label {
-                    text = h.label .. " +" .. h.amount,
+                    text = checkMark .. h.label .. " +" .. h.amount,
                     fontSize = 10,
-                    fontColor = { 200, 180, 140, 180 },
+                    fontColor = txtColor,
                 },
             },
         }
@@ -223,6 +193,9 @@ function LaborMedal.BuildMilestones(ctx)
     local UI = ctx.GetUI()
     local S  = ctx.GetS()
 
+    local totalEarn = LMD.GetTotalEarned()
+    local maxThreshold = LMD.MILESTONES[#LMD.MILESTONES].threshold
+
     local cards = {}
     for i = 1, #LMD.MILESTONES do
         cards[#cards + 1] = LaborMedal._BuildMilestoneCard(ctx, i)
@@ -233,12 +206,26 @@ function LaborMedal.BuildMilestones(ctx)
         gap = 4,
         marginBottom = 8,
         children = {
-            UI.Label {
-                text = "累计里程碑",
-                fontSize = 14,
-                fontColor = { 255, 200, 80, 255 },
-                fontWeight = "bold",
+            -- 标题行：左=累计里程碑  右=累计进度
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                justifyContent = "space-between",
+                alignItems = "center",
                 marginBottom = 4,
+                children = {
+                    UI.Label {
+                        text = "累计里程碑",
+                        fontSize = 14,
+                        fontColor = { 255, 200, 80, 255 },
+                        fontWeight = "bold",
+                    },
+                    UI.Label {
+                        text = "累计 " .. totalEarn .. " / " .. maxThreshold,
+                        fontSize = 11,
+                        fontColor = { 200, 170, 130, 200 },
+                    },
+                },
             },
             table.unpack(cards),
         },

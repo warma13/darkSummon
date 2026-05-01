@@ -265,6 +265,10 @@ function ChestData.Open(chestId, count)
     local ok3, WAD = pcall(require, "Game.WeeklyActivityData")
     if ok3 and WAD and WAD.IsActive() then WAD.AddScore(totalScore) end
 
+    -- 劳动奖章产出
+    local okLM, LMD = pcall(require, "Game.LaborMedalData")
+    if okLM then LMD.EarnMedals("chest_open") end
+
     ChestData.Save()
 
     print("[ChestData] Opened " .. count .. "x " .. def.name ..

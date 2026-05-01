@@ -412,6 +412,39 @@ Config.TOWER_TYPES = {
         icon = "glacial",
         isLimited = true,              -- 标记为限定英雄
     },
+    -- 常驻 UR：梦璃
+    {
+        id = "dream_weave",
+        name = "梦璃",
+        rarity = "UR",
+        color = { 155, 115, 207 },
+        glowColor = { 0.76, 0.56, 0.93 },
+        attackType = "aoe",
+        baseRange = 120,
+        baseSpeed = 1.0,
+        special = "dream_control",
+        faction = "human",
+
+        -- 被动：幻梦印记
+        dreamMaxStacks = 4,
+        dreamStackDuration = 5.0,
+        dreamStunDuration = 1.5,
+        dreamBurstAtkPct = 2.50,
+        dreamBurstRadius = 50,
+
+        -- 被动：梦境共鸣
+        dreamAuraRange = 110,
+        dreamAuraSpdPct = 0.25,
+        dreamAuraCritRate = 0.15,
+
+        -- 主动：万象沉梦
+        activeCooldown = 16.0,
+        dreamActiveAtkPct = 7.0,
+        dreamActiveStun = 1.0,
+        dreamActiveStackBonus = 0.80,
+
+        icon = "dream_weave",
+    },
     -- ========== LR 级 (2个) ==========
     {
         id = "fate_weaver",
@@ -508,6 +541,7 @@ Config.HERO_ROLE = {
     frost_witch       = { "control", "slow" },
     glacial_sovereign = { "control", "freeze" },
     stone_golem       = { "control", "stun" },
+    dream_weave       = { "control", "stun" },
 
     -- 辅助定位
     war_drummer       = { "support", "buff" },

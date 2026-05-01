@@ -70,6 +70,10 @@ local DATA_MODULE_PATHS = {
     "Game.BlackMarketData",
     "Game.TitleData",
     "Game.MineDungeonData",
+    "Game.HatredLandData",
+    "Game.LaborDayData",
+    "Game.LaborMedalData",
+    "Game.GarbageBossData",
 }
 
 --- 确保所有数据模块已加载（触发它们底部的 SaveRegistry.Register 调用）
