@@ -21,14 +21,16 @@ function M.shuffle(t, seed)
     end
 end
 
--- 生成 kindList：每种图案出现 3N 次，总数 = total
+-- 生成 kindList：每种图案出现 3N 次，总数恰好 = total
 function M.makeKindList(total, kindCount)
-    local base  = math.floor(total / kindCount / 3) * 3
-    local extra = (total - base * kindCount) // 3
-    local list  = {}
+    -- total 必须是 3 的倍数（调用方已保证）
+    local triples = total // 3                      -- 总共需要多少个"三连"
+    local baseT   = triples // kindCount            -- 每种至少分到的三连数
+    local extraT  = triples - baseT * kindCount     -- 还剩余的三连数，分给前 extraT 种
+    local list    = {}
     for k = 1, kindCount do
-        local cnt = base + (k <= extra and 3 or 0)
-        for _ = 1, cnt do table.insert(list, k) end
+        local cnt = (baseT + (k <= extraT and 1 or 0)) * 3
+        for _ = 1, cnt do list[#list + 1] = k end
     end
     return list
 end

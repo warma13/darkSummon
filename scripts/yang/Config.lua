@@ -126,11 +126,12 @@ local function genDescendLayers(totalA)
     local assigned = 0
     for i = 1, nL do
         local ratio = nL + 1 - i
-        local n = math.max(3, math.floor(totalA * ratio / sumR / 3) * 3)
+        -- 每层不要求是3的倍数，只需总和正确
+        local n = math.max(1, math.floor(totalA * ratio / sumR))
         layers[i] = n
         assigned  = assigned + n
     end
-    layers[1] = math.max(3, layers[1] + (totalA - assigned))
+    layers[1] = math.max(1, layers[1] + (totalA - assigned))
     return layers
 end
 
@@ -153,12 +154,12 @@ local function genSpindleLayers(totalA)
     local layers   = {}
     local assigned = 0
     for i = 1, nL do
-        local n3 = math.max(1, math.floor(weights[i] / sumW * totalA / 3))
-        layers[i] = n3 * 3
+        -- 每层不要求是3的倍数，只需总和正确
+        layers[i] = math.max(1, math.floor(weights[i] / sumW * totalA))
         assigned  = assigned + layers[i]
     end
     local peakIdx = math.ceil(nL / 2)
-    layers[peakIdx] = math.max(3, layers[peakIdx] + (totalA - assigned))
+    layers[peakIdx] = math.max(1, layers[peakIdx] + (totalA - assigned))
 
     -- ── cap 每层不超过 YANG_GRID_MAX（49），溢出重新分配到最空闲层 ──
     local overflow = 0
@@ -168,9 +169,8 @@ local function genSpindleLayers(totalA)
             layers[i] = YANG_GRID_MAX
         end
     end
-    -- 把溢出的牌按 3 张一组分配到还有空间的层（从最少的层开始）
-    while overflow >= 3 do
-        -- 找最少牌且还有空间的层
+    -- 把溢出的牌逐张分配到还有空间的层（从最少的层开始）
+    while overflow > 0 do
         local bestIdx, bestVal = nil, YANG_GRID_MAX + 1
         for i = 1, nL do
             if layers[i] < YANG_GRID_MAX and layers[i] < bestVal then
@@ -179,16 +179,13 @@ local function genSpindleLayers(totalA)
         end
         if not bestIdx then break end  -- 所有层都满了，无法再分配
         local room = YANG_GRID_MAX - layers[bestIdx]
-        local give = math.min(overflow, math.floor(room / 3) * 3)
-        if give < 3 then break end
+        local give = math.min(overflow, room)
         layers[bestIdx] = layers[bestIdx] + give
         overflow = overflow - give
     end
-    -- 如果还有剩余溢出（所有层都快满了），追加新层
-    while overflow >= 3 do
+    -- 如果还有剩余溢出（所有层都满了），追加新层
+    while overflow > 0 do
         local newLayer = math.min(overflow, YANG_GRID_MAX)
-        newLayer = math.floor(newLayer / 3) * 3
-        if newLayer < 3 then break end
         nL = nL + 1
         layers[nL] = newLayer
         overflow = overflow - newLayer

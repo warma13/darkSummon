@@ -144,8 +144,9 @@ end
 
 local function overlaps(a, b)
     if a.px then
-        -- X 用卡牌宽度，Y 用卡牌高度（CW≠CH 时避免漏检遮挡）
-        return math.abs(a.px - b.px) < M.CW and math.abs(a.py - b.py) < M.CH
+        -- 用 YANG_FACE（牌面边长 42）判定遮挡，与 PosGen.yangAABBPos 保持一致
+        -- 不能用 CH（50，含阴影），否则上下相邻但不重叠的牌会被误判为遮挡
+        return math.abs(a.px - b.px) < YANG_FACE and math.abs(a.py - b.py) < YANG_FACE
     else
         return a.rolNum < b.rolNum + 2 and b.rolNum < a.rolNum + 2
            and a.rowNum < b.rowNum + 2 and b.rowNum < a.rowNum + 2

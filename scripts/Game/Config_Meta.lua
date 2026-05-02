@@ -417,7 +417,7 @@ Config.HERO_SKILLS = {
           desc = "散发幻梦光环，范围内友方攻速+25%、暴击率+15%；场上每有一个处于眩晕状态的敌人，光环额外+5%攻击力，最多+25%",
           type = "passive",
           auraRange = 110,
-          auraSpdBuff = 0.25, auraCritBuff = 0.15,
+          atkSpdBonus = 0.25, critRate = 0.15,
           stunAtkBonusPerEnemy = 0.05, stunAtkBonusMax = 0.25,
           starScale = true,
           buildDesc = function(f)
@@ -1313,15 +1313,15 @@ Config.HERO_SKILL_TAGS = {
             },
         },
         {
-            id = "dream_echo", name = "梦境回响", type = "aura", category = "support",
+            id = "dream_echo", name = "梦境回响", type = "passive", category = "support",
             tier = 0, maxTier = 3,
             unlock = { star = 10 },
             effects = {
                 [1] = { auraAtkBuff = 0.10,
                         desc = "光环额外提供+10%攻击力" },
-                [2] = { auraAtkBuff = 0.15, auraCritDmg = 0.30,
+                [2] = { auraAtkBuff = 0.15, critDmg = 0.30,
                         desc = "光环+15%攻击力，+30%暴击伤害" },
-                [3] = { auraAtkBuff = 0.20, auraCritDmg = 0.50, auraRangeBonus = 20,
+                [3] = { auraAtkBuff = 0.20, critDmg = 0.50, auraRangeBonus = 20,
                         desc = "光环+20%攻击力，+50%暴击伤害，范围+20" },
             },
         },

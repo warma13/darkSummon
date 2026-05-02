@@ -212,8 +212,9 @@ function HeroSkills.InitTowerSkills(tower)
     end
 
     -- 被动技能属性（如暴击率/暴击伤害）应用到塔面板
+    -- 注意：有 auraRange 的技能是光环（作用于友军），不加到自身
     for _, skill in ipairs(tower.skills) do
-        if skill.type == "passive" then
+        if skill.type == "passive" and not skill.auraRange then
             if skill.critRate then
                 tower.critRate = (tower.critRate or 0) + skill.critRate
             end
@@ -249,12 +250,9 @@ function HeroSkills.InitTowerSkills(tower)
         resonanceBurnCount  = 0,
         resonanceAtkBonus   = 0,
         resonanceDotAmp     = 0,
-        -- Dream Weave: 幻梦印记（per-target）+ 梦境共鸣光环
+        -- Dream Weave: 幻梦印记（per-target）
         dreamSpdBuff        = nil,   -- lucid_pulse 叠印记期间攻速加成
-        dreamAuraSpdBuff    = nil,   -- 被其他梦璃光环覆盖的攻速加成
-        dreamAuraCritBuff   = nil,   -- 被光环覆盖的暴击率加成
-        dreamAuraAtkBuff    = nil,   -- 被光环覆盖的攻击力加成
-        dreamAuraCritDmgBuff = nil,  -- 被光环覆盖的暴击伤害加成
+        -- 梦境共鸣光环已改用通用字段 auraCritRateBuff/auraSpdBuff/auraAtkBuff/auraCritDmgBuff
         -- Nature Elf: 自然之力 + 鲜花环 + 翠意庇护（由 nature_elf 写入其他塔）
         naturalForce        = 0,
         naturalForceTimer   = 0,
@@ -1415,8 +1413,11 @@ function HeroSkills.GetEffectiveCritRate(tower)
     end
     -- 英雄模块额外暴击率（绯夜绯瞳锁定等）
     local hs2 = tower.hstate
-    if hs2 and hs2.bonusCritRate and hs2.bonusCritRate > 0 then
-        rate = rate + hs2.bonusCritRate
+    if hs2 then
+        if hs2.bonusCritRate and hs2.bonusCritRate > 0 then
+            rate = rate + hs2.bonusCritRate
+        end
+
     end
 
     -- ================================================================

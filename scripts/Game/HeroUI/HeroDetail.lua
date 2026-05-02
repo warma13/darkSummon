@@ -229,13 +229,19 @@ local function ComputeFullStats(heroId)
         relicCritDmgPct = rb.critDmgPct or 0
     end
 
-    -- 技能被动加成（critRate / critDmg）
-    local skillCritRate, skillCritDmg = 0, 0
+    -- 技能被动加成（带星级缩放）
+    local skillCritRate, skillCritDmg, skillSpdBonus = 0, 0, 0
+    local h0 = HeroData.heroes and HeroData.heroes[heroId]
+    local heroStar0 = (h0 and h0.star) or 0
+    local maxStar0  = Config.MAX_HERO_STAR or 30
+    local skillStarScale = 0.10 + 0.90 * math.sqrt(math.min(heroStar0, maxStar0) / maxStar0)
     local skillDefs0 = Config.HERO_SKILLS and Config.HERO_SKILLS[heroId] or {}
     for _, skill in ipairs(skillDefs0) do
-        if skill.type == "passive" then
-            skillCritRate = skillCritRate + (skill.critRate or 0)
-            skillCritDmg  = skillCritDmg  + (skill.critDmg or 0)
+        if skill.type == "passive" and not skill.auraRange then
+            local sf = (skill.starScale and skillStarScale) or 1.0
+            skillCritRate  = skillCritRate  + (skill.critRate or 0) * sf
+            skillCritDmg   = skillCritDmg  + (skill.critDmg or 0) * sf
+            skillSpdBonus  = skillSpdBonus + (skill.atkSpdBonus or 0) * sf
         end
     end
 
@@ -262,6 +268,68 @@ local function ComputeFullStats(heroId)
                     tagCritDmg     = tagCritDmg     + (eff.critDmg or 0)
                     tagAtkSpdBonus = tagAtkSpdBonus + (eff.atkSpdBonus or 0)
                     tagArmorIgnore = tagArmorIgnore + (eff.armorIgnore or 0)
+                end
+            end
+        end
+    end
+
+    -- 友军光环加成（遍历已部署英雄收集 aura 效果）
+    local auraCritRate, auraCritDmg, auraSpdBonus = 0, 0, 0
+    do
+        -- 收集所有在场英雄ID（deployed + leader），排除自身
+        local allOnBoard = {}
+        local leaderId = Config.LEADER_HERO and Config.LEADER_HERO.id
+        if leaderId and leaderId ~= heroId then
+            allOnBoard[#allOnBoard + 1] = leaderId
+        end
+        if HeroData.deployed then
+            for _, did in ipairs(HeroData.deployed) do
+                if did ~= heroId then
+                    allOnBoard[#allOnBoard + 1] = did
+                end
+            end
+        end
+
+        for _, allyId in ipairs(allOnBoard) do
+            local allyH = HeroData.heroes and HeroData.heroes[allyId]
+            if allyH then
+                local allyStar = allyH.star or 0
+                local allyScale = 0.10 + 0.90 * math.sqrt(math.min(allyStar, maxStar0) / maxStar0)
+
+                -- 1) 光环型 passive 技能（有 auraRange 的）
+                local allySkills = Config.HERO_SKILLS and Config.HERO_SKILLS[allyId] or {}
+                for _, sk in ipairs(allySkills) do
+                    if sk.type == "passive" and sk.auraRange then
+                        local sf = (sk.starScale and allyScale) or 1.0
+                        auraCritRate  = auraCritRate  + (sk.critRate or 0) * sf
+                        auraCritDmg   = auraCritDmg   + (sk.critDmg or 0) * sf
+                        auraSpdBonus  = auraSpdBonus  + (sk.atkSpdBonus or 0) * sf
+                    end
+                end
+
+                -- 2) aura 类型 tag（category=buff_aura，给友军加成的光环标签）
+                local allyTags = Config.HERO_SKILL_TAGS and Config.HERO_SKILL_TAGS[allyId]
+                if allyTags then
+                    for _, atDef in ipairs(allyTags) do
+                        if atDef.type == "aura" and atDef.category == "buff_aura" then
+                            local aTier = HeroData.GetTagTier(allyId, atDef.id)
+                            local aUnlocked = HeroData.IsTagUnlocked(allyId, atDef)
+                            local aReqMet = true
+                            if atDef.requires then
+                                for _, rId in ipairs(atDef.requires) do
+                                    if HeroData.GetTagTier(allyId, rId) <= 0 then aReqMet = false; break end
+                                end
+                            end
+                            local aActiveTier = (aUnlocked and aReqMet) and aTier or 0
+                            if aActiveTier > 0 then
+                                local aEff = atDef.effects and atDef.effects[aActiveTier]
+                                if aEff then
+                                    auraCritRate  = auraCritRate  + (aEff.critRateBuff or 0)
+                                    auraCritDmg   = auraCritDmg   + (aEff.critDmgBuff or 0)
+                                end
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -300,9 +368,9 @@ local function ComputeFullStats(heroId)
               * (1 + relicAtkPct)
               * (1 + affixAtkPct)
     stats.critRate = (stats.critRate or 0) + (eqBonus.critRate or 0) + divineCritPct
-                   + skillCritRate + tagCritRate + affixCritRate
+                   + skillCritRate + tagCritRate + affixCritRate + auraCritRate
     stats.critDmg = (stats.critDmg or 0) + (eqBonus.critDmg or 0) + relicCritDmgPct
-                  + skillCritDmg + tagCritDmg + affixCritDmg
+                  + skillCritDmg + tagCritDmg + affixCritDmg + auraCritDmg
     stats.armorPen = (stats.armorPen or 0) + (eqBonus.armorPen or 0) + tagArmorIgnore + affixArmorPen
     stats.dmgBonus = (stats.dmgBonus or 0) + (eqBonus.dmgBonus or 0) + affixDmgBonus
 
@@ -325,7 +393,7 @@ local function ComputeFullStats(heroId)
     -- 计算实际攻速（次/s）
     local totalSpdBonus = (stats.spdBonus or 0) + (eqBonus.spd_pct or 0)
                         + divineSpdPct + relicSpdPct + tagAtkSpdBonus + affixSpdBonus
-                        + (stats.spdBonusTitle or 0)
+                        + (stats.spdBonusTitle or 0) + skillSpdBonus + auraSpdBonus
     do
         local baseSpeed = nil
         for _, td in ipairs(Config.TOWER_TYPES) do
@@ -392,8 +460,11 @@ local function GetRuntimeStats(heroId)
     -- 暴击率（含光环/技能/标签加成）
     stats.critRate = HeroSkills.GetEffectiveCritRate(tower)
 
-    -- 暴击伤害/穿甲/伤害加成（含减益修正）
+    -- 暴击伤害/穿甲/伤害加成（含减益修正 + 光环加成）
     stats.critDmg  = Tower.GetEffectiveCritDmg(tower)
+    if tower.auraCritDmgBuff and tower.auraCritDmgBuff > 0 then
+        stats.critDmg = stats.critDmg + tower.auraCritDmgBuff
+    end
     stats.armorPen = Tower.GetEffectiveArmorPen(tower)
     stats.dmgBonus = Tower.GetEffectiveDmgBonus and Tower.GetEffectiveDmgBonus(tower) or (tower.dmgBonus or 0)
 
@@ -494,14 +565,11 @@ local function BuildInfoTab(ctx, heroId, heroDef)
         for _, skill in ipairs(skillDefs1) do
             if skill.type == "passive" then
                 local sf = (skill.starScale and starScale0) or 1.0
-                if skill.auraSpdBuff and skill.auraSpdBuff > 0 then
-                    auraRows[#auraRows + 1] = { label = "友方攻速", value = fmtP(skill.auraSpdBuff * sf), color = { 100, 200, 255, 255 }, src = skill.name }
+                if skill.atkSpdBonus and skill.atkSpdBonus > 0 then
+                    auraRows[#auraRows + 1] = { label = "友方攻速", value = fmtP(skill.atkSpdBonus * sf), color = { 100, 200, 255, 255 }, src = skill.name }
                 end
-                if skill.auraCritBuff and skill.auraCritBuff > 0 then
-                    auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(skill.auraCritBuff * sf), color = { 255, 220, 80, 255 }, src = skill.name }
-                end
-                if skill.critRateBuff and skill.critRateBuff > 0 then
-                    auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(skill.critRateBuff * sf), color = { 255, 220, 80, 255 }, src = skill.name }
+                if skill.critRate and skill.critRate > 0 then
+                    auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(skill.critRate * sf), color = { 255, 220, 80, 255 }, src = skill.name }
                 end
                 if skill.stunAtkBonusMax and skill.stunAtkBonusMax > 0 then
                     auraRows[#auraRows + 1] = { label = "眩晕增攻(上限)", value = fmtP(skill.stunAtkBonusMax * sf), color = { 255, 160, 80, 255 }, src = skill.name }
@@ -520,11 +588,8 @@ local function BuildInfoTab(ctx, heroId, heroDef)
                     if eff.auraAtkBuff and eff.auraAtkBuff > 0 then
                         auraRows[#auraRows + 1] = { label = "友方攻击力", value = fmtP(eff.auraAtkBuff), color = { 255, 120, 80, 255 }, src = tagDef.name }
                     end
-                    if eff.auraCritDmg and eff.auraCritDmg > 0 then
-                        auraRows[#auraRows + 1] = { label = "友方暴伤", value = fmtP(eff.auraCritDmg), color = { 255, 160, 60, 255 }, src = tagDef.name }
-                    end
-                    if eff.critRateBuff and eff.critRateBuff > 0 then
-                        auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(eff.critRateBuff), color = { 255, 220, 80, 255 }, src = tagDef.name }
+                    if eff.critDmg and eff.critDmg > 0 then
+                        auraRows[#auraRows + 1] = { label = "友方暴伤", value = fmtP(eff.critDmg), color = { 255, 160, 60, 255 }, src = tagDef.name }
                     end
                 end
             end

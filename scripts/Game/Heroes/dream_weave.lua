@@ -11,9 +11,20 @@ local COLOR_DREAM_BURST = { 155, 115, 207, 255 }   -- 琉璃紫 — 沉梦爆发
 local COLOR_DREAM_SPLASH = { 130, 100, 190, 255 }   -- 淡紫 — 意识冲击
 local COLOR_DREAMSCAPE = { 180, 130, 230, 255 }      -- 亮紫 — 万象沉梦
 
+local HeroData = require("Game.HeroData")
+local Config   = require("Game.Config")
+
 local function has(tower, id)
     if not tower.skills then return nil end
     for _, s in ipairs(tower.skills) do if s.id == id then return s end end
+end
+
+--- 星级缩放系数（与翎嫣等 starScale=true 英雄统一公式）
+local function StarScaleFactor(heroId)
+    local h = HeroData.Get(heroId)
+    local star = (h and h.star) or 0
+    local maxStar = Config.MAX_HERO_STAR or 30
+    return 0.10 + 0.90 * math.sqrt(math.min(star, maxStar) / maxStar)
 end
 
 -- ============================================================================
@@ -31,6 +42,7 @@ function M.OnHit(tower, target, killed)
     local HeroSkills = require("Game.HeroSkills")
     local Combat     = require("Game.Combat")
     local Enemy      = require("Game.Enemy")
+    local sf         = StarScaleFactor(tower.typeDef.id)
 
     -- 叠加1层幻梦印记（per-target），刷新持续时间
     local maxStacks = mark.maxStacks or 4
@@ -74,8 +86,8 @@ function M.OnHit(tower, target, killed)
         end
         HeroSkills.ApplyStun(target, stunDur)
 
-        -- === 爆发伤害 ===
-        local burstPct = mark.burstAtkPct or 2.50
+        -- === 爆发伤害（星级缩放） ===
+        local burstPct = (mark.burstAtkPct or 2.50) * sf
         -- 技能标签 deep_slumber：额外爆发倍率
         if tags then
             local ds = tags.deep_slumber
@@ -103,8 +115,8 @@ function M.OnHit(tower, target, killed)
             fontSize = 14,
         })
 
-        -- === 溅射伤害（意识冲击） ===
-        local splashPct = mark.splashAtkPct or 1.20
+        -- === 溅射伤害（意识冲击，星级缩放） ===
+        local splashPct = (mark.splashAtkPct or 1.20) * sf
         local splashRadius = mark.splashRadius or 50
         local splashDmg = atk * splashPct
         for _, e in ipairs(State.enemies) do
@@ -148,11 +160,12 @@ function M.TriggerActive(tower, skill)
     local HeroSkills = require("Game.HeroSkills")
     local Combat     = require("Game.Combat")
     local Enemy      = require("Game.Enemy")
+    local sf         = StarScaleFactor(tower.typeDef.id)
 
     local atk = HeroSkills.GetEffectiveAttack(tower)
-    local basePct = skill.baseAtkPct or 7.0
+    local basePct = (skill.baseAtkPct or 7.0) * sf
     local stunDur = skill.stunDuration or 1.0
-    local stackBonus = skill.stackBonusPct or 0.80
+    local stackBonus = (skill.stackBonusPct or 0.80) * sf
 
     -- 技能标签 nightmare_wave：冷却减少已在 skill.interval 处理
     local tags = tower.tagState
@@ -285,9 +298,10 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             local resonance = has(tower, "dream_resonance")
             if not resonance then goto continueTower end
 
+            local sf = StarScaleFactor(tower.typeDef.id)
             local auraRange = resonance.auraRange or 110
-            local spdBuff = resonance.auraSpdBuff or 0.25
-            local critBuff = resonance.auraCritBuff or 0.15
+            local spdBuff = (resonance.atkSpdBonus or 0.25) * sf
+            local critBuff = (resonance.critRate or 0.15) * sf
 
             -- 技能标签 dream_echo：额外光环增益
             local tags = tower.tagState
@@ -297,7 +311,7 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
                 local de = tags.dream_echo
                 if de and de.effects then
                     extraAtkBuff = de.effects.auraAtkBuff or 0
-                    extraCritDmg = de.effects.auraCritDmg or 0
+                    extraCritDmg = de.effects.critDmg or 0
                     if de.effects.auraRangeBonus then
                         auraRange = auraRange + de.effects.auraRangeBonus
                     end
@@ -306,35 +320,26 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
 
             -- 眩晕敌人额外攻击力加成
             local stunAtkBonus = math.min(
-                stunnedCount * (resonance.stunAtkBonusPerEnemy or 0.05),
-                resonance.stunAtkBonusMax or 0.25
+                stunnedCount * (resonance.stunAtkBonusPerEnemy or 0.05) * sf,
+                (resonance.stunAtkBonusMax or 0.25) * sf
             )
 
             -- 总攻击力加成
             local totalAtkBuff = stunAtkBonus + extraAtkBuff
 
-            -- 对范围内友方塔施加光环效果
+            -- 对范围内友方塔施加光环效果（使用通用光环字段，与标签光环统一）
+            local rangeSq = auraRange * auraRange
             for _, ally in ipairs(towers) do
                 if ally ~= tower and ally.typeDef then
                     local dx = (ally._sx or 0) - (tower._sx or 0)
                     local dy = (ally._sy or 0) - (tower._sy or 0)
-                    if dx * dx + dy * dy <= auraRange * auraRange then
-                        -- 攻速加成（累加到 hstate，由引擎读取）
-                        if ally.hstate then
-                            ally.hstate.dreamAuraSpdBuff = spdBuff
-                            ally.hstate.dreamAuraCritBuff = critBuff
-                            ally.hstate.dreamAuraAtkBuff = totalAtkBuff
-                            ally.hstate.dreamAuraCritDmgBuff = extraCritDmg
-                        end
-                    else
-                        -- 离开范围清除
-                        if ally.hstate then
-                            ally.hstate.dreamAuraSpdBuff = nil
-                            ally.hstate.dreamAuraCritBuff = nil
-                            ally.hstate.dreamAuraAtkBuff = nil
-                            ally.hstate.dreamAuraCritDmgBuff = nil
-                        end
+                    if dx * dx + dy * dy <= rangeSq then
+                        ally.auraSpdBuff      = (ally.auraSpdBuff or 0) + spdBuff
+                        ally.auraCritRateBuff  = (ally.auraCritRateBuff or 0) + critBuff
+                        ally.auraAtkBuff      = (ally.auraAtkBuff or 0) + totalAtkBuff
+                        ally.auraCritDmgBuff  = (ally.auraCritDmgBuff or 0) + extraCritDmg
                     end
+                    -- 无需 else 清除：通用字段每帧由 UpdateAuras 重置为 0
                 end
             end
 

@@ -185,18 +185,6 @@ SaveRegistry.Register("mailboxData", {
             },
         })
 
-        -- ── 一次性重置所有技能标签为0 ──
-        do
-            local mails = MailboxData.EnsureData()
-            mails._sentIds = mails._sentIds or {}
-            if not mails._sentIds["reset_skill_tags_20260429"] then
-                HeroData.skillTags = {}
-                mails._sentIds["reset_skill_tags_20260429"] = true
-                HeroData.Save()
-                print("[MailboxData] Reset all skill tags to 0")
-            end
-        end
-
         -- ── 社区英雄设计活动奖励（按用户ID定向发放）──
         local myId = clientCloud and clientCloud.userId and tostring(clientCloud.userId) or ""
 
@@ -251,6 +239,25 @@ SaveRegistry.Register("mailboxData", {
             })
         end
 
+        -- 定向资源礼包
+        if myId == "1564171575" then
+            MailboxData.SendOnce("gift_20260502_resource_pack_1564171575", {
+                title = "专属资源补给",
+                desc = "亲爱的召唤师，感谢您对游戏的热爱与支持！附上丰厚资源礼包，祝您游戏愉快！",
+                rewards = {
+                    { type = "currency", id = "shadow_essence",  amount = 10000 },
+                    { type = "currency", id = "pale_jade",       amount = 5000 },
+                    { type = "currency", id = "void_pact",       amount = 50 },
+                    { type = "currency", id = "linyan_oath",     amount = 100 },
+                    { type = "item",     id = "dungeon_ticket",  amount = 10 },
+                    { type = "item",     id = "boss_ticket",     amount = 5 },
+                    { type = "item",     id = "hatred_ticket",   amount = 5 },
+                    { type = "item",     id = "dungeon_ticket_skill_book", amount = 10 },
+                    { type = "item",     id = "recruit_ticket_select_box", amount = 20 },
+                },
+            })
+        end
+
         -- 定向补偿：劳动勋章兑换 dungeon_ticket bug 补发
         if myId == "1840951947" then
             MailboxData.SendOnce("comp_20260501_dungeon_ticket_fix", {
@@ -258,6 +265,17 @@ SaveRegistry.Register("mailboxData", {
                 desc = "因劳动勋章商店兑换异常导致藏书阁挑战券未正确发放，现补发挑战券×6，对此造成的不便深表歉意！",
                 rewards = {
                     { type = "item", id = "dungeon_ticket", amount = 6 },
+                },
+            })
+        end
+
+        -- 定向补偿：藏书阁挑战券补发
+        if myId == "2058385108" then
+            MailboxData.SendOnce("comp_20260502_skill_book_ticket_2058385108", {
+                title = "藏书阁挑战券补偿",
+                desc = "亲爱的召唤师，因异常问题导致您的藏书阁挑战券未正确发放，现补发挑战券×6，对此造成的不便深表歉意！",
+                rewards = {
+                    { type = "item", id = "dungeon_ticket_skill_book", amount = 6 },
                 },
             })
         end
