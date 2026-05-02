@@ -338,6 +338,7 @@ function GB.FetchServerTotal(callback)
 
     clientCloud:GetRankList(key, 0, 100, {
         ok = function(rankList)
+            local ok2, err2 = pcall(function()
             local totalDmg = 0
             for _, item in ipairs(rankList) do
                 local scoreVal = 0
@@ -368,6 +369,12 @@ function GB.FetchServerTotal(callback)
             print("[GarbageBoss] Server total damage fetched: " .. GB.FormatDamage(totalDmg)
                 .. " (from " .. #rankList .. " players)")
             if callback then callback(totalDmg) end
+            end)
+            if not ok2 then
+                print("[GarbageBoss] FetchServerTotal ok error: " .. tostring(err2))
+                _serverTotalCache.fetching = false
+                if callback then callback(_serverTotalCache.value) end
+            end
         end,
         error = function(code, reason)
             _serverTotalCache.fetching = false

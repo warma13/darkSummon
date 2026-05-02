@@ -26,7 +26,8 @@ local function useTicketOrAd(onSuccess)
     -- 1) 免广卡（当日看满20次自动激活）
     if _ARD and _ARD.IsAdFreeToday and _ARD.IsAdFreeToday() then
         Toast.Show("免广卡生效", { 100, 220, 180 })
-        onSuccess()
+        local ok, err = pcall(onSuccess)
+        if not ok then print("[YangMG] onSuccess error (adFree): " .. tostring(err)) end
         return
     end
     -- 2) 有免广券 → 弹窗让用户选择
@@ -83,9 +84,13 @@ function _YangMG_MouseDown(eventType, eventData)
             local cb = Board.ticketConfirmCb
             Board.ticketConfirmCb = nil
             if cb and _ARD and _ARD.UseTicket then
-                _ARD.UseTicket()
-                Toast.Show("已使用免广券（剩余 " .. _ARD.GetTickets() .. "）", { 100, 220, 180 })
-                cb()
+                local utOk, utErr = pcall(_ARD.UseTicket)
+                if not utOk then print("[YangMG] UseTicket error: " .. tostring(utErr)) end
+                local tickets = 0
+                if _ARD.GetTickets then pcall(function() tickets = _ARD.GetTickets() end) end
+                Toast.Show("已使用免广券（剩余 " .. tickets .. "）", { 100, 220, 180 })
+                local cbOk, cbErr = pcall(cb)
+                if not cbOk then print("[YangMG] ticket callback error: " .. tostring(cbErr)) end
             end
         elseif hitBtn(Renderer.ticketAdBtn, mx, my) then
             -- 选择看广告

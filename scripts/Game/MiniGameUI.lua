@@ -359,23 +359,29 @@ function MiniGameUI.RecordScore(score, level)
     local lvlKey = todayKey() .. "_lvl"
     clientCloud:Get(key, {
         ok = function(values, iscores)
-            local old = (iscores and iscores[key]) or 0
-            if score > old then
+            local ok2, err2 = pcall(function()
+                local old = (iscores and iscores[key]) or 0
+                if score > old then
+                    clientCloud:BatchSet()
+                        :SetInt(key, score)
+                        :SetInt(lvlKey, level)
+                        :Delete(yesterdayKey())
+                        :Delete(yesterdayKey() .. "_lvl")
+                        :Save("暗黑消除最高分")
+                end
+            end)
+            if not ok2 then print("[MiniGameUI] RecordScore ok error: " .. tostring(err2)) end
+        end,
+        error = function()
+            local ok2, err2 = pcall(function()
                 clientCloud:BatchSet()
                     :SetInt(key, score)
                     :SetInt(lvlKey, level)
                     :Delete(yesterdayKey())
                     :Delete(yesterdayKey() .. "_lvl")
                     :Save("暗黑消除最高分")
-            end
-        end,
-        error = function()
-            clientCloud:BatchSet()
-                :SetInt(key, score)
-                :SetInt(lvlKey, level)
-                :Delete(yesterdayKey())
-                :Delete(yesterdayKey() .. "_lvl")
-                :Save("暗黑消除最高分")
+            end)
+            if not ok2 then print("[MiniGameUI] RecordScore error fallback error: " .. tostring(err2)) end
         end,
     })
 end
@@ -494,6 +500,7 @@ function MiniGameUI.ShowLeaderboard()
     local lvlKey = key .. "_lvl"
     clientCloud:GetRankList(key, 0, 20, false, {
         ok = function(rankList)
+            local ok2, err2 = pcall(function()
             if not leaderboardRoot then return end
             listContainer:ClearChildren()
 
@@ -517,8 +524,8 @@ function MiniGameUI.ShowLeaderboard()
                 if not leaderboardRoot then return end
                 listContainer:ClearChildren()
                 for i, item in ipairs(rankList) do
-                    local score  = item.iscore[key] or 0
-                    local lvl    = item.iscore[lvlKey] or 0
+                    local score  = (item.iscore and item.iscore[key]) or 0
+                    local lvl    = (item.iscore and item.iscore[lvlKey]) or 0
                     local isMe   = (item.userId == clientCloud.userId)
                     local nick   = (nickMap and nickMap[item.userId]) or ("玩家" .. tostring(item.userId):sub(-4))
 
@@ -597,6 +604,8 @@ function MiniGameUI.ShowLeaderboard()
             else
                 buildRows(nil)
             end
+            end) -- pcall end
+            if not ok2 then print("[MiniGameUI] ShowLeaderboard ok error: " .. tostring(err2)) end
         end,
         error = function()
             if not leaderboardRoot then return end

@@ -1645,16 +1645,28 @@ function HeroData.ClaimIdleRewards(rewards)
     rewards.nether_crystal = math.floor(rewards.nether_crystal * laborMult)
     rewards.devour_stone   = math.floor(rewards.devour_stone * laborMult)
     rewards.forge_iron     = math.floor(rewards.forge_iron * laborMult)
+
+    -- 特权增益：概率翻倍全部收益
+    local PrivilegeData = require("Game.PrivilegeData")
+    local doubleChance = PrivilegeData.GetDoubleChance()
+    if doubleChance > 0 and math.random() < doubleChance then
+        rewards.nether_crystal = rewards.nether_crystal * 2
+        rewards.devour_stone   = rewards.devour_stone * 2
+        rewards.forge_iron     = rewards.forge_iron * 2
+        print("[HeroData] Privilege double triggered!")
+    end
+
     Currency.Add("nether_crystal", rewards.nether_crystal)
     Currency.Add("devour_stone", rewards.devour_stone)
     Currency.Add("forge_iron", rewards.forge_iron)
 
-    -- 发放宝箱（神裔降临加成）
+    -- 发放宝箱（神裔降临 + 特权加成）
     if rewards.chestDrops then
         local ChestData = require("Game.ChestData")
         local DivineBlessDB = require("Game.DivineBlessData")
         local chestMulti = DivineBlessDB.GetBuffValue("chest_multi")
-        local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
+        local chestBonus = 1.0 + PrivilegeData.GetChestDropBonus()
+        local mult = math.max(1, math.floor(chestMulti * chestBonus))
         for id, count in pairs(rewards.chestDrops) do
             if count > 0 then
                 ChestData.Add(id, count * mult)

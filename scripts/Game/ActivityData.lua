@@ -219,13 +219,15 @@ end
 --- 获取累计登录天数
 ---@return number
 function ActivityData.GetTotalDays()
-    return ActivityData.data.signIn.totalLogins
+    local si = ActivityData.data and ActivityData.data.signIn
+    return si and si.totalLogins or 0
 end
 
 --- 获取已领取天数
 ---@return number
 function ActivityData.GetClaimedCount()
-    return ActivityData.data.signIn.claimedCount
+    local si = ActivityData.data and ActivityData.data.signIn
+    return si and si.claimedCount or 0
 end
 
 --- 获取未领取天数
@@ -247,14 +249,16 @@ end
 ---@param day number 1-CYCLE_DAYS
 ---@return boolean
 function ActivityData.IsDayClaimed(day)
-    return day <= ActivityData.data.signIn.claimedCount
+    local si = ActivityData.data and ActivityData.data.signIn
+    return si and day <= si.claimedCount or false
 end
 
 --- 指定天数是否已登录但未领取（claimedCount < day <= totalLogins）
 ---@param day number 1-CYCLE_DAYS
 ---@return boolean
 function ActivityData.IsDayUnclaimed(day)
-    local si = ActivityData.data.signIn
+    local si = ActivityData.data and ActivityData.data.signIn
+    if not si then return false end
     return day > si.claimedCount and day <= si.totalLogins
 end
 

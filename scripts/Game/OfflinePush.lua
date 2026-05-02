@@ -541,6 +541,7 @@ function OP.ClaimPushRewards(result)
     if not result or result.pushed <= 0 then return end
 
     local Currency = require("Game.Currency")
+    local PrivilegeData = require("Game.PrivilegeData")
 
     -- 劳动加倍
     local ok, LaborDayData = pcall(require, "Game.LaborDayData")
@@ -553,6 +554,21 @@ function OP.ClaimPushRewards(result)
     rewards.nether_crystal = math.floor((rewards.nether_crystal or 0) * laborMult)
     rewards.devour_stone   = math.floor((rewards.devour_stone or 0) * laborMult)
     rewards.forge_iron     = math.floor((rewards.forge_iron or 0) * laborMult)
+
+    -- 特权增益：冥晶加成
+    local crystalRate = PrivilegeData.GetCrystalBonusRate()
+    if crystalRate > 1.0 then
+        rewards.nether_crystal = math.floor(rewards.nether_crystal * crystalRate)
+    end
+
+    -- 特权增益：概率翻倍全部收益
+    local doubleChance = PrivilegeData.GetDoubleChance()
+    if doubleChance > 0 and math.random() < doubleChance then
+        rewards.nether_crystal = rewards.nether_crystal * 2
+        rewards.devour_stone   = rewards.devour_stone * 2
+        rewards.forge_iron     = rewards.forge_iron * 2
+        print("[OfflinePush] Privilege double triggered!")
+    end
 
     Currency.Add("nether_crystal", rewards.nether_crystal)
     Currency.Add("devour_stone", rewards.devour_stone)

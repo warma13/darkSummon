@@ -894,7 +894,9 @@ end
 function RuneData.GetAbyssRiftRemaining()
     RuneData.ResetDailyIfNeeded()
     local d = EnsureData()
-    local freeLeft = RuneConfig.ABYSS_RIFT.dailyFree - d.abyssRift.dailyFreeUsed
+    local PrivilegeData = require("Game.PrivilegeData")
+    local privBonus = PrivilegeData.GetAbyssRiftExtraAttempts()
+    local freeLeft = RuneConfig.ABYSS_RIFT.dailyFree + privBonus - d.abyssRift.dailyFreeUsed
     local adLeft = RuneConfig.ABYSS_RIFT.dailyAd - d.abyssRift.dailyAdUsed
     return math.max(0, freeLeft), math.max(0, adLeft)
 end
@@ -911,7 +913,9 @@ function RuneData.UseAbyssRiftEntry(isAd)
         end
         d.abyssRift.dailyAdUsed = d.abyssRift.dailyAdUsed + 1
     else
-        if d.abyssRift.dailyFreeUsed >= RuneConfig.ABYSS_RIFT.dailyFree then
+        local PrivilegeData = require("Game.PrivilegeData")
+        local privBonus = PrivilegeData.GetAbyssRiftExtraAttempts()
+        if d.abyssRift.dailyFreeUsed >= RuneConfig.ABYSS_RIFT.dailyFree + privBonus then
             return false
         end
         d.abyssRift.dailyFreeUsed = d.abyssRift.dailyFreeUsed + 1

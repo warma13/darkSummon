@@ -39,21 +39,22 @@ end
 LMD.DAILY_CAP = 100   -- 每日通过途径获得的奖章上限
 
 LMD.SOURCES = {
-    campaign        = { amount = 5,  label = "推图结算" },
-    resource_dungeon = { amount = 8, label = "资源副本" },
-    hatred_land     = { amount = 8,  label = "憎恨之地" },
-    abyss_rift      = { amount = 10, label = "深渊裂隙" },
-    emerald_dungeon = { amount = 8,  label = "翠影秘境" },
-    world_boss      = { amount = 10, label = "世界BOSS" },
-    rune_recast     = { amount = 3,  label = "符文重铸" },
-    labor_signin    = { amount = 15, label = "劳动签到" },
-    mine_dungeon    = { amount = 12, label = "矿洞寻宝" },
-    daily_task      = { amount = 8,  label = "每日任务" },
-    trial_tower     = { amount = 5,  label = "试炼塔" },
-    chest_open      = { amount = 5,  label = "开启宝箱" },
-    equip_enhance   = { amount = 3,  label = "装备强化" },
+    labor_signin     = { amount = 15, label = "劳动签到" },
+    mine_dungeon     = { amount = 15, label = "矿洞寻宝" },
+    abyss_rift       = { amount = 12, label = "深渊裂隙" },
+    world_boss       = { amount = 12, label = "世界BOSS" },
+    garbage_boss     = { amount = 10, label = "垃圾BOSS" },
+    resource_dungeon = { amount = 10, label = "资源副本" },
+    hatred_land      = { amount = 10, label = "憎恨之地" },
+    emerald_dungeon  = { amount = 10, label = "翠影秘境" },
+    daily_task       = { amount = 10, label = "每日任务" },
+    campaign         = { amount = 8,  label = "推图结算" },
+    trial_tower      = { amount = 8,  label = "试炼塔" },
+    chest_open       = { amount = 8,  label = "开启宝箱" },
+    offline_push     = { amount = 8,  label = "离线推图" },
+    rune_recast      = { amount = 8,  label = "符文洗练" },
 }
--- 途径每日合计: 5+8+8+10+8+10+3+15+12+8+5+5+3 = 100
+-- 途径每日合计: 15+15+12+12+10+10+10+10+10+8+8+8+8+8 = 144（冗余44%，可跳过4-5项仍满100）
 
 -- ============================================================================
 -- 累计里程碑配置（活动期间累计，一次性领取）
@@ -202,7 +203,7 @@ LMD.SHOP_ITEMS = {
         id = "medal_dungeon_ticket_x3",
         name = "资源副本券×3",
         cost = 30,
-        reward = { type = "currency", id = "dungeon_ticket", amount = 3 },
+        reward = { type = "item", id = "dungeon_ticket", amount = 3 },
         limit = 5,   -- 满购 150
     },
     {
@@ -260,6 +261,21 @@ function LMD.EnsureData()
     if d.dailySources == nil then d.dailySources = {} end
     if d.dailyEarned  == nil then d.dailyEarned  = 0  end
     if d.dailyDate    == nil then d.dailyDate    = "" end
+
+    -- 一次性迁移：补发 dungeon_ticket 幽灵货币 → 背包道具
+    -- 旧版 bug 将 dungeon_ticket 误存为 currency，实际应为 item
+    if not d._migratedDungeonTicket then
+        local phantom = HeroData.currencies["dungeon_ticket"] or 0
+        if phantom > 0 then
+            local InventoryData = require("Game.InventoryData")
+            InventoryData.Add("dungeon_ticket", phantom)
+            HeroData.currencies["dungeon_ticket"] = nil
+            HeroData.Save(true)
+            print("[LaborMedal] 迁移补发 dungeon_ticket x" .. phantom)
+        end
+        d._migratedDungeonTicket = true
+    end
+
     return d
 end
 

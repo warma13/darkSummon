@@ -527,6 +527,7 @@ function LB.FetchRankList(key, start, count, callback)
     -- 将排名 key 作为附加字段传入，确保 iscore 中包含该 key 的值
     clientCloud:GetRankList(key, start, count, {
         ok = function(rankList)
+            local ok2, err2 = pcall(function()
             local list = {}
             local userIds = {}
             for i, item in ipairs(rankList) do
@@ -540,7 +541,7 @@ function LB.FetchRankList(key, start, count, callback)
                 end
                 -- 方法2：遍历 iscore 找最大非零值（兼容 key 不匹配或动态 key 场景）
                 if scoreVal == 0 and item.iscore then
-                    local ok2, _ = pcall(function()
+                    pcall(function()
                         for k, v in pairs(item.iscore) do
                             if type(v) == "number" and v > scoreVal then
                                 scoreVal = v
@@ -562,6 +563,7 @@ function LB.FetchRankList(key, start, count, callback)
                 GetUserNickname({
                     userIds = userIds,
                     onSuccess = function(nicknames)
+                        local okN, errN = pcall(function()
                         local map = {}
                         for _, info in ipairs(nicknames) do
                             map[info.userId] = info.nickname or ""
@@ -570,6 +572,8 @@ function LB.FetchRankList(key, start, count, callback)
                             entry.nickname = map[entry.userId] or "玩家"
                         end
                         if callback then callback(list) end
+                        end)
+                        if not okN then print("[LB] FetchRankList nickname error: " .. tostring(errN)); if callback then callback(list) end end
                     end,
                     onError = function()
                         -- 昵称查询失败，使用默认
@@ -582,6 +586,8 @@ function LB.FetchRankList(key, start, count, callback)
             else
                 if callback then callback(list) end
             end
+            end)
+            if not ok2 then print("[LB] FetchRankList ok error: " .. tostring(err2)); if callback then callback(nil) end end
         end,
         error = function()
             if callback then callback(nil) end
@@ -723,6 +729,7 @@ function LB.TryDailyOrbSettle()
         pending = pending - 1
         if pending > 0 then return end
 
+        local ok2, err2 = pcall(function()
         -- 两个排名都已获取，计算奖励
         local orbCampaign = LB.CalcOrbReward(campaignRank)
         local orbTower = LB.CalcOrbReward(towerRank)
@@ -746,6 +753,8 @@ function LB.TryDailyOrbSettle()
         -- 标记今日已结算（无论有无奖励都标记，避免重复请求）
         HeroData.stats.lastOrbSettleDate = today
         HeroData.Save()
+        end)
+        if not ok2 then print("[LB] _TrySettle error: " .. tostring(err2)) end
     end
 
     LB.FetchMyRank(LB.KEY_CAMPAIGN, function(rank, _score)

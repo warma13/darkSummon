@@ -255,7 +255,8 @@ function M.Save()
     if not ok then return end
     local f = File(SAVE_FILE, FILE_WRITE)
     if not f then return end
-    f:WriteString(cjson.encode({ equipped = _equipped, unlocked = _unlockedExtra }))
+    local encOk, json = pcall(cjson.encode, { equipped = _equipped, unlocked = _unlockedExtra })
+    if encOk then f:WriteString(json) end
     f:Close()
     -- 同步到云端
     HeroData.costumeData = { equipped = _equipped, unlocked = _unlockedExtra }

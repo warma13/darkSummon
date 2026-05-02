@@ -308,6 +308,7 @@ function JoyShopData.CheckSettlement(callback)
 
     clientCloud:GetRankList(yesterdayKey, 0, 20, false, {
         ok = function(rankList)
+            local ok2, err2 = pcall(function()
             rec.settlementDone = true
 
             if not rankList or #rankList == 0 then
@@ -329,16 +330,19 @@ function JoyShopData.CheckSettlement(callback)
                 -- 没上榜，检查是否有参与（有昨日分数）
                 clientCloud:Get(yesterdayKey, {
                     ok = function(_, iscores)
-                        local myScore = iscores and iscores[yesterdayKey] or 0
-                        if myScore > 0 then
-                            local amount = RANK_PARTICIPATE_REWARD
-                            Currency.Add("joy_coin", amount)
-                            HeroData.Save(true)
-                            if callback then callback(true, amount, nil) end
-                        else
-                            HeroData.Save(true)
-                            if callback then callback(false, 0, nil) end
-                        end
+                        local ok3, err3 = pcall(function()
+                            local myScore = iscores and iscores[yesterdayKey] or 0
+                            if myScore > 0 then
+                                local amount = RANK_PARTICIPATE_REWARD
+                                Currency.Add("joy_coin", amount)
+                                HeroData.Save(true)
+                                if callback then callback(true, amount, nil) end
+                            else
+                                HeroData.Save(true)
+                                if callback then callback(false, 0, nil) end
+                            end
+                        end)
+                        if not ok3 then print("[JoyShop] settlement inner ok error: " .. tostring(err3)) end
                     end,
                     error = function()
                         HeroData.Save(true)
@@ -352,6 +356,8 @@ function JoyShopData.CheckSettlement(callback)
             Currency.Add("joy_coin", amount)
             HeroData.Save(true)
             if callback then callback(true, amount, myRank) end
+            end) -- pcall end
+            if not ok2 then print("[JoyShop] settlement ok error: " .. tostring(err2)) end
         end,
         error = function()
             -- 网络失败不标记已结算，下次再试

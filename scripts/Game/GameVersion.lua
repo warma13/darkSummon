@@ -38,7 +38,7 @@ function M.CheckAndReport(closeModal)
         ok = function(rankList)
             local topScore = 0
             if #rankList > 0 then
-                topScore = rankList[1].iscore[LB_KEY] or 0
+                topScore = (rankList[1].iscore and rankList[1].iscore[LB_KEY]) or 0
             end
 
             if mySum >= topScore then

@@ -416,7 +416,9 @@ end
 function WB.GetMaxAttempts()
     local DivineBlessDB = require("Game.DivineBlessData")
     local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
-    return WB.DAILY_ATTEMPTS + bonusAttempt
+    local PrivilegeData = require("Game.PrivilegeData")
+    local privBonus = PrivilegeData.GetWorldBossExtraAttempts()
+    return WB.DAILY_ATTEMPTS + bonusAttempt + privBonus
 end
 
 --- 获取每日剩余免费+广告次数（含神裔降临加成）
@@ -438,7 +440,9 @@ function WB.GetFreeRemaining()
     local data = WB.GetData()
     local DivineBlessDB = require("Game.DivineBlessData")
     local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
-    return math.max(0, WB.FREE_ATTEMPTS + bonusAttempt - data.todayAttempts)
+    local PrivilegeData = require("Game.PrivilegeData")
+    local privBonus = PrivilegeData.GetWorldBossExtraAttempts()
+    return math.max(0, WB.FREE_ATTEMPTS + bonusAttempt + privBonus - data.todayAttempts)
 end
 
 --- 获取剩余广告次数
@@ -476,7 +480,9 @@ function WB.ConsumeAttempt()
     end
     local DivineBlessDB = require("Game.DivineBlessData")
     local bonusAttempt = DivineBlessDB.GetBuffValue("boss_attempt")
-    if data.todayAttempts >= WB.FREE_ATTEMPTS + bonusAttempt then
+    local PrivilegeData = require("Game.PrivilegeData")
+    local privBonus = PrivilegeData.GetWorldBossExtraAttempts()
+    if data.todayAttempts >= WB.FREE_ATTEMPTS + bonusAttempt + privBonus then
         Toast.Show("免费次数已用完，请观看广告继续", { 255, 200, 80 })
         return false
     end

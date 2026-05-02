@@ -11,6 +11,7 @@ local Toast   = require("Game.Toast")
 local Debuff  = require("Game.Debuff")
 
 local WBS = {}
+local DEBUG_LOG = false  -- 生产环境关闭，调试时置 true
 
 -- ============================================================================
 -- 技能状态

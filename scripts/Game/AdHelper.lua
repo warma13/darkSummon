@@ -42,35 +42,44 @@ local function _doShowAd(onSuccess, onFail)
     if not sdk or not sdk.ShowRewardVideoAd then
         local msg = "广告不可用"
         if onFail then
-            onFail(msg)
+            pcall(onFail, msg)
         else
-            Toast.Show(msg, { 255, 100, 80 })
+            pcall(Toast.Show, msg, { 255, 100, 80 })
         end
         return
     end
 
     -- 上报：开始播放广告
-    _reportAdEvent("ad_start")
+    pcall(_reportAdEvent, "ad_start")
 
     ---@diagnostic disable-next-line: undefined-global
     sdk:ShowRewardVideoAd(function(result)
-        if result and result.success then
-            -- 上报：广告完成
-            _reportAdEvent("ad_done")
-            AdTracker.Record()
-            if onSuccess then onSuccess() end
-        else
-            -- 上报：广告取消/未完成
-            _reportAdEvent("ad_cancel")
-            local msg = (result and result.msg) or "广告未完成"
-            if msg == "embed manual close" then
-                msg = "需完整观看广告才能获得奖励"
-            end
-            if onFail then
-                onFail(msg)
+        -- SDK 回调是异步的，触发时游戏状态可能已变化，全部 pcall 防闪退
+        local cbOk, cbErr = pcall(function()
+            if result and result.success then
+                pcall(_reportAdEvent, "ad_done")
+                pcall(AdTracker.Record)
+                if onSuccess then
+                    local ok, err = pcall(onSuccess)
+                    if not ok then
+                        print("[AdHelper] onSuccess callback error: " .. tostring(err))
+                    end
+                end
             else
-                Toast.Show(msg, { 200, 100, 100 })
+                pcall(_reportAdEvent, "ad_cancel")
+                local msg = (result and result.msg) or "广告未完成"
+                if msg == "embed manual close" then
+                    msg = "需完整观看广告才能获得奖励"
+                end
+                if onFail then
+                    pcall(onFail, msg)
+                else
+                    pcall(Toast.Show, msg, { 200, 100, 100 })
+                end
             end
+        end)
+        if not cbOk then
+            print("[AdHelper] SDK callback crash prevented: " .. tostring(cbErr))
         end
     end)
 end
@@ -90,12 +99,21 @@ end
 ---@param onSuccess fun()        广告完整观看后的回调（发放奖励等）
 ---@param onFail?   fun(reason:string)  广告未完成/不可用时的回调（可选，默认弹 Toast）
 function AdHelper.ShowRewardAd(onSuccess, onFail)
+    -- 安全调用 onSuccess（广告回调期间 UI 可能已切换，pcall 防闪退）
+    local function safeOnSuccess()
+        if not onSuccess then return end
+        local ok2, err2 = pcall(onSuccess)
+        if not ok2 then
+            print("[AdHelper] onSuccess callback error: " .. tostring(err2))
+        end
+    end
+
     -- 检查是否已激活免广卡（当日看满20次广告，免所有广告）
     local ok, ARD = pcall(require, "Game.AdReliefData")
     if ok and ARD and ARD.IsAdFreeToday() then
         Toast.Show("免广卡生效，已跳过广告", { 100, 220, 180 })
-        AdTracker.Record()  -- 计入广告观看次数（成就/任务等）
-        if onSuccess then onSuccess() end
+        pcall(AdTracker.Record)
+        safeOnSuccess()
         return
     end
 
@@ -104,9 +122,12 @@ function AdHelper.ShowRewardAd(onSuccess, onFail)
         -- 弹窗让玩家选择：使用券 or 看广告
         AdHelper._showTicketConfirm(function(useTicket)
             if useTicket then
-                -- 使用免广告券
-                ARD.UseTicket()
-                if onSuccess then onSuccess() end
+                -- 使用免广告券（pcall 防闪退）
+                local utOk, utErr = pcall(ARD.UseTicket)
+                if not utOk then
+                    print("[AdHelper] UseTicket error: " .. tostring(utErr))
+                end
+                safeOnSuccess()
             else
                 -- 选择看广告
                 _doShowAd(onSuccess, onFail)

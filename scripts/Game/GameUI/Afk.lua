@@ -925,6 +925,17 @@ local function GrantAfkRewards(rewards)
     rewards.nether_crystal = math.floor(rewards.nether_crystal * laborMult)
     rewards.devour_stone   = math.floor(rewards.devour_stone * laborMult)
     rewards.forge_iron     = math.floor(rewards.forge_iron * laborMult)
+
+    -- 特权增益：概率翻倍全部收益
+    local PrivilegeData = require("Game.PrivilegeData")
+    local doubleChance = PrivilegeData.GetDoubleChance()
+    if doubleChance > 0 and math.random() < doubleChance then
+        rewards.nether_crystal = rewards.nether_crystal * 2
+        rewards.devour_stone   = rewards.devour_stone * 2
+        rewards.forge_iron     = rewards.forge_iron * 2
+        print("[Afk] Privilege double triggered!")
+    end
+
     Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = rewards.nether_crystal }, "Afk")
     Currency.GrantReward({ type = "currency", id = "devour_stone", amount = rewards.devour_stone }, "Afk")
     Currency.GrantReward({ type = "currency", id = "forge_iron", amount = rewards.forge_iron }, "Afk")
@@ -932,7 +943,8 @@ local function GrantAfkRewards(rewards)
     if rewards.chestDrops then
         local DivineBlessDB = require("Game.DivineBlessData")
         local chestMulti = DivineBlessDB.GetBuffValue("chest_multi")
-        local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
+        local chestBonus = 1.0 + PrivilegeData.GetChestDropBonus()
+        local mult = math.max(1, math.floor(chestMulti * chestBonus))
         for id, count in pairs(rewards.chestDrops) do
             if count > 0 then
                 Currency.GrantReward({ type = "chest", id = id, amount = count * mult }, "Afk")

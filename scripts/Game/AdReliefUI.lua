@@ -290,7 +290,7 @@ local function CreateMilestoneNode(index, milestone)
             local m = milestones[index]
             if m and m.canClaim then
                 local ok, claimedRewards = AdReliefData.ClaimMilestone(index)
-                if ok and claimedRewards then
+                if ok and claimedRewards and #claimedRewards > 0 then
                     RC.ShowCurrency(UI, pageRoot, claimedRewards[1].id, claimedRewards[1].amount, "里程碑奖励", RefreshUI)
                 end
             elseif m and m.claimed then

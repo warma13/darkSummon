@@ -134,8 +134,14 @@ local function genDescendLayers(totalA)
     return layers
 end
 
+local YANG_GRID_MAX = 49  -- 7×7 网格最大位置数
+
 local function genSpindleLayers(totalA)
-    local nL = math.max(4, math.min(20, math.ceil(totalA / 18)))
+    -- 当 totalA 过大时，需要更多层来分散牌数（每层上限 49）
+    local nL = math.max(4, math.max(
+        math.min(20, math.ceil(totalA / 18)),
+        math.ceil(totalA / YANG_GRID_MAX)      -- 确保层数足够容纳所有牌
+    ))
     if nL % 2 ~= 0 then nL = nL + 1 end
     local weights = {}
     local sumW    = 0
@@ -153,6 +159,41 @@ local function genSpindleLayers(totalA)
     end
     local peakIdx = math.ceil(nL / 2)
     layers[peakIdx] = math.max(3, layers[peakIdx] + (totalA - assigned))
+
+    -- ── cap 每层不超过 YANG_GRID_MAX（49），溢出重新分配到最空闲层 ──
+    local overflow = 0
+    for i = 1, nL do
+        if layers[i] > YANG_GRID_MAX then
+            overflow  = overflow + (layers[i] - YANG_GRID_MAX)
+            layers[i] = YANG_GRID_MAX
+        end
+    end
+    -- 把溢出的牌按 3 张一组分配到还有空间的层（从最少的层开始）
+    while overflow >= 3 do
+        -- 找最少牌且还有空间的层
+        local bestIdx, bestVal = nil, YANG_GRID_MAX + 1
+        for i = 1, nL do
+            if layers[i] < YANG_GRID_MAX and layers[i] < bestVal then
+                bestIdx = i; bestVal = layers[i]
+            end
+        end
+        if not bestIdx then break end  -- 所有层都满了，无法再分配
+        local room = YANG_GRID_MAX - layers[bestIdx]
+        local give = math.min(overflow, math.floor(room / 3) * 3)
+        if give < 3 then break end
+        layers[bestIdx] = layers[bestIdx] + give
+        overflow = overflow - give
+    end
+    -- 如果还有剩余溢出（所有层都快满了），追加新层
+    while overflow >= 3 do
+        local newLayer = math.min(overflow, YANG_GRID_MAX)
+        newLayer = math.floor(newLayer / 3) * 3
+        if newLayer < 3 then break end
+        nL = nL + 1
+        layers[nL] = newLayer
+        overflow = overflow - newLayer
+    end
+
     return layers
 end
 

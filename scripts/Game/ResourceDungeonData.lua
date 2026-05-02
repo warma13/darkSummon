@@ -437,13 +437,19 @@ function RD.GetData()
     end
 
     -- 兼容旧存档：补充 skill_book 副本数据
-    if HeroData.resourceDungeon.bestWave.skill_book == nil then
+    if not HeroData.resourceDungeon.bestWave then
+        HeroData.resourceDungeon.bestWave = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0 }
+    elseif HeroData.resourceDungeon.bestWave.skill_book == nil then
         HeroData.resourceDungeon.bestWave.skill_book = 0
     end
-    if HeroData.resourceDungeon.todayAttempts.skill_book == nil then
+    if not HeroData.resourceDungeon.todayAttempts then
+        HeroData.resourceDungeon.todayAttempts = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0 }
+    elseif HeroData.resourceDungeon.todayAttempts.skill_book == nil then
         HeroData.resourceDungeon.todayAttempts.skill_book = 0
     end
-    if HeroData.resourceDungeon.todayAdAttempts.skill_book == nil then
+    if not HeroData.resourceDungeon.todayAdAttempts then
+        HeroData.resourceDungeon.todayAdAttempts = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0 }
+    elseif HeroData.resourceDungeon.todayAdAttempts.skill_book == nil then
         HeroData.resourceDungeon.todayAdAttempts.skill_book = 0
     end
 
@@ -483,7 +489,9 @@ function RD.GetFreeRemaining(dungeonKey)
     local used = data.todayAttempts[dungeonKey] or 0
     local DivineBlessDB = require("Game.DivineBlessData")
     local bonusAttempt = DivineBlessDB.GetBuffValue("dungeon_attempt")
-    return math.max(0, RD.FREE_ATTEMPTS + bonusAttempt - used)
+    local PrivilegeData = require("Game.PrivilegeData")
+    local privBonus = PrivilegeData.GetDungeonExtraAttempts()
+    return math.max(0, RD.FREE_ATTEMPTS + bonusAttempt + privBonus - used)
 end
 
 --- 获取剩余广告续次次数
@@ -574,10 +582,12 @@ end
 function RD.ConsumeAttempt(dungeonKey)
     local data = RD.GetData()
     local used = data.todayAttempts[dungeonKey] or 0
-    -- 免费次数 + 神裔降临加成（券挑战走 ConsumeDungeonTicket，不走这里）
+    -- 免费次数 + 神裔降临加成 + 特权加成（券挑战走 ConsumeDungeonTicket，不走这里）
     local DivineBlessDB = require("Game.DivineBlessData")
     local bonusAttempt = DivineBlessDB.GetBuffValue("dungeon_attempt")
-    if used >= RD.FREE_ATTEMPTS + bonusAttempt then
+    local PrivilegeData = require("Game.PrivilegeData")
+    local privBonus = PrivilegeData.GetDungeonExtraAttempts()
+    if used >= RD.FREE_ATTEMPTS + bonusAttempt + privBonus then
         Toast.Show("免费次数已用完，可使用挑战券继续", { 255, 200, 80 })
         return false
     end

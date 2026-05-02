@@ -171,6 +171,9 @@ function TemperData.Unlock(heroId, slotId)
 
     -- 初始化淬炼数据
     local equips = HeroData.equipData[heroId]
+    if not equips or not equips[slotId] then
+        return false, "装备不存在"
+    end
     equips[slotId].tempering = {
         unlocked = true,
         totalAttempts = 0,

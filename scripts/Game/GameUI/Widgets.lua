@@ -254,6 +254,247 @@ end
 
 --- 右上货币显示面板
 function GameUI.CreateCurrencyDisplay()
+    -- 构建右侧按钮列表（与左侧一致：动态数组，避免 visible=false 仍占布局空间）
+    local rightBtnList = {}
+
+    -- 退出副本按钮（仅副本模式显示，初始隐藏，后续通过 FindById 动态控制）
+    rightBtnList[#rightBtnList + 1] = ctx.UI.Button {
+        id = "exitDungeonBtn",
+        text = "退出",
+        fontSize = 11,
+        variant = "outline",
+        height = 26,
+        paddingLeft = 10, paddingRight = 10,
+        visible = false,
+        onClick = function(self)
+            GameUI.ExitDungeonBattle()
+        end,
+    }
+
+    -- 挑战Boss切换按钮（冥晶上方）
+    rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
+        id = "skipBossBtn",
+        paddingLeft = 8, paddingRight = 8,
+        paddingTop = 4, paddingBottom = 4,
+        borderRadius = 6,
+        borderWidth = 1,
+        borderColor = State.skipBoss and { 120, 120, 120, 160 } or { 220, 60, 60, 200 },
+        backgroundColor = State.skipBoss and { 50, 50, 50, 200 } or { 160, 30, 30, 220 },
+        pointerEvents = "auto",
+        alignItems = "center",
+        onClick = function(self)
+            State.skipBoss = not State.skipBoss
+            print("[GameUI] skipBoss toggled → " .. tostring(State.skipBoss))
+        end,
+        children = {
+            ctx.UI.Label {
+                id = "skipBossLabel",
+                text = State.skipBoss and "挑战Boss:关" or "挑战Boss:开",
+                fontSize = 10,
+                fontColor = State.skipBoss and { 160, 160, 160, 255 } or { 255, 200, 200, 255 },
+                fontWeight = "bold",
+            },
+        },
+    }
+
+    -- 货币显示
+    rightBtnList[#rightBtnList + 1] = GameUI.CurrencyPill("nether_crystal", "hudCrystalLabel", { 160, 100, 230 })
+    rightBtnList[#rightBtnList + 1] = GameUI.CurrencyPill("shadow_essence", "hudEssenceLabel", { 180, 140, 255 })
+
+    -- 限时活动入口按钮
+    rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
+        id = "weeklyActivityBtn",
+        width = 56, height = 56,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = { 100, 160, 255, 180 },
+        overflow = "hidden",
+        pointerEvents = "auto",
+        marginTop = 4,
+        onClick = function(self)
+            GameUI.ShowWeeklyActivityOverlay(true)
+        end,
+        children = {
+            ctx.UI.Panel {
+                width = 56, height = 56,
+                backgroundColor = { 20, 30, 60, 220 },
+                justifyContent = "center",
+                alignItems = "center",
+                children = {
+                    ctx.UI.Panel {
+                        width = 32, height = 32,
+                        backgroundImage = "image/限时活动图标.png",
+                        backgroundFit = "contain",
+                    },
+                },
+            },
+            ctx.UI.Panel {
+                position = "absolute",
+                bottom = 2, left = 0, right = 0,
+                alignItems = "center",
+                children = {
+                    ctx.UI.Label {
+                        text = "限时", fontSize = 11,
+                        fontColor = { 100, 200, 255, 255 },
+                    },
+                },
+            },
+            -- 红点（宝箱达标 或 限时福利有可领取）
+            ctx.UI.Panel {
+                id = "weeklyActivityRedDot",
+                position = "absolute",
+                top = 2, right = 2,
+                width = 10, height = 10,
+                borderRadius = 5,
+                backgroundColor = { 255, 60, 60, 255 },
+                visible = WeeklyActivityData.HasClaimable() or WelfareData.HasClaimable() or not DivineBlessDB.HasChosen(),
+            },
+        },
+    }
+
+    -- 深渊金库入口按钮
+    rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
+        id = "vaultEntryBtn",
+        width = 56, height = 56,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = { 180, 120, 255, 180 },
+        overflow = "hidden",
+        pointerEvents = "auto",
+        marginTop = 4,
+        onClick = function(self)
+            GameUI.ShowVaultOverlay()
+        end,
+        children = {
+            ctx.UI.Panel {
+                width = 56, height = 56,
+                backgroundColor = { 30, 15, 55, 220 },
+                justifyContent = "center",
+                alignItems = "center",
+                children = {
+                    ctx.UI.Panel {
+                        width = 32, height = 32,
+                        backgroundImage = "image/icon_vault.png",
+                        backgroundFit = "contain",
+                    },
+                },
+            },
+            ctx.UI.Panel {
+                position = "absolute",
+                bottom = 2, left = 0, right = 0,
+                alignItems = "center",
+                children = {
+                    ctx.UI.Label {
+                        text = "金库", fontSize = 11,
+                        fontColor = { 200, 160, 255, 255 },
+                    },
+                },
+            },
+            -- 红点（有待领利息时显示）
+            ctx.UI.Panel {
+                id = "vaultRedDot",
+                position = "absolute",
+                top = 2, right = 2,
+                width = 10, height = 10,
+                borderRadius = 5,
+                backgroundColor = { 255, 60, 60, 255 },
+                visible = false,
+            },
+        },
+    }
+
+    -- 时装签到入口按钮（仅活动期间添加，不添加则不占位）
+    if CostumeSignInData.IsEventActive() then
+        rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
+            id = "costumeSignInBtn",
+            width = 56, height = 56,
+            borderRadius = 10,
+            borderWidth = 1,
+            borderColor = { 160, 100, 255, 180 },
+            overflow = "hidden",
+            pointerEvents = "auto",
+            marginTop = 4,
+            onClick = function(self)
+                GameUI.ShowCostumeSignInOverlay(true)
+            end,
+            children = {
+                ctx.UI.Panel {
+                    width = 56, height = 56,
+                    backgroundColor = { 30, 18, 50, 220 },
+                    justifyContent = "center",
+                    alignItems = "center",
+                    children = {
+                        ctx.UI.Panel {
+                            width = 36, height = 36,
+                            backgroundImage = "image/icon_costume.png",
+                            backgroundFit = "contain",
+                        },
+                    },
+                },
+                ctx.UI.Panel {
+                    position = "absolute",
+                    bottom = 2, left = 0, right = 0,
+                    alignItems = "center",
+                    children = {
+                        ctx.UI.Label {
+                            text = "时装", fontSize = 11,
+                            fontColor = { 200, 160, 255, 255 },
+                        },
+                    },
+                },
+                -- 红点（有可领取奖励时显示）
+                ctx.UI.Panel {
+                    id = "costumeSignInRedDot",
+                    position = "absolute",
+                    top = 2, right = 2,
+                    width = 10, height = 10,
+                    borderRadius = 5,
+                    backgroundColor = { 255, 60, 60, 255 },
+                    visible = CostumeSignInData.HasClaimable(),
+                },
+            },
+        }
+    end
+
+    -- 小游戏入口按钮
+    rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
+        id = "miniGameBtn",
+        width = 56, height = 56,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = { 140, 100, 220, 180 },
+        overflow = "hidden",
+        pointerEvents = "auto",
+        marginTop = 4,
+        onClick = function(self)
+            GameUI.ShowMiniGameOverlay(true)
+        end,
+        children = {
+            ctx.UI.Panel {
+                width = 56, height = 56,
+                backgroundColor = { 25, 15, 45, 220 },
+                justifyContent = "center",
+                alignItems = "center",
+                children = {
+                    ctx.UI.Label {
+                        text = "🎮", fontSize = 28,
+                    },
+                },
+            },
+            ctx.UI.Panel {
+                position = "absolute",
+                bottom = 2, left = 0, right = 0,
+                alignItems = "center",
+                children = {
+                    ctx.UI.Label {
+                        text = "小游戏", fontSize = 10,
+                        fontColor = { 180, 140, 255, 255 },
+                    },
+                },
+            },
+        },
+    }
+
     return ctx.UI.Panel {
         id = "currencyDisplay",
         position = "absolute",
@@ -262,238 +503,7 @@ function GameUI.CreateCurrencyDisplay()
         alignItems = "flex-end",
         gap = 4,
         pointerEvents = "box-none",
-        children = {
-            -- 退出副本按钮（仅副本模式显示）
-            ctx.UI.Button {
-                id = "exitDungeonBtn",
-                text = "退出",
-                fontSize = 11,
-                variant = "outline",
-                height = 26,
-                paddingLeft = 10, paddingRight = 10,
-                visible = false,
-                onClick = function(self)
-                    GameUI.ExitDungeonBattle()
-                end,
-            },
-            -- 挑战Boss切换按钮（冥晶上方）
-            ctx.UI.Panel {
-                id = "skipBossBtn",
-                paddingLeft = 8, paddingRight = 8,
-                paddingTop = 4, paddingBottom = 4,
-                borderRadius = 6,
-                borderWidth = 1,
-                borderColor = State.skipBoss and { 120, 120, 120, 160 } or { 220, 60, 60, 200 },
-                backgroundColor = State.skipBoss and { 50, 50, 50, 200 } or { 160, 30, 30, 220 },
-                pointerEvents = "auto",
-                alignItems = "center",
-                onClick = function(self)
-                    State.skipBoss = not State.skipBoss
-                    print("[GameUI] skipBoss toggled → " .. tostring(State.skipBoss))
-                end,
-                children = {
-                    ctx.UI.Label {
-                        id = "skipBossLabel",
-                        text = State.skipBoss and "挑战Boss:关" or "挑战Boss:开",
-                        fontSize = 10,
-                        fontColor = State.skipBoss and { 160, 160, 160, 255 } or { 255, 200, 200, 255 },
-                        fontWeight = "bold",
-                    },
-                },
-            },
-            GameUI.CurrencyPill("nether_crystal", "hudCrystalLabel", { 160, 100, 230 }),
-            GameUI.CurrencyPill("shadow_essence", "hudEssenceLabel", { 180, 140, 255 }),
-            -- 限时活动入口按钮（与左侧边栏按钮样式一致）
-            ctx.UI.Panel {
-                id = "weeklyActivityBtn",
-                width = 56, height = 56,
-                borderRadius = 10,
-                borderWidth = 1,
-                borderColor = { 100, 160, 255, 180 },
-                overflow = "hidden",
-                pointerEvents = "auto",
-                marginTop = 4,
-                visible = true,  -- 始终显示（内部有多个子活动，如神裔降临始终可用）
-                onClick = function(self)
-                    GameUI.ShowWeeklyActivityOverlay(true)
-                end,
-                children = {
-                    ctx.UI.Panel {
-                        width = 56, height = 56,
-                        backgroundColor = { 20, 30, 60, 220 },
-                        justifyContent = "center",
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Panel {
-                                width = 32, height = 32,
-                                backgroundImage = "image/限时活动图标.png",
-                                backgroundFit = "contain",
-                            },
-                        },
-                    },
-                    ctx.UI.Panel {
-                        position = "absolute",
-                        bottom = 2, left = 0, right = 0,
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Label {
-                                text = "限时", fontSize = 11,
-                                fontColor = { 100, 200, 255, 255 },
-                            },
-                        },
-                    },
-                    -- 红点（宝箱达标 或 限时福利有可领取）
-                    ctx.UI.Panel {
-                        id = "weeklyActivityRedDot",
-                        position = "absolute",
-                        top = 2, right = 2,
-                        width = 10, height = 10,
-                        borderRadius = 5,
-                        backgroundColor = { 255, 60, 60, 255 },
-                        visible = WeeklyActivityData.HasClaimable() or WelfareData.HasClaimable() or not DivineBlessDB.HasChosen(),
-                    },
-                },
-            },
-            -- 深渊金库入口按钮
-            ctx.UI.Panel {
-                id = "vaultEntryBtn",
-                width = 56, height = 56,
-                borderRadius = 10,
-                borderWidth = 1,
-                borderColor = { 180, 120, 255, 180 },
-                overflow = "hidden",
-                pointerEvents = "auto",
-                marginTop = 4,
-                onClick = function(self)
-                    GameUI.ShowVaultOverlay()
-                end,
-                children = {
-                    ctx.UI.Panel {
-                        width = 56, height = 56,
-                        backgroundColor = { 30, 15, 55, 220 },
-                        justifyContent = "center",
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Panel {
-                                width = 32, height = 32,
-                                backgroundImage = "image/icon_vault.png",
-                                backgroundFit = "contain",
-                            },
-                        },
-                    },
-                    ctx.UI.Panel {
-                        position = "absolute",
-                        bottom = 2, left = 0, right = 0,
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Label {
-                                text = "金库", fontSize = 11,
-                                fontColor = { 200, 160, 255, 255 },
-                            },
-                        },
-                    },
-                    -- 红点（有待领利息时显示）
-                    ctx.UI.Panel {
-                        id = "vaultRedDot",
-                        position = "absolute",
-                        top = 2, right = 2,
-                        width = 10, height = 10,
-                        borderRadius = 5,
-                        backgroundColor = { 255, 60, 60, 255 },
-                        visible = false,
-                    },
-                },
-            },
-            -- 时装签到入口按钮（仅活动期间显示）
-            ctx.UI.Panel {
-                id = "costumeSignInBtn",
-                width = 56, height = 56,
-                borderRadius = 10,
-                borderWidth = 1,
-                borderColor = { 160, 100, 255, 180 },
-                overflow = "hidden",
-                pointerEvents = "auto",
-                marginTop = 4,
-                visible = CostumeSignInData.IsEventActive(),
-                onClick = function(self)
-                    GameUI.ShowCostumeSignInOverlay(true)
-                end,
-                children = {
-                    ctx.UI.Panel {
-                        width = 56, height = 56,
-                        backgroundColor = { 30, 18, 50, 220 },
-                        justifyContent = "center",
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Panel {
-                                width = 36, height = 36,
-                                backgroundImage = "image/icon_costume.png",
-                                backgroundFit = "contain",
-                            },
-                        },
-                    },
-                    ctx.UI.Panel {
-                        position = "absolute",
-                        bottom = 2, left = 0, right = 0,
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Label {
-                                text = "时装", fontSize = 11,
-                                fontColor = { 200, 160, 255, 255 },
-                            },
-                        },
-                    },
-                    -- 红点（有可领取奖励时显示）
-                    ctx.UI.Panel {
-                        id = "costumeSignInRedDot",
-                        position = "absolute",
-                        top = 2, right = 2,
-                        width = 10, height = 10,
-                        borderRadius = 5,
-                        backgroundColor = { 255, 60, 60, 255 },
-                        visible = CostumeSignInData.HasClaimable(),
-                    },
-                },
-            },
-            -- 小游戏入口按钮
-            ctx.UI.Panel {
-                id = "miniGameBtn",
-                width = 56, height = 56,
-                borderRadius = 10,
-                borderWidth = 1,
-                borderColor = { 140, 100, 220, 180 },
-                overflow = "hidden",
-                pointerEvents = "auto",
-                marginTop = 4,
-                onClick = function(self)
-                    GameUI.ShowMiniGameOverlay(true)
-                end,
-                children = {
-                    ctx.UI.Panel {
-                        width = 56, height = 56,
-                        backgroundColor = { 25, 15, 45, 220 },
-                        justifyContent = "center",
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Label {
-                                text = "🎮", fontSize = 28,
-                            },
-                        },
-                    },
-                    ctx.UI.Panel {
-                        position = "absolute",
-                        bottom = 2, left = 0, right = 0,
-                        alignItems = "center",
-                        children = {
-                            ctx.UI.Label {
-                                text = "小游戏", fontSize = 10,
-                                fontColor = { 180, 140, 255, 255 },
-                            },
-                        },
-                    },
-                },
-            },
-        },
+        children = rightBtnList,
     }
 end
 

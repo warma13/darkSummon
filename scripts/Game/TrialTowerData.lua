@@ -259,9 +259,12 @@ function TrialTowerData.ClearFloor(floor)
     local ok, LB = pcall(require, "Game.LeaderboardData")
     if ok then LB.UploadTower(floor) end
 
-    -- 劳动奖章产出
+    -- 劳动奖章产出（pcall 保护：活动过期 / 模块异常不影响通关流程）
     local okLM, LMD = pcall(require, "Game.LaborMedalData")
-    if okLM then LMD.EarnMedals("trial_tower") end
+    if okLM and LMD and LMD.EarnMedals then
+        local okE, errE = pcall(LMD.EarnMedals, "trial_tower")
+        if not okE then print("[TrialTower] EarnMedals error: " .. tostring(errE)) end
+    end
 
     -- 保存（试炼塔通关奖励，立即云端保存）
     HeroData.Save(true)

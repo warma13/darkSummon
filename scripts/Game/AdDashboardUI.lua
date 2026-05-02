@@ -292,6 +292,7 @@ local function LoadKey(lbKey, field)
     ---@diagnostic disable-next-line: undefined-global
     clientCloud:GetRankList(lbKey, 0, MAX_PER_SECTION, {
         ok = function(list)
+            local ok2, err2 = pcall(function()
             if list then
                 for _, item in ipairs(list) do
                     local uid = item.userId or item.player
@@ -307,6 +308,14 @@ local function LoadKey(lbKey, field)
             loadedCount = loadedCount + 1
             if loadedCount >= totalKeys then
                 AdDashboardUI._ResolveNicknamesAndRender()
+            end
+            end)
+            if not ok2 then
+                print("[AdDashboard] LoadKey ok error: " .. tostring(err2))
+                loadedCount = loadedCount + 1
+                if loadedCount >= totalKeys then
+                    pcall(AdDashboardUI._ResolveNicknamesAndRender)
+                end
             end
         end,
         error = function()

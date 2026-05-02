@@ -366,6 +366,16 @@ function Abyss.ClaimReward(clearedWave, difficultyId)
     totalDust  = math.floor(totalDust * laborMult)
     totalSeals = math.floor(totalSeals * laborMult)
 
+    -- 符文翻倍：按倍率额外生成同数量符文（每颗独立随机属性）
+    if laborMult > 1 then
+        local extraCount = #allRunes * (laborMult - 1)
+        for _ = 1, extraCount do
+            local diff = Abyss.DIFFICULTY_MAP[difficultyId] or Abyss.DIFFICULTIES[1]
+            local rune = RuneData.Generate(diff.qualityMult)
+            allRunes[#allRunes + 1] = rune
+        end
+    end
+
     -- 发放裂隙之尘
     if totalDust > 0 then
         Currency.GrantReward({ type = "currency", id = "rift_dust", amount = totalDust }, "AbyssRift")

@@ -88,12 +88,13 @@ end
 local function SaveSettings()
     local f = File:new(SETTINGS_FILE, FILE_WRITE)
     if f:IsOpen() then
-        f:WriteString(cjson.encode({
+        local encOk, json = pcall(cjson.encode, {
             bgmVolume = settings.bgmVolume,
             sfxVolume = settings.sfxVolume,
             bgmMuted  = settings.bgmMuted,
             sfxMuted  = settings.sfxMuted,
-        }))
+        })
+        if encOk then f:WriteString(json) end
         f:Close()
     end
 end

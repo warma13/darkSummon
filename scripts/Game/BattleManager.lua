@@ -13,6 +13,7 @@ local Enemy = require("Game.Enemy")
 local LootDrop = require("Game.LootDrop")
 
 local BattleManager = {}
+local DEBUG_LOG = false  -- 生产环境关闭，调试时置 true
 
 -- ============================================================================
 -- 战斗上下文（当前正在进行的战斗配置）

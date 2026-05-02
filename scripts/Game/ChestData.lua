@@ -109,7 +109,10 @@ function ChestData.GrantStageDrop(stageNum)
     -- 神裔降临：宝箱掉落倍率
     local DivineBlessDB = require("Game.DivineBlessData")
     local chestMulti = DivineBlessDB.GetBuffValue("chest_multi")
-    local mult = (chestMulti > 1.0) and math.floor(chestMulti) or 1
+    -- 特权增益：宝箱掉率加成
+    local PrivilegeData = require("Game.PrivilegeData")
+    local chestBonus = 1.0 + PrivilegeData.GetChestDropBonus()
+    local mult = math.max(1, math.floor(chestMulti * chestBonus))
 
     -- 每关都给
     if drop.perStage then
@@ -137,7 +140,16 @@ end
 ---@param dropDef table  { type, rarity, min, max, chance }
 ---@return table|nil  { type, amount, heroId?, heroName? }
 local function RollDrop(dropDef)
-    if math.random() > dropDef.chance then return nil end
+    local chance = dropDef.chance
+    -- 特权增益：碎片掉率加成（仅对碎片类掉落生效）
+    if dropDef.type == "fragment_random" then
+        local PrivilegeData = require("Game.PrivilegeData")
+        local shardBonus = PrivilegeData.GetShardDropBonus()
+        if shardBonus > 0 then
+            chance = math.min(1.0, chance + (1 - chance) * shardBonus)
+        end
+    end
+    if math.random() > chance then return nil end
 
     local amount = math.random(dropDef.min, dropDef.max)
 

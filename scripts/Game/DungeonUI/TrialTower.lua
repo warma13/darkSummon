@@ -530,6 +530,10 @@ BuildTrialConfig = function(UI, S, ctx, floor)
             title   = label .. " 通关",
             rewards = rewardList,
             hint    = "剩余试练券: " .. ticketsLeft,
+            -- 背景点击兜底：与"返回"按钮相同行为，避免弹窗消失后卡死
+            onClose = function()
+                GameUI.ExitDungeonBattle()
+            end,
             buttons = {
                 {
                     text = "返回",

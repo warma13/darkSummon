@@ -225,7 +225,8 @@ function M._save()
     if not ok then return end
     local f = File(SAVE_FILE, FILE_WRITE)
     if not f then return end
-    f:WriteString(cjson.encode({ equipped = _equipped, owned = _ownedTitles }))
+    local encOk, json = pcall(cjson.encode, { equipped = _equipped, owned = _ownedTitles })
+    if encOk then f:WriteString(json) end
     f:Close()
 end
 

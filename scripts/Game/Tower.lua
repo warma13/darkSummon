@@ -627,7 +627,8 @@ function Tower.Merge(tower1, tower2)
     -- 每日任务追踪
     local ok2, DTD = pcall(require, "Game.DailyTaskData")
     if ok2 and DTD then DTD.AddProgress("merge", 1) end
-    print("[Tower] Merged into " .. Config.TOWER_TYPES[newTypeIndex].name .. " ★" .. newStar)
+    local newTypeDef = Config.TOWER_TYPES[newTypeIndex]
+    print("[Tower] Merged into " .. (newTypeDef and newTypeDef.name or "?") .. " ★" .. newStar)
     return newTower
 end
 

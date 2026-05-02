@@ -225,8 +225,16 @@ local function _BindMailItem(widget, data, index)
     local showBtn = not claimed and mail.rewards and #mail.rewards > 0
     widget._claimBtn:SetVisible(showBtn)
     if showBtn then
+        local capturedMail = mail  -- 捕获邮件引用，避免索引漂移
         widget._claimBtn.props.onClick = function()
-            local ok, msg = MailboxData.Claim(index)
+            -- 重新查找当前索引（列表可能已变化）
+            local mails = MailboxData.EnsureData()
+            local realIdx
+            for i, m in ipairs(mails) do
+                if m == capturedMail then realIdx = i; break end
+            end
+            if not realIdx then return end
+            local ok, msg = MailboxData.Claim(realIdx)
             if ok then
                 SlotSave.MarkDirty()
                 MailboxUI.Refresh()

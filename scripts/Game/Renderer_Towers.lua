@@ -22,6 +22,12 @@ local TitleData        = require("Game.TitleData")
 local starStrCache = {}
 for i = 1, 10 do starStrCache[i] = string.rep("★", i) end
 
+-- buff/debuff 标签预分配缓冲区（避免每塔每帧创建小表）
+local _MAX_LABELS = 10
+local _labelBuf = {}
+for i = 1, _MAX_LABELS do _labelBuf[i] = { "", 0, 0, 0 } end
+local _labelCount = 0
+
 -- 背景图片 handle（仅本模块使用）
 local bgImageHandle = -1
 -- 称号边框图片 handle
@@ -64,11 +70,12 @@ end
 function Renderer.SaveBgSettings()
     local f = File:new(BG_SETTINGS_FILE, FILE_WRITE)
     if f then
-        f:WriteString(cjson.encode({
+        local encOk, json = pcall(cjson.encode, {
             overlayAlpha         = Renderer.bgOverlayAlpha,
             showNatureAuraRing   = Renderer.showNatureAuraRing,
             showBuffDebuffLabels = Renderer.showBuffDebuffLabels,
-        }))
+        })
+        if encOk then f:WriteString(json) end
         f:Close()
     end
 end
@@ -178,11 +185,10 @@ function Renderer.DrawGrid(vg, ox, oy)
     nvgFillColor(vg, nvgRGBA(bgc[1], bgc[2], bgc[3], 200))
     nvgFill(vg)
 
-    -- 合并绘制：所有非路径格子背景 → 一次 fill，边框 → 一次 stroke
+    -- 合并绘制：所有非路径格子背景 + 边框 → 一次遍历，fill + stroke 共用 path
     local half = Config.CELL_SIZE * 0.5 - 2
     local cellW = half * 2
 
-    -- 批量填充背景
     nvgBeginPath(vg)
     for c = 1, Config.GRID_COLS do
         for r = 1, Config.GRID_ROWS do
@@ -194,17 +200,6 @@ function Renderer.DrawGrid(vg, ox, oy)
     end
     nvgFillColor(vg, rgba(Config.COLORS.gridCell))
     nvgFill(vg)
-
-    -- 批量描边边框
-    nvgBeginPath(vg)
-    for c = 1, Config.GRID_COLS do
-        for r = 1, Config.GRID_ROWS do
-            if not Grid.IsPathCell(c, r) then
-                local cx, cy = Grid.CellToScreen(c, r, ox, oy)
-                nvgRoundedRect(vg, cx - half, cy - half, cellW, cellW, 4)
-            end
-        end
-    end
     nvgStrokeWidth(vg, 1)
     nvgStrokeColor(vg, rgba(Config.COLORS.gridLine))
     nvgStroke(vg)
@@ -692,6 +687,7 @@ end
 --- 绘制所有塔
 function Renderer.DrawTowers(vg, ox, oy)
     for _, tower in ipairs(State.towers) do
+        if not tower.typeDef then goto _continue_tower end
         local cx, cy = Grid.CellToScreen(tower.col, tower.row, ox, oy)
         local size = Config.CELL_SIZE * 0.8
         local gc = tower.typeDef.glowColor
@@ -806,52 +802,52 @@ function Renderer.DrawTowers(vg, ox, oy)
 
         -- ─── 头顶文字标签（减益 + 增益） ───
         if not isDragged and Renderer.fontId >= 0 and Renderer.showBuffDebuffLabels then
-            local labels = {}  -- { text, r, g, b }
+            _labelCount = 0  -- 复用预分配缓冲区
 
             -- ── 减益 ──
             if Debuff.Has(tower, "shackle") then
-                labels[#labels + 1] = { "禁锢", 40, 160, 60 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "禁锢", 40, 160, 60
             end
             if Debuff.Has(tower, "silence") then
-                labels[#labels + 1] = { "沉默", 140, 50, 200 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "沉默", 140, 50, 200
             end
             if Tower.HasDebuff(tower, "emerald_decay_atk") then
-                labels[#labels + 1] = { "衰竭", 100, 140, 40 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "衰竭", 100, 140, 40
             end
 
             -- ── 增益（仅显示重要状态：免控、层数、临时增益） ──
             -- 翠意庇护 → 显示"免控"（翎嫣免疫沉默+禁锢）
             local hs = tower.hstate
             if hs and hs.verdantActive then
-                labels[#labels + 1] = { "免控", 255, 220, 80 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "免控", 255, 220, 80
             end
             -- 翎嫣鲜花环（+攻击力临时增益）
             if hs and hs.wreathActive then
-                labels[#labels + 1] = { "鲜花环", 255, 150, 200 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "鲜花环", 255, 150, 200
             end
             -- 绯夜缚瞳锁定层数（代码内部名 bloodEye，技能名"缚瞳锁定"）
             if hs and (hs.bloodEyeStacks or 0) > 0 then
-                labels[#labels + 1] = { "缚瞳x" .. hs.bloodEyeStacks, 220, 40, 60 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "缚瞳x" .. hs.bloodEyeStacks, 220, 40, 60
             end
             -- 影法师灵魂收割层数
             if hs and (hs.soulReapStacks or 0) > 0 then
-                labels[#labels + 1] = { "收割x" .. hs.soulReapStacks, 180, 60, 220 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "收割x" .. hs.soulReapStacks, 180, 60, 220
             end
             -- 永恒大魔击杀层数
             if hs and (hs.killAtkStacks or 0) > 0 then
-                labels[#labels + 1] = { "杀意x" .. hs.killAtkStacks, 200, 50, 50 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "杀意x" .. hs.killAtkStacks, 200, 50, 50
             end
             -- 英勇战歌（战鼓祭司全体主动技，临时增益）
             if State.heroicAnthemBuff then
-                labels[#labels + 1] = { "战歌", 255, 220, 100 }
+                _labelCount = _labelCount + 1; local lb = _labelBuf[_labelCount]; lb[1], lb[2], lb[3], lb[4] = "战歌", 255, 220, 100
             end
 
-            if #labels > 0 then
+            if _labelCount > 0 then
                 nvgFontFaceId(vg, Renderer.fontId)
                 nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_BOTTOM)
                 local labelY = cy - size * 0.55 - 2
-                for idx = #labels, 1, -1 do
-                    local lb = labels[idx]
+                for idx = _labelCount, 1, -1 do
+                    local lb = _labelBuf[idx]
                     local yPos = labelY - (idx - 1) * 13
                     local pulse = math.sin(State.time * 3.5 + idx * 1.2) * 0.2 + 0.8
                     local a = math.floor(220 * pulse)
@@ -862,7 +858,7 @@ function Renderer.DrawTowers(vg, ox, oy)
                     nvgText(vg, cx, yPos, lb[1], nil)
                 end
             end
-            tower._buffLabelCount = #labels
+            tower._buffLabelCount = _labelCount
         else
             tower._buffLabelCount = 0
         end
@@ -920,6 +916,7 @@ function Renderer.DrawTowers(vg, ox, oy)
                 nvgText(vg, cx, titleCenterY, titleStr, nil)
             end
         end
+        ::_continue_tower::
     end
 end
 

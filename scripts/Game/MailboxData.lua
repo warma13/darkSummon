@@ -250,6 +250,17 @@ SaveRegistry.Register("mailboxData", {
                 },
             })
         end
+
+        -- 定向补偿：劳动勋章兑换 dungeon_ticket bug 补发
+        if myId == "1840951947" then
+            MailboxData.SendOnce("comp_20260501_dungeon_ticket_fix", {
+                title = "藏书阁挑战券补偿",
+                desc = "因劳动勋章商店兑换异常导致藏书阁挑战券未正确发放，现补发挑战券×6，对此造成的不便深表歉意！",
+                rewards = {
+                    { type = "item", id = "dungeon_ticket", amount = 6 },
+                },
+            })
+        end
     end,
 })
 

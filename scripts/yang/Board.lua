@@ -330,11 +330,8 @@ function M.newGame(lvl)
     local totalA = 0
     for _, c in ipairs(cfg.cardsPerLayer) do totalA = totalA + c end
     local totalB = cfg.useB and cfg.pileCards * 2 or 0
-    local total  = totalA + totalB
 
     local seed  = cfg.seed or os.time()
-    local kinds = PosGen.makeKindList(total, cfg.kindCount)
-    PosGen.shuffle(kinds, seed)
 
     computeLayout(cfg)
 
@@ -364,8 +361,36 @@ function M.newGame(lvl)
         end
     end
 
+    -- ── 安全网：统计实际放置的 A 区牌数（位置生成可能少于配置值）──
+    local actualA = 0
+    for layerNum = 1, nLayers do
+        actualA = actualA + #(layerPosList[layerNum] or {})
+    end
+    local actualTotal = actualA + totalB
+    -- 确保总数是 3 的倍数（裁掉多余位置）
+    local remainder = actualTotal % 3
+    if remainder > 0 then
+        -- 从最底层开始裁掉多余的位置
+        local toRemove = remainder
+        for layerNum = 1, nLayers do
+            local pos = layerPosList[layerNum]
+            if pos and toRemove > 0 then
+                while toRemove > 0 and #pos > 0 do
+                    table.remove(pos)
+                    toRemove = toRemove - 1
+                end
+            end
+            if toRemove <= 0 then break end
+        end
+        actualTotal = actualTotal - remainder
+    end
+
+    -- 按实际牌数生成 kindList，保证每种牌数量是 3 的倍数
+    local kinds = PosGen.makeKindList(actualTotal, cfg.kindCount)
+    PosGen.shuffle(kinds, seed)
+
     local ki = 1
-    for layerNum = 1, #cfg.cardsPerLayer do
+    for layerNum = 1, nLayers do
         local pos = layerPosList[layerNum] or {}
         for _, p in ipairs(pos) do
             local id = p.px
@@ -457,7 +482,7 @@ function M.newGame(lvl)
     end
 
     print(string.format("[羊了个羊] %s 开始：A区%d + B区%d = 共%d张，%d种图案",
-        cfg.name, totalA, totalB, total, cfg.kindCount))
+        cfg.name, actualA, totalB, actualTotal, cfg.kindCount))
 end
 
 -- ── 关卡切换动画缓动 ─────────────────────────────────────────────────────────
