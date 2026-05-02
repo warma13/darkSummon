@@ -475,6 +475,99 @@ local function BuildInfoTab(ctx, heroId, heroDef)
         children = statChildren,
     }
 
+    -- 光环效果展示（从技能 + 技能标签中收集对友方的光环 buff）
+    do
+        local auraRows = {}
+        local fmtP = function(v)
+            local r = v * 100
+            if r == math.floor(r) then return string.format("+%d%%", r) end
+            return string.format("+%.1f%%", r)
+        end
+
+        -- 星级缩放（与技能区保持一致）
+        local heroStar0 = (h and h.star) or 0
+        local maxStar0  = Config.MAX_HERO_STAR or 30
+        local starScale0 = 0.10 + 0.90 * math.sqrt(math.min(heroStar0, maxStar0) / maxStar0)
+
+        -- 1) 从基础技能收集光环字段
+        local skillDefs1 = Config.HERO_SKILLS and Config.HERO_SKILLS[heroId] or {}
+        for _, skill in ipairs(skillDefs1) do
+            if skill.type == "passive" then
+                local sf = (skill.starScale and starScale0) or 1.0
+                if skill.auraSpdBuff and skill.auraSpdBuff > 0 then
+                    auraRows[#auraRows + 1] = { label = "友方攻速", value = fmtP(skill.auraSpdBuff * sf), color = { 100, 200, 255, 255 }, src = skill.name }
+                end
+                if skill.auraCritBuff and skill.auraCritBuff > 0 then
+                    auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(skill.auraCritBuff * sf), color = { 255, 220, 80, 255 }, src = skill.name }
+                end
+                if skill.critRateBuff and skill.critRateBuff > 0 then
+                    auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(skill.critRateBuff * sf), color = { 255, 220, 80, 255 }, src = skill.name }
+                end
+                if skill.stunAtkBonusMax and skill.stunAtkBonusMax > 0 then
+                    auraRows[#auraRows + 1] = { label = "眩晕增攻(上限)", value = fmtP(skill.stunAtkBonusMax * sf), color = { 255, 160, 80, 255 }, src = skill.name }
+                end
+            end
+        end
+
+        -- 2) 从技能标签收集光环字段
+        local tagDefs1 = Config.HERO_SKILL_TAGS and Config.HERO_SKILL_TAGS[heroId]
+        if tagDefs1 then
+            for _, tagDef in ipairs(tagDefs1) do
+                local tier = HeroData.GetTagTier(heroId, tagDef.id)
+                local unlocked = HeroData.IsTagUnlocked(heroId, tagDef)
+                if unlocked and tier > 0 and tagDef.effects and tagDef.effects[tier] then
+                    local eff = tagDef.effects[tier]
+                    if eff.auraAtkBuff and eff.auraAtkBuff > 0 then
+                        auraRows[#auraRows + 1] = { label = "友方攻击力", value = fmtP(eff.auraAtkBuff), color = { 255, 120, 80, 255 }, src = tagDef.name }
+                    end
+                    if eff.auraCritDmg and eff.auraCritDmg > 0 then
+                        auraRows[#auraRows + 1] = { label = "友方暴伤", value = fmtP(eff.auraCritDmg), color = { 255, 160, 60, 255 }, src = tagDef.name }
+                    end
+                    if eff.critRateBuff and eff.critRateBuff > 0 then
+                        auraRows[#auraRows + 1] = { label = "友方暴击率", value = fmtP(eff.critRateBuff), color = { 255, 220, 80, 255 }, src = tagDef.name }
+                    end
+                end
+            end
+        end
+
+        if #auraRows > 0 then
+            local auraChildren = {
+                UI.Label { text = "光环效果", fontSize = 12, fontColor = { 155, 115, 207, 220 }, marginLeft = 6 },
+            }
+            for _, row in ipairs(auraRows) do
+                auraChildren[#auraChildren + 1] = UI.Panel {
+                    width = "100%",
+                    flexDirection = "row",
+                    justifyContent = "space-between",
+                    alignItems = "center",
+                    paddingLeft = 12, paddingRight = 12,
+                    paddingTop = 3, paddingBottom = 3,
+                    children = {
+                        UI.Panel {
+                            flexDirection = "row", alignItems = "center", gap = 4,
+                            children = {
+                                UI.Label { text = row.label, fontSize = 12, fontColor = S.dim },
+                                UI.Label { text = "(" .. row.src .. ")", fontSize = 9, fontColor = { 150, 140, 130, 150 } },
+                            },
+                        },
+                        UI.Label { text = row.value, fontSize = 13, fontColor = row.color, fontWeight = "bold" },
+                    },
+                }
+            end
+            children[#children + 1] = UI.Panel {
+                width = "100%",
+                marginTop = 4,
+                backgroundColor = { 30, 22, 40, 200 },
+                borderRadius = 8,
+                borderWidth = 1,
+                borderColor = { 80, 55, 120, 150 },
+                paddingTop = 6, paddingBottom = 6,
+                gap = 2,
+                children = auraChildren,
+            }
+        end
+    end
+
     -- 伤害类型 & 定位
     do
         local dmgTypeId = Config.HERO_DAMAGE_TYPE[heroId]
