@@ -36,6 +36,12 @@ local function GetHeroName(heroId)
     return heroId
 end
 
+--- 获取解锁日期字符串（支持 unlockDateKey 动态引用）
+local function GetUnlockDateStr(bannerCfg)
+    return (bannerCfg.unlockDateKey and Config[bannerCfg.unlockDateKey])
+           or bannerCfg.unlockDate
+end
+
 --- 格式化解锁日期为 "M月D日"
 local function FormatUnlockDate(dateStr)
     if not dateStr then return "" end
@@ -63,7 +69,7 @@ function LimitedPool.CreateTokenBar(UI, bannerCfg)
     if LBD.IsLocked(bannerCfg) then
         local days = LBD.GetUnlockDaysRemaining(bannerCfg)
         rightLabel = UI.Label {
-            text = FormatUnlockDate(bannerCfg.unlockDate) .. "开放",
+            text = FormatUnlockDate(GetUnlockDateStr(bannerCfg)) .. "开放",
             fontSize = 12,
             fontColor = { 220, 180, 80, 220 },
         }
@@ -246,7 +252,7 @@ function LimitedPool.CreateBanner(UI, bannerCfg, showAdFrostFn, showAdTicketFn, 
             children = {
                 UI.Label { text = "🔒", fontSize = 40 },
                 UI.Label {
-                    text = FormatUnlockDate(bannerCfg.unlockDate) .. " 开放",
+                    text = FormatUnlockDate(GetUnlockDateStr(bannerCfg)) .. " 开放",
                     fontSize = 22,
                     fontColor  = { 220, 200, 80, 255 },
                     fontWeight = "bold",
@@ -377,7 +383,7 @@ function LimitedPool.CreateButtonArea(UI, bannerCfg, pageRoot, RARITY_COLORS, cu
             flexShrink = 0,
             children = {
                 UI.Label {
-                    text = FormatUnlockDate(bannerCfg.unlockDate) .. " 开放"
+                    text = FormatUnlockDate(GetUnlockDateStr(bannerCfg)) .. " 开放"
                         .. (remainText ~= "" and ("（" .. remainText .. "）") or ""),
                     fontSize = 16,
                     fontColor = { 220, 200, 80, 220 },
@@ -669,7 +675,7 @@ function LimitedPool.ShowDetailPopup(UI, pageRoot, bannerCfg, RARITY_COLORS, RAR
             alignItems = "center",
             children = {
                 UI.Label {
-                    text = "🔒 " .. FormatUnlockDate(bannerCfg.unlockDate) .. " 正式开放，敬请期待",
+                    text = "🔒 " .. FormatUnlockDate(GetUnlockDateStr(bannerCfg)) .. " 正式开放，敬请期待",
                     fontSize = 13,
                     fontColor = { 220, 200, 80, 255 },
                 },

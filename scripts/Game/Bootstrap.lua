@@ -16,6 +16,7 @@ local AchievementToast = require("Game.AchievementToast")
 local AchievementData = require("Game.AchievementData")
 local SlotSaveSystem = require("Game.SlotSaveSystem")
 local SpeedBoost = require("Game.SpeedBoostData")
+local WorldTier = require("Game.WorldTier")
 local MiniGameUI = require("Game.MiniGameUI")
 
 local InputHandler = require("Game.InputHandler")
@@ -144,6 +145,9 @@ function Bootstrap.Start()
     AudioManager.Init()
     AudioManager.PlayBGM()
 
+    -- 6.5 初始化世界等级（从本地存档加载）
+    WorldTier.Init()
+
     -- 7. 初始化 UI 系统，但只创建预加载根容器（不创建游戏页面）
     GameUI.Init(UI)
     GameUI.CreatePreGameRoot()
@@ -160,8 +164,8 @@ function Bootstrap.Start()
     GameUI.ShowServerSelect(true)
 
     -- 超时检测状态（模块级，由 Bootstrap.Tick 驱动）
-    local SLOT_TIMEOUT_FIRST = 3    -- 首次加载超时（秒）
-    local SLOT_TIMEOUT_RETRY = 10   -- 重试加载超时（秒）
+    local SLOT_TIMEOUT_FIRST = 60   -- 首次加载超时（秒）—— SlotSaveSystem 内部有 5s 超时 + 3 次重试
+    local SLOT_TIMEOUT_RETRY = 60   -- 重试加载超时（秒）
     Bootstrap._slotInitDone  = false
     Bootstrap._slotTimer     = 0
     Bootstrap._slotTimeout   = SLOT_TIMEOUT_FIRST
@@ -269,6 +273,17 @@ function StartGame(serverId)
 
         print("[StartGame] Slot " .. tostring(serverId) .. " loaded, isNew=" .. tostring(isNewSlot))
 
+        -- 按服务器覆盖日期配置
+        local serverCfg = Config.SERVER_CONFIGS and Config.SERVER_CONFIGS[serverId]
+        if serverCfg then
+            for k, v in pairs(serverCfg) do
+                Config[k] = v
+            end
+            print("[StartGame] Applied server config for S" .. serverId
+                .. ", START_DATE=" .. Config.SERVER_START_DATE
+                .. ", LABOR=" .. Config.LABOR_DAY_START .. "~" .. Config.LABOR_DAY_END)
+        end
+
         -- 存档加载成功后才创建完整游戏 UI
         GameUI.CreateUI()
 
@@ -289,24 +304,39 @@ function StartGame(serverId)
             stageNum = savedStage,
             onWin  = function() GameUI.DoStageClear() end,
             onLose = function() GameUI.DoGameOver() end,
-            initialDarkSoul = Config.INITIAL_DARK_SOUL,
         })
 
         GameUI.UpdateHUD()
 
-        -- 挂机时长恢复
-        local claimTime = HeroData.stats.afkLastClaimTime or 0
-        if claimTime > 0 then
-            local totalAfkSecs = os.time() - claimTime
-            if totalAfkSecs > 0 then
+        -- ================================================================
+        -- 挂机时长恢复（反作弊：afkLastClaimDay 硬上限 + 共识钳制 + 单调性）
+        -- ================================================================
+        do
+            local ServerTime = require("Game.ServerTime")
+            local claimTime = HeroData.stats.afkLastClaimTime or 0
+            local claimDay = HeroData.stats.afkLastClaimDay or 0
+            -- 用 ConsensusClampedNow 做钳制：即使共识还没回来，
+            -- afkLastClaimDay 也能提供硬上限（最多 +MAX_AHEAD+1 天）
+            local nowTime = ServerTime.ConsensusClampedNow(claimDay)
+
+            if claimTime > 0 then
+                local totalAfkSecs = nowTime - claimTime
+                -- 无论正负都恢复计时器：
+                --   正值 = 正常离线时长
+                --   负值 = claimTime 在未来（曾拨前时钟），显示为债务
                 GameUI._afkStartTime = time.elapsedTime - totalAfkSecs
                 GameUI._afkLastDisplaySec = -1
-                print("[StartGame] AFK restored " .. math.floor(totalAfkSecs / 60) .. " min since last claim")
+                -- 标记需等共识就绪后才能领取（共识到了会再做一次钳制）
+                GameUI._afkNeedsConsensus = true
+                print("[StartGame] AFK restored " .. math.floor(totalAfkSecs / 60) .. " min"
+                    .. " (claimDay=" .. claimDay .. " clamped, pending consensus)")
+            else
+                -- 新存档：初始化领取时间和天数
+                HeroData.stats.afkLastClaimTime = nowTime
+                HeroData.stats.afkLastClaimDay = math.max(0, math.floor((nowTime - ServerTime.GetLaunchEpoch()) / 86400))
+                GameUI._afkNeedsConsensus = false
+                print("[StartGame] AFK initialized for new save")
             end
-        else
-            -- 从未领取过挂机收益（新存档），初始化基准时间为当前时间
-            HeroData.stats.afkLastClaimTime = os.time()
-            print("[StartGame] AFK initialized afkLastClaimTime for new save")
         end
         -- 离线推关：在 lastSaveTime 重置之前计算
         do
@@ -314,6 +344,13 @@ function StartGame(serverId)
             if okOP and OfflinePush and OfflinePush.CalcOfflinePushRewards then
                 local pushResult = OfflinePush.CalcOfflinePushRewards()
                 if pushResult then
+                    -- 立即用推关数推进 bestStage，防止下方 Save 用旧值覆盖云端
+                    if pushResult.pushed > 0 then
+                        local cur = HeroData.stats.bestStage or 0
+                        HeroData.stats.bestStage = cur + pushResult.pushed
+                        HeroData.stats.bestGlobalWave = HeroData.stats.bestStage * Config.WAVES_PER_STAGE
+                        print("[StartGame] OfflinePush: bestStage pre-applied " .. cur .. " + " .. pushResult.pushed .. " → " .. HeroData.stats.bestStage)
+                    end
                     GameUI._pendingOfflinePush = pushResult
                     print("[StartGame] OfflinePush: pushed " .. (pushResult.pushed or 0)
                         .. " stages, bestStage " .. (pushResult.oldBestStage or 0)
@@ -324,7 +361,7 @@ function StartGame(serverId)
             end
         end
 
-        HeroData.lastSaveTime = os.time()
+        HeroData.lastSaveTime = require("Game.ServerTime").Now()
         HeroData.Save()
 
         -- 同步所有排行榜分数

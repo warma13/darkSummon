@@ -30,7 +30,9 @@ Balance.HERO = {
 -- 怪物侧参数
 -- ============================================================================
 Balance.MONSTER = {
-    HP_SEGMENTS       = Config.HP_SCALE_SEGMENTS,
+    HP_SCALE_EARLY    = Config.HP_SCALE_EARLY,
+    HP_FORMULA        = Config.HP_FORMULA,
+    GetHPScale        = Config.GetStageHPScale,
     DEF_HP_RATIO      = Config.ENEMY_DEF_HP_RATIO,     -- 0.10
     SPEED_PER_STAGE   = Config.STAGE_SPEED_PER_STAGE,   -- 0.02
     SPEED_CAP         = Config.STAGE_SPEED_CAP,          -- 1.8
@@ -57,7 +59,14 @@ Balance.COMBAT = {
 ---@return number
 function Balance.CalcLevelMult(level, rarity)
     local g = Balance.HERO.GROWTH_PCT[rarity] or 0.06
-    return F.Linear(1.0, g, math.max(0, level - 1))
+    local base = F.Linear(1.0, g, math.max(0, level - 1))
+    -- 超线性加速：1500级后等级成长逐步加速，最高+15%
+    if level > 1500 then
+        local t = (level - 1500) / 4500  -- 0~1 in 1500~6000
+        local accel = 1.0 + t * 0.15     -- max +15% at 6000
+        return base * accel
+    end
+    return base
 end
 
 --- 计算进阶倍率
@@ -132,7 +141,7 @@ end
 ---@return number hpScale
 function Balance.ExpectedMonsterHPScale(stageNum, waveInStage)
     waveInStage = waveInStage or 1
-    local stageScale = F.Piecewise4(Balance.MONSTER.HP_SEGMENTS, stageNum)
+    local stageScale = Balance.MONSTER.GetHPScale(stageNum)
     local waveScale = F.Linear(1.0, Balance.MONSTER.WAVE_HP_PER_WAVE, waveInStage - 1)
     return stageScale * waveScale
 end
@@ -163,37 +172,6 @@ function Balance.ExpectedMonsterEHP(stageNum, waveInStage, roleId)
     local ehp = rawHP + def * 2  -- 粗略近似
 
     return ehp, rawHP, def
-end
-
--- ============================================================================
--- 战斗属性软上限（对数衰减）
--- ============================================================================
-Balance.SOFT_CAPS = {
-    dmgBonus = { threshold = 0.80, scale = 1.0 },
-    critDmg  = { threshold = 1.00, scale = 1.5 },
-    elemDmg  = { threshold = 0.80, scale = 1.0 },
-}
-
---- 软上限函数：超过阈值后对数衰减
----@param raw number 原始值
----@param cap table { threshold: number, scale: number }
----@return number 软上限后的值
-function Balance.SoftCapStat(raw, cap)
-    if raw <= cap.threshold then return raw end
-    local over = raw - cap.threshold
-    return cap.threshold + cap.scale * math.log(1 + over / cap.scale)
-end
-
---- 便捷：批量应用软上限
----@param dmgBonus number
----@param critDmg number
----@param elemDmg number
----@return number, number, number
-function Balance.ApplySoftCaps(dmgBonus, critDmg, elemDmg)
-    local caps = Balance.SOFT_CAPS
-    return Balance.SoftCapStat(dmgBonus, caps.dmgBonus),
-           Balance.SoftCapStat(critDmg, caps.critDmg),
-           Balance.SoftCapStat(elemDmg, caps.elemDmg)
 end
 
 -- ============================================================================
@@ -246,17 +224,17 @@ local function EstimateEquipBonuses(equipLv)
     return dmgBonus, critDmg, elemDmg
 end
 
---- 打印战力对比表（调试用，含装备估算和软上限）
+--- 打印战力对比表（调试用，含装备估算）
 ---@param fromStage number
 ---@param toStage number
 ---@param step number
 ---@param rarity string|nil 默认 "SSR"
 function Balance.PrintPowerTable(fromStage, toStage, step, rarity)
     rarity = rarity or "SSR"
-    print("=== 战力对比表（含装备+软上限） ===")
+    print("=== 战力对比表（含装备估算） ===")
     print(string.format("%-7s %-11s %-11s %-11s %-7s %-7s %-7s %-7s",
         "Stage", "HeroBase", "MonsterHP", "MonDEF", "Ratio",
-        "dmgB_s", "critD_s", "elemD_s"))
+        "dmgB", "critD", "elemD"))
     print(string.rep("-", 80))
 
     for stage = fromStage, toStage, step do
@@ -270,17 +248,14 @@ function Balance.PrintPowerTable(fromStage, toStage, step, rarity)
 
         -- 装备估算
         local equipLv = EstimateEquipLevel(stage)
-        local rawDmgB, rawCritD, rawElemD = EstimateEquipBonuses(equipLv)
-
-        -- 应用软上限
-        local softDmgB, softCritD, softElemD = Balance.ApplySoftCaps(rawDmgB, rawCritD, rawElemD)
+        local dmgB, critD, elemD = EstimateEquipBonuses(equipLv)
 
         print(string.format("%-7d %-11.1f %-11.0f %-11.0f %-7.3f %-7.2f %-7.2f %-7.2f",
             stage, heroMult, rawHP, def, ratio,
-            softDmgB, softCritD, softElemD))
+            dmgB, critD, elemD))
     end
     print("=== END ===")
-    print("dmgB_s/critD_s/elemD_s = 软上限后的 dmgBonus/critDmg/elemDmg")
+    print("dmgB/critD/elemD = 装备 dmgBonus/critDmg/elemDmg (原始值)")
 end
 
 end

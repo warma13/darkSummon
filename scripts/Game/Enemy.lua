@@ -28,6 +28,9 @@ local mpi     = math.pi
 
 local Enemy = {}
 
+-- 日志开关：设为 true 输出生成/击杀/词缀日志，false 静默（性能优化）
+local DEBUG_LOG = false
+
 -- 粒子/飘字安全添加（带数量上限），共享定义在 State.lua
 local AddFloatingText = State.AddFloatingText
 local AddParticle = State.AddParticle
@@ -155,6 +158,7 @@ local function CreateBase(typeDef, waveNum, hpScale, speedScale)
         isWorldBoss = typeDef.isWorldBoss or false,
         isHatredBoss = typeDef.isHatredBoss or false,
         isGarbageBoss = typeDef.isGarbageBoss or false,
+        bossType = typeDef.bossType or nil, -- 统一 Boss 类型标识 (如 "world_boss","hatred_land" 等)
         affixes = {},
         affixIds = {},    -- 用于快速查询
 
@@ -268,6 +272,21 @@ local function ApplyAffixes(enemy, affixes)
     if #debuffList > 0 then
         enemy._debuffAffixes = debuffList
     end
+
+    -- P1 优化：预缓存词缀参数值（消除 UpdateAffixEffects 中的内循环查找）
+    local cache = {}
+    for _, a in ipairs(affixes) do
+        if a.regenRate       then cache.regenRate       = a.regenRate end
+        if a.ironWallInterval then cache.ironWallInterval = a.ironWallInterval end
+        if a.ironWallDefPct  then cache.ironWallDefPct  = a.ironWallDefPct end
+        if a.rejuvInterval   then cache.rejuvInterval   = a.rejuvInterval end
+        if a.rejuvPct        then cache.rejuvPct        = a.rejuvPct end
+        if a.starDrainInterval then cache.starDrainInterval = a.starDrainInterval end
+        if a.annihilateInterval then cache.annihilateInterval = a.annihilateInterval end
+        if a.reviveHPRate    then cache.reviveHPRate    = a.reviveHPRate end
+        if a.phaseInterval   then cache.phaseInterval   = a.phaseInterval end
+    end
+    enemy._affixCache = cache
 end
 
 --- 创建普通/精英怪物（通过 typeId 查找，向后兼容）
@@ -299,8 +318,10 @@ function Enemy.CreateEnemyFromDef(typeDef, waveNum, hpScale, speedScale, isElite
         for _, a in ipairs(affixes) do names[#names + 1] = a.name end
         affixNames = " [" .. table.concat(names, "+") .. "]"
     end
-    print(string.format("[Enemy] Spawned %s%s%s HP=%.0f SPD=%.0f",
-        prefix, typeDef.name, affixNames, enemy.hp, enemy.speed))
+    if DEBUG_LOG then
+        print(string.format("[Enemy] Spawned %s%s%s HP=%.0f SPD=%.0f",
+            prefix, typeDef.name, affixNames, enemy.hp, enemy.speed))
+    end
 
     return enemy
 end
@@ -331,8 +352,10 @@ function Enemy.CreateBoss(bossDef, waveNum, hpScale, speedScale, affixes, tier)
         for _, a in ipairs(affixes) do names[#names + 1] = a.name end
         affixNames = " [" .. table.concat(names, "+") .. "]"
     end
-    print(string.format("[Enemy] BOSS Spawned: %s (Tier %d)%s HP=%.0f",
-        bossDef.name, tier, affixNames, enemy.hp))
+    if DEBUG_LOG then
+        print(string.format("[Enemy] BOSS Spawned: %s (Tier %d)%s HP=%.0f",
+            bossDef.name, tier, affixNames, enemy.hp))
+    end
 
     return enemy
 end
@@ -367,27 +390,22 @@ local function HandleEnemyDeath(enemy)
     -- 不朽词缀：首次死亡复活
     if enemy.affixIds["undying"] and not enemy.revived then
         enemy.revived = true
-        local reviveRate = 0.5
-        for _, a in ipairs(enemy.affixes) do
-            if a.reviveHPRate then reviveRate = a.reviveHPRate end
-        end
+        local ac = enemy._affixCache
+        local reviveRate = ac and ac.reviveHPRate or 0.5
         enemy.hp = enemy.maxHP * reviveRate
         -- 复活时强制解除隐身，确保玩家能看到复活效果并索敌
         if enemy.phaseActive then
             enemy.phaseActive = false
-            local interval = 4.0
-            for _, a in ipairs(enemy.affixes) do
-                if a.phaseInterval then interval = a.phaseInterval end
-            end
-            enemy.phaseTimer = interval
+            enemy.phaseTimer = ac and ac.phaseInterval or 4.0
         end
-        AddFloatingText({
-            text = "复活!",
-            x = enemy.x, y = enemy.y - 15,
-            life = 1.0,
-            color = { 255, 220, 60, 255 },
-        })
-        print("[Enemy] " .. enemy.typeDef.name .. " revived!")
+        local ft = State.AcquireFloatingText()
+        ft.text = "复活!"
+        ft.x = enemy.x; ft.y = enemy.y - 15
+        ft.life = 1.0; ft.maxLife = 1.0
+        ft.color = { 255, 220, 60, 255 }
+        ft.fontSize = nil; ft.isCrit = nil
+        AddFloatingText(ft)
+        if DEBUG_LOG then print("[Enemy] " .. enemy.typeDef.name .. " revived!") end
         return
     end
 
@@ -400,13 +418,13 @@ local function HandleEnemyDeath(enemy)
     State.score = State.score + reward
 
     -- 暗魂飘字
-    AddFloatingText({
-        text = "+" .. reward,
-        x = enemy.x, y = enemy.y - 8,
-        life = 0.8,
-        color = { 80, 150, 220, 255 },
-        fontSize = 11,
-    })
+    local ft = State.AcquireFloatingText()
+    ft.text = "+" .. reward
+    ft.x = enemy.x; ft.y = enemy.y - 8
+    ft.life = 0.8; ft.maxLife = 0.8
+    ft.color = { 80, 150, 220, 255 }
+    ft.fontSize = 11; ft.isCrit = nil
+    AddFloatingText(ft)
 
     -- ======== 击杀掉落局外货币（掉落物动画） ========
     local enemyTier = enemy.isBoss and "boss" or (enemy.isElite and "elite" or "normal")
@@ -459,20 +477,22 @@ local function HandleEnemyDeath(enemy)
         end
     end
 
-    -- 死亡粒子
+    -- 死亡粒子（池化）
     local particleCount = enemy.isBoss and 16 or 8
+    local eColor = enemy.typeDef.color
     for i = 1, particleCount do
         local angle = mrandom() * mpi * 2
         local spd = 30 + mrandom() * 50
-        AddParticle({
-            x = enemy.x, y = enemy.y,
-            vx = mcos(angle) * spd,
-            vy = msin(angle) * spd,
-            life = 0.6 + mrandom() * 0.4,
-            maxLife = 1.0,
-            color = enemy.typeDef.color,
-            size = 3 + mrandom() * 3,
-        })
+        local pt = State.AcquireParticle()
+        pt.x = enemy.x; pt.y = enemy.y
+        pt.vx = mcos(angle) * spd
+        pt.vy = msin(angle) * spd
+        pt.life = 0.6 + mrandom() * 0.4
+        pt.maxLife = 1.0
+        pt.color = eColor
+        pt.size = 3 + mrandom() * 3
+        pt.isPoisonTrail = nil; pt.atkReduce = nil
+        AddParticle(pt)
     end
 
     -- 分裂被动（支持 splitRole 和向后兼容 splitTypeId）
@@ -494,7 +514,7 @@ local function HandleEnemyDeath(enemy)
                 Enemy.CreateSplitChild(enemy.typeDef.splitTypeId, enemy.waveNum, enemy.progress, hpScale, speedScale)
             end
         end
-        print("[Enemy] " .. enemy.typeDef.name .. " split into " .. count)
+        if DEBUG_LOG then print("[Enemy] " .. enemy.typeDef.name .. " split into " .. count) end
     end
 
     -- death_silence 特殊被动：死亡时沉默周围塔
@@ -518,7 +538,7 @@ local function HandleEnemyDeath(enemy)
         })
     end
 
-    print("[Enemy] " .. enemy.typeDef.name .. " killed, reward=" .. enemy.typeDef.reward)
+    if DEBUG_LOG then print("[Enemy] " .. enemy.typeDef.name .. " killed, reward=" .. enemy.typeDef.reward) end
     return true  -- 返回击杀结果，供 OnHit 触发击杀效果（fire_spread/double_soul/killReset）
 end
 
@@ -597,7 +617,7 @@ function Enemy.TakeDamage(enemy, damage)
         enemy.hp = 0
         -- 世界BOSS/憎恨化身兜底：HP归零不走死亡，直接触发战斗结算
         if enemy.isWorldBoss then
-            print("[Enemy] World boss HP reached 0, triggering battle end")
+            if DEBUG_LOG then print("[Enemy] World boss HP reached 0, triggering battle end") end
             State.bossTimer = 0
             return
         end
@@ -774,6 +794,9 @@ local function UpdateAuras(gridOffsetX, gridOffsetY)
     local enemies = State.enemies
     local srcCount = 0
 
+    -- P0 优化：重置全局减速光环（由 HeroSkills.UpdateAuras 写入，UpdateTimers 消费）
+    State._globalSlowRate = 0
+
     -- 清除光环标记 + 收集光环源（单次遍历）
     for _, e in ipairs(enemies) do
         if e.alive then
@@ -838,24 +861,18 @@ end
 
 local function UpdateAffixEffects(e, dt)
     -- ======== 词缀被动效果 ========
+    local ac = e._affixCache  -- P1 优化：使用预缓存的词缀参数
 
     -- 再生词缀
     if e.affixIds["regen"] then
-        local rate = 0.01
-        for _, a in ipairs(e.affixes) do
-            if a.regenRate then rate = a.regenRate end
-        end
+        local rate = ac and ac.regenRate or 0.01
         e.hp = mmin(e.hp + e.maxHP * rate * dt, e.maxHP)
     end
 
     -- 铁壁词缀：每隔 N 秒增加 DEF
     if e.affixIds["iron_wall"] then
-        local interval = 6.0
-        local defPct = 0.10
-        for _, a in ipairs(e.affixes) do
-            if a.ironWallInterval then interval = a.ironWallInterval end
-            if a.ironWallDefPct then defPct = a.ironWallDefPct end
-        end
+        local interval = ac and ac.ironWallInterval or 6.0
+        local defPct = ac and ac.ironWallDefPct or 0.10
         e.ironWallTimer = (e.ironWallTimer or 0) + dt
         if e.ironWallTimer >= interval then
             e.ironWallTimer = e.ironWallTimer - interval
@@ -875,12 +892,8 @@ local function UpdateAffixEffects(e, dt)
 
     -- 回春词缀：每隔 N 秒恢复已损失 HP 百分比
     if e.affixIds["rejuvenate"] then
-        local interval = 5.0
-        local pct = 0.05
-        for _, a in ipairs(e.affixes) do
-            if a.rejuvInterval then interval = a.rejuvInterval end
-            if a.rejuvPct then pct = a.rejuvPct end
-        end
+        local interval = ac and ac.rejuvInterval or 5.0
+        local pct = ac and ac.rejuvPct or 0.05
         e.rejuvTimer = (e.rejuvTimer or 0) + dt
         if e.rejuvTimer >= interval then
             e.rejuvTimer = e.rejuvTimer - interval
@@ -902,10 +915,7 @@ local function UpdateAffixEffects(e, dt)
 
     -- 降星词缀：每隔 N 秒随机降低一个英雄塔 1 星
     if e.affixIds["star_drain"] then
-        local interval = 12.0
-        for _, a in ipairs(e.affixes) do
-            if a.starDrainInterval then interval = a.starDrainInterval end
-        end
+        local interval = ac and ac.starDrainInterval or 12.0
         e.starDrainTimer = (e.starDrainTimer or 0) + dt
         if e.starDrainTimer >= interval then
             e.starDrainTimer = e.starDrainTimer - interval
@@ -928,17 +938,14 @@ local function UpdateAffixEffects(e, dt)
                     life = 1.0,
                     color = { 200, 80, 200, 255 },
                 })
-                print("[Affix] star_drain: " .. target.typeDef.name .. " " .. oldStar .. "★ → " .. target.star .. "★")
+                if DEBUG_LOG then print("[Affix] star_drain: " .. target.typeDef.name .. " " .. oldStar .. "★ → " .. target.star .. "★") end
             end
         end
     end
 
     -- 毁灭词缀：每隔 N 秒销毁一个随机英雄塔
     if e.affixIds["annihilate"] then
-        local interval = 20.0
-        for _, a in ipairs(e.affixes) do
-            if a.annihilateInterval then interval = a.annihilateInterval end
-        end
+        local interval = ac and ac.annihilateInterval or 20.0
         e.annihilateTimer = (e.annihilateTimer or 0) + dt
         if e.annihilateTimer >= interval then
             e.annihilateTimer = e.annihilateTimer - interval
@@ -973,7 +980,7 @@ local function UpdateAffixEffects(e, dt)
                         size = 4,
                     })
                 end
-                print("[Affix] annihilate: destroyed " .. towerName)
+                if DEBUG_LOG then print("[Affix] annihilate: destroyed " .. towerName) end
             end
         end
     end
@@ -1044,7 +1051,7 @@ local function UpdateAffixEffects(e, dt)
                             fontSize = 10,
                         })
                     end
-                    if #targets > 0 then
+                    if DEBUG_LOG and #targets > 0 then
                         print("[Affix] " .. da.id .. " (" .. targeting .. "): debuff "
                             .. stat .. " on " .. #targets .. " tower(s)")
                     end
@@ -1160,7 +1167,7 @@ local function UpdateMonsterPassives(e, dt)
                     Enemy.CreateSplitChild(e.typeDef.summonTypeId, e.waveNum, e.progress, hpS, spS)
                 end
             end
-            print("[Enemy] BOSS " .. e.typeDef.name .. " summoned " .. sCount)
+            if DEBUG_LOG then print("[Enemy] BOSS " .. e.typeDef.name .. " summoned " .. sCount) end
         end
     end
 
@@ -1305,6 +1312,41 @@ local function UpdateTimers(e, dt)
         if e.dotTickTimer >= 0.5 then
             e.dotTickTimer = e.dotTickTimer - 0.5
             Enemy.TakeDamage(e, e.dotDamage * 0.5)
+        end
+    end
+
+    -- ======== 全局减速光环（HeroSkills 每帧写 State._globalSlowRate，这里统一施加） ========
+    if State._globalSlowRate and State._globalSlowRate > 0 then
+        Enemy.ApplySlow(e, 1.0, State._globalSlowRate)
+    end
+
+    -- ======== Debuff 计时器（从 Combat.lua 合并，统一在此衰减） ========
+    -- 增伤标记
+    if e.ampDamageTimer and e.ampDamageTimer > 0 then
+        e.ampDamageTimer = e.ampDamageTimer - dt
+        if e.ampDamageTimer <= 0 then
+            e.tagAbyssMarked = nil          -- 深渊标记随增伤一起清除
+            Debuff.Clear(e, "amp_damage")
+        end
+    end
+    -- 破甲叠层
+    if e.armorBreakTimer and e.armorBreakTimer > 0 then
+        e.armorBreakTimer = e.armorBreakTimer - dt
+        if e.armorBreakTimer <= 0 then
+            e.armorBreakStacks = nil
+            e.armorBreakValue = nil
+            e.armorBreakTimer = nil
+        end
+    end
+    -- 眩晕
+    if e.stunTimer and e.stunTimer > 0 then
+        e.stunTimer = e.stunTimer - dt
+    end
+    -- 冰冻
+    if e.frozenTimer and e.frozenTimer > 0 then
+        e.frozenTimer = e.frozenTimer - dt
+        if e.frozenTimer <= 0 then
+            Debuff.Clear(e, "frozen")
         end
     end
 

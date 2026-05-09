@@ -15,10 +15,12 @@ Renderer.gridOffsetY = 0
 -- 共享上下文（子模块间传递状态和工具函数）
 local ctx = {}
 
--- 加载子模块（顺序重要：Utils → Towers → Draw）
+-- 加载子模块（顺序重要：Utils → Towers → Draw → BossUI → OverlayUI）
 require("Game.Renderer_Utils")(Renderer, ctx)
 require("Game.Renderer_Towers")(Renderer, ctx)
 require("Game.Renderer_Draw")(Renderer, ctx)
+require("Game.Renderer_BossUI")(Renderer, ctx)
+require("Game.Renderer_OverlayUI")(Renderer, ctx)
 
 -- 帧间隔（由 GameLoop 每帧写入实际 dt）
 Renderer.frameDt = 1.0 / 30.0
@@ -50,6 +52,9 @@ function Renderer.Render(vg, width, height)
 
     -- 3.5 遗物充能条（网格下方）
     Renderer.DrawRelicChargeBar(vg, ox, oy)
+
+    -- 3.6 训练木桩调控面板（遗物充能条下方）
+    Renderer.DrawTrainingDummyPanel(vg, ox, oy)
 
     -- 4. 怪物数量指示器（网格上方）
     Renderer.DrawEnemyCount(vg, ox, oy)
@@ -86,6 +91,9 @@ function Renderer.Render(vg, width, height)
 
     -- 11.6 憎恨化身 BOSS 技能特效（3×3践踏区域、韧性条、嘲讽/壁垒光环）
     Renderer.DrawHatredBossSkillFX(vg, width, height)
+
+    -- 11.7 通用 Boss 技能特效（施法描边、护盾/脉冲/吞噬/诅咒）
+    Renderer.DrawGenericBossSkillFX(vg, width, height)
 
     -- 12. BOSS 倒计时 + 血条（HUD 层）
     Renderer.DrawBossBar(vg, width)

@@ -51,6 +51,10 @@ M.showTicketConfirm = false -- 是否显示免广券确认弹窗
 M.ticketConfirmCb   = nil   -- 免广券弹窗确认后的回调 fun()
 M.showRescueConfirm = false -- 是否显示救场（移出道具）确认弹窗
 
+-- 渲染缓存（refreshCardState 后重建，Renderer 每帧直接读取）
+M._renderGroups   = nil   -- { [layerNum] = { sorted visible cards } }
+M._renderMaxLayer = 0
+
 -- ── 视觉参数（newGame 后更新）────────────────────────────────────────────────
 M.CW          = 42; M.CH          = 50
 M.GRID_X      = 21; M.GRID_Y      = 21
@@ -140,12 +144,54 @@ function M.pileTop(pile)
     return top
 end
 
--- ── 遮挡检测（内部）──────────────────────────────────────────────────────────
+-- ── 空间网格索引（性能优化核心）────────────────────────────────────────────
+-- 牌面 42×42，用 42px 粒度的网格快速查找重叠牌
+-- 一张牌 (px,py) 最多覆盖 4 个网格单元 (因为半格错位 21px)
+
+local GRID_CELL = YANG_FACE  -- 42
+local spatialGrid_ = {}      -- { [layerNum] = { [cellKey] = { card, ... } } }
+local layerGroups_ = {}      -- { [layerNum] = { card, ... } }
+local maxLayer_    = 0
+
+-- 将坐标转为网格 key
+local function cellKey(gx, gy)
+    return gy * 10000 + gx  -- 足够大的乘数避免碰撞
+end
+
+-- 一张牌覆盖的网格单元列表（最多 4 个）
+local function cardCells(c)
+    local cells = {}
+    local px, py = c.px, c.py
+    if px then
+        -- Yang 风格坐标
+        local gx0 = math.floor(px / GRID_CELL)
+        local gy0 = math.floor(py / GRID_CELL)
+        local gx1 = math.floor((px + YANG_FACE - 1) / GRID_CELL)
+        local gy1 = math.floor((py + YANG_FACE - 1) / GRID_CELL)
+        cells[1] = cellKey(gx0, gy0)
+        local n = 1
+        if gx1 ~= gx0 then n = n + 1; cells[n] = cellKey(gx1, gy0) end
+        if gy1 ~= gy0 then
+            n = n + 1; cells[n] = cellKey(gx0, gy1)
+            if gx1 ~= gx0 then n = n + 1; cells[n] = cellKey(gx1, gy1) end
+        end
+    else
+        -- rolNum/rowNum 风格（小关卡）
+        local gx0 = c.rolNum
+        local gy0 = c.rowNum
+        cells[1] = cellKey(gx0, gy0)
+        -- rolNum/rowNum 的遮挡判定是 ±2，网格粒度=2
+        local gx1 = gx0 + 1
+        local gy1 = gy0 + 1
+        cells[2] = cellKey(gx1, gy0)
+        cells[3] = cellKey(gx0, gy1)
+        cells[4] = cellKey(gx1, gy1)
+    end
+    return cells
+end
 
 local function overlaps(a, b)
     if a.px then
-        -- 用 YANG_FACE（牌面边长 42）判定遮挡，与 PosGen.yangAABBPos 保持一致
-        -- 不能用 CH（50，含阴影），否则上下相邻但不重叠的牌会被误判为遮挡
         return math.abs(a.px - b.px) < YANG_FACE and math.abs(a.py - b.py) < YANG_FACE
     else
         return a.rolNum < b.rolNum + 2 and b.rolNum < a.rolNum + 2
@@ -153,69 +199,130 @@ local function overlaps(a, b)
     end
 end
 
-local function buildGroups()
-    local g, maxL = {}, 0
+-- 重建空间索引（newGame 和 shuffle 后调用一次）
+local function rebuildSpatialIndex()
+    spatialGrid_ = {}
+    layerGroups_ = {}
+    maxLayer_    = 0
     for _, c in ipairs(M.allCards) do
         if not c.removed and c.moldType == 1 then
             local ln = c.layerNum
-            if not g[ln] then g[ln] = {} end
-            table.insert(g[ln], c)
+            if ln > maxLayer_ then maxLayer_ = ln end
+            if not layerGroups_[ln] then layerGroups_[ln] = {} end
+            layerGroups_[ln][#layerGroups_[ln] + 1] = c
+            if not spatialGrid_[ln] then spatialGrid_[ln] = {} end
+            local grid = spatialGrid_[ln]
+            local cells = cardCells(c)
+            for i = 1, #cells do
+                local k = cells[i]
+                if not grid[k] then grid[k] = {} end
+                grid[k][#grid[k] + 1] = c
+            end
+        end
+    end
+end
+
+-- 重建渲染缓存（仅在 refreshCardState 后调用，Renderer 每帧直接读取）
+local function rebuildRenderCache()
+    local groups = {}
+    local maxL   = 0
+    for _, c in ipairs(M.allCards) do
+        if not c.removed and c.moldType == 1 and c.state ~= "hidden" then
+            local ln = c.layerNum
+            if not groups[ln] then groups[ln] = {} end
+            groups[ln][#groups[ln] + 1] = c
             if ln > maxL then maxL = ln end
         end
     end
-    return g, maxL
+    for _, cards in pairs(groups) do
+        table.sort(cards, function(a, b)
+            return (a.py or a.rowNum) < (b.py or b.rowNum)
+        end)
+    end
+    M._renderGroups   = groups
+    M._renderMaxLayer = maxL
 end
 
-local function refreshCardState()
-    local groups, maxLayer = buildGroups()
+-- 计算单张牌的 coverLayers（使用空间索引加速）
+local function calcCoverLayers(c)
+    local coverLayers = 0
+    local cells = cardCells(c)
+    for ln = c.layerNum + 1, maxLayer_ do
+        local grid = spatialGrid_[ln]
+        if grid then
+            local found = false
+            for i = 1, #cells do
+                local bucket = grid[cells[i]]
+                if bucket then
+                    for j = 1, #bucket do
+                        if overlaps(c, bucket[j]) then
+                            found = true; break
+                        end
+                    end
+                end
+                if found then break end
+            end
+            if found then
+                coverLayers = coverLayers + 1
+                if coverLayers >= 2 then return 2 end
+            end
+        end
+    end
+    return coverLayers
+end
 
-    -- 第一步：计算每张牌被多少层直接覆盖（遍历所有更高层，不要求连续）
-    local coverMap = {}  -- card → coverLayers
+-- 全量刷新所有牌状态（newGame、shuffle、点击后调用）
+local function refreshCardState()
+    rebuildSpatialIndex()
+
+    -- Pass 1: 按原始 coverLayers 赋值状态
     for _, c in ipairs(M.allCards) do
         if not c.removed and c.moldType == 1 then
-            local coverLayers = 0
-            for ln = c.layerNum + 1, maxLayer do
-                if groups[ln] then
-                    for _, above in ipairs(groups[ln]) do
-                        if overlaps(c, above) then
-                            coverLayers = coverLayers + 1
-                            break
-                        end
-                    end
-                end
+            local cover = calcCoverLayers(c)
+            if     cover == 0 then c.state = "bright"
+            elseif cover == 1 then c.state = "dim"
+            else                    c.state = "hidden"
             end
-            coverMap[c] = coverLayers
         end
     end
 
-    -- 第二步：从高层往低层传播 hidden 状态
-    -- 规则：如果一张 hidden 牌（coverLayers >= 2）与下方某牌重叠，
-    -- 下方牌也必须是 hidden（因为上方牌不渲染会露出下方牌）
-    for ln = maxLayer, 1, -1 do
-        if groups[ln] then
-            for _, c in ipairs(groups[ln]) do
-                if coverMap[c] >= 2 then  -- c 是 hidden
-                    for lnBelow = ln - 1, 1, -1 do
-                        if groups[lnBelow] then
-                            for _, below in ipairs(groups[lnBelow]) do
-                                if overlaps(c, below) and coverMap[below] < 2 then
-                                    coverMap[below] = 2  -- 强制 hidden
+    -- Pass 2: 从高层往低层单趟扫描，dim 牌上方遮盖牌如果全是 hidden，
+    --         则该 dim 牌也变 hidden。因为从高→低处理，上方状态已确定，无需循环。
+    for ln = maxLayer_, 1, -1 do
+        local lg = layerGroups_[ln]
+        if lg then
+            for _, c in ipairs(lg) do
+                if c.state == "dim" then
+                    local hasVisibleCover = false
+                    local cells = cardCells(c)
+                    for coverLn = ln + 1, maxLayer_ do
+                        local grid = spatialGrid_[coverLn]
+                        if grid then
+                            for i = 1, #cells do
+                                local bucket = grid[cells[i]]
+                                if bucket then
+                                    for j = 1, #bucket do
+                                        local above = bucket[j]
+                                        if overlaps(c, above) and above.state ~= "hidden" then
+                                            hasVisibleCover = true
+                                            break
+                                        end
+                                    end
                                 end
+                                if hasVisibleCover then break end
                             end
                         end
+                        if hasVisibleCover then break end
+                    end
+                    if not hasVisibleCover then
+                        c.state = "hidden"
                     end
                 end
             end
         end
     end
 
-    -- 第三步：赋值状态
-    for c, cover in pairs(coverMap) do
-        if     cover == 0 then c.state = "bright"
-        elseif cover == 1 then c.state = "dim"
-        else                    c.state = "hidden"
-        end
-    end
+    rebuildRenderCache()
 end
 
 -- ── 槽位（内部）──────────────────────────────────────────────────────────────
@@ -566,12 +673,15 @@ end
 -- ── 碰撞检测 ─────────────────────────────────────────────────────────────────
 
 function M.hitA(mx, my)
+    -- 点击检测：每次点击只调用一次，O(N) 线性扫描完全足够
     local best = nil
     for _, c in ipairs(M.allCards) do
         if not c.removed and c.moldType == 1 and c.state == "bright" then
             local sx, sy = M.gridToScreen(c)
             if mx >= sx and mx <= sx + M.CW and my >= sy and my <= sy + M.FACE_H then
-                if not best or c.layerNum > best.layerNum then best = c end
+                if not best or c.layerNum > best.layerNum then
+                    best = c
+                end
             end
         end
     end

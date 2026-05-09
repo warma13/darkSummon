@@ -3,6 +3,7 @@
 --- 所有副本和主线战役共用此模块计算 HP/Speed 缩放
 
 local Config = require "Game.Config"
+local WorldTier = require "Game.WorldTier"
 
 local DS = {}
 
@@ -19,7 +20,7 @@ local mfloor = math.floor
 ---@param stageEquiv number 等效关卡数
 ---@return number
 function DS.CalcHPScale(stageEquiv)
-    return Config.GetStageHPScale(stageEquiv)
+    return Config.GetStageHPScale(stageEquiv) * WorldTier.GetHPMult()
 end
 
 --- 带波次内微调的 HP 缩放（主线战役专用）
@@ -30,7 +31,7 @@ end
 function DS.CalcHPScaleWithWave(stageNum, waveInStage)
     local stageScale = Config.GetStageHPScale(stageNum)
     local waveScale = 1.0 + Config.WAVE_HP_PER_WAVE * (waveInStage - 1)
-    return stageScale * waveScale
+    return stageScale * waveScale * WorldTier.GetHPMult()
 end
 
 ------------------------------------------------------------------------
@@ -42,7 +43,7 @@ end
 ---@param stageEquiv number 等效关卡数
 ---@return number
 function DS.CalcDEFScale(stageEquiv)
-    return Config.GetStageDEFScale(stageEquiv)
+    return Config.GetStageDEFScale(stageEquiv) * WorldTier.GetDEFMult()
 end
 
 ------------------------------------------------------------------------
@@ -54,10 +55,12 @@ end
 ---@param stageEquiv number 等效关卡数
 ---@return number
 function DS.CalcSpeedScale(stageEquiv)
-    return mmin(
+    local base = mmin(
         1.0 + (stageEquiv - 1) * Config.STAGE_SPEED_PER_STAGE,
         Config.STAGE_SPEED_CAP
     )
+    -- 世界等级速度倍率叠加后仍受上限约束（避免怪物过快无法反应）
+    return mmin(base * WorldTier.GetSpeedMult(), Config.STAGE_SPEED_CAP * 1.5)
 end
 
 --- WorldBoss 专用速度缩放（使用独立参数）

@@ -220,7 +220,7 @@ local function DrawTowerIcon(vg, icon, x, y, size, color, star, alpha, towerRef)
         if towerRef and towerRef.attackAnimTimer and towerRef.attackAnimTimer > 0 then
             frameIdx = 1
         end
-        -- 朝向翻转（由 Combat 层更新 tower.faceLeft，渲染层只读）
+        -- 朝向翻转（由 HeroAnim 管理视觉朝向）
         local flipX = towerRef and towerRef.faceLeft or false
         SpriteSheet.DrawEx(vg, icon, frameIdx, x, y, drawSize, alpha, flipX)
         -- 星级标记仍然用矢量绘制
@@ -781,9 +781,9 @@ function Renderer.DrawTowers(vg, ox, oy)
             LeaderParticleEffect.Draw(vg, cx, cy, size, tower)
         end
 
-        -- 塔图标（出生缩放 × 攻击压缩弹出，锚点在脚底）
+        -- 塔图标（出生缩放 × 攻击压缩弹出 × 转向缩放，锚点在脚底）
         nvgSave(vg)
-        local totalScaleX = scale * ha.scaleX
+        local totalScaleX = scale * ha.scaleX * ha.turnScaleX
         local totalScaleY = scale * ha.scaleY
         if totalScaleX ~= 1.0 or totalScaleY ~= 1.0 then
             local spriteHalf = size * 1.1 * 0.5   -- DrawTowerIcon 内部 drawSize = size*1.1

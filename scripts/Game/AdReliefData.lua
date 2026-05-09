@@ -10,12 +10,28 @@ local SaveRegistry = require("Game.SaveRegistry")
 local ARD = {}
 
 -- ============================================================================
+-- 分服工具
+-- ============================================================================
+
+--- 判断当前是否为非1服（2服及以后的服务器）
+---@return boolean
+local function IsNonFirstServer()
+    local ok, SlotSave = pcall(require, "Game.SlotSaveSystem")
+    if ok and SlotSave and SlotSave.GetActiveSlot then
+        local slotId = SlotSave.GetActiveSlot()
+        return slotId > 1
+    end
+    return false
+end
+
+-- ============================================================================
 -- 常量
 -- ============================================================================
 --- 里程碑配置：threshold = 解锁次数, rewards = 奖励列表
 --- type: "currency" → Currency.Add, "item" → InventoryData.Add, "chest" → ChestData.Add
 --- 减负中心不送免广券，改为挑战券/副本券/资源；看满20次自动激活当日免广卡
-local MILESTONES = {
+--- 1服里程碑配置（阈值最高20次）
+local MILESTONES_S1 = {
     { threshold = 3,  rewards = { { type = "item", id = "nether_crystal_pack", amount = 1 } } },
     { threshold = 6,  rewards = { { type = "item", id = "dungeon_ticket", amount = 1 } } },
     { threshold = 9,  rewards = { { type = "item", id = "nether_crystal_pack", amount = 4 } } },
@@ -38,7 +54,59 @@ local MILESTONES = {
         { type = "item", id = "recruit_ticket_select_box", amount = 20 },
     }},
 }
-local AD_FREE_THRESHOLD = 20         -- 每日看满此数量自动激活免广卡
+
+--- 非1服里程碑配置（阈值最高30次，20次后增加额外里程碑）
+local MILESTONES_OTHER = {
+    { threshold = 3,  rewards = { { type = "item", id = "nether_crystal_pack", amount = 1 } } },
+    { threshold = 6,  rewards = { { type = "item", id = "dungeon_ticket", amount = 1 } } },
+    { threshold = 9,  rewards = { { type = "item", id = "nether_crystal_pack", amount = 4 } } },
+    { threshold = 12, rewards = {
+        { type = "item", id = "shadow_essence_bag", amount = 2 },
+        { type = "item", id = "dungeon_ticket", amount = 1 },
+    }},
+    { threshold = 15, rewards = {
+        { type = "currency", id = "devour_stone", amount = 3000 },
+        { type = "item",     id = "dungeon_ticket", amount = 2 },
+    }},
+    { threshold = 17, rewards = {
+        { type = "currency", id = "trial_ticket", amount = 3 },
+        { type = "item",     id = "recruit_ticket_select_box", amount = 10 },
+    }},
+    { threshold = 20, rewards = {
+        { type = "item", id = "boss_ticket", amount = 1 },
+        { type = "item", id = "shadow_essence_bag", amount = 2 },
+        { type = "item", id = "nether_crystal_pack", amount = 4 },
+        { type = "item", id = "recruit_ticket_select_box", amount = 20 },
+    }},
+    { threshold = 24, rewards = {
+        { type = "item", id = "dungeon_ticket", amount = 3 },
+        { type = "item", id = "shadow_essence_bag", amount = 3 },
+    }},
+    { threshold = 27, rewards = {
+        { type = "currency", id = "trial_ticket", amount = 5 },
+        { type = "item",     id = "nether_crystal_pack", amount = 6 },
+    }},
+    { threshold = 30, rewards = {
+        { type = "item", id = "boss_ticket", amount = 2 },
+        { type = "item", id = "shadow_essence_bag", amount = 4 },
+        { type = "item", id = "nether_crystal_pack", amount = 8 },
+        { type = "item", id = "recruit_ticket_select_box", amount = 30 },
+    }},
+}
+
+--- 获取当前服务器的里程碑配置
+---@return table[]
+local function GetMilestones()
+    return IsNonFirstServer() and MILESTONES_OTHER or MILESTONES_S1
+end
+local AD_FREE_THRESHOLD_S1 = 20      -- 1服：每日看满20次自动激活免广卡
+local AD_FREE_THRESHOLD_OTHER = 30   -- 非1服：每日看满30次自动激活免广卡
+
+--- 获取当前服务器的免广卡阈值
+---@return number
+local function GetAdFreeThreshold()
+    return IsNonFirstServer() and AD_FREE_THRESHOLD_OTHER or AD_FREE_THRESHOLD_S1
+end
 local STREAK_THRESHOLD = 3           -- 每日看广告>=3次才计入连续天数
 local MAX_BONUS_HOURS = 3            -- 最大加速时长
 
@@ -83,7 +151,7 @@ local function DayRollover()
 
     -- 1. 未领取的里程碑自动通过邮件发放
     local MailboxData = require("Game.MailboxData")
-    for i, ms in ipairs(MILESTONES) do
+    for i, ms in ipairs(GetMilestones()) do
         -- 昨日广告数达标 但 未领取
         if oldTodayAds >= ms.threshold and not d.milestonesClaimed[tostring(i)] then
             local mailRewards = {}
@@ -159,7 +227,7 @@ function ARD.GetMilestones()
     local d = GetData()
     DayRollover()
     local result = {}
-    for i, ms in ipairs(MILESTONES) do
+    for i, ms in ipairs(GetMilestones()) do
         local claimed = d.milestonesClaimed[tostring(i)] == true
         local canClaim = (not claimed) and (d.todayAds >= ms.threshold)
         result[#result + 1] = {
@@ -179,7 +247,7 @@ end
 function ARD.ClaimMilestone(index)
     local d = GetData()
     DayRollover()
-    local ms = MILESTONES[index]
+    local ms = GetMilestones()[index]
     if not ms then return false end
 
     local key = tostring(index)
@@ -239,12 +307,18 @@ function ARD.SpendTickets(amount)
     return true
 end
 
---- 今日是否已激活免广卡（看满 AD_FREE_THRESHOLD 次自动激活）
+--- 今日是否已激活免广卡（看满指定次数自动激活，非1服30次，1服20次）
 ---@return boolean
 function ARD.IsAdFreeToday()
     local d = GetData()
     DayRollover()
-    return (d.todayAds or 0) >= AD_FREE_THRESHOLD
+    return (d.todayAds or 0) >= GetAdFreeThreshold()
+end
+
+--- 获取当前服务器免广卡阈值（供 UI 层使用）
+---@return number
+function ARD.GetAdFreeThreshold()
+    return GetAdFreeThreshold()
 end
 
 --- 获取免广卡进度
@@ -252,7 +326,8 @@ end
 function ARD.GetAdFreeProgress()
     local d = GetData()
     DayRollover()
-    return math.min(d.todayAds or 0, AD_FREE_THRESHOLD), AD_FREE_THRESHOLD
+    local threshold = GetAdFreeThreshold()
+    return math.min(d.todayAds or 0, threshold), threshold
 end
 
 --- 获取当前加速时长（小时）

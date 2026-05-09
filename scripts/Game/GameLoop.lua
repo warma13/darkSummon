@@ -16,6 +16,7 @@ local SpeedBoost = require("Game.SpeedBoostData")
 local IdleScreen = require("Game.IdleScreen")
 local MiniGameUI = require("Game.MiniGameUI")
 local TrialTower = require("Game.DungeonUI.TrialTower")
+local SaveWarningBanner = require("Game.SaveWarningBanner")
 
 local GameLoop = {}
 
@@ -138,6 +139,7 @@ function GameLoop.HandleUpdate(eventType, eventData)
     -- 更新提示消息
     Toast.Update(rawDt)
     AchievementToast.Update(rawDt)
+    SaveWarningBanner.Update(rawDt)
 
     -- 成就达成检测（定时轮询）
     AchievementData.Update(rawDt)
@@ -188,7 +190,8 @@ function GameLoop.HandleToastRender(eventType, eventData)
     if IdleScreen.IsActive() then return end
 
     -- 无内容时跳过整个渲染通道，减少 GPU 提交
-    if Toast.IsEmpty() and AchievementToast.IsIdle() then return end
+    local hasBanner = SaveWarningBanner.IsVisible()
+    if Toast.IsEmpty() and AchievementToast.IsIdle() and not hasBanner then return end
 
     local dpr = graphics:GetDPR()
     local logW = graphics:GetWidth() / dpr
@@ -197,6 +200,7 @@ function GameLoop.HandleToastRender(eventType, eventData)
     nvgBeginFrame(toastVg, logW, logH, dpr)
     Toast.Draw(toastVg, logW, toastFontId)
     AchievementToast.Draw(toastVg, logW, toastFontId)
+    SaveWarningBanner.Draw(toastVg, logW, toastFontId)
     nvgEndFrame(toastVg)
 end
 

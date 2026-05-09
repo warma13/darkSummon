@@ -38,8 +38,10 @@ function LBD.GetData(bannerCfg)
     local d = HeroData.limitedBanners[id]
     if d.pityCount == nil then d.pityCount = 0 end
     if d.totalPulls == nil then d.totalPulls = 0 end
-    -- 起始时间：优先 bannerCfg.startDate，否则用全局 LIMITED_BANNER_START
-    local startStr = bannerCfg.startDate or Config.LIMITED_BANNER_START
+    -- 起始时间：优先 startDateKey 引用 Config[key]，其次 startDate 硬编码，最后全局 LIMITED_BANNER_START
+    local startStr = (bannerCfg.startDateKey and Config[bannerCfg.startDateKey])
+                     or bannerCfg.startDate
+                     or Config.LIMITED_BANNER_START
     d.startTime = DateToTime(startStr)
     return d
 end
@@ -52,8 +54,10 @@ end
 ---@param bannerCfg table
 ---@return boolean
 function LBD.IsLocked(bannerCfg)
-    if not bannerCfg.unlockDate then return false end
-    return os.time() < DateToTime(bannerCfg.unlockDate)
+    local unlockStr = (bannerCfg.unlockDateKey and Config[bannerCfg.unlockDateKey])
+                      or bannerCfg.unlockDate
+    if not unlockStr then return false end
+    return os.time() < DateToTime(unlockStr)
 end
 
 --- 指定英雄是否关联了尚未解锁的限定池
@@ -72,8 +76,10 @@ end
 ---@param bannerCfg table
 ---@return number
 function LBD.GetUnlockDaysRemaining(bannerCfg)
-    if not bannerCfg.unlockDate then return 0 end
-    local diff = DateToTime(bannerCfg.unlockDate) - os.time()
+    local unlockStr = (bannerCfg.unlockDateKey and Config[bannerCfg.unlockDateKey])
+                      or bannerCfg.unlockDate
+    if not unlockStr then return 0 end
+    local diff = DateToTime(unlockStr) - os.time()
     return math.max(0, math.ceil(diff / 86400))
 end
 
@@ -81,8 +87,10 @@ end
 ---@param bannerCfg table
 ---@return number 剩余秒数
 function LBD.GetUnlockSecondsRemaining(bannerCfg)
-    if not bannerCfg.unlockDate then return 0 end
-    return math.max(0, DateToTime(bannerCfg.unlockDate) - os.time())
+    local unlockStr = (bannerCfg.unlockDateKey and Config[bannerCfg.unlockDateKey])
+                      or bannerCfg.unlockDate
+    if not unlockStr then return 0 end
+    return math.max(0, DateToTime(unlockStr) - os.time())
 end
 
 --- 格式化剩余时间为可读字符串（X天/X时X分）
@@ -325,7 +333,8 @@ end
 ---@return boolean success
 ---@return table|string
 function LBD.DoPull(bannerCfg, pullCount)
-    local cost = pullCount >= 100 and (bannerCfg.hundredCost or bannerCfg.tenCost * 9)
+    local cost = pullCount >= 1000 and (bannerCfg.thousandCost or bannerCfg.tenCost * 90)
+              or pullCount >= 100 and (bannerCfg.hundredCost or bannerCfg.tenCost * 9)
               or pullCount == 10 and bannerCfg.tenCost
               or bannerCfg.singleCost
     local d = LBD.GetData(bannerCfg)

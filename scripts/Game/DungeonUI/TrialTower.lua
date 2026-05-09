@@ -7,6 +7,7 @@ local Currency = require("Game.Currency")
 local TrialTowerData = require("Game.TrialTowerData")
 local Toast = require("Game.Toast")
 local RC = require("Game.RewardController")
+local BossSkillManager = require("Game.BossSkillManager")
 
 local TrialTower = {}
 
@@ -60,7 +61,7 @@ function TrialTower.BuildDetailView(ctx)
     pageRoot:AddChild(TrialTower._BuildChallengeButton(UI, S, ctx, currentFloor))
 end
 
---- 标题栏
+--- 标题栏（含全页背景图）
 function TrialTower._BuildHeader(UI, S, towerNum)
     local diffLabel, diffColor = TrialTowerData.GetDifficultyLabel(towerNum)
     return UI.Panel {
@@ -69,7 +70,6 @@ function TrialTower._BuildHeader(UI, S, towerNum)
         flexDirection = "row",
         alignItems = "center",
         justifyContent = "center",
-        backgroundColor = S.headerBg,
         flexShrink = 0,
         gap = 8,
         children = {
@@ -470,6 +470,14 @@ BuildTrialConfig = function(UI, S, ctx, floor)
     local RewardDisplay = require("Game.RewardDisplay")
     local config = TrialTowerData.BuildBattleConfig(floor)
     local label  = config.label
+
+    -- Boss 技能（通用技能，根据层数缩放）
+    config.onStart = function()
+        BossSkillManager.InitGeneric("trial_tower", floor)
+    end
+    config.onUpdate = function(dt)
+        BossSkillManager.Update(dt)
+    end
 
     config.onWin = function(result)
         local rewards = TrialTowerData.ClearFloor(floor)

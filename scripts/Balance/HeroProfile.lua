@@ -126,16 +126,6 @@ function HeroProfile.Build(params)
     local critDmg  = heroCritDmg + p.equipCritDmg + p.relicCritDmgPct
     local dmgBonus = p.equipDmgBonus
 
-    -- ---- 6. 软上限 ----
-    local softCritDmg, softDmgBonus, softElemDmg
-    if Balance.ApplySoftCaps then
-        softDmgBonus, softCritDmg, softElemDmg = Balance.ApplySoftCaps(dmgBonus, critDmg, p.elemDmg)
-    else
-        softCritDmg  = critDmg
-        softDmgBonus = dmgBonus
-        softElemDmg  = p.elemDmg
-    end
-
     return {
         -- 身份
         heroId   = p.heroId,
@@ -156,10 +146,10 @@ function HeroProfile.Build(params)
         elemDmg   = p.elemDmg,
         elemMastery = p.elemMastery,
 
-        -- 副属性 (软上限后)
-        softCritDmg  = softCritDmg,
-        softDmgBonus = softDmgBonus,
-        softElemDmg  = softElemDmg,
+        -- 副属性 (无软上限，与 raw 一致)
+        softCritDmg  = critDmg,
+        softDmgBonus = dmgBonus,
+        softElemDmg  = p.elemDmg,
 
         -- 中间值 (调试/报表)
         rawAtk         = rawAtk,

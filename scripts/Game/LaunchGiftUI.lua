@@ -384,9 +384,9 @@ function LaunchGiftUI._BuildDailyPulls()
                 flexDirection = "row", alignItems = "center", gap = 10,
                 flexShrink = 1,
                 children = {
-                    RewardIconMod.Create(UI, 36, "void_pact", LaunchGiftData.DAILY_FREE_PULLS),
+                    RewardIconMod.Create(UI, 36, (LaunchGiftData.GetDailyPullInfo()), LaunchGiftData.DAILY_FREE_PULLS),
                     UI.Label {
-                        text = "每日免费招募",
+                        text = select(2, LaunchGiftData.GetDailyPullInfo()),
                         fontSize = 15, fontColor = S.textWhite, fontWeight = "bold",
                     },
                 },
@@ -402,7 +402,8 @@ function LaunchGiftUI._BuildDailyPulls()
                 onClick = function()
                     local ok, msg, rewardDef = LaunchGiftData.ClaimDailyPulls()
                     if ok and rewardDef then
-                        RC.ShowFromDefs(UI, pageRoot, { rewardDef }, "每日免费招募",
+                        local _, pullLabel = LaunchGiftData.GetDailyPullInfo()
+                        RC.ShowFromDefs(UI, pageRoot, { rewardDef }, pullLabel,
                             function() LaunchGiftUI.Refresh() end)
                     else
                         Toast.Show(msg, S.red)

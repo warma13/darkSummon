@@ -12,6 +12,7 @@ local EquipData = require("Game.EquipData")
 local HeroAnim = require("Game.HeroAnim")
 local DivineBlessDB = require("Game.DivineBlessData")
 local AffixTagResolver = require("Game.AffixTagResolver")
+local CodexData = require("Game.CodexData")
 
 -- 延迟 require 遗物模块（避免循环依赖）
 local _RelicData, _RelicEffects
@@ -44,36 +45,47 @@ function Tower.FindTypeIndex(heroId)
     return nil
 end
 
---- 创建一个塔实例（应用局外加成）
-function Tower.Create(typeIndex, star, col, row)
-    local typeDef = Config.TOWER_TYPES[typeIndex]
-    if not typeDef then
-        print("[Tower] ERROR: invalid typeIndex=" .. tostring(typeIndex))
-        return nil
-    end
+-- ============================================================================
+-- 统一属性构建器：所有加成层集中在此处，保证 Create/RecalcStats/RefreshAllStats 一致
+-- ============================================================================
 
-    local starMult = Config.STAR_MULTIPLIER[star] or 1.0
-    local starRange = Config.STAR_RANGE_BONUS[star] or 0
-    local starSpeed = Config.STAR_SPEED_MULT[star] or 1.0
+--- 收集所有加成源，计算并写入 tower 的全部战斗属性
+--- 此函数是属性计算的 Single Source of Truth
+---@param tower table        塔实例（已有 typeDef/star/isLeader 等基础字段）
+---@param applyTagBonus boolean 是否计算并应用词条标签加成（Create 时 false，RefreshAllStats 时 true）
+local function BuildTowerStats(tower, applyTagBonus)
+    local typeDef = tower.typeDef
+    local heroId = typeDef.id
+    local star = tower.star
+    local isLeader = tower.isLeader
+
+    -- 场内星级乘数（主角不受星级影响）
+    local starMult = isLeader and 1.0 or (Config.STAR_MULTIPLIER[star] or 1.0)
+    local starRange = isLeader and 0 or (Config.STAR_RANGE_BONUS[star] or 0)
+    local starSpeed = isLeader and 1.0 or (Config.STAR_SPEED_MULT[star] or 1.0)
 
     -- 局外加成
-    local heroId = typeDef.id
     local levelRange = HeroData.GetLevelRangeBonus(heroId)
 
-    -- 获取英雄等级和升星信息（用于显示）
+    -- 英雄等级/升星信息
     local heroInfo = HeroData.Get(heroId)
-    local heroLevel = heroInfo and heroInfo.level or 1
-    local heroStar = heroInfo and heroInfo.star or 0
+    tower.heroLevel = heroInfo and heroInfo.level or 1
+    tower.heroStar = heroInfo and heroInfo.star or 0
 
-    -- 获取英雄完整战斗属性（含破甲/暴击/暴伤）
+    -- 英雄完整战斗属性（含破甲/暴击/暴伤）
     local heroStats = HeroData.GetHeroStats(heroId)
 
-    -- 获取装备加成（含淬炼+符文）
+    -- 装备加成（含淬炼+符文）
     local equipBonus = EquipData.GetTotalBonus(heroId)
     local equipAtk = equipBonus.atk or 0
     local atkPctBonus = equipBonus.atk_pct or 0
     local spdPctBonus = equipBonus.spd_pct or 0
     local rangeBonus = equipBonus.range or 0
+
+    -- 神裔降临加成
+    local divineAtkPct = DivineBlessDB.GetBuffValue("atk_pct")
+    local divineSpdPct = DivineBlessDB.GetBuffValue("spd_pct")
+    local divineCritPct = DivineBlessDB.GetBuffValue("crit_pct")
 
     -- 遗物被动加成（独立乘区）
     local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
@@ -85,58 +97,33 @@ function Tower.Create(typeIndex, star, col, row)
         relicCritDmgPct = relicBonus.critDmgPct or 0
     end
 
-    local tower = {
-        id = nextTowerId,
-        typeIndex = typeIndex,
-        typeDef = typeDef,
-        star = star,
-        col = col,
-        row = row,
-        -- 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比) × (1 + 遗物攻击加成)
-        attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus) * (1 + relicAtkPct),
-        range = typeDef.baseRange + starRange + levelRange + rangeBonus,
-        speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + relicSpdPct),
-        cooldown = 0,
-        target = nil,
-        animTime = 0,
-        spawnTime = 0,
-        -- 局外信息（用于显示和技能）
-        heroLevel = heroLevel,
-        heroStar = heroStar,
-        -- 战斗子属性（来自英雄等级成长 + 装备/符文 + 遗物被动）
-        armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
-        critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
-        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
-        dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
-        -- 伤害类型加成（替代旧的 elemDmgBonus）
-        physDmgBonus = equipBonus.physDmg or 0,
-        magicDmgBonus = equipBonus.magicDmg or 0,
-        magicPen = equipBonus.magicPen or 0,
-        -- 装备类型伤害通用加成（typeDmg 路由到英雄对应类型）
-        -- 技能
-        skills = {},
-        skillTimers = {},
-        -- 技能标签状态（第四章）
-        tags = {},
-        -- 英雄运行时状态（Combat 用于 overrideDmgType 等）
-        hstate = {},
-    }
+    -- 图鉴加成（英雄星级+遗物星级的全局攻击加成）
+    local codexAtkPct = CodexData.GetTotalBonus()
 
-    -- 装备类型伤害加成：typeDmg 路由到英雄对应伤害类型
+    -- === 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比 + 神赐百分比) × (1 + 遗物) × (1 + 图鉴) ===
+    tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct) * (1 + codexAtkPct)
+    tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
+    tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct)
+
+    -- 战斗子属性
+    tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0)
+    tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + divineCritPct
+    tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct
+    tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0)
+
+    -- 伤害类型加成
+    tower.physDmgBonus = equipBonus.physDmg or 0
+    tower.magicDmgBonus = equipBonus.magicDmg or 0
+    tower.magicPen = equipBonus.magicPen or 0
+
+    -- typeDmg / elemDmg 路由到英雄对应伤害类型
     local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
-    if equipBonus.typeDmg and equipBonus.typeDmg > 0 then
+    local extraTypeDmg = (equipBonus.typeDmg or 0) + (equipBonus.elemDmg or 0)
+    if extraTypeDmg > 0 then
         if dmgType == "physical" then
-            tower.physDmgBonus = tower.physDmgBonus + equipBonus.typeDmg
+            tower.physDmgBonus = tower.physDmgBonus + extraTypeDmg
         elseif dmgType == "magical" then
-            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.typeDmg
-        end
-    end
-    -- 向后兼容：elemDmg 也路由到对应类型
-    if equipBonus.elemDmg and equipBonus.elemDmg > 0 then
-        if dmgType == "physical" then
-            tower.physDmgBonus = tower.physDmgBonus + equipBonus.elemDmg
-        elseif dmgType == "magical" then
-            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.elemDmg
+            tower.magicDmgBonus = tower.magicDmgBonus + extraTypeDmg
         end
     end
 
@@ -151,8 +138,128 @@ function Tower.Create(typeIndex, star, col, row)
         elemMastery= equipBonus.elemMastery or 0,
         luckyDrop  = equipBonus.luckyDrop or 0,
     }
+    -- 符文套装特殊效果（3件套触发效果）
     local rok, RuneData = pcall(require, "Game.RuneData")
     tower.runeSetEffects = rok and RuneData.GetSetEffects(heroId) or {}
+
+    -- 三层词条加成（独立乘区，仅在 RefreshAllStats 时启用）
+    if applyTagBonus then
+        local tagAffixes = AffixTagResolver.CollectAffixes(heroId)
+        local tagBonus = AffixTagResolver.Resolve(tower, tagAffixes)
+        tower._tagBonus = tagBonus
+        if tagBonus.atk_pct and tagBonus.atk_pct > 0 then
+            tower.attack = tower.attack * (1 + tagBonus.atk_pct)
+        end
+        if tagBonus.skillDmg_pct and tagBonus.skillDmg_pct > 0 then
+            tower.dmgBonus = tower.dmgBonus + tagBonus.skillDmg_pct
+        end
+        if tagBonus.physDmg_pct and tagBonus.physDmg_pct > 0 then
+            tower.physDmgBonus = tower.physDmgBonus + tagBonus.physDmg_pct
+        end
+        if tagBonus.magicDmg_pct and tagBonus.magicDmg_pct > 0 then
+            tower.magicDmgBonus = tower.magicDmgBonus + tagBonus.magicDmg_pct
+        end
+        if tagBonus.critRate_add and tagBonus.critRate_add > 0 then
+            tower.critRate = tower.critRate + tagBonus.critRate_add
+        end
+        if tagBonus.critDmg_add and tagBonus.critDmg_add > 0 then
+            tower.critDmg = tower.critDmg + tagBonus.critDmg_add
+        end
+        if tagBonus.armorPen_add and tagBonus.armorPen_add > 0 then
+            tower.armorPen = tower.armorPen + tagBonus.armorPen_add
+        end
+        if tagBonus.magicPen_add and tagBonus.magicPen_add > 0 then
+            tower.magicPen = tower.magicPen + tagBonus.magicPen_add
+        end
+        if tagBonus.spdBonus_add and tagBonus.spdBonus_add > 0 then
+            tower.speed = tower.speed / (1 + tagBonus.spdBonus_add)
+        end
+    end
+end
+
+-- ============================================================================
+-- 静态预览：无需真实 tower 实例，用于面板属性展示
+-- ============================================================================
+
+--- 构造一个不上场的 mock tower，跑 BuildTowerStats 得到基础属性
+--- 返回的 mock 包含 attack/speed/critRate/critDmg/armorPen/dmgBonus 等，
+--- 但不含技能被动/光环/称号等运行时层（调用方自行叠加）
+---@param heroId string
+---@return table|nil mockTower
+function Tower.BuildStaticPreview(heroId)
+    local typeDef = nil
+    for _, td in ipairs(Config.TOWER_TYPES) do
+        if td.id == heroId then typeDef = td; break end
+    end
+    local isLeader = false
+    if not typeDef and Config.LEADER_HERO and Config.LEADER_HERO.id == heroId then
+        typeDef = Config.LEADER_HERO
+        isLeader = true
+    end
+    if not typeDef then return nil end
+
+    local heroInfo = HeroData.Get(heroId)
+    local mockTower = {
+        typeDef   = typeDef,
+        star      = 1,          -- star=1 → starMult/starSpeed/starRange 均为 1.0/1.0/0
+        isLeader  = isLeader or nil,
+        heroLevel = heroInfo and heroInfo.level or 1,
+        heroStar  = heroInfo and heroInfo.star or 0,
+        debuffs   = nil,
+        tags      = {},
+        hstate    = {},
+    }
+    -- 含词条标签加成
+    BuildTowerStats(mockTower, true)
+    return mockTower
+end
+
+-- ============================================================================
+-- 塔创建（统一入口）
+-- ============================================================================
+
+--- 创建一个塔实例（随从英雄或暗影君主）
+--- 当 typeIndex == nil 时创建暗影君主（主角塔）
+---@param typeIndex number|nil  TOWER_TYPES 索引（nil=主角）
+---@param star number           场内星级
+---@param col number            格子列
+---@param row number            格子行
+---@return table|nil
+function Tower.Create(typeIndex, star, col, row)
+    local isLeader = (typeIndex == nil)
+    local typeDef
+    if isLeader then
+        typeDef = Config.LEADER_HERO
+        star = 1
+    else
+        typeDef = Config.TOWER_TYPES[typeIndex]
+        if not typeDef then
+            print("[Tower] ERROR: invalid typeIndex=" .. tostring(typeIndex))
+            return nil
+        end
+    end
+
+    local tower = {
+        id = nextTowerId,
+        typeIndex = isLeader and -1 or typeIndex,
+        typeDef = typeDef,
+        star = star,
+        col = col,
+        row = row,
+        isLeader = isLeader or nil,
+        cooldown = 0,
+        target = nil,
+        animTime = 0,
+        spawnTime = 0,
+        skills = {},
+        skillTimers = {},
+        tags = {},
+        hstate = {},
+        attackAnimTimer = 0,
+    }
+
+    -- 统一属性计算（不含 tagBonus，tagBonus 在 RefreshAllStats 时统一应用）
+    BuildTowerStats(tower, false)
 
     -- 初始化技能
     HeroSkills.InitTowerSkills(tower)
@@ -160,118 +267,25 @@ function Tower.Create(typeIndex, star, col, row)
     nextTowerId = nextTowerId + 1
     State.grid[col][row] = tower
     State.towers[#State.towers + 1] = tower
-    HeroAnim.InitAnim(tower)   -- 初始化代码动画状态
-    local tierInfo = HeroData.GetStarTierInfo(heroId)
-    print("[Tower] Created " .. typeDef.name .. " ★" .. star
-        .. " Lv." .. heroLevel .. " " .. tierInfo.name .. heroStar .. "星"
-        .. " ATK=" .. math.floor(tower.attack)
-        .. " at (" .. col .. "," .. row .. ")")
+    HeroAnim.InitAnim(tower)
+
+    if isLeader then
+        print("[Tower] Leader 暗影君主 placed at (" .. col .. "," .. row .. ")"
+            .. " Lv." .. tower.heroLevel .. " ATK=" .. math.floor(tower.attack))
+    else
+        local tierInfo = HeroData.GetStarTierInfo(typeDef.id)
+        print("[Tower] Created " .. typeDef.name .. " ★" .. star
+            .. " Lv." .. tower.heroLevel .. " " .. tierInfo.name .. tower.heroStar .. "星"
+            .. " ATK=" .. math.floor(tower.attack)
+            .. " at (" .. col .. "," .. row .. ")")
+    end
     return tower
 end
 
 --- 创建暗影君主（主角塔，使用 LEADER_HERO 定义）
+--- 向后兼容接口，内部调用 Tower.Create(nil, 1, col, row)
 function Tower.CreateLeader(col, row)
-    local typeDef = Config.LEADER_HERO
-    local star = 1
-
-    local heroId = typeDef.id
-    local levelRange = HeroData.GetLevelRangeBonus(heroId)
-
-    local heroInfo = HeroData.Get(heroId)
-    local heroLevel = heroInfo and heroInfo.level or 1
-    local heroStar = heroInfo and heroInfo.star or 0
-    local heroStats = HeroData.GetHeroStats(heroId)
-
-    -- 获取装备加成（含淬炼+符文）
-    local equipBonus = EquipData.GetTotalBonus(heroId)
-    local equipAtk = equipBonus.atk or 0
-    local atkPctBonus = equipBonus.atk_pct or 0
-    local spdPctBonus = equipBonus.spd_pct or 0
-    local rangeBonus = equipBonus.range or 0
-
-    -- 遗物被动加成（独立乘区）
-    local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
-    local RD = GetRelicData()
-    if RD then
-        local relicBonus = RD.GetPassiveBonus()
-        relicAtkPct = relicBonus.atkPct or 0
-        relicSpdPct = relicBonus.spdPct or 0
-        relicCritDmgPct = relicBonus.critDmgPct or 0
-    end
-
-    local tower = {
-        id = nextTowerId,
-        typeIndex = -1,          -- 非常规塔，用 -1 标记
-        typeDef = typeDef,
-        star = star,
-        col = col,
-        row = row,
-        isLeader = true,         -- 主角标记
-        attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus) * (1 + relicAtkPct),
-        range = typeDef.baseRange + levelRange + rangeBonus,
-        speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + relicSpdPct),
-        cooldown = 0,
-        target = nil,
-        animTime = 0,
-        spawnTime = 0,
-        heroLevel = heroLevel,
-        heroStar = heroStar,
-        armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0),
-        critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0),
-        critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct,
-        dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0),
-        -- 伤害类型加成（替代旧的 elemDmgBonus）
-        physDmgBonus = equipBonus.physDmg or 0,
-        magicDmgBonus = equipBonus.magicDmg or 0,
-        magicPen = equipBonus.magicPen or 0,
-        skills = {},
-        skillTimers = {},
-        tags = {},
-        hstate = {},
-        -- 攻击动画状态
-        attackAnimTimer = 0,
-    }
-
-    -- 装备类型伤害加成：typeDmg 路由到英雄对应伤害类型
-    local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
-    if equipBonus.typeDmg and equipBonus.typeDmg > 0 then
-        if dmgType == "physical" then
-            tower.physDmgBonus = tower.physDmgBonus + equipBonus.typeDmg
-        elseif dmgType == "magical" then
-            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.typeDmg
-        end
-    end
-    if equipBonus.elemDmg and equipBonus.elemDmg > 0 then
-        if dmgType == "physical" then
-            tower.physDmgBonus = tower.physDmgBonus + equipBonus.elemDmg
-        elseif dmgType == "magical" then
-            tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.elemDmg
-        end
-    end
-
-    -- 符文特殊词条
-    tower.runeBonus = {
-        chain      = equipBonus.chain or 0,
-        slow_amp   = equipBonus.slow_amp or 0,
-        dot_amp    = equipBonus.dot_amp or 0,
-        cdr        = equipBonus.cdr or 0,
-        killReset  = equipBonus.killReset or 0,
-        vulnMark   = equipBonus.vulnMark or 0,
-        elemMastery= equipBonus.elemMastery or 0,
-        luckyDrop  = equipBonus.luckyDrop or 0,
-    }
-    local rok, RuneData = pcall(require, "Game.RuneData")
-    tower.runeSetEffects = rok and RuneData.GetSetEffects(heroId) or {}
-
-    HeroSkills.InitTowerSkills(tower)
-
-    nextTowerId = nextTowerId + 1
-    State.grid[col][row] = tower
-    State.towers[#State.towers + 1] = tower
-    HeroAnim.InitAnim(tower)   -- 初始化代码动画状态
-    print("[Tower] Leader 暗影君主 placed at (" .. col .. "," .. row .. ")"
-        .. " Lv." .. heroLevel .. " ATK=" .. math.floor(tower.attack))
-    return tower
+    return Tower.Create(nil, 1, col, row)
 end
 
 --- 获取当前召唤消耗（球球英雄机制：每次+10）
@@ -299,13 +313,35 @@ function Tower.CanSummon()
     return true, nil
 end
 
---- 按稀有度权重随机选择已上阵的英雄
+--- 判断英雄是否为输出定位（dps/caster）
+local function IsDamageRole(heroId)
+    local roles = Config.HERO_ROLE[heroId]
+    if not roles then return false end
+    local r = roles[1]
+    return r == "dps" or r == "caster"
+end
+
+--- 按稀有度权重随机选择已上阵的英雄（输出定位保底加权）
 ---@return number  typeIndex
 function Tower.WeightedRandomType()
     local deployedIds = HeroData.GetDeployedList()
     if #deployedIds == 0 then
         return math.random(1, #Config.TOWER_TYPES)
     end
+
+    -- 统计场上输出塔占比
+    local dmgCount, totalCount = 0, 0
+    for _, t in ipairs(State.towers) do
+        if not t.isLeader then
+            totalCount = totalCount + 1
+            if t.typeDef and IsDamageRole(t.typeDef.id) then
+                dmgCount = dmgCount + 1
+            end
+        end
+    end
+    -- 输出占比不足 60% 时，给输出英雄额外加权
+    local dmgRatio = totalCount > 0 and (dmgCount / totalCount) or 0.5
+    local dmgBonus = dmgRatio < 0.6 and 2.0 or 1.0
 
     -- 构建权重池（只从上阵英雄中选）
     local pool = {}   -- { typeIndex, weight }
@@ -315,6 +351,10 @@ function Tower.WeightedRandomType()
         if idx then
             local rarity = Config.TOWER_TYPES[idx].rarity or "R"
             local weight = Config.RARITY_SUMMON_WEIGHT[rarity] or 40
+            -- 输出定位加权
+            if IsDamageRole(heroId) then
+                weight = weight * dmgBonus
+            end
             pool[#pool + 1] = { typeIndex = idx, weight = weight }
             totalWeight = totalWeight + weight
         end
@@ -530,28 +570,10 @@ function Tower.ForceClearAllDebuffs()
 end
 
 --- 重新计算塔的战斗属性（星级变化后调用）
+--- 使用统一的 BuildTowerStats，保证所有加成层都被包含
 function Tower.RecalcStats(tower)
-    local typeDef = tower.typeDef
-    local star = tower.star
-    local heroId = typeDef.id
-
-    local starMult = Config.STAR_MULTIPLIER[star] or 1.0
-    local starRange = Config.STAR_RANGE_BONUS[star] or 0
-    local starSpeed = Config.STAR_SPEED_MULT[star] or 1.0
-
-    local levelRange = HeroData.GetLevelRangeBonus(heroId)
-    local heroStats = HeroData.GetHeroStats(heroId)
-    local equipBonus = EquipData.GetTotalBonus(heroId)
-    local equipAtk = equipBonus.atk or 0
-    local atkPctBonus = equipBonus.atk_pct or 0
-    local spdPctBonus = equipBonus.spd_pct or 0
-    local rangeBonus = equipBonus.range or 0
-
-    tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus)
-    tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
-    tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus)
-
-    print("[Tower] RecalcStats " .. typeDef.name .. " ★" .. star .. " ATK=" .. math.floor(tower.attack))
+    BuildTowerStats(tower, false)
+    print("[Tower] RecalcStats " .. tower.typeDef.name .. " ★" .. tower.star .. " ATK=" .. math.floor(tower.attack))
 end
 
 --- 移除一个塔
@@ -699,128 +721,11 @@ function Tower.HandleDrop(draggedTower, targetCol, targetRow)
 end
 
 --- 刷新所有在场塔的属性（从英雄页返回战斗页时调用）
+--- 使用统一的 BuildTowerStats（含 tagBonus），保证所有加成层都被包含
 function Tower.RefreshAllStats()
     for _, tower in ipairs(State.towers) do
-        local typeDef = tower.typeDef
-        local heroId = typeDef.id
-        local starMult = Config.STAR_MULTIPLIER[tower.star] or 1.0
-        local starRange = Config.STAR_RANGE_BONUS[tower.star] or 0
-        local starSpeed = Config.STAR_SPEED_MULT[tower.star] or 1.0
-        local levelRange = HeroData.GetLevelRangeBonus(heroId)
-
-        -- 获取英雄完整属性（ATK 已含等级/进阶/升星）
-        local heroStats = HeroData.GetHeroStats(heroId)
-
-        -- 获取装备加成（含淬炼+符文）
-        local equipBonus = EquipData.GetTotalBonus(heroId)
-        local equipAtk = equipBonus.atk or 0
-        local atkPctBonus = equipBonus.atk_pct or 0  -- 符文百分比攻击力
-        local spdPctBonus = equipBonus.spd_pct or 0  -- 符文百分比攻速
-        local rangeBonus = equipBonus.range or 0      -- 符文攻击范围
-
-        -- 神裔降临加成
-        local divineAtkPct = DivineBlessDB.GetBuffValue("atk_pct")
-        local divineSpdPct = DivineBlessDB.GetBuffValue("spd_pct")
-
-        -- 遗物被动加成（独立乘区）
-        local relicAtkPct, relicSpdPct, relicCritDmgPct = 0, 0, 0
-        local RD = GetRelicData()
-        if RD then
-            local relicBonus = RD.GetPassiveBonus()
-            relicAtkPct = relicBonus.atkPct or 0
-            relicSpdPct = relicBonus.spdPct or 0
-            relicCritDmgPct = relicBonus.critDmgPct or 0
-        end
-
-        if tower.isLeader then
-            tower.attack = (heroStats.atk + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct)
-            tower.range = typeDef.baseRange + levelRange + rangeBonus
-            tower.speed = typeDef.baseSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct)
-        else
-            tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct)
-            tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
-            tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct)
-        end
-
-        -- 更新英雄信息
-        local heroInfo = HeroData.Get(heroId)
-        tower.heroLevel = heroInfo and heroInfo.level or 1
-        tower.heroStar = heroInfo and heroInfo.star or 0
-        tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0)
-        tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + DivineBlessDB.GetBuffValue("crit_pct")
-        tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct
-        tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0)
-
-        -- 伤害类型加成（替代旧的 elemDmgBonus）
-        tower.physDmgBonus = equipBonus.physDmg or 0
-        tower.magicDmgBonus = equipBonus.magicDmg or 0
-        tower.magicPen = equipBonus.magicPen or 0
-        local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
-        if equipBonus.typeDmg and equipBonus.typeDmg > 0 then
-            if dmgType == "physical" then
-                tower.physDmgBonus = tower.physDmgBonus + equipBonus.typeDmg
-            elseif dmgType == "magical" then
-                tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.typeDmg
-            end
-        end
-        if equipBonus.elemDmg and equipBonus.elemDmg > 0 then
-            if dmgType == "physical" then
-                tower.physDmgBonus = tower.physDmgBonus + equipBonus.elemDmg
-            elseif dmgType == "magical" then
-                tower.magicDmgBonus = tower.magicDmgBonus + equipBonus.elemDmg
-            end
-        end
-
-        -- 符文特殊词条（供 Combat/HeroSkills 读取）
-        tower.runeBonus = {
-            chain      = equipBonus.chain or 0,       -- 连锁概率
-            slow_amp   = equipBonus.slow_amp or 0,    -- 减速强化
-            dot_amp    = equipBonus.dot_amp or 0,     -- DOT强化
-            cdr        = equipBonus.cdr or 0,         -- 技能冷却缩减
-            killReset  = equipBonus.killReset or 0,   -- 击杀回复
-            vulnMark   = equipBonus.vulnMark or 0,    -- 易伤标记
-            elemMastery= equipBonus.elemMastery or 0, -- 元素精通
-            luckyDrop  = equipBonus.luckyDrop or 0,   -- 幸运掉落
-        }
-        -- 符文套装特殊效果（3件套触发效果）
-        local rok, RuneData = pcall(require, "Game.RuneData")
-        tower.runeSetEffects = rok and RuneData.GetSetEffects(heroId) or {}
-
-        -- 刷新技能
+        BuildTowerStats(tower, true)
         HeroSkills.InitTowerSkills(tower)
-
-        -- 三层词条加成（独立乘区）
-        local tagAffixes = AffixTagResolver.CollectAffixes(heroId)
-        local tagBonus = AffixTagResolver.Resolve(tower, tagAffixes)
-        tower._tagBonus = tagBonus  -- 缓存供 UI/技能查询
-        -- T1/T2 加成合并到属性（独立乘区）
-        if tagBonus.atk_pct and tagBonus.atk_pct > 0 then
-            tower.attack = tower.attack * (1 + tagBonus.atk_pct)
-        end
-        if tagBonus.skillDmg_pct and tagBonus.skillDmg_pct > 0 then
-            tower.dmgBonus = tower.dmgBonus + tagBonus.skillDmg_pct
-        end
-        if tagBonus.physDmg_pct and tagBonus.physDmg_pct > 0 then
-            tower.physDmgBonus = tower.physDmgBonus + tagBonus.physDmg_pct
-        end
-        if tagBonus.magicDmg_pct and tagBonus.magicDmg_pct > 0 then
-            tower.magicDmgBonus = tower.magicDmgBonus + tagBonus.magicDmg_pct
-        end
-        if tagBonus.critRate_add and tagBonus.critRate_add > 0 then
-            tower.critRate = tower.critRate + tagBonus.critRate_add
-        end
-        if tagBonus.critDmg_add and tagBonus.critDmg_add > 0 then
-            tower.critDmg = tower.critDmg + tagBonus.critDmg_add
-        end
-        if tagBonus.armorPen_add and tagBonus.armorPen_add > 0 then
-            tower.armorPen = tower.armorPen + tagBonus.armorPen_add
-        end
-        if tagBonus.magicPen_add and tagBonus.magicPen_add > 0 then
-            tower.magicPen = tower.magicPen + tagBonus.magicPen_add
-        end
-        if tagBonus.spdBonus_add and tagBonus.spdBonus_add > 0 then
-            tower.speed = tower.speed / (1 + tagBonus.spdBonus_add)
-        end
     end
     print("[Tower] RefreshAllStats: " .. #State.towers .. " towers updated")
 end

@@ -1,6 +1,7 @@
 ------------------------------------------------------------------------
 -- BalanceSim.lua  —  离线平衡模拟器 入口 & 编排器
 -- 用法: require("Balance.BalanceSim").Run()
+-- updated: dual tierMult (Boss + Minion)
 ------------------------------------------------------------------------
 local BalanceSim = {}
 
@@ -10,6 +11,7 @@ local HeroDPS        = require "Balance.HeroDPS"
 local Sensitivity    = require "Balance.Sensitivity"
 local Report         = require "Balance.Report"
 local RelicAnalysis  = require "Balance.RelicAnalysis"
+local CrimsonMoonAnalysis = require "Balance.CrimsonMoonAnalysis"
 
 local Config   = require "Game.Config"
 local Balance  = Config.Balance
@@ -189,48 +191,6 @@ function BalanceSim.ReportSensitivity()
 end
 
 ------------------------------------------------------------
--- 报告 4: 软上限收益变化分析
-------------------------------------------------------------
-
-function BalanceSim.ReportSoftCaps()
-    Report.Header("报告 4: 软上限收益分析")
-
-    if not Balance.SoftCapStat or not Balance.SOFT_CAPS then
-        print("  (Config_Balance.SoftCapStat 不可用, 跳过)")
-        return
-    end
-
-    local statNames = { "critDmg", "dmgBonus", "elemDmg" }
-    local testValues = { 0, 0.20, 0.40, 0.60, 0.80, 1.00, 1.50, 2.00, 3.00, 5.00 }
-
-    for _, statName in ipairs(statNames) do
-        local cap = Balance.SOFT_CAPS[statName]
-        if cap then
-            print(string.format("\n  >>> %s (threshold=%.2f, scale=%.2f) <<<", statName, cap.threshold, cap.scale))
-
-            local headers = { "原始值", "软上限后", "效率(%)" }
-            local colWidths = { 10, 12, 10 }
-            local numCols = { [1] = true, [2] = true, [3] = true }
-            local rows = {}
-
-            for _, raw in ipairs(testValues) do
-                local soft = Balance.SoftCapStat(raw, cap)
-                local efficiency = raw > 0 and (soft / raw * 100) or 100
-                rows[#rows + 1] = {
-                    Report.Fixed(raw, 2),
-                    Report.Fixed(soft, 4),
-                    Report.Fixed(efficiency, 1),
-                }
-            end
-
-            Report.Table(headers, rows, colWidths, numCols)
-        end
-    end
-
-    Report.Separator()
-end
-
-------------------------------------------------------------
 -- 报告 5: 怪物角色 EHP 对比
 ------------------------------------------------------------
 
@@ -294,6 +254,218 @@ function BalanceSim.ReportMonsterRoles()
 end
 
 ------------------------------------------------------------
+-- 报告 6: Boss vs 小怪 HP 分析 + tierMult 敏感度
+------------------------------------------------------------
+
+function BalanceSim.ReportBossAnalysis()
+    local curBossExp   = Config.BOSS_TIER_EXPONENT   or 1.50
+    local curMinionExp = Config.MINION_TIER_EXPONENT or 1.00
+    Report.Header(string.format("报告 6: Boss vs 小怪 HP 分析 (Boss^%.2f / Minion^%.2f)", curBossExp, curMinionExp))
+
+    local FormatUtil = require "Game.FormatUtil"
+
+    -- ---- 6a. Boss 原始 HP 曲线 + Boss/Minion 比值 ----
+    local stages = { 100, 500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000 }
+
+    print("")
+    print("  [ 6a. Boss 原始 HP 曲线 & Boss/Minion 比值 ]")
+    print("")
+
+    local headers = { "关卡", "Boss层级", "tierMult", "小怪HP", "Boss HP", "Boss/小怪" }
+    local colWidths = { 6, 8, 14, 14, 16, 14 }
+    local numCols = { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true, [6] = true }
+    local rows = {}
+
+    for _, stage in ipairs(stages) do
+        local minionHP = MonsterEHP.RawHP(stage, "minion", 1)
+        local bossHP, detail = MonsterEHP.BossRawHP(stage)
+        local ratio = bossHP / math.max(1, minionHP)
+
+        rows[#rows + 1] = {
+            stage,
+            detail.bossTier,
+            FormatUtil.FormatNumber(detail.tierMult),
+            FormatUtil.FormatNumber(minionHP),
+            FormatUtil.FormatNumber(bossHP),
+            FormatUtil.FormatNumber(ratio) .. "x",
+        }
+    end
+
+    Report.Table(headers, rows, colWidths, numCols)
+
+    -- ---- 6b. Boss EHP vs 英雄 DPS (能不能打得过) ----
+    print("")
+    print("  [ 6b. Boss EHP vs 英雄 DPS (击杀时间) ]")
+    print("")
+
+    -- 复用 ReportDPSvsEHP 的英雄成长函数
+    local function heroParamsAtStage(stage)
+        local progress = math.min(1.0, (stage - 1) / 9999)
+        return {
+            heroId       = "shadow_mage",
+            level        = math.floor(1 + progress * 5999),
+            star         = math.floor(progress * 30),
+            advanceLevel = math.floor(progress * 20),
+            battleStar   = math.min(5, 1 + math.floor(progress * 5)),
+            equipAtk     = 0,
+            atkPctBonus  = progress * 0.30 + progress * 0.40,
+            relicAtkPct  = progress * 0.20,
+            relicSpdPct  = progress * 0.10,
+            relicCritDmgPct = progress * 0.30,
+            equipArmorPen  = math.min(0.80, progress * 0.60),
+            equipCritRate  = math.min(0.50, progress * 0.50),
+            equipCritDmg   = progress * 1.50,
+            equipDmgBonus  = progress * 0.40,
+            elemDmg      = progress * 0.30,
+            elemMastery  = progress * 0.10,
+            isLeader     = false,
+        }
+    end
+
+    local headers2 = { "关卡", "英雄DPS", "小怪EHP", "小怪Kill(s)", "BossEHP", "Boss Kill(s)", "Boss/小怪Kill" }
+    local colWidths2 = { 6, 14, 16, 12, 18, 14, 14 }
+    local numCols2 = { [1]=true, [2]=true, [3]=true, [4]=true, [5]=true, [6]=true, [7]=true }
+    local rows2 = {}
+
+    for _, stage in ipairs(stages) do
+        local hp = heroParamsAtStage(stage)
+        local profile = HeroProfile.Build(hp)
+        local rawDPS = profile.finalAtk / profile.attackInterval
+
+        -- 小怪 EHP
+        local minionResult = MonsterEHP.Calc({
+            stageNum = stage, waveInStage = 1, roleId = "minion",
+            heroDamage = profile.finalAtk,
+            armorPen   = profile.armorPen,
+            critRate   = profile.critRate,
+            critDmg    = profile.critDmg,
+            dmgBonus   = profile.dmgBonus,
+            elemDmg    = profile.elemDmg,
+            elemMastery = profile.elemMastery,
+        })
+
+        -- Boss EHP
+        local bossResult = MonsterEHP.BossCalc({
+            stageNum = stage,
+            heroDamage = profile.finalAtk,
+            armorPen   = profile.armorPen,
+            critRate   = profile.critRate,
+            critDmg    = profile.critDmg,
+            dmgBonus   = profile.dmgBonus,
+            elemDmg    = profile.elemDmg,
+            elemMastery = profile.elemMastery,
+        })
+
+        local minionKill = minionResult.effectiveHP / rawDPS
+        local bossKill = bossResult.effectiveHP / rawDPS
+        local killRatio = bossKill / math.max(0.001, minionKill)
+
+        rows2[#rows2 + 1] = {
+            stage,
+            FormatUtil.FormatNumber(rawDPS),
+            FormatUtil.FormatNumber(minionResult.effectiveHP),
+            Report.Fixed(minionKill, 1) .. "s",
+            FormatUtil.FormatNumber(bossResult.effectiveHP),
+            FormatUtil.FormatNumber(bossKill) .. "s",
+            FormatUtil.FormatNumber(killRatio) .. "x",
+        }
+    end
+
+    Report.Table(headers2, rows2, colWidths2, numCols2)
+
+    -- ---- 6c. tierMult 指数敏感度分析 ----
+    print("")
+    print("  [ 6c. tierMult 指数敏感度分析 ]")
+    print(string.format("  当前配置值: Boss=%.2f, Minion=%.2f, 差值=%.2f", curBossExp, curMinionExp, curBossExp - curMinionExp))
+    print("  对比 Boss 指数: 0.50, 0.75, 1.00, 1.50, 2.25 (Minion 指数固定)")
+    print("")
+
+    local exponents = { 0.50, 0.75, 1.00, 1.50, 2.25 }
+    local sampleStages = { 100, 500, 1000, 2000, 5000, 10000 }
+
+    -- 表头: 关卡 + 每个指数的 Boss HP
+    local headers3 = { "关卡" }
+    for _, exp in ipairs(exponents) do
+        local label = string.format("^%.2f", exp)
+        if math.abs(exp - curBossExp) < 0.001 then label = label .. " *" end
+        headers3[#headers3 + 1] = label
+    end
+    local colWidths3 = { 6 }
+    local numCols3 = { [1] = true }
+    for i = 1, #exponents do
+        colWidths3[#colWidths3 + 1] = 16
+        numCols3[i + 1] = true
+    end
+    local rows3 = {}
+
+    for _, stage in ipairs(sampleStages) do
+        local row = { stage }
+        for _, exp in ipairs(exponents) do
+            local bossHP = MonsterEHP.BossRawHP(stage, exp)
+            row[#row + 1] = FormatUtil.FormatNumber(bossHP)
+        end
+        rows3[#rows3 + 1] = row
+    end
+
+    Report.Table(headers3, rows3, colWidths3, numCols3)
+
+    -- Boss/Minion 比值随指数变化
+    print("")
+    print("  [ 6d. Boss/Minion HP 比值 随指数变化 ]")
+    print("")
+
+    local headers4 = { "关卡" }
+    for _, exp in ipairs(exponents) do
+        local label = string.format("^%.2f", exp)
+        if math.abs(exp - curBossExp) < 0.001 then label = label .. " *" end
+        headers4[#headers4 + 1] = label
+    end
+    local colWidths4 = { 6 }
+    local numCols4 = { [1] = true }
+    for i = 1, #exponents do
+        colWidths4[#colWidths4 + 1] = 14
+        numCols4[i + 1] = true
+    end
+    local rows4 = {}
+
+    for _, stage in ipairs(sampleStages) do
+        local minionHP = MonsterEHP.RawHP(stage, "minion", 1)
+        local row = { stage }
+        for _, exp in ipairs(exponents) do
+            local bossHP = MonsterEHP.BossRawHP(stage, exp)
+            local ratio = bossHP / math.max(1, minionHP)
+            row[#row + 1] = FormatUtil.FormatNumber(ratio) .. "x"
+        end
+        rows4[#rows4 + 1] = row
+    end
+
+    Report.Table(headers4, rows4, colWidths4, numCols4)
+
+    -- ---- 总结 ----
+    print("")
+    print("  [ 分析总结 ]")
+    print("")
+    print(string.format("  1. Boss 和小怪均有 tierMult: Boss^%.2f / Minion^%.2f", curBossExp, curMinionExp))
+    print(string.format("  2. Boss/小怪 HP 比值 (差值指数 %.2f)：", curBossExp - curMinionExp))
+    local ratio1k = MonsterEHP.BossRawHP(1000) / math.max(1, MonsterEHP.RawHP(1000, "minion", 1))
+    local ratio5k = MonsterEHP.BossRawHP(5000) / math.max(1, MonsterEHP.RawHP(5000, "minion", 1))
+    local ratio10k = MonsterEHP.BossRawHP(10000) / math.max(1, MonsterEHP.RawHP(10000, "minion", 1))
+    print(string.format("     关卡 1000: Boss/小怪 = %s", FormatUtil.FormatNumber(ratio1k)))
+    print(string.format("     关卡 5000: Boss/小怪 = %s", FormatUtil.FormatNumber(ratio5k)))
+    print(string.format("     关卡10000: Boss/小怪 = %s", FormatUtil.FormatNumber(ratio10k)))
+    local diffExp = curBossExp - curMinionExp
+    local fluctuation = math.floor(ratio10k / math.max(1, ratio1k) + 0.5)
+    print(string.format("  3. 差值指数 %.2f → 比值波动约 %dx", diffExp, fluctuation))
+    if fluctuation <= 100 then
+        print("     ✓ 波动可控，Boss/小怪平衡稳定")
+    else
+        print("     ⚠ 波动较大，建议缩小 Boss/Minion 指数差值")
+    end
+
+    Report.Separator()
+end
+
+------------------------------------------------------------
 -- 入口: 运行所有报告
 ------------------------------------------------------------
 
@@ -307,11 +479,14 @@ function BalanceSim.Run()
     BalanceSim.ReportRarityComparison()
     BalanceSim.ReportDPSvsEHP()
     BalanceSim.ReportSensitivity()
-    BalanceSim.ReportSoftCaps()
     BalanceSim.ReportMonsterRoles()
+    BalanceSim.ReportBossAnalysis()
 
-    -- 遗物数值分析 (报告 6~11)
+    -- 遗物数值分析 (报告 7~12)
     RelicAnalysis.Run()
+
+    -- 弦月专项分析 (报告 A~H)
+    CrimsonMoonAnalysis.Run()
 
     print("")
     print("================================================================")

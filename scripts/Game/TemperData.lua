@@ -1,6 +1,6 @@
 -- Game/TemperData.lua
 -- 装备淬炼系统 — 数据与逻辑
--- 红色满级(Lv.4000)后消耗白玉为装备附加随机属性词条
+-- 红色满级(Lv.4000)后消耗粹玉为装备附加随机属性词条
 
 local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
@@ -195,7 +195,7 @@ end
 ---@return boolean success  是否操作成功
 ---@return string msg
 ---@return table|nil result  { refreshed = { {slotIdx, attrDef, tierDef, value, statKey}, ... } }
-function TemperData.DoTemper(heroId, slotId)
+function TemperData.DoTemper(heroId, slotId, skipSave)
     local temper = TemperData.GetTemper(heroId, slotId)
     if not temper then
         return false, "淬炼未解锁", nil
@@ -227,7 +227,7 @@ function TemperData.DoTemper(heroId, slotId)
 
     -- 检查货币
     if not Currency.Has("pale_jade", jadeCost) then
-        return false, "白玉不足(需" .. jadeCost .. ")", nil
+        return false, "粹玉不足(需" .. jadeCost .. ")", nil
     end
     if rainbowCost > 0 and not Currency.Has("rainbow_jade", rainbowCost) then
         return false, "彩玉不足(需" .. rainbowCost .. ")", nil
@@ -279,8 +279,70 @@ function TemperData.DoTemper(heroId, slotId)
         }
     end
 
-    HeroData.Save()
+    if not skipSave then
+        HeroData.Save()
+    end
     return true, "淬炼完成!", { refreshed = refreshed }
+end
+
+-- ============================================================================
+-- 连续淬炼
+-- ============================================================================
+
+--- 淬炼品质等级映射（供外部使用）
+TemperData.TIER_ORDER = TEMPER_TIER_ORDER
+
+--- 品质 id 列表（从低到高）
+TemperData.TIER_IDS = { "white", "green", "blue", "purple", "orange", "red" }
+
+--- 检查停止条件：任意未锁定孔位命中单条规则即停止
+---@param heroId string
+---@param slotId string
+---@param rule table  { attrId?: string, minTier?: string }
+---@return boolean  true=条件满足应停止
+function TemperData.CheckStopCondition(heroId, slotId, rule)
+    if not rule then return false end
+    if not rule.attrId and not rule.minTier then return false end
+
+    local temper = TemperData.GetTemper(heroId, slotId)
+    if not temper then return false end
+
+    local unlockedCount = TemperData.GetUnlockedSlotCount(temper)
+
+    for i = 1, unlockedCount do
+        local s = temper.slots[i]
+        if s and not s.locked then
+            local ok = true
+            -- 属性匹配
+            if rule.attrId and s.attrId ~= rule.attrId then
+                ok = false
+            end
+            -- 最低品质
+            if ok and rule.minTier then
+                local curLv = TEMPER_TIER_ORDER[s.tierId] or 0
+                local reqLv = TEMPER_TIER_ORDER[rule.minTier] or 0
+                if curLv < reqLv then ok = false end
+            end
+            if ok then return true end
+        end
+    end
+    return false
+end
+
+--- 执行单次淬炼并检查停止条件，返回是否应继续
+---@param heroId string
+---@param slotId string
+---@param rule table  { attrId?: string, minTier?: string }
+---@return boolean continue  true=继续淬炼, false=停止
+---@return boolean success   本次淬炼是否成功
+---@return string msg
+function TemperData.DoTemperOnce(heroId, slotId, rule)
+    local ok, msg, result = TemperData.DoTemper(heroId, slotId, true) -- skipSave: 连续淬炼期间不逐次保存
+    if not ok then
+        return false, false, msg
+    end
+    local satisfied = TemperData.CheckStopCondition(heroId, slotId, rule)
+    return not satisfied, true, msg
 end
 
 -- ============================================================================

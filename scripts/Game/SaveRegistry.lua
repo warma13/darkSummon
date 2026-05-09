@@ -24,6 +24,9 @@ local SaveRegistry = {}
 ---@type SaveModuleHandler[]
 local modules = {}
 
+--- 注册序号计数器（用于相同 order 时保持注册先后的稳定排序）
+local registerSeq = 0
+
 --- 模块名 -> handler 映射（快速查找）
 ---@type table<string, SaveModuleHandler>
 local moduleMap = {}
@@ -74,6 +77,15 @@ local DATA_MODULE_PATHS = {
     "Game.LaborDayData",
     "Game.LaborMedalData",
     "Game.GarbageBossData",
+    "Game.WorldTier",
+    "Game.TranscendDungeon",
+    "Game.SpendMilestoneData",
+    "Game.CostumeData",
+    "Game.RuneShopData",
+    "Game.RecruitMilestoneData",
+    "Game.DivineBlessData",
+    "Game.MysteryShopData",
+    "Game.JoyShopData",
 }
 
 --- 确保所有数据模块已加载（触发它们底部的 SaveRegistry.Register 调用）
@@ -106,10 +118,12 @@ function SaveRegistry.Register(key, handler)
     handler.key = key
     handler.order = handler.order or 100
     handler.group = handler.group or "meta_game"
+    registerSeq = registerSeq + 1
+    handler._regSeq = registerSeq  -- 注册序号，用于稳定排序
 
     moduleMap[key] = handler
 
-    -- 按 order 插入有序列表
+    -- 按 order 插入有序列表（相同 order 时按注册顺序，保证稳定性）
     local inserted = false
     for i, m in ipairs(modules) do
         if handler.order < m.order then
@@ -228,9 +242,10 @@ end
 ---@return table saveData 完整存档数据
 function SaveRegistry.SnapshotAll()
     EnsureModulesLoaded()
+    local ServerTime = require("Game.ServerTime")
     local saveData = {
         saveVersion = SAVE_VERSION,
-        lastSaveTime = os.time(),
+        lastSaveTime = ServerTime.Now(),
     }
 
     for _, m in ipairs(modules) do

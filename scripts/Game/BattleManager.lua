@@ -171,14 +171,17 @@ function BattleManager.Start(config)
         leader.spawnTime = 0.6
     end
 
-    -- 启动第一波
-    BattleManager.StartNextWave()
-
-    -- 设置开局初始暗魂（必须在 StartNextWave 之后，因为 StartNextWave 会加波次奖励）
-    -- nil 表示不覆盖（如 campaign 从存档恢复时保留当前暗魂）
-    if BattleManager.config.initialDarkSoul ~= nil then
-        HeroData.currencies.dark_soul = BattleManager.config.initialDarkSoul
+    -- 设置开局初始暗魂（必须在 StartNextWave 之前，否则第1波奖励会被覆盖）
+    -- campaign 模式：统一使用 Config.INITIAL_DARK_SOUL，调用方无需传递
+    -- 副本模式：由 initialDarkSoul 参数控制，nil 表示不覆盖
+    if config.mode == "campaign" then
+        HeroData.currencies.dark_soul = Config.INITIAL_DARK_SOUL
+    elseif config.initialDarkSoul ~= nil then
+        HeroData.currencies.dark_soul = config.initialDarkSoul
     end
+
+    -- 启动第一波（会加 WAVE_DARK_SOUL_BONUS，此时已在初始暗魂基础上累加）
+    BattleManager.StartNextWave()
 
     print("[BattleManager] Battle started: mode=" .. config.mode
         .. " waves=" .. config.totalWaves .. " label=" .. config.label)

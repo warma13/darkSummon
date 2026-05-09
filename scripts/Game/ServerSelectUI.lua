@@ -16,10 +16,35 @@ local slotMeta = nil
 
 -- 服务器列表数据
 local SERVER_LIST = {
-    { id = 1, name = "1服 - 征途之始", status = "流畅", tag = "推荐" },
+    { id = 1, name = "1服 - 征途之始", status = "流畅" },
+    { id = 2, name = "2服 - 暗影新途", status = "流畅", tag = "推荐" },
 }
 
-local selectedServerId = 1
+--- 从云端元数据中找出最近登录的服务器（timestamp 最大的 slot）
+---@param meta table|nil
+---@return number serverId
+local function GetLastServerFromMeta(meta)
+    if meta and meta.slots then
+        local bestId, bestTs = nil, 0
+        for slotIdStr, slot in pairs(meta.slots) do
+            local ts = slot.timestamp or 0
+            if ts > bestTs then
+                bestTs = ts
+                bestId = tonumber(slotIdStr)
+            end
+        end
+        if bestId then
+            -- 验证该服务器在列表中存在
+            for _, s in ipairs(SERVER_LIST) do
+                if s.id == bestId then return bestId end
+            end
+        end
+    end
+    -- 新玩家/无存档：默认最新服
+    return SERVER_LIST[#SERVER_LIST].id
+end
+
+local selectedServerId = SERVER_LIST[#SERVER_LIST].id
 
 -- 加载状态：loading / ready / error
 local loadState = "loading"
@@ -42,8 +67,10 @@ function ServerSelectUI.SetRetryCallback(fn)
 end
 
 --- 更新存档元数据（SlotSave加载完成后调用）
+--- 同时根据 timestamp 自动选中上次登录的服务器
 function ServerSelectUI.UpdateSlotMeta(meta)
     slotMeta = meta
+    selectedServerId = GetLastServerFromMeta(meta)
 end
 
 --- 格式化游戏时长（秒 → "Xh Xm"）
@@ -96,7 +123,7 @@ function ServerSelectUI.Refresh()
         gap = 20,
         children = {
             BuildTitle(),
-            BuildServerList(),
+            BuildServerSelector(),
             BuildStartButton(),
         },
     }
@@ -179,7 +206,7 @@ function BuildTitle()
                 borderRadius = 1,
             },
             UI.Label {
-                text = "暗黑召唤：无尽征途",
+                text = "暗影召唤：超越征途",
                 fontSize = 26,
                 fontWeight = "bold",
                 fontColor = { 220, 200, 255, 255 },
@@ -194,35 +221,6 @@ function BuildTitle()
     }
 end
 
---- 构建服务器列表
-function BuildServerList()
-    local children = {
-        -- "选择区服"小标题
-        UI.Panel {
-            width = "100%",
-            paddingLeft = 4, paddingBottom = 6,
-            children = {
-                UI.Label {
-                    text = "选择区服",
-                    fontSize = 14,
-                    fontColor = { 160, 140, 200, 255 },
-                },
-            },
-        },
-    }
-
-    for _, server in ipairs(SERVER_LIST) do
-        children[#children + 1] = BuildServerItem(server)
-    end
-
-    return UI.Panel {
-        width = "100%",
-        flexDirection = "column",
-        gap = 8,
-        children = children,
-    }
-end
-
 --- 获取某个槽位的存档摘要
 ---@param slotId number
 ---@return table|nil  { leaderLevel, bestStage, heroCount, playTime, timestamp }
@@ -231,29 +229,97 @@ local function GetSlotSummary(slotId)
     return slotMeta.slots[tostring(slotId)]
 end
 
---- 构建单个服务器条目
----@param server table
-function BuildServerItem(server)
-    local isSelected = (server.id == selectedServerId)
+--- 根据 id 找到服务器数据
+---@param id number
+---@return table|nil
+local function FindServerById(id)
+    for _, s in ipairs(SERVER_LIST) do
+        if s.id == id then return s end
+    end
+    return nil
+end
 
-    local borderColor = isSelected
-        and { 140, 100, 240, 255 }
-        or  { 60, 50, 80, 180 }
-    local bgColor = isSelected
-        and { 50, 35, 80, 255 }
-        or  { 30, 24, 45, 255 }
+--- 获取最新服务器ID（列表中 id 最大的）
+---@return number
+local function GetNewestServerId()
+    local maxId = SERVER_LIST[1].id
+    for _, s in ipairs(SERVER_LIST) do
+        if s.id > maxId then maxId = s.id end
+    end
+    return maxId
+end
 
-    -- 状态标签颜色
-    local statusColor = { 80, 200, 120, 255 }  -- 流畅=绿色
+--- 判断玩家是否可以进入该服务器
+--- 最新服务器所有人都可进；老服务器仅有存档的玩家可进
+---@param serverId number
+---@return boolean canEnter
+local function CanEnterServer(serverId)
+    if serverId == GetNewestServerId() then return true end
+    return GetSlotSummary(serverId) ~= nil
+end
 
-    -- 右侧标签
-    local tagChildren = {}
+--- 构建当前选中服务器的显示框（点击打开选服弹窗）
+function BuildServerSelector()
+    local server = FindServerById(selectedServerId) or SERVER_LIST[1]
+    local summary = GetSlotSummary(server.id)
+    local statusColor = { 80, 200, 120, 255 }
+
+    -- 存档摘要行
+    local summaryChildren = {}
+    if summary then
+        summaryChildren = {
+            UI.Panel {
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 8,
+                paddingTop = 2,
+                children = {
+                    UI.Label {
+                        text = "Lv." .. (summary.leaderLevel or 1),
+                        fontSize = 11,
+                        fontColor = { 200, 180, 255, 200 },
+                    },
+                    UI.Label {
+                        text = "第" .. (summary.bestStage or 0) .. "关",
+                        fontSize = 11,
+                        fontColor = { 180, 200, 160, 200 },
+                    },
+                    UI.Label {
+                        text = (summary.heroCount or 0) .. "英雄",
+                        fontSize = 11,
+                        fontColor = { 200, 180, 140, 200 },
+                    },
+                    UI.Label {
+                        text = FormatPlayTime(summary.playTime),
+                        fontSize = 11,
+                        fontColor = { 160, 160, 180, 180 },
+                    },
+                },
+            },
+        }
+    end
+
+    -- 状态 + 标签行
+    local statusRowChildren = {
+        -- 绿点
+        UI.Panel {
+            width = 8, height = 8,
+            borderRadius = 4,
+            backgroundColor = statusColor,
+        },
+        UI.Label {
+            text = server.status,
+            fontSize = 12,
+            fontColor = statusColor,
+        },
+    }
     if server.tag then
-        tagChildren[#tagChildren + 1] = UI.Panel {
+        statusRowChildren[#statusRowChildren + 1] = UI.Panel {
             paddingLeft = 6, paddingRight = 6,
             paddingTop = 2, paddingBottom = 2,
             backgroundColor = { 200, 120, 50, 255 },
             borderRadius = 4,
+            marginLeft = 4,
             children = {
                 UI.Label {
                     text = server.tag,
@@ -264,113 +330,315 @@ function BuildServerItem(server)
         }
     end
 
-    -- 存档摘要（如果有）
-    local summary = GetSlotSummary(server.id)
-    local infoChildren = {
-        UI.Label {
-            text = server.status,
-            fontSize = 12,
-            fontColor = statusColor,
+    return UI.Panel {
+        width = "100%",
+        flexDirection = "column",
+        gap = 6,
+        children = {
+            -- "选择区服"小标题
+            UI.Panel {
+                width = "100%",
+                paddingLeft = 4, paddingBottom = 2,
+                children = {
+                    UI.Label {
+                        text = "选择区服",
+                        fontSize = 14,
+                        fontColor = { 160, 140, 200, 255 },
+                    },
+                },
+            },
+            -- 显示框：当前选中服务器
+            UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                alignItems = "center",
+                paddingLeft = 14, paddingRight = 14,
+                paddingTop = 14, paddingBottom = 14,
+                backgroundColor = { 50, 35, 80, 255 },
+                borderWidth = 2,
+                borderColor = { 140, 100, 240, 255 },
+                borderRadius = 8,
+                gap = 10,
+                pointerEvents = "auto",
+                onClick = function(self)
+                    ShowServerPickerPopup()
+                end,
+                children = {
+                    -- 服务器信息
+                    UI.Panel {
+                        flex = 1,
+                        flexDirection = "column",
+                        gap = 4,
+                        children = {
+                            UI.Label {
+                                text = server.name,
+                                fontSize = 16,
+                                fontColor = { 230, 210, 255, 255 },
+                            },
+                            UI.Panel {
+                                flexDirection = "row",
+                                alignItems = "center",
+                                gap = 6,
+                                children = statusRowChildren,
+                            },
+                            table.unpack(summaryChildren),
+                        },
+                    },
+                    -- 右侧展开箭头
+                    UI.Label {
+                        text = "▼",
+                        fontSize = 14,
+                        fontColor = { 160, 140, 220, 200 },
+                    },
+                },
+            },
         },
-        table.unpack(tagChildren),
     }
+end
 
-    -- 存档摘要行
-    local summaryRow = nil
-    if summary then
-        summaryRow = UI.Panel {
+--- 显示服务器选择弹窗
+function ShowServerPickerPopup()
+    if not pageRoot or not UI then return end
+
+    -- 移除已有弹窗
+    local old = pageRoot:FindById("serverPickerPopup")
+    if old then pageRoot:RemoveChild(old) end
+
+    local function closePopup()
+        local p = pageRoot:FindById("serverPickerPopup")
+        if p then pageRoot:RemoveChild(p) end
+    end
+
+    -- 构建服务器列表条目
+    local newestId = GetNewestServerId()
+    local listChildren = {}
+    for _, server in ipairs(SERVER_LIST) do
+        local isSelected = (server.id == selectedServerId)
+        local summary = GetSlotSummary(server.id)
+        local canEnter = CanEnterServer(server.id)
+        local isLocked = not canEnter  -- 老服无存档，锁定
+
+        -- 锁定状态用灰色，否则正常
+        local statusColor = isLocked
+            and { 100, 100, 100, 180 }
+            or  { 80, 200, 120, 255 }
+        local statusText = isLocked and "已满" or server.status
+
+        -- 状态 + 标签
+        local tagChildren = {}
+        if server.tag and not isLocked then
+            tagChildren[#tagChildren + 1] = UI.Panel {
+                paddingLeft = 6, paddingRight = 6,
+                paddingTop = 2, paddingBottom = 2,
+                backgroundColor = { 200, 120, 50, 255 },
+                borderRadius = 4,
+                children = {
+                    UI.Label {
+                        text = server.tag,
+                        fontSize = 10,
+                        fontColor = { 255, 255, 255, 255 },
+                    },
+                },
+            }
+        end
+
+        local infoRowChildren = {
+            UI.Panel {
+                width = 8, height = 8,
+                borderRadius = 4,
+                backgroundColor = isLocked and { 180, 60, 60, 200 } or statusColor,
+            },
+            UI.Label {
+                text = statusText,
+                fontSize = 12,
+                fontColor = isLocked and { 180, 60, 60, 200 } or statusColor,
+            },
+            table.unpack(tagChildren),
+        }
+
+        -- 存档摘要行
+        local summaryRow = nil
+        if summary then
+            summaryRow = UI.Panel {
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 8,
+                paddingTop = 2,
+                children = {
+                    UI.Label {
+                        text = "Lv." .. (summary.leaderLevel or 1),
+                        fontSize = 11,
+                        fontColor = { 200, 180, 255, 200 },
+                    },
+                    UI.Label {
+                        text = "第" .. (summary.bestStage or 0) .. "关",
+                        fontSize = 11,
+                        fontColor = { 180, 200, 160, 200 },
+                    },
+                    UI.Label {
+                        text = (summary.heroCount or 0) .. "英雄",
+                        fontSize = 11,
+                        fontColor = { 200, 180, 140, 200 },
+                    },
+                    UI.Label {
+                        text = FormatPlayTime(summary.playTime),
+                        fontSize = 11,
+                        fontColor = { 160, 160, 180, 180 },
+                    },
+                },
+            }
+        end
+
+        -- 名称颜色：锁定灰色，选中高亮，普通次亮
+        local nameColor = isLocked
+            and { 120, 110, 130, 180 }
+            or  (isSelected and { 230, 210, 255, 255 } or { 200, 190, 220, 255 })
+
+        local nameColChildren = {
+            UI.Label {
+                text = server.name,
+                fontSize = 16,
+                fontColor = nameColor,
+            },
+            UI.Panel {
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 6,
+                children = infoRowChildren,
+            },
+        }
+        if summaryRow then
+            nameColChildren[#nameColChildren + 1] = summaryRow
+        end
+
+        -- 条目背景/边框：锁定时暗淡
+        local itemBg = isLocked and { 25, 20, 35, 255 }
+            or (isSelected and { 50, 35, 80, 255 } or { 30, 24, 45, 255 })
+        local itemBorder = isLocked and { 50, 45, 60, 120 }
+            or (isSelected and { 140, 100, 240, 255 } or { 60, 50, 80, 120 })
+
+        -- 选中圆点：锁定时也暗淡
+        local radioOuter = isLocked and { 60, 55, 70, 150 }
+            or (isSelected and { 140, 100, 240, 255 } or { 80, 70, 110, 255 })
+        local radioBg = isSelected and not isLocked
+            and { 140, 100, 240, 255 } or { 0, 0, 0, 0 }
+
+        listChildren[#listChildren + 1] = UI.Panel {
+            width = "100%",
             flexDirection = "row",
             alignItems = "center",
-            gap = 8,
-            paddingTop = 2,
+            paddingLeft = 14, paddingRight = 14,
+            paddingTop = 12, paddingBottom = 12,
+            backgroundColor = itemBg,
+            borderWidth = (isSelected and not isLocked) and 2 or 1,
+            borderColor = itemBorder,
+            borderRadius = 8,
+            gap = 10,
+            pointerEvents = "auto",
+            onClick = function(self)
+                if isLocked then
+                    local Toast = require("Game.Toast")
+                    Toast.Show("服务器人数已满")
+                    return
+                end
+                selectedServerId = server.id
+                closePopup()
+                ServerSelectUI.Refresh()
+            end,
             children = {
-                UI.Label {
-                    text = "Lv." .. (summary.leaderLevel or 1),
-                    fontSize = 11,
-                    fontColor = { 200, 180, 255, 200 },
+                -- 选中圆点
+                UI.Panel {
+                    width = 18, height = 18,
+                    borderRadius = 9,
+                    borderWidth = 2,
+                    borderColor = radioOuter,
+                    backgroundColor = radioBg,
+                    justifyContent = "center",
+                    alignItems = "center",
+                    children = (isSelected and not isLocked) and {
+                        UI.Panel {
+                            width = 8, height = 8,
+                            borderRadius = 4,
+                            backgroundColor = { 255, 255, 255, 255 },
+                        },
+                    } or {},
                 },
-                UI.Label {
-                    text = "第" .. (summary.bestStage or 0) .. "关",
-                    fontSize = 11,
-                    fontColor = { 180, 200, 160, 200 },
-                },
-                UI.Label {
-                    text = (summary.heroCount or 0) .. "英雄",
-                    fontSize = 11,
-                    fontColor = { 200, 180, 140, 200 },
-                },
-                UI.Label {
-                    text = FormatPlayTime(summary.playTime),
-                    fontSize = 11,
-                    fontColor = { 160, 160, 180, 180 },
+                -- 服务器信息
+                UI.Panel {
+                    flex = 1,
+                    flexDirection = "column",
+                    gap = 4,
+                    children = nameColChildren,
                 },
             },
         }
     end
 
-    -- 名称列的子元素
-    local nameColumnChildren = {
-        UI.Label {
-            text = server.name,
-            fontSize = 16,
-            fontColor = isSelected
-                and { 230, 210, 255, 255 }
-                or  { 180, 170, 200, 255 },
-        },
-        UI.Panel {
-            flexDirection = "row",
-            alignItems = "center",
-            gap = 8,
-            children = infoChildren,
-        },
-    }
-    if summaryRow then
-        nameColumnChildren[#nameColumnChildren + 1] = summaryRow
-    end
-
-    return UI.Panel {
-        width = "100%",
-        flexDirection = "row",
+    local popup = UI.Panel {
+        id = "serverPickerPopup",
+        position = "absolute",
+        top = 0, left = 0, right = 0, bottom = 0,
+        backgroundColor = { 0, 0, 0, 170 },
+        justifyContent = "center",
         alignItems = "center",
-        paddingLeft = 14, paddingRight = 14,
-        paddingTop = 14, paddingBottom = 14,
-        backgroundColor = bgColor,
-        borderWidth = isSelected and 2 or 1,
-        borderColor = borderColor,
-        borderRadius = 8,
-        gap = 10,
         pointerEvents = "auto",
-        onClick = function(self)
-            selectedServerId = server.id
-            ServerSelectUI.Refresh()
-        end,
+        zIndex = 10,
+        onClick = function(self) closePopup() end,
         children = {
-            -- 选中标记
             UI.Panel {
-                width = 18, height = 18,
-                borderRadius = 9,
-                borderWidth = 2,
-                borderColor = isSelected and { 140, 100, 240, 255 } or { 80, 70, 110, 255 },
-                backgroundColor = isSelected and { 140, 100, 240, 255 } or { 0, 0, 0, 0 },
-                justifyContent = "center",
+                width = 320,
+                backgroundColor = { 20, 14, 40, 250 },
+                borderRadius = 14,
+                borderWidth = 1,
+                borderColor = { 160, 120, 255, 160 },
+                paddingTop = 18, paddingBottom = 18,
+                paddingLeft = 16, paddingRight = 16,
+                gap = 12,
                 alignItems = "center",
-                children = isSelected and {
-                    UI.Panel {
-                        width = 8, height = 8,
-                        borderRadius = 4,
-                        backgroundColor = { 255, 255, 255, 255 },
+                pointerEvents = "auto",
+                onClick = function(self) end, -- 阻止冒泡关闭
+                children = {
+                    -- 标题
+                    UI.Label {
+                        text = "选择区服",
+                        fontSize = 18,
+                        fontColor = { 200, 170, 255, 255 },
+                        fontWeight = "bold",
                     },
-                } or {},
-            },
-            -- 服务器名称 + 存档摘要
-            UI.Panel {
-                flex = 1,
-                flexDirection = "column",
-                gap = 4,
-                children = nameColumnChildren,
+                    UI.Panel { width = "100%", height = 1, backgroundColor = { 160, 120, 255, 60 } },
+                    -- 服务器列表
+                    UI.Panel {
+                        width = "100%",
+                        flexDirection = "column",
+                        gap = 8,
+                        children = listChildren,
+                    },
+                    UI.Panel { width = "100%", height = 1, backgroundColor = { 160, 120, 255, 40 } },
+                    -- 关闭按钮
+                    UI.Panel {
+                        width = 140, height = 36,
+                        backgroundColor = { 60, 45, 90, 200 },
+                        borderRadius = 18,
+                        borderWidth = 1,
+                        borderColor = { 140, 100, 240, 100 },
+                        justifyContent = "center",
+                        alignItems = "center",
+                        pointerEvents = "auto",
+                        onClick = function(self) closePopup() end,
+                        children = {
+                            UI.Label {
+                                text = "关闭",
+                                fontSize = 14,
+                                fontColor = { 200, 180, 255, 230 },
+                            },
+                        },
+                    },
+                },
             },
         },
     }
+
+    pageRoot:AddChild(popup)
 end
 
 --- 构建开始游戏按钮（根据加载状态显示不同内容）

@@ -663,32 +663,28 @@ end
 -- 怪物防御属性（随关卡成长）
 -- ============================================================================
 
--- 敌人 DEF 独立缩放表（与 HP 解耦）
--- DEF 缩放表: heroParamsAtStage 精确校准，defFactor=1.25 (DEF 贡献 ~20%)
+-- DEF 缩放: 1~1000 手调分段，1000+ log-quadratic 公式（与 HP 解耦）
+-- DEF/HP 比约 2.5~3.0，高关随 stage 缓慢增大
+-- 目标: 终局穿透率 ~37%（无穿甲）/ ~45%（30%穿甲），穿甲有实际价值
 -- 基准: SSR shadow_mage(baseAtk=3600), minion(baseDEF=500)
--- 每行: { fromStage, toStage, scaleFrom, scaleTo }
-Config.DEF_SCALE_SEGMENTS = {
-    {     1,   100,          1.8,             24 },
-    {   100,   500,           24,            165 },
-    {   500,  1000,          165,            543 },
-    {  1000,  1500,          543,         3750.0 },
-    {  1500,  2000,       3750.0,         8240.0 },
-    {  2000,  2500,       8240.0,        58700.0 },
-    {  2500,  3000,      58700.0,       105000.0 },
-    {  3000,  3500,     105000.0,       312000.0 },
-    {  3500,  4000,     312000.0,      1300000.0 },
-    {  4000,  4500,    1300000.0,      3690000.0 },
-    {  4500,  5000,    3690000.0,     16230000.0 },
-    {  5000,  5500,   16230000.0,     51760000.0 },
-    {  5500,  6000,   51760000.0,    117040000.0 },
+Config.DEF_SCALE_EARLY = {
+    {     1,   100,          1.8,           25 },
+    {   100,   500,           25,          135 },
+    {   500,  1000,          135,          500 },
 }
+-- log-quadratic 系数: ln(scale) = a + b*stage + c*stage²
+Config.DEF_FORMULA = { a = 4.539351, b = 0.0016829599, c = 3.506006e-08 }
 
---- 统一 DEF 缩放函数（分段线性插值，与 HP 独立）
+--- 统一 DEF 缩放函数（早期分段 + 高关公式，与 HP 独立）
 ---@param stage number 关卡号（>=1）
 ---@return number 缩放倍率
 function Config.GetStageDEFScale(stage)
     if stage <= 1 then return 1.0 end
-    return F.Piecewise4(Config.DEF_SCALE_SEGMENTS, stage)
+    if stage <= 1000 then
+        return F.Piecewise4(Config.DEF_SCALE_EARLY, stage)
+    end
+    local f = Config.DEF_FORMULA
+    return math.exp(f.a + f.b * stage + f.c * stage * stage)
 end
 
 -- 向后兼容: 保留旧常量供外部引用（不再用于实际 DEF 计算）
@@ -783,31 +779,34 @@ Config.WAVES_PER_STAGE = 10
 Config.BOSS_WAVE = 10
 Config.ELITE_INTERVAL = 3
 
--- HP 缩放表: heroParamsAtStage 精确校准，killTime = 2+8√progress (2s → 10s)
--- 基准: SSR shadow_mage, minion(baseHP=4500), defFactor≈1.25
--- 每行: { fromStage, toStage, scaleFrom, scaleTo }
-Config.HP_SCALE_SEGMENTS = {
-    {     1,   100,         1.02,          7.5 },
-    {   100,   500,          7.5,           19 },
-    {   500,  1000,           19,           41 },
-    {  1000,  1500,           41,          256 },
-    {  1500,  2000,          256,          490 },
-    {  2000,  2500,          490,         3610 },
-    {  2500,  3000,         3610,         6110 },
-    {  3000,  3500,         6110,        17300 },
-    {  3500,  4000,        17300,        81300 },
-    {  4000,  4500,        81300,       226000 },
-    {  4500,  5000,       226000,      1140000 },
-    {  5000,  5500,      1140000,      3500000 },
-    {  5500,  6000,      3500000,      7660000 },
-}
+-- tierMult 指数: tierMult = tier ^ exponent,  tier = ceil(stageNum / 10)
+-- Boss 和小怪各有独立指数，两边同步缩放，比值稳定:
+--   Boss/小怪比 = tier^(BOSS - MINION) = tier^0.50，波动仅 ~10x
+--   100关: Boss≈16x小怪  →  10000关: Boss≈158x小怪
+Config.BOSS_TIER_EXPONENT   = 1.50   -- Boss HP 额外乘 tier^1.50
+Config.MINION_TIER_EXPONENT = 1.00   -- 小怪 HP 额外乘 tier^1.00
 
---- 统一 HP 缩放函数（分段线性插值）
+-- HP 缩放: 1~1000 手调分段（保留早期体验），1000+ log-quadratic 公式
+-- 公式由 stage 1000~6000 的原始数据拟合，误差 <5%，可无限延伸
+-- 基准: SSR shadow_mage, minion(baseHP=4500)
+Config.HP_SCALE_EARLY = {
+    {     1,   100,         1.02,           10 },
+    {   100,   500,           10,           55 },
+    {   500,  1000,           55,          200 },
+}
+-- log-quadratic 系数: ln(scale) = a + b*stage + c*stage²
+Config.HP_FORMULA = { a = 3.644109, b = 0.0016507943, c = 3.431831e-08 }
+
+--- 统一 HP 缩放函数（早期分段 + 高关公式）
 ---@param stage number 关卡号（>=1）
 ---@return number 缩放倍率
 function Config.GetStageHPScale(stage)
     if stage <= 1 then return 1.0 end
-    return F.Piecewise4(Config.HP_SCALE_SEGMENTS, stage)
+    if stage <= 1000 then
+        return F.Piecewise4(Config.HP_SCALE_EARLY, stage)
+    end
+    local f = Config.HP_FORMULA
+    return math.exp(f.a + f.b * stage + f.c * stage * stage)
 end
 
 Config.STAGE_SPEED_PER_STAGE = 0.02

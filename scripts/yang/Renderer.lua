@@ -78,41 +78,75 @@ end
 -- ── A 区绘制 ─────────────────────────────────────────────────────────────────
 
 local function drawACards(vg)
-    local layerGroups = {}
-    local maxLayer    = 0
-    for _, c in ipairs(Board.allCards) do
-        if not c.removed and c.moldType == 1 and c.state ~= "hidden" then
-            local ln = c.layerNum
-            if not layerGroups[ln] then layerGroups[ln] = {} end
-            table.insert(layerGroups[ln], c)
-            if ln > maxLayer then maxLayer = ln end
-        end
-    end
-    for _, cards in pairs(layerGroups) do
-        table.sort(cards, function(a, b)
-            return (a.py or a.rowNum) < (b.py or b.rowNum)
-        end)
-    end
+    local groups   = Board._renderGroups
+    local maxLayer = Board._renderMaxLayer
+    if not groups then return end
+
+    local CW     = Board.CW
+    local CH     = Board.CH
+    local FACE_H = Board.FACE_H
+    local r      = math.max(4, CW // 8)
+    -- 预计算 dim 牌图案参数（减少每牌计算量）
+    local pad   = FACE_H * 0.1
+    local imgSz = FACE_H - pad * 2
+
     for ln = 1, maxLayer do
-        local cards = layerGroups[ln]
+        local cards = groups[ln]
         if cards then
-            -- 先画阴影条（在网格外）
-            for _, c in ipairs(cards) do
-                local sx, sy = Board.gridToScreen(c)
-                sy = sy + (c.entryOffsetY or 0)
-                nvgSave(vg)
-                nvgScissor(vg, sx, sy + Board.FACE_H, Board.CW, Board.CARD_SHADOW)
-                drawCard(vg, sx, sy, c.kind, c.state == "dim")
-                nvgRestore(vg)
+            local n = #cards
+            -- Pass 1: 阴影条（批量设置颜色减少状态切换）
+            -- 先绘制 dim 牌阴影，再绘制 bright 牌阴影（减少颜色切换次数）
+            nvgFillColor(vg, nvgRGBA(20, 16, 38, 180))
+            for ci = 1, n do
+                local c = cards[ci]
+                if c.state == "dim" then
+                    local sx, sy = Board.gridToScreen(c)
+                    sy = sy + (c.entryOffsetY or 0)
+                    nvgBeginPath(vg)
+                    nvgRoundedRect(vg, sx, sy, CW, CH, r)
+                    nvgFill(vg)
+                end
             end
-            -- 再画牌面（覆盖相邻阴影渗出）
-            for _, c in ipairs(cards) do
+            nvgFillColor(vg, nvgRGBA(20, 16, 38, 220))
+            for ci = 1, n do
+                local c = cards[ci]
+                if c.state ~= "dim" then
+                    local sx, sy = Board.gridToScreen(c)
+                    sy = sy + (c.entryOffsetY or 0)
+                    nvgBeginPath(vg)
+                    nvgRoundedRect(vg, sx, sy, CW, CH, r)
+                    nvgFill(vg)
+                end
+            end
+            -- Pass 2: 牌面 + 描边 + 图案
+            for ci = 1, n do
+                local c = cards[ci]
                 local sx, sy = Board.gridToScreen(c)
                 sy = sy + (c.entryOffsetY or 0)
-                nvgSave(vg)
-                nvgScissor(vg, sx, sy, Board.CW, Board.FACE_H)
-                drawCard(vg, sx, sy, c.kind, c.state == "dim")
-                nvgRestore(vg)
+                local dimmed = (c.state == "dim")
+                -- 卡面
+                nvgBeginPath(vg)
+                nvgRoundedRect(vg, sx, sy, CW, FACE_H, r)
+                nvgFillColor(vg, nvgRGBA(72, 60, 110, dimmed and 160 or 255))
+                nvgFill(vg)
+                -- 描边
+                nvgBeginPath(vg)
+                nvgRoundedRect(vg, sx, sy, CW, CH, r)
+                nvgStrokeColor(vg, nvgRGBA(255, 255, 255, dimmed and 40 or 100))
+                nvgStrokeWidth(vg, 1.0)
+                nvgStroke(vg)
+                -- 图案（dim 牌仍绘制图案保持视觉一致性，但可用缓存的参数）
+                local img = kindImages_[c.kind]
+                if img and img > 0 then
+                    local imgX  = sx + (CW - imgSz) / 2
+                    local imgY  = sy + pad
+                    local alpha = dimmed and 0.55 or 1.0
+                    local paint = nvgImagePattern(vg, imgX, imgY, imgSz, imgSz, 0, img, alpha)
+                    nvgBeginPath(vg)
+                    nvgRoundedRect(vg, imgX, imgY, imgSz, imgSz, 4)
+                    nvgFillPaint(vg, paint)
+                    nvgFill(vg)
+                end
             end
         end
     end

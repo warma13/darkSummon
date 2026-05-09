@@ -13,6 +13,7 @@ local COLOR_DREAMSCAPE = { 180, 130, 230, 255 }      -- 亮紫 — 万象沉梦
 
 local HeroData = require("Game.HeroData")
 local Config   = require("Game.Config")
+local FormatUtil = require("Game.FormatUtil")
 
 local function has(tower, id)
     if not tower.skills then return nil end
@@ -226,12 +227,7 @@ function M.TriggerActive(tower, skill)
     end
 
     -- 伤害飘字（总伤害）
-    local dmgText = tostring(math.floor(totalDmg))
-    if totalDmg >= 1e8 then
-        dmgText = string.format("%.1f亿", totalDmg / 1e8):gsub("%.0亿", "亿")
-    elseif totalDmg >= 1e4 then
-        dmgText = string.format("%.1f万", totalDmg / 1e4):gsub("%.0万", "万")
-    end
+    local dmgText = FormatUtil.FormatNum(totalDmg)
 
     -- 用 tower 位置显示主动技能飘字
     AddFloatingText({

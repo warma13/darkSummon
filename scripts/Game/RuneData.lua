@@ -363,17 +363,40 @@ function RuneData.FindInBag(runeId)
     return nil
 end
 
---- 扩容背包
+--- 整理背包（按品质降序 > 系列名排序）
+function RuneData.SortBag()
+    local d = EnsureData()
+    table.sort(d.bag, function(a, b)
+        local qa = RuneConfig.QUALITY_MAP[a.qualityId]
+        local qb = RuneConfig.QUALITY_MAP[b.qualityId]
+        local ia = qa and qa.index or 0
+        local ib = qb and qb.index or 0
+        if ia ~= ib then return ia > ib end  -- 品质高的在前
+        if a.seriesId ~= b.seriesId then return a.seriesId < b.seriesId end
+        return a.runeId < b.runeId
+    end)
+    HeroData.Save()
+end
+
+--- 获取当前扩容费用
+---@return number cost
+function RuneData.GetExpandCost()
+    local d = EnsureData()
+    return RuneConfig.GetExpandCost(d.bagCapacity)
+end
+
+--- 扩容背包（费用随扩容次数递增）
 ---@return boolean, string
 function RuneData.ExpandBag()
     local d = EnsureData()
     if d.bagCapacity >= RuneConfig.BAG_MAX_CAPACITY then
-        return false, "已达最大容量"
+        return false, "已达最大容量(" .. RuneConfig.BAG_MAX_CAPACITY .. ")"
     end
-    if not Currency.Has("rift_dust", RuneConfig.BAG_EXPAND_COST) then
-        return false, "裂隙之尘不足(需" .. RuneConfig.BAG_EXPAND_COST .. ")"
+    local cost = RuneConfig.GetExpandCost(d.bagCapacity)
+    if not Currency.Has("rift_dust", cost) then
+        return false, "裂隙之尘不足(需" .. cost .. ")"
     end
-    Currency.Spend("rift_dust", RuneConfig.BAG_EXPAND_COST)
+    Currency.Spend("rift_dust", cost)
     d.bagCapacity = math.min(d.bagCapacity + RuneConfig.BAG_EXPAND_AMOUNT, RuneConfig.BAG_MAX_CAPACITY)
     HeroData.Save()
     return true, "背包扩容至" .. d.bagCapacity

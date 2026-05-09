@@ -16,6 +16,14 @@ local NormalPool = {}
 
 local FEATURED_HEROES = {
     {
+        heroId = "crimson_moon",
+        name   = "弦月",
+        color  = { 220, 40, 60 },
+        image  = "image/crimson_moon_portrait.png",
+        bgColor = { 50, 10, 20, 200 },
+        borderColor = { 220, 40, 60, 150 },
+    },
+    {
         heroId = "crimson_night",
         name   = "绯夜",
         color  = { 200, 50, 80 },
@@ -43,6 +51,9 @@ local FEATURED_HEROES = {
 
 -- 当前轮播索引（模块级状态）
 local _featuredIndex = 1
+
+-- 详情弹窗当前选中英雄（用于技能展示）
+local _detailSelectedHeroId = "crimson_moon"
 
 --- 切换到下一个精选角色
 function NormalPool.NextFeatured()
@@ -675,20 +686,25 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
     local old = pageRoot:FindById("detailPopup")
     if old then pageRoot:RemoveChild(old) end
 
-    local listChildren = {}
+    local topChildren = {}   -- 上半区：技能描述 + 概率
+    local bottomChildren = {} -- 下半区：英雄头像网格
 
-    -- 绯夜英雄卡片
-    local cnHeroId = "crimson_night"
-    local cnName = "绯夜"
-    local cnColor = { 200, 50, 80 }
+    -- 选中英雄技能展示区（根据 _detailSelectedHeroId 动态切换）
+    local selHeroId = _detailSelectedHeroId
+    local selName = selHeroId
+    local selColor = { 200, 200, 200 }
+    local selRarity = "N"
     for _, td in ipairs(Config.TOWER_TYPES) do
-        if td.id == cnHeroId then
-            cnName = td.name
-            cnColor = td.color
+        if td.id == selHeroId then
+            selName = td.name
+            selColor = td.color
+            selRarity = td.rarity or "N"
             break
         end
     end
-    listChildren[#listChildren + 1] = UI.Panel {
+    local selRC = RARITY_COLORS[selRarity] or { 200, 200, 200, 255 }
+
+    topChildren[#topChildren + 1] = UI.Panel {
         width = "100%",
         flexDirection = "row",
         alignItems = "center",
@@ -698,26 +714,26 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
         backgroundColor = { 50, 15, 30, 220 },
         borderRadius = 8,
         borderWidth = 2,
-        borderColor = { cnColor[1], cnColor[2], cnColor[3], 200 },
+        borderColor = { selColor[1], selColor[2], selColor[3], 200 },
         children = {
             UI.Panel {
                 width = 36, height = 20,
                 justifyContent = "center", alignItems = "center",
-                backgroundColor = RARITY_COLORS["UR"],
+                backgroundColor = selRC,
                 borderRadius = 4, marginRight = 8,
                 children = {
-                    UI.Label { text = "UR", fontSize = 10, fontColor = { 20, 16, 32, 255 } },
+                    UI.Label { text = selRarity, fontSize = 10, fontColor = { 20, 16, 32, 255 } },
                 },
             },
-            UI.Label { text = cnName, fontSize = 15, fontColor = { cnColor[1], cnColor[2], cnColor[3], 255 }, fontWeight = "bold", flex = 1 },
-            UI.Label { text = "常驻精选", fontSize = 11, fontColor = { cnColor[1], cnColor[2], cnColor[3], 200 } },
+            UI.Label { text = selName, fontSize = 15, fontColor = { selColor[1], selColor[2], selColor[3], 255 }, fontWeight = "bold", flex = 1 },
+            UI.Label { text = "常驻精选", fontSize = 11, fontColor = { selColor[1], selColor[2], selColor[3], 200 } },
         },
     }
 
-    -- 绯夜技能说明
-    local cnSkills = Config.HERO_SKILLS and Config.HERO_SKILLS[cnHeroId]
-    if cnSkills then
-        listChildren[#listChildren + 1] = UI.Panel {
+    -- 选中英雄技能说明
+    local selSkills = Config.HERO_SKILLS and Config.HERO_SKILLS[selHeroId]
+    if selSkills then
+        topChildren[#topChildren + 1] = UI.Panel {
             width = "100%", flexDirection = "row", justifyContent = "flex-end",
             paddingRight = 12, marginBottom = 2,
             children = {
@@ -727,8 +743,8 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
                 },
             },
         }
-        for _, skill in ipairs(cnSkills) do
-            listChildren[#listChildren + 1] = UI.Panel {
+        for _, skill in ipairs(selSkills) do
+            topChildren[#topChildren + 1] = UI.Panel {
                 width = "100%",
                 paddingTop = 6, paddingBottom = 6,
                 paddingLeft = 12, paddingRight = 12,
@@ -761,7 +777,7 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
     end
 
     -- 分割线
-    listChildren[#listChildren + 1] = UI.Panel {
+    topChildren[#topChildren + 1] = UI.Panel {
         width = "90%", height = 1,
         backgroundColor = { 120, 40, 60, 100 },
         alignSelf = "center",
@@ -789,7 +805,7 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
         end
     end
 
-    listChildren[#listChildren + 1] = UI.Panel {
+    topChildren[#topChildren + 1] = UI.Panel {
         width = "100%",
         flexDirection = "row",
         flexWrap = "wrap",
@@ -799,7 +815,7 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
         children = rateLabels,
     }
 
-    listChildren[#listChildren + 1] = UI.Label {
+    topChildren[#topChildren + 1] = UI.Label {
         text = "十连召唤保底至少1个SSR",
         fontSize = 11,
         fontColor = { 180, 160, 120, 200 },
@@ -807,18 +823,48 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
         marginBottom = 10,
     }
 
-    listChildren[#listChildren + 1] = UI.Panel {
-        width = "90%", height = 1,
-        backgroundColor = { 80, 60, 120, 100 },
-        alignSelf = "center",
-        marginBottom = 10,
-    }
+    local HeroAvatar = require("Game.HeroAvatar")
 
     local rarityOrder = { "LR", "UR", "SSR", "SR", "R", "N" }
     for _, rarity in ipairs(rarityOrder) do
         local heroIds = Config.RECRUIT_POOL[rarity]
         if heroIds then
+            local rc = RARITY_COLORS[rarity] or { 200, 200, 200, 255 }
             local fragRange = Config.RECRUIT_FRAGMENT_DROP[rarity]
+
+            -- 稀有度分组标题
+            bottomChildren[#bottomChildren + 1] = UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                alignItems = "center",
+                gap = 6,
+                marginBottom = 4,
+                marginTop = 6,
+                children = {
+                    UI.Panel {
+                        paddingLeft = 8, paddingRight = 8,
+                        paddingTop = 2, paddingBottom = 2,
+                        backgroundColor = rc,
+                        borderRadius = 4,
+                        children = {
+                            UI.Label {
+                                text = rarity,
+                                fontSize = 11,
+                                fontColor = { 20, 16, 32, 255 },
+                                fontWeight = "bold",
+                            },
+                        },
+                    },
+                    UI.Label {
+                        text = fragRange.min .. "~" .. fragRange.max .. "碎片",
+                        fontSize = 11,
+                        fontColor = { 150, 140, 170, 180 },
+                    },
+                },
+            }
+
+            -- 头像网格（一行5个）
+            local cards = {}
             for _, heroId in ipairs(heroIds) do
                 local heroName = heroId
                 local heroColor = { 200, 200, 200 }
@@ -833,52 +879,69 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
                 local h = HeroData.Get(heroId)
                 local frags = h and h.fragments or 0
                 local unlocked = h and h.unlocked or false
+                local isSelected = (heroId == _detailSelectedHeroId)
+                local hasSkills = Config.HERO_SKILLS and Config.HERO_SKILLS[heroId] ~= nil
 
-                listChildren[#listChildren + 1] = UI.Panel {
-                    width = "100%",
-                    flexDirection = "row",
+                cards[#cards + 1] = UI.Panel {
+                    width = "18%",
                     alignItems = "center",
-                    paddingTop = 6, paddingBottom = 6,
-                    paddingLeft = 10, paddingRight = 10,
-                    marginBottom = 2,
-                    backgroundColor = RARITY_BG[rarity],
-                    borderRadius = 6,
+                    gap = 2,
                     children = {
+                        -- 头像容器
                         UI.Panel {
-                            width = 36, height = 18,
-                            justifyContent = "center",
-                            alignItems = "center",
-                            backgroundColor = RARITY_COLORS[rarity],
-                            borderRadius = 4,
-                            marginRight = 8,
+                            width = "100%",
+                            aspectRatio = 1,
+                            borderRadius = 8,
+                            overflow = "hidden",
+                            borderWidth = isSelected and 2 or 1,
+                            borderColor = isSelected
+                                and { heroColor[1], heroColor[2], heroColor[3], 255 }
+                                or  { 60, 50, 80, 100 },
+                            -- onTap 由手势系统识别，拖动不触发（内置 tapMaxDistance=10）
+                            onTap = hasSkills and function(event, self)
+                                _detailSelectedHeroId = heroId
+                                local p = pageRoot:FindById("detailPopup")
+                                if p then pageRoot:RemoveChild(p) end
+                                NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
+                            end or nil,
                             children = {
-                                UI.Label {
-                                    text = rarity,
-                                    fontSize = 10,
-                                    fontColor = { 20, 16, 32, 255 },
-                                },
+                                HeroAvatar.Create(heroId, {
+                                    preset = "icon",
+                                    borderWidth = 0,
+                                }),
                             },
                         },
+                        -- 名字
                         UI.Label {
                             text = heroName,
-                            fontSize = 13,
-                            fontColor = heroColor,
-                            flex = 1,
+                            fontSize = 9,
+                            fontColor = isSelected
+                                and { heroColor[1], heroColor[2], heroColor[3], 255 }
+                                or  { 180, 170, 200, 220 },
+                            fontWeight = isSelected and "bold" or "normal",
                         },
+                        -- 碎片数
                         UI.Label {
-                            text = fragRange.min .. "~" .. fragRange.max .. "碎片",
-                            fontSize = 11,
-                            fontColor = { 150, 140, 170, 180 },
-                            marginRight = 8,
-                        },
-                        UI.Label {
-                            text = (unlocked and "✓ " or "") .. frags .. "碎片",
-                            fontSize = 11,
-                            fontColor = unlocked and { 100, 220, 100, 255 } or { 180, 160, 140, 200 },
+                            text = (unlocked and "✓" or "") .. frags .. "碎片",
+                            fontSize = 8,
+                            fontColor = unlocked
+                                and { 100, 220, 100, 220 }
+                                or  { 140, 130, 160, 160 },
                         },
                     },
                 }
             end
+
+            bottomChildren[#bottomChildren + 1] = UI.Panel {
+                width = "100%",
+                flexDirection = "row",
+                flexWrap = "wrap",
+                justifyContent = "flex-start",
+                gap = 6,
+                paddingLeft = 4, paddingRight = 4,
+                marginBottom = 6,
+                children = cards,
+            }
         end
     end
 
@@ -907,12 +970,27 @@ function NormalPool.ShowDetailPopup(UI, pageRoot, RARITY_COLORS, RARITY_BG)
                     },
                 },
             },
+            -- 上半区：技能描述 + 概率
             UI.ScrollView {
                 width = "100%",
                 flex = 1,
-                paddingTop = 10, paddingBottom = 10,
+                paddingTop = 10, paddingBottom = 4,
                 paddingLeft = 10, paddingRight = 10,
-                children = listChildren,
+                children = topChildren,
+            },
+            -- 分割线
+            UI.Panel {
+                width = "100%", height = 1,
+                backgroundColor = { 80, 60, 120, 100 },
+                flexShrink = 0,
+            },
+            -- 下半区：英雄头像网格
+            UI.ScrollView {
+                width = "100%",
+                flex = 1,
+                paddingTop = 4, paddingBottom = 10,
+                paddingLeft = 10, paddingRight = 10,
+                children = bottomChildren,
             },
             UI.Panel {
                 width = "100%",

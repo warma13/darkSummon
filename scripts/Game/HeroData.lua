@@ -198,7 +198,7 @@ function HeroData._SerializeCore()
         stats = statsSnapshot and statsSnapshot() or HeroData.stats,
         redeemData = HeroData.redeemData,
         skillTags = HeroData.skillTags,
-        lastSaveTime = os.time(),
+        lastSaveTime = require("Game.ServerTime").Now(),
     }
 end
 
@@ -308,6 +308,11 @@ function HeroData._DeserializeCore(_saved, saveData)
 
     -- stats
     local rawStats = saveData.stats or { bestStage = 0, bestGlobalWave = 0, totalGames = 0 }
+    rawStats.bestStage = rawStats.bestStage or 0
+    rawStats.bestGlobalWave = rawStats.bestGlobalWave or 0
+    -- 注意：此处不做跨内存的回档保护（prevBest vs rawStats.bestStage），
+    -- 因为切换区服时内存中残留旧服数据，会错误地将旧服的高 bestStage 覆盖到新服。
+    -- 云端序列号（saveSeq）已提供足够的回档防护。
     HeroData.stats = rawStats
     HeroData.lastSaveTime = saveData.lastSaveTime or 0
 
@@ -438,270 +443,6 @@ function HeroData._ValidateCore()
         HeroData.stats.lastRewardedVersion = CURRENT_VERSION
     end
 
-    -- ========================================================================
-    -- 补偿邮件系统（一次性发放，通过 stats.compensations 防重复）
-    -- ========================================================================
-    if not HeroData.stats.compensations then
-        HeroData.stats.compensations = {}
-    end
-
-    local COMP_ID = "forge_iron_comp_20260417"  -- 补偿唯一标识
-    if not HeroData.stats.compensations[COMP_ID] then
-        local ok2, Mailbox2 = pcall(require, "Game.MailboxData")
-        if ok2 then
-            local myId = clientCloud and clientCloud.userId
-            local myIdStr = tostring(myId or 0)
-
-            -- 用户专属补偿：锻魂铁 × 1.3 倍
-            local USER_COMP = {
-                ["2020363704"] = 57760, ["1931873719"] = 57760, ["897945791"] = 53496,
-                ["1699603952"] = 52524, ["191390351"] = 52180, ["346333596"] = 47860,
-                ["1840951947"] = 44840, ["1732013179"] = 43860, ["1318083359"] = 39920,
-                ["1006084432"] = 39228, ["834166930"] = 39020, ["891277712"] = 36760,
-                ["1996655648"] = 36440, ["2091211151"] = 30680, ["1915921944"] = 26060,
-                ["1779057459"] = 22400, ["881479440"] = 21920, ["1484115547"] = 19120,
-                ["1296664190"] = 18360, ["946074957"] = 18020, ["748065890"] = 17480,
-                ["454920882"] = 17000, ["564418097"] = 16200, ["167706129"] = 16200,
-                ["1261081970"] = 15640, ["2028526586"] = 14580, ["207736188"] = 13280,
-                ["1496964265"] = 13280, ["775402848"] = 12540, ["109012304"] = 11980,
-                ["245165705"] = 11980, ["2051179867"] = 11580, ["325089170"] = 10360,
-                ["1879205879"] = 10360, ["700145371"] = 9520, ["274791815"] = 9820,
-                ["387796072"] = 9820, ["297004786"] = 9260, ["1067207118"] = 8700,
-                ["1423946121"] = 8700, ["2007770672"] = 8400, ["131827644"] = 8120,
-                ["1539976632"] = 8120, ["1633980224"] = 8120, ["1876099833"] = 8120,
-                ["401852988"] = 8060, ["206314218"] = 7560, ["1367044334"] = 7560,
-                ["193359618"] = 7380, ["119895248"] = 6980, ["269928001"] = 6980,
-                ["618075321"] = 6980, ["1282500428"] = 6980, ["2002684324"] = 6980,
-                ["495148045"] = 6400, ["1655784214"] = 6400, ["1870353422"] = 6400,
-                ["1964036015"] = 6400, ["2123455409"] = 6400, ["1451919725"] = 5280,
-                ["916796984"] = 4700, ["1039992199"] = 4700, ["1445552941"] = 4700,
-                ["1757491293"] = 4700, ["1882627292"] = 4700, ["866787093"] = 4100,
-                ["272984296"] = 4100, ["335861629"] = 4140, ["873234404"] = 4140,
-                ["943097607"] = 4140, ["1217462873"] = 4140, ["2099051752"] = 4140,
-                ["43403298"] = 3560, ["427490200"] = 3560, ["906922086"] = 3560,
-                ["1094909353"] = 3560, ["1157287233"] = 3560, ["1361621003"] = 3560,
-                ["334267249"] = 3000, ["1450505971"] = 3000, ["2095015368"] = 3000,
-                ["1472611886"] = 2980, ["1558991381"] = 2520, ["52140186"] = 2420,
-                ["255787037"] = 2420, ["258517379"] = 2420, ["416333665"] = 2420,
-                ["600188821"] = 2420, ["877957650"] = 2420, ["1210530881"] = 2420,
-                ["1332431322"] = 2420, ["1803685670"] = 2420, ["1993012413"] = 2420,
-                ["2007100563"] = 2420, ["848730628"] = 1880, ["676035608"] = 1880,
-                ["224346719"] = 1880, ["392461447"] = 1880, ["403859421"] = 1880,
-                ["496429438"] = 1880, ["650074077"] = 1880, ["653727306"] = 1880,
-                ["715665336"] = 1880, ["868709718"] = 1880, ["904918738"] = 1880,
-                ["910571537"] = 1880, ["919095641"] = 1880, ["1064772654"] = 1880,
-                ["1198164965"] = 1880, ["1239137981"] = 1880, ["1446171235"] = 1880,
-                ["1457215985"] = 1880, ["1457669922"] = 1880, ["1466399795"] = 1880,
-                ["1665738335"] = 1880, ["1740450395"] = 1880, ["1751253646"] = 1880,
-                ["110484933"] = 1340, ["331752427"] = 1340, ["503487263"] = 1340,
-                ["556448763"] = 1340, ["583705977"] = 1340, ["825188598"] = 1340,
-                ["854049702"] = 1340, ["860246613"] = 1340, ["875534184"] = 1340,
-                ["1048863227"] = 1340, ["1184016209"] = 1340, ["1247689958"] = 1340,
-                ["1283663886"] = 1340, ["1287973309"] = 1340, ["1306067981"] = 1340,
-                ["1327558451"] = 1340, ["1534198407"] = 1340, ["1581296706"] = 1340,
-                ["1611471373"] = 1340, ["2111340486"] = 1340, ["1755818496"] = 1080,
-                ["212576708"] = 800, ["333707816"] = 800, ["354983203"] = 800,
-                ["520541145"] = 800, ["629712865"] = 800, ["743991968"] = 800,
-                ["872755351"] = 800, ["1008515761"] = 800, ["1081837956"] = 800,
-                ["1478354298"] = 800, ["1589125468"] = 800, ["1612927248"] = 800,
-                ["1676072742"] = 800, ["1744120810"] = 800, ["1797641984"] = 800,
-                ["1818166524"] = 800, ["221406954"] = 540, ["171258081"] = 540,
-                ["545293927"] = 540, ["2010377452"] = 540, ["1715339605"] = 360,
-                ["143512556"] = 360, ["154955192"] = 360, ["161549444"] = 360,
-                ["184682554"] = 360, ["192815818"] = 360, ["294037728"] = 360,
-                ["359852280"] = 360, ["645199302"] = 360, ["659073503"] = 360,
-                ["726979543"] = 360, ["736510107"] = 360, ["765993298"] = 360,
-                ["797295374"] = 360, ["812878144"] = 360, ["838949832"] = 360,
-                ["865799524"] = 360, ["870901184"] = 360, ["873037689"] = 360,
-                ["873756536"] = 360, ["951270429"] = 360, ["967162897"] = 360,
-                ["967191872"] = 360, ["1034787989"] = 360, ["1135651403"] = 360,
-                ["1250341860"] = 360, ["1297574786"] = 360, ["1327014002"] = 360,
-                ["1367700010"] = 360, ["1373321665"] = 360, ["1392693663"] = 360,
-                ["1478621824"] = 360, ["1526547665"] = 360, ["1614323741"] = 360,
-                ["1686036671"] = 360, ["1860990699"] = 360, ["1913014619"] = 360,
-                ["1925659912"] = 360, ["2119629164"] = 360, ["18907874"] = 100,
-            }
-
-            local personalAmount = USER_COMP[myIdStr]
-            if personalAmount then
-                local compAmount = math.floor(personalAmount * 1.3)
-                Mailbox2.Add({
-                    title = "装备补偿邮件",
-                    desc = "亲爱的召唤师，因近期装备系统调整给您带来的不便，特此补偿锻魂铁 " .. compAmount .. "。感谢您的理解与支持！",
-                    rewards = {
-                        { type = "currency", id = "forge_iron", amount = compAmount },
-                    },
-                })
-                print("[HeroData] Personal compensation sent: forge_iron " .. compAmount .. " for user " .. myIdStr)
-            end
-
-            -- 全服补偿：所有玩家 1000 锻魂铁
-            Mailbox2.Add({
-                title = "全服补偿邮件",
-                desc = "亲爱的召唤师，因近期系统调整给各位带来的不便，特此向全服玩家补偿锻魂铁 1000。感谢您的支持！",
-                rewards = {
-                    { type = "currency", id = "forge_iron", amount = 1000 },
-                },
-            })
-            print("[HeroData] Global compensation sent: forge_iron 1000")
-        end
-        HeroData.stats.compensations[COMP_ID] = true
-    end
-
-    local COMP_ID2 = "shadow_essence_comp_20260417"
-    if not HeroData.stats.compensations[COMP_ID2] then
-        local ok3, Mailbox3 = pcall(require, "Game.MailboxData")
-        if ok3 then
-            Mailbox3.Add({
-                title = "全服补偿邮件",
-                desc = "亲爱的召唤师，因近期系统调整给各位带来的不便，特此向全服玩家补偿暗影精粹 1000。感谢您的支持！",
-                rewards = {
-                    { type = "currency", id = "shadow_essence", amount = 1000 },
-                },
-            })
-            print("[HeroData] Global compensation sent: shadow_essence 1000")
-        end
-        HeroData.stats.compensations[COMP_ID2] = true
-    end
-
-    local COMP_ID3 = "v1036_reward_20260420"
-    if not HeroData.stats.compensations[COMP_ID3] then
-        local ok4, Mailbox4 = pcall(require, "Game.MailboxData")
-        if ok4 then
-            Mailbox4.Add({
-                title = "版本更新奖励",
-                desc = "亲爱的召唤师，感谢您的持续支持！本次更新新增宝箱与招募成就系统，特此赠送暗影精粹 3000 和虚空契约 10，祝您游戏愉快！",
-                rewards = {
-                    { type = "currency", id = "shadow_essence", amount = 3000 },
-                    { type = "currency", id = "void_pact", amount = 10 },
-                },
-            })
-            print("[HeroData] v1.0.36 reward sent: shadow_essence 3000 + void_pact 10")
-        end
-        HeroData.stats.compensations[COMP_ID3] = true
-    end
-
-    -- ========================================================================
-    -- 虚空契约产出公式重平衡补偿（一次性）
-    -- 旧公式：主线 floor(1+s/10)，试练塔通塔 10，成就每5关 1
-    -- 新公式：主线 floor(2*ln(s+1))，试练塔每层 floor(2*ln(t*10+1))，
-    --         通塔 floor(2*ln(t*10+1))*10，成就改为暗影精粹
-    -- 差值为正则补发，为负则不扣
-    -- ========================================================================
-    local COMP_VOID_REBALANCE = "void_pact_rebalance_20260420"
-    if not HeroData.stats.compensations[COMP_VOID_REBALANCE] then
-        local bestStage = HeroData.stats.bestStage or 0
-        local towerData = HeroData.towerData
-        local clearedFloors = towerData and towerData.clearedFloors or 0
-        local claimedTowers = towerData and towerData.claimedTowers or 0
-
-        if bestStage > 0 or clearedFloors > 0 then
-            -- ---- 旧公式总产出 ----
-            local oldTotal = 0
-            -- 旧主线：floor(1 + s/10) per stage
-            for s = 1, bestStage do
-                oldTotal = oldTotal + math.floor(1 + s / 10)
-            end
-            -- 旧试练塔：每通塔 10
-            oldTotal = oldTotal + claimedTowers * 10
-            -- 旧成就：每5关 1 张虚空契约
-            oldTotal = oldTotal + math.floor(bestStage / 5)
-
-            -- ---- 新公式总产出 ----
-            local newTotal = 0
-            -- 新主线：floor(2 * ln(s + 1)) per stage
-            for s = 1, bestStage do
-                newTotal = newTotal + math.floor(2 * math.log(s + 1))
-            end
-            -- 新试练塔每层：floor(2 * ln(towerNum * 10 + 1))
-            for f = 1, clearedFloors do
-                local tNum = math.ceil(f / 10)
-                newTotal = newTotal + math.floor(2 * math.log(tNum * 10 + 1))
-            end
-            -- 新试练塔通塔：floor(2 * ln(t * 10 + 1)) * 10
-            for t = 1, claimedTowers do
-                newTotal = newTotal + math.floor(2 * math.log(t * 10 + 1)) * 10
-            end
-            -- 新成就：0（已改为暗影精粹，不再发虚空契约）
-
-            local diff = newTotal - oldTotal
-            if diff > 0 then
-                local ok5, Mailbox5 = pcall(require, "Game.MailboxData")
-                if ok5 then
-                    Mailbox5.Add({
-                        title = "虚空契约调整补偿",
-                        desc = "亲爱的召唤师，因虚空契约产出公式调整，根据您的游戏进度"
-                            .. "（主线第" .. bestStage .. "关，试练塔第" .. clearedFloors .. "层），"
-                            .. "系统已为您补发虚空契约 " .. diff .. " 张。",
-                        rewards = {
-                            { type = "currency", id = "void_pact", amount = diff },
-                        },
-                    })
-                end
-                print("[HeroData] Void pact rebalance comp: old=" .. oldTotal
-                    .. " new=" .. newTotal .. " diff=+" .. diff)
-            else
-                print("[HeroData] Void pact rebalance: old=" .. oldTotal
-                    .. " new=" .. newTotal .. " no comp needed (diff=" .. diff .. ")")
-            end
-        end
-        HeroData.stats.compensations[COMP_VOID_REBALANCE] = true
-    end
-
-    -- 黑市神话符文箱/遗物碎片箱 丢失补发（ITEM_DEFS 缺失导致邮箱领取后物品未入库）
-    local COMP_BM_BOX = "bm_box_comp_20260427"
-    if not HeroData.stats.compensations[COMP_BM_BOX] then
-        local bmData = HeroData.blackMarketData
-        if bmData and bmData.purchased then
-            local ok3, Mailbox3 = pcall(require, "Game.MailboxData")
-            if ok3 then
-                -- 神话符文包：bm_pale_jade → random_mythic_rune_box × 3
-                local paleCount = bmData.purchased["bm_pale_jade"] or 0
-                if paleCount > 0 then
-                    Mailbox3.Add({
-                        title = "黑市补发",
-                        desc  = "神话符文包奖励补发（×" .. paleCount .. "）",
-                        rewards = {
-                            { type = "item", id = "random_mythic_rune_box", amount = 3 * paleCount },
-                        },
-                    })
-                    print("[HeroData] Comp: bm_pale_jade x" .. paleCount .. " → random_mythic_rune_box x" .. (3 * paleCount))
-                end
-                -- 遗物碎片包：bm_top_forge → random_relic_shard_box × 150
-                local forgeCount = bmData.purchased["bm_top_forge"] or 0
-                if forgeCount > 0 then
-                    Mailbox3.Add({
-                        title = "黑市补发",
-                        desc  = "遗物碎片包奖励补发（×" .. forgeCount .. "）",
-                        rewards = {
-                            { type = "item", id = "random_relic_shard_box", amount = 150 * forgeCount },
-                        },
-                    })
-                    print("[HeroData] Comp: bm_top_forge x" .. forgeCount .. " → random_relic_shard_box x" .. (150 * forgeCount))
-                end
-            end
-        end
-        HeroData.stats.compensations[COMP_BM_BOX] = true
-    end
-
-    -- 黑市补发 v2：上一轮补偿因周重置导致 purchased 被清空，实际未发出
-    -- 无法从存档恢复购买记录，按每种最大购买量（limit=1）统一补发
-    local COMP_BM_BOX_V2 = "bm_box_comp_v2_20260427"
-    if not HeroData.stats.compensations[COMP_BM_BOX_V2] then
-        local ok4, Mailbox4 = pcall(require, "Game.MailboxData")
-        if ok4 then
-            Mailbox4.Add({
-                title = "黑市补发",
-                desc  = "因系统问题，之前黑市购买的符文箱/碎片箱奖励未正确发放，现统一补发。",
-                rewards = {
-                    { type = "item", id = "random_mythic_rune_box",  amount = 3 },
-                    { type = "item", id = "random_relic_shard_box",  amount = 150 },
-                },
-            })
-            print("[HeroData] Comp v2: bm_box universal compensation sent")
-        end
-        HeroData.stats.compensations[COMP_BM_BOX_V2] = true
-    end
 end
 
 --- 保存数据（自动分流：SlotSaveSystem 活跃时标记脏，否则走本地）
@@ -1550,8 +1291,34 @@ function HeroData.CalcIdleRewards()
     local lastTime = HeroData.lastSaveTime or 0
     if lastTime <= 0 then return nil end
 
-    local now = os.time()
+    local ServerTime = require("Game.ServerTime")
+    local now = ServerTime.Now()
     local elapsed = now - lastTime
+
+    -- 时间回拨检测：当前时间 < 上次领取时间 → 惩罚
+    if elapsed < 0 then
+        return {
+            timeTravelPenalty = true,
+            penaltySeconds = -elapsed,   -- 需要等待的正数秒数
+            seconds = 0,
+            nether_crystal = 0,
+            devour_stone = 0,
+            forge_iron = 0,
+        }
+    end
+
+    -- 共识验证：排行榜判定为作弊 → 禁止领取离线收益
+    if ServerTime.IsTimeValid() == false then
+        return {
+            timeTravelPenalty = true,
+            penaltySeconds = 0,
+            seconds = 0,
+            nether_crystal = 0,
+            devour_stone = 0,
+            forge_iron = 0,
+        }
+    end
+
     if elapsed < Config.IDLE_MIN_SECONDS then return nil end
 
     -- 特权增益 + 神裔降临：挂机时长上限
@@ -1636,12 +1403,15 @@ end
 
 --- 领取挂机收益（发放到账户）
 ---@param rewards table  CalcIdleRewards 的返回值
-function HeroData.ClaimIdleRewards(rewards)
+---@param laborMult? number 外部已消耗的劳动倍率，传入则不再自行消耗（避免同一次领取双重扣次数）
+function HeroData.ClaimIdleRewards(rewards, laborMult)
     if not rewards then return end
     local Currency = require("Game.Currency")
-    -- 劳动加倍（延迟加载避免循环依赖，一次结算只消耗一次机会）
-    local LaborDayData = require("Game.LaborDayData")
-    local laborMult = LaborDayData.ConsumeDouble()
+    -- 劳动加倍（优先使用外部传入的倍率）
+    if not laborMult then
+        local LaborDayData = require("Game.LaborDayData")
+        laborMult = LaborDayData.ConsumeDouble()
+    end
     rewards.nether_crystal = math.floor(rewards.nether_crystal * laborMult)
     rewards.devour_stone   = math.floor(rewards.devour_stone * laborMult)
     rewards.forge_iron     = math.floor(rewards.forge_iron * laborMult)
@@ -1687,8 +1457,9 @@ function HeroData.ClaimIdleRewards(rewards)
         end
     end
 
-    -- 重置时间戳
-    HeroData.lastSaveTime = os.time()
+    -- 重置时间戳（服务器时间，防改时间作弊）
+    local ServerTime = require("Game.ServerTime")
+    HeroData.lastSaveTime = ServerTime.Now()
     HeroData.Save()
     print("[HeroData] Idle rewards claimed: crystal+" .. rewards.nether_crystal ..
           " stone+" .. rewards.devour_stone ..

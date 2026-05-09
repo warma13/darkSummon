@@ -7,6 +7,7 @@ local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local InventoryUI = require("Game.InventoryUI")
+local FormatUtil = require("Game.FormatUtil")
 
 local HeroUI = {}
 
@@ -15,18 +16,13 @@ local HeroCard = nil
 local DeployPopup = nil
 local CollectionPopup = nil
 local HeroDetail = nil
+local CodexPopup = nil
 
---- 格式化大数字 (对齐咸鱼之王显示风格)
+--- 格式化大数字
 ---@param n number
 ---@return string
 local function FormatBigNum(n)
-    if n >= 100000000 then
-        return string.format("%.1f亿", n / 100000000)
-    elseif n >= 10000 then
-        return string.format("%.1f万", n / 10000)
-    else
-        return tostring(math.floor(n))
-    end
+    return FormatUtil.FormatNum(n)
 end
 
 -- ============================================================================
@@ -106,6 +102,15 @@ function HeroUI.SetCollectionDetailOverlay(v) collectionDetailOverlay = v end
 
 function HeroUI.GetHeroDetailOverlay() return heroDetailOverlay end
 function HeroUI.SetHeroDetailOverlay(v) heroDetailOverlay = v end
+
+--- 图鉴弹窗委托
+function HeroUI.ShowCodexPopup()
+    CodexPopup.Show(HeroUI)
+end
+
+function HeroUI.HideCodexPopup()
+    CodexPopup.Hide(HeroUI)
+end
 
 --- 委托到子模块的回调（延迟绑定，避免循环引用）
 function HeroUI.ShowCollectionPopup()
@@ -712,6 +717,22 @@ local function CreateBottomBar()
                             UI.Label { text = "仓库", fontSize = 11, fontColor = S.white, fontWeight = "bold" },
                         },
                     },
+                    UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        paddingLeft = 8, paddingRight = 8,
+                        paddingTop = 5, paddingBottom = 5,
+                        borderRadius = 14,
+                        backgroundColor = { 50, 120, 160, 255 },
+                        borderWidth = 1,
+                        borderColor = { 80, 170, 220, 255 },
+                        onClick = function(self)
+                            HeroUI.ShowCodexPopup()
+                        end,
+                        children = {
+                            UI.Label { text = "图鉴", fontSize = 11, fontColor = S.white, fontWeight = "bold" },
+                        },
+                    },
                 },
             },
             -- 右侧：货币药丸
@@ -764,6 +785,7 @@ function HeroUI.CreatePage(uiModule)
     DeployPopup = require("Game.HeroUI.DeployPopup")
     CollectionPopup = require("Game.HeroUI.CollectionPopup")
     HeroDetail = require("Game.HeroUI.HeroDetail")
+    CodexPopup = require("Game.HeroUI.CodexPopup")
 
     -- 统一头像组件初始化
     local HeroAvatar = require("Game.HeroAvatar")
@@ -790,6 +812,7 @@ function HeroUI.Refresh()
     local wasInventoryOpen = InventoryUI.IsVisible()
     local wasHeroDetailOpen = (heroDetailOverlay ~= nil)
     local savedDetailHeroId = wasHeroDetailOpen and HeroDetail.GetCurrentHeroId() or nil
+    local wasCodexOpen = CodexPopup and CodexPopup.IsVisible() or false
 
     pageRoot:ClearChildren()
     collectionOverlay = nil
@@ -804,6 +827,7 @@ function HeroUI.Refresh()
     if DeployPopup then DeployPopup.OnPageClear() end
     if CollectionPopup then CollectionPopup.OnPageClear() end
     if HeroDetail then HeroDetail.OnPageClear() end
+    if CodexPopup then CodexPopup.OnPageClear() end
 
     pageRoot:AddChild(CreateTitleBar())
     pageRoot:AddChild(CreateHeroList())
@@ -818,6 +842,8 @@ function HeroUI.Refresh()
         InventoryUI.Show(UI, pageRoot)
     elseif wasHeroDetailOpen and savedDetailHeroId then
         HeroUI.ShowHeroDetail(savedDetailHeroId)
+    elseif wasCodexOpen then
+        HeroUI.ShowCodexPopup()
     end
 end
 

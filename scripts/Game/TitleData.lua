@@ -221,13 +221,21 @@ end
 local SAVE_FILE = "title_data.json"
 
 function M._save()
+    -- 本地文件缓存（桌面端有效，WASM 端为内存临时文件）
     local ok, cjson = pcall(require, "cjson")
-    if not ok then return end
-    local f = File(SAVE_FILE, FILE_WRITE)
-    if not f then return end
-    local encOk, json = pcall(cjson.encode, { equipped = _equipped, owned = _ownedTitles })
-    if encOk then f:WriteString(json) end
-    f:Close()
+    if ok then
+        local f = File(SAVE_FILE, FILE_WRITE)
+        if f then
+            local encOk, json = pcall(cjson.encode, { equipped = _equipped, owned = _ownedTitles })
+            if encOk then f:WriteString(json) end
+            f:Close()
+        end
+    end
+    -- 标记云端存档脏位，确保 WASM 下数据不丢失
+    local okSS, SlotSave = pcall(require, "Game.SlotSaveSystem")
+    if okSS and SlotSave.MarkDirty then
+        SlotSave.MarkDirty()
+    end
 end
 
 function M._load()
@@ -273,6 +281,10 @@ SaveRegistry.Register("titleData", {
         return { equipped = _equipped, owned = _ownedTitles }
     end,
     deserialize = function(saved)
+        -- 先清空，避免切换服务器时旧数据残留
+        _equipped = nil
+        _ownedTitles = {}
+
         if saved and type(saved) == "table" then
             _equipped = saved.equipped
             if type(saved.owned) == "table" then
@@ -281,7 +293,7 @@ SaveRegistry.Register("titleData", {
                 end
             end
         end
-        -- 兼容：无云端数据时从本地加载
+        -- 兼容：无云端数据时从本地加载（桌面端）
         if not saved or (not saved.equipped and not saved.owned) then
             M._load()
         end

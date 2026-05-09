@@ -5,34 +5,8 @@
 
 local AdTracker = require("Game.AdTracker")
 local Toast     = require("Game.Toast")
-local TodayKey  = require("Game.DateUtil").TodayKey
 
 local AdHelper = {}
-
--- ============================================================================
--- 云端广告行为上报（供管理员排行榜统计）
--- 永久 key: ad_total（累计总观看）
--- 每日 key: ad_start_YYYYMMDD / ad_done_YYYYMMDD / ad_cancel_YYYYMMDD
--- ============================================================================
-
---- 上报广告行为到云端排行榜（永久 + 每日）
----@param action string "ad_start" | "ad_done" | "ad_cancel"
-local function _reportAdEvent(action)
-    ---@diagnostic disable-next-line: undefined-global
-    if not clientCloud then return end
-    local dailyKey = action .. "_" .. TodayKey()
-    clientCloud:BatchSet()
-        :Add("ad_total", 1)     -- 永久累计
-        :Add(dailyKey, 1)       -- 每日分类
-        :Save("ad_event", {
-            ok = function()
-                print("[AdHelper] Reported " .. dailyKey .. " + ad_total")
-            end,
-            error = function(code, reason)
-                print("[AdHelper] Report failed: " .. tostring(reason))
-            end,
-        })
-end
 
 --- 内部：实际播放广告的逻辑
 ---@param onSuccess fun()
@@ -49,15 +23,17 @@ local function _doShowAd(onSuccess, onFail)
         return
     end
 
-    -- 上报：开始播放广告
-    pcall(_reportAdEvent, "ad_start")
+    -- 显示加载进度条
+    Toast.ShowLoading("广告加载中...")
 
     ---@diagnostic disable-next-line: undefined-global
     sdk:ShowRewardVideoAd(function(result)
+        -- 关闭加载进度条
+        pcall(Toast.HideLoading)
+
         -- SDK 回调是异步的，触发时游戏状态可能已变化，全部 pcall 防闪退
         local cbOk, cbErr = pcall(function()
             if result and result.success then
-                pcall(_reportAdEvent, "ad_done")
                 pcall(AdTracker.Record)
                 if onSuccess then
                     local ok, err = pcall(onSuccess)
@@ -66,7 +42,6 @@ local function _doShowAd(onSuccess, onFail)
                     end
                 end
             else
-                pcall(_reportAdEvent, "ad_cancel")
                 local msg = (result and result.msg) or "广告未完成"
                 if msg == "embed manual close" then
                     msg = "需完整观看广告才能获得奖励"
@@ -74,7 +49,7 @@ local function _doShowAd(onSuccess, onFail)
                 if onFail then
                     pcall(onFail, msg)
                 else
-                    pcall(Toast.Show, msg, { 200, 100, 100 })
+                    pcall(Toast.Show, msg, { 255, 100, 80 })
                 end
             end
         end)

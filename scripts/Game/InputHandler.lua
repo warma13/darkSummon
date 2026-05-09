@@ -64,6 +64,24 @@ local function HandlePointerDown(x, y)
         return
     end
 
+    -- 训练木桩调控面板按钮命中检测
+    local td = State.trainingDummy
+    if td and td._buttons then
+        for _, btn in ipairs(td._buttons) do
+            if x >= btn.x and x <= btn.x + btn.w and y >= btn.y and y <= btn.y + btn.h then
+                local TDD = require("Game.TrainingDummyData")
+                if btn.action == 1 then TDD.ToggleMoving()
+                elseif btn.action == 2 then TDD.BoostDEF()
+                elseif btn.action == 3 then TDD.BoostRES()
+                elseif btn.action == 4 then TDD.SpawnAnother()
+                elseif btn.action == 5 then TDD.Reset()
+                elseif btn.action == 6 then TDD.ClearAll()
+                end
+                return  -- 消费点击，不传递到棋盘
+            end
+        end
+    end
+
     local ox = Renderer.gridOffsetX
     local oy = Renderer.gridOffsetY
     local col, row = Grid.ScreenToCell(x, y, ox, oy)

@@ -14,6 +14,7 @@ local AdTracker = require("Game.AdTracker")
 local HeroSkills = require("Game.HeroSkills")
 local SpeedBoost = require("Game.SpeedBoostData")
 local HeroAvatar = require("Game.HeroAvatar")
+local FeatureGate = require("Game.FeatureGate")
 
 local FormatNum = ctx.FormatNum
 local FormatStat = FormatNum  -- FormatStat 与 FormatNum 逻辑一致，统一使用
@@ -116,7 +117,16 @@ function GameUI.BuildHeroInfoContent(tower)
     -- 有效属性（含光环/技能加成）
     local effCritRate = HeroSkills.GetEffectiveCritRate(tower)
     local effCritDmg = Tower.GetEffectiveCritDmg(tower)
-    local effArmorPen = Tower.GetEffectiveArmorPen(tower)
+    -- 穿透：根据伤害类型选择物理穿甲或法术穿透
+    local heroDmgType = Config.HERO_DAMAGE_TYPE[td.id] or "physical"
+    local effPenValue, penLabel
+    if heroDmgType == "magical" then
+        effPenValue = Tower.GetEffectiveMagicPen(tower)
+        penLabel = "法穿"
+    else
+        effPenValue = Tower.GetEffectiveArmorPen(tower)
+        penLabel = "破甲"
+    end
     local effDmgBonus = Tower.GetEffectiveDmgBonus and Tower.GetEffectiveDmgBonus(tower) or (tower.dmgBonus or 0)
 
     -- 属性行辅助函数
@@ -259,9 +269,9 @@ function GameUI.BuildHeroInfoContent(tower)
     local critDmgColor = effCritDmg > 0 and { 255, 100, 100, 230 } or { 120, 110, 140, 180 }
     subStatLeft[#subStatLeft + 1] = StatRow("暴伤", string.format("%.0f%%", effCritDmg * 100), critDmgColor, "heroPanel_critDmg")
 
-    -- 破甲
-    local apColor = effArmorPen > 0 and { 255, 160, 80, 230 } or { 120, 110, 140, 180 }
-    subStatRight[#subStatRight + 1] = StatRow("破甲", string.format("%.1f%%", effArmorPen * 100), apColor, "heroPanel_armorPen")
+    -- 穿透（物理=破甲 / 法术=法穿）
+    local apColor = effPenValue > 0 and { 255, 160, 80, 230 } or { 120, 110, 140, 180 }
+    subStatRight[#subStatRight + 1] = StatRow(penLabel, string.format("%.1f%%", effPenValue * 100), apColor, "heroPanel_pen")
 
     -- 伤害加成
     local dmgBonusColor = effDmgBonus > 0 and { 180, 220, 120, 230 } or { 120, 110, 140, 180 }
@@ -449,7 +459,11 @@ function GameUI.UpdateHeroInfoValues(tower, panel)
     -- 副属性
     local effCritRate = HeroSkills.GetEffectiveCritRate(tower)
     local effCritDmg = Tower.GetEffectiveCritDmg(tower)
-    local effArmorPen = Tower.GetEffectiveArmorPen(tower)
+    -- 穿透：根据伤害类型选择物理穿甲或法术穿透
+    local heroDmgTypeR = Config.HERO_DAMAGE_TYPE[tower.typeDef.id] or "physical"
+    local effPenValueR = heroDmgTypeR == "magical"
+        and Tower.GetEffectiveMagicPen(tower)
+        or  Tower.GetEffectiveArmorPen(tower)
     local effDmgBonus = Tower.GetEffectiveDmgBonus and Tower.GetEffectiveDmgBonus(tower) or (tower.dmgBonus or 0)
 
     local critLabel = panel:FindById("heroPanel_crit")
@@ -460,9 +474,9 @@ function GameUI.UpdateHeroInfoValues(tower, panel)
     if critDmgLabel then
         critDmgLabel:SetText(string.format("%.0f%%", effCritDmg * 100))
     end
-    local apLabel = panel:FindById("heroPanel_armorPen")
+    local apLabel = panel:FindById("heroPanel_pen")
     if apLabel then
-        apLabel:SetText(string.format("%.1f%%", effArmorPen * 100))
+        apLabel:SetText(string.format("%.1f%%", effPenValueR * 100))
     end
     local dmgLabel = panel:FindById("heroPanel_dmgBonus")
     if dmgLabel then
@@ -562,14 +576,16 @@ function GameUI.CreateBottomBar()
                     },
                 },
             },
-            -- 右侧：自动召唤 + 自动合成 开关
+            -- 右侧：自动召唤 + 自动合成 开关（通关第3关解锁）
             ctx.UI.Panel {
+                id = "autoPlayContainer",
                 position = "absolute",
                 right = 12, bottom = 6,
                 flexDirection = "column",
                 gap = 8,
                 pointerEvents = "auto",
                 alignItems = "center",
+                visible = FeatureGate.IsUnlocked("auto_play"),
                 children = {
                     -- 自动召唤开关
                     ctx.UI.Button {

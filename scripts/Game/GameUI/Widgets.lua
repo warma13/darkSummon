@@ -13,6 +13,9 @@ local VaultData           = require("Game.VaultData")
 local CostumeSignInData   = require("Game.CostumeSignInData")
 local WeeklyActivityUI    = require("Game.WeeklyActivityUI")
 local DivineBlessDB       = require("Game.DivineBlessData")
+local FeatureGate         = require("Game.FeatureGate")
+local WorldTier           = require("Game.WorldTier")
+local GameVersion         = require("Game.GameVersion")
 
 local FormatNum = ctx.FormatNum
 
@@ -77,22 +80,42 @@ function GameUI.CreateStageBar()
                 },
             },
             -- 中央：关卡标签（保持原样居中）
-            ctx.UI.Panel {
-                paddingLeft = 16, paddingRight = 16,
-                paddingTop = 6, paddingBottom = 6,
-                backgroundColor = { 20, 16, 32, 200 },
-                borderRadius = 12,
-                borderWidth = 1,
-                borderColor = { 70, 55, 100, 120 },
-                children = {
-                    ctx.UI.Label {
-                        id = "stageBarLabel",
-                        text = waveText,
-                        fontSize = 13,
-                        fontColor = Config.COLORS.textSecondary,
-                    },
-                },
-            },
+            (function()
+                local tier = WorldTier.GetCurrent()
+                local showTier = (tier.id > 1)  -- 普通难度不显示前缀
+                local tierChildren = {}
+                if showTier then
+                    tierChildren[#tierChildren + 1] = ctx.UI.Label {
+                        id = "stageBarTierLabel",
+                        text = "[" .. tier.name .. "]",
+                        fontSize = 12,
+                        fontColor = { tier.color[1], tier.color[2], tier.color[3], 255 },
+                        fontWeight = "bold",
+                    }
+                end
+                tierChildren[#tierChildren + 1] = ctx.UI.Label {
+                    id = "stageBarLabel",
+                    text = waveText,
+                    fontSize = 13,
+                    fontColor = Config.COLORS.textSecondary,
+                }
+                return ctx.UI.Panel {
+                    paddingLeft = 16, paddingRight = 16,
+                    paddingTop = 6, paddingBottom = 6,
+                    backgroundColor = showTier
+                        and { tier.color[1] * 0.15, tier.color[2] * 0.15, tier.color[3] * 0.15, 220 }
+                        or { 20, 16, 32, 200 },
+                    borderRadius = 12,
+                    borderWidth = 1,
+                    borderColor = showTier
+                        and { tier.color[1], tier.color[2], tier.color[3], 100 }
+                        or { 70, 55, 100, 120 },
+                    flexDirection = "row",
+                    alignItems = "center",
+                    gap = 4,
+                    children = tierChildren,
+                }
+            end)(),
         },
     }
 end
@@ -129,6 +152,7 @@ function GameUI.CreateHUD()
             },
             -- 左侧最左：设置齿轮按钮
             ctx.UI.Panel {
+                id = "settingsBtn",
                 position = "absolute",
                 left = 4,
                 width = 30, height = 30,
@@ -147,6 +171,17 @@ function GameUI.CreateHUD()
                         text = "\u{2699}",
                         fontSize = 18,
                         fontColor = { 200, 190, 220, 255 },
+                        pointerEvents = "none",
+                    },
+                    -- 新版本红点
+                    ctx.UI.Panel {
+                        id = "settingsBtnRedDot",
+                        position = "absolute",
+                        top = -2, right = -2,
+                        width = 10, height = 10,
+                        borderRadius = 5,
+                        backgroundColor = { 255, 50, 50, 255 },
+                        visible = GameVersion.HasNewVersion(),
                         pointerEvents = "none",
                     },
                 },
@@ -301,9 +336,10 @@ function GameUI.CreateCurrencyDisplay()
     rightBtnList[#rightBtnList + 1] = GameUI.CurrencyPill("nether_crystal", "hudCrystalLabel", { 160, 100, 230 })
     rightBtnList[#rightBtnList + 1] = GameUI.CurrencyPill("shadow_essence", "hudEssenceLabel", { 180, 140, 255 })
 
-    -- 限时活动入口按钮
+    -- 限时活动入口按钮（通关第5关解锁）
     rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
         id = "weeklyActivityBtn",
+        visible = FeatureGate.IsUnlocked("weekly_activity"),
         width = 56, height = 56,
         borderRadius = 10,
         borderWidth = 1,
@@ -352,9 +388,10 @@ function GameUI.CreateCurrencyDisplay()
         },
     }
 
-    -- 深渊金库入口按钮
+    -- 深渊金库入口按钮（通关第30关解锁）
     rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
         id = "vaultEntryBtn",
+        visible = FeatureGate.IsUnlocked("vault"),
         width = 56, height = 56,
         borderRadius = 10,
         borderWidth = 1,
@@ -403,62 +440,62 @@ function GameUI.CreateCurrencyDisplay()
         },
     }
 
-    -- 时装签到入口按钮（仅活动期间添加，不添加则不占位）
-    if CostumeSignInData.IsEventActive() then
-        rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
-            id = "costumeSignInBtn",
-            width = 56, height = 56,
-            borderRadius = 10,
-            borderWidth = 1,
-            borderColor = { 160, 100, 255, 180 },
-            overflow = "hidden",
-            pointerEvents = "auto",
-            marginTop = 4,
-            onClick = function(self)
-                GameUI.ShowCostumeSignInOverlay(true)
-            end,
-            children = {
-                ctx.UI.Panel {
-                    width = 56, height = 56,
-                    backgroundColor = { 30, 18, 50, 220 },
-                    justifyContent = "center",
-                    alignItems = "center",
-                    children = {
-                        ctx.UI.Panel {
-                            width = 36, height = 36,
-                            backgroundImage = "image/icon_costume.png",
-                            backgroundFit = "contain",
-                        },
+    -- 时装签到入口按钮（通关第4关解锁 且 活动期间）
+    rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
+        id = "costumeSignInBtn",
+        visible = FeatureGate.IsUnlocked("costume") and CostumeSignInData.IsEventActive(),
+        width = 56, height = 56,
+        borderRadius = 10,
+        borderWidth = 1,
+        borderColor = { 160, 100, 255, 180 },
+        overflow = "hidden",
+        pointerEvents = "auto",
+        marginTop = 4,
+        onClick = function(self)
+            GameUI.ShowCostumeSignInOverlay(true)
+        end,
+        children = {
+            ctx.UI.Panel {
+                width = 56, height = 56,
+                backgroundColor = { 30, 18, 50, 220 },
+                justifyContent = "center",
+                alignItems = "center",
+                children = {
+                    ctx.UI.Panel {
+                        width = 36, height = 36,
+                        backgroundImage = "image/icon_costume.png",
+                        backgroundFit = "contain",
                     },
-                },
-                ctx.UI.Panel {
-                    position = "absolute",
-                    bottom = 2, left = 0, right = 0,
-                    alignItems = "center",
-                    children = {
-                        ctx.UI.Label {
-                            text = "时装", fontSize = 11,
-                            fontColor = { 200, 160, 255, 255 },
-                        },
-                    },
-                },
-                -- 红点（有可领取奖励时显示）
-                ctx.UI.Panel {
-                    id = "costumeSignInRedDot",
-                    position = "absolute",
-                    top = 2, right = 2,
-                    width = 10, height = 10,
-                    borderRadius = 5,
-                    backgroundColor = { 255, 60, 60, 255 },
-                    visible = CostumeSignInData.HasClaimable(),
                 },
             },
-        }
-    end
+            ctx.UI.Panel {
+                position = "absolute",
+                bottom = 2, left = 0, right = 0,
+                alignItems = "center",
+                children = {
+                    ctx.UI.Label {
+                        text = "时装", fontSize = 11,
+                        fontColor = { 200, 160, 255, 255 },
+                    },
+                },
+            },
+            -- 红点（有可领取奖励时显示）
+            ctx.UI.Panel {
+                id = "costumeSignInRedDot",
+                position = "absolute",
+                top = 2, right = 2,
+                width = 10, height = 10,
+                borderRadius = 5,
+                backgroundColor = { 255, 60, 60, 255 },
+                visible = CostumeSignInData.HasClaimable(),
+            },
+        },
+    }
 
-    -- 小游戏入口按钮
+    -- 小游戏入口按钮（通关第10关解锁）
     rightBtnList[#rightBtnList + 1] = ctx.UI.Panel {
         id = "miniGameBtn",
+        visible = FeatureGate.IsUnlocked("mini_game"),
         width = 56, height = 56,
         borderRadius = 10,
         borderWidth = 1,
@@ -966,6 +1003,13 @@ function GameUI.ShowDamageStatsPanel(show)
         GameUI._dmgAnimating = true
         GameUI._dmgSlideOffset = 300
     end
+end
+
+-- 注册版本检测 UI 刷新回调
+GameVersion._notifyUI = function()
+    if not ctx.uiRoot then return end
+    local dot = ctx.uiRoot:FindById("settingsBtnRedDot")
+    if dot then dot:SetVisible(GameVersion.HasNewVersion()) end
 end
 
 end

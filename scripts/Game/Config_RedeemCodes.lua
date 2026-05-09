@@ -472,7 +472,7 @@ local CODES = {
     },
     {
         code = "VIP1779057459H",
-        desc = "专属奖励：白玉 ×1亿 + 彩玉 ×1亿",
+        desc = "专属奖励：粹玉 ×1亿 + 封魂玉 ×1亿",
         color = { 180, 120, 255 },
         allowedUser = 1779057459,
         reward = function()
@@ -508,6 +508,66 @@ local CODES = {
         reward = function()
             local ARD = require("Game.AdReliefData")
             ARD.AddTickets(1000)
+        end,
+    },
+    {
+        code = "VIP1159768356",
+        desc = "专属奖励：招募自选包 ×40 + 免广券 ×6",
+        color = { 255, 160, 60 },
+        allowedUser = 1159768356,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 40)
+            local ARD = require("Game.AdReliefData")
+            ARD.AddTickets(6)
+        end,
+    },
+    {
+        code = "VIP346333596F",
+        desc = "专属奖励：招募自选包 ×200 + 免广券 ×20",
+        color = { 255, 160, 60 },
+        allowedUser = 346333596,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 200)
+            local ARD = require("Game.AdReliefData")
+            ARD.AddTickets(20)
+        end,
+    },
+    {
+        code = "VIP1516732018",
+        desc = "专属奖励：招募自选包 ×40 + 免广券 ×6",
+        color = { 255, 160, 60 },
+        allowedUser = 1516732018,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 40)
+            local ARD = require("Game.AdReliefData")
+            ARD.AddTickets(6)
+        end,
+    },
+    {
+        code = "VIP1840951947C",
+        desc = "专属奖励：招募自选包 ×100 + 免广券 ×10",
+        color = { 255, 160, 60 },
+        allowedUser = 1840951947,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 100)
+            local ARD = require("Game.AdReliefData")
+            ARD.AddTickets(10)
+        end,
+    },
+    {
+        code = "VIP691514882",
+        desc = "专属奖励：招募自选包 ×100 + 免广券 ×10",
+        color = { 255, 160, 60 },
+        allowedUser = 691514882,
+        reward = function()
+            local Inv = require("Game.InventoryData")
+            Inv.Add("recruit_ticket_select_box", 100)
+            local ARD = require("Game.AdReliefData")
+            ARD.AddTickets(10)
         end,
     },
     {

@@ -25,9 +25,6 @@ Config.STAR_CROWN_MULT = 1.15
 Config.TIER_ADVANCE_MULT = 1.40
 Config.STAR_CROWN_START = 21
 
--- 技能解锁等级（按技能槽位，LR 有第4技能）
-Config.SKILL_UNLOCK_LEVELS = { 100, 500, 1500, 3000 }
-
 -- ============================================================================
 -- 技能缩放系统（简化版：配置值 = 30星满值，星级公式线性缩放）
 -- 公式: factor = 0.10 + 0.90 * sqrt(star / 30)
@@ -213,6 +210,12 @@ Config.HERO_BASE_STATS = {
         critRate = 0, critRateGrowth = 0,
         critDmg  = 0, critDmgGrowth  = 0,
     },
+    crimson_moon = {
+        atk = 4300, spd = 10,
+        armorPen = 0, armorPenGrowth = 0,
+        critRate = 0, critRateGrowth = 0,
+        critDmg  = 0, critDmgGrowth  = 0,
+    },
     -- 主角
     leader = {
         atk = 4000, spd = 10,
@@ -294,6 +297,7 @@ Config.HERO_DAMAGE_TYPE = {
     plague_doctor    = "magical",
     nature_elf       = "magical",
     fate_weaver      = "magical",
+    crimson_moon     = "magical",
     void_dragon      = "magical",
 }
 
@@ -555,7 +559,7 @@ Config.RECRUIT_POOL = {
     SR  = { "necromancer", "inferno_flame", "armor_breaker", "frost_witch", "war_drummer" },
     SSR = { "shadow_mage", "abyss_hunter", "plague_doctor", "storm_lord" },
     UR  = { "fallen_archangel", "void_dragon", "crimson_night", "ember_wraith", "dream_weave" },
-    LR  = { "fate_weaver", "eternal_archfiend" },
+    LR  = { "fate_weaver", "eternal_archfiend", "crimson_moon" },
 }
 
 -- ============================================================================
@@ -612,8 +616,8 @@ Config.LIMITED_BANNERS = {
         durationDays   = 30,
         buyPrice    = 300,
         buyCurrency = "shadow_essence",
-        startDate   = "2026-04-22",      -- 活动起始日期
-        unlockDate  = "2026-04-22",      -- 此日期前锁定，不可招募
+        startDateKey = "NATURE_BANNER_START",  -- 引用 Config[key]，按服务器覆盖
+        unlockDateKey = "NATURE_BANNER_START", -- 同上
         rates = {
             N   = 40,
             R   = 30,

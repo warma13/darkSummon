@@ -6,6 +6,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local WB = require("Game.WorldBossData")
 local WorldBossSkills = require("Game.WorldBossSkills")
+local BossSkillManager = require("Game.BossSkillManager")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
 local RC = require("Game.RewardController")
@@ -34,19 +35,9 @@ function WorldBoss.BuildDetailView(ctx)
         height = 50,
         flexDirection = "row",
         alignItems = "center",
-        backgroundColor = S.headerBg,
         flexShrink = 0,
         children = {
-            UI.Panel {
-                width = 50, height = 50,
-                justifyContent = "center", alignItems = "center",
-                onClick = function()
-                    ctx.SetView("list")
-                end,
-                children = {
-                    UI.Label { text = "‹", fontSize = 22, fontColor = S.dim, pointerEvents = "none" },
-                },
-            },
+            UI.Panel { width = 12 },
             UI.Label {
                 text = "世界BOSS", fontSize = 20, fontWeight = "bold",
                 fontColor = S.white, pointerEvents = "none",
@@ -522,14 +513,14 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
     local label = config.label
 
     config.onStart = function()
-        WorldBossSkills.Init(challengeDifficulty)
+        BossSkillManager.Init("world_boss", challengeDifficulty)
     end
     config.onUpdate = function(dt)
-        WorldBossSkills.Update(dt)
+        BossSkillManager.Update(dt)
     end
 
     config.onWin = function(result)
-        WorldBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
@@ -552,7 +543,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
     end
 
     config.onExit = function(result, continueExit)
-        WorldBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
@@ -572,7 +563,7 @@ function WorldBoss.OnChallenge(UI, S, ctx, skipConsume)
     end
 
     config.onLose = function(result)
-        WorldBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
 
@@ -608,9 +599,11 @@ function WorldBoss.OnSweep(UI, S, ctx)
         return
     end
 
+    local freeLeft = WB.GetFreeRemaining()
     local ticketCount = WB.GetTicketCount()
-    if ticketCount <= 0 then
-        Toast.Show("没有可用的挑战券", { 255, 200, 80 })
+    local totalAvailable = freeLeft + ticketCount
+    if totalAvailable <= 0 then
+        Toast.Show("没有可用的免费次数或挑战券", { 255, 200, 80 })
         return
     end
 
@@ -620,11 +613,23 @@ function WorldBoss.OnSweep(UI, S, ctx)
 
     local selectedDiff = WB.GetSelectedDifficulty()
 
+    local capturedFreeLeft = freeLeft
     SweepPopup.Show(UI, root, S, {
         title = "世界BOSS · 连续扫荡",
-        maxCount = ticketCount,
+        maxCount = totalAvailable,
         sweepLabel = "最高伤害",
         sweepValue = WB.FormatDamage(bestDamage),
+        costFn = function(count)
+            local free = math.min(count, capturedFreeLeft)
+            local ticket = count - free
+            if free > 0 and ticket > 0 then
+                return "免费 " .. free .. " 次 + 挑战券 " .. ticket .. " 张"
+            elseif free > 0 then
+                return "免费 " .. free .. " 次（不消耗挑战券）"
+            else
+                return "消耗 " .. ticket .. " 张挑战券"
+            end
+        end,
         previewFn = function(count)
             local frostPact = WB.CalcRewards(bestDamage, selectedDiff)
             local items = {}
@@ -651,9 +656,14 @@ function WorldBoss.OnSweep(UI, S, ctx)
             local totalFrostPact = 0
 
             for i = 1, count do
-                if not WB.ConsumeTicket() then
-                    Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
-                    break
+                local curFree = WB.GetFreeRemaining()
+                if curFree > 0 then
+                    if not WB.ConsumeAttempt() then break end
+                else
+                    if not WB.ConsumeTicket() then
+                        Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
+                        break
+                    end
                 end
                 local rewards = WB.ClaimReward(bestDamage, selectedDiff)
                 if rewards and rewards.recruit_ticket_select_box then

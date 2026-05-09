@@ -13,6 +13,7 @@ local TodayStr       = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen        = require("Game.WaveGenerator")
 local LaborDayData   = require("Game.LaborDayData")
+local FormatUtil     = require("Game.FormatUtil")
 
 local LB = require("Game.LeaderboardData")
 
@@ -33,20 +34,23 @@ local SERVER_CACHE_TTL = 60  -- 缓存有效期（秒）
 -- 活动时间（与劳动节共享）
 -- ============================================================================
 
-local START_DATE, END_DATE
+local _LDD
 do
-    local ok, LDD = pcall(require, "Game.LaborDayData")
-    if ok then
-        START_DATE = LDD.START_DATE
-        END_DATE   = LDD.END_DATE
-    else
-        START_DATE = "2026-04-30"
-        END_DATE   = "2026-05-08"
-    end
+    local ok, mod = pcall(require, "Game.LaborDayData")
+    if ok then _LDD = mod end
 end
 
-GB.START_DATE = START_DATE
-GB.END_DATE   = END_DATE
+--- 获取活动开始日期（动态，按服务器配置）
+function GB.GetStartDate()
+    if _LDD then return _LDD.GetStartDate() end
+    return "2026-04-30"
+end
+
+--- 获取活动结束日期（动态，按服务器配置）
+function GB.GetEndDate()
+    if _LDD then return _LDD.GetEndDate() end
+    return "2026-05-08"
+end
 
 -- ============================================================================
 -- 配置常量
@@ -124,18 +128,18 @@ local DateUtil = require("Game.DateUtil")
 
 function GB.IsActive()
     local today = DateUtil.TodayStr()
-    return today >= START_DATE and today <= END_DATE
+    return today >= GB.GetStartDate() and today <= GB.GetEndDate()
 end
 
 function GB.IsExpired()
-    return DateUtil.TodayStr() > END_DATE
+    return DateUtil.TodayStr() > GB.GetEndDate()
 end
 
 --- 获取活动剩余时间字符串
 ---@return string
 function GB.GetRemainingTimeStr()
     if not GB.IsActive() then return "已结束" end
-    local y, m, d = END_DATE:match("(%d+)-(%d+)-(%d+)")
+    local y, m, d = GB.GetEndDate():match("(%d+)-(%d+)-(%d+)")
     local endTs = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 0 }) + 86400
     local remainSec = math.max(0, endTs - os.time())
     local days = math.floor(remainSec / 86400)
@@ -334,7 +338,7 @@ function GB.FetchServerTotal(callback)
     end
 
     _serverTotalCache.fetching = true
-    local key = LB.KEY_GARBAGE_BOSS
+    local key = LB.S(LB.KEY_GARBAGE_BOSS)
 
     clientCloud:GetRankList(key, 0, 100, {
         ok = function(rankList)
@@ -489,19 +493,7 @@ function GB.FormatDamage(damage)
     if not damage or damage ~= damage or damage == math.huge or damage == -math.huge then
         return "0"
     end
-    if damage >= 1e20 then
-        return string.format("%.1f垓", damage / 1e20)
-    elseif damage >= 1e16 then
-        return string.format("%.1f京", damage / 1e16)
-    elseif damage >= 1e12 then
-        return string.format("%.1f兆", damage / 1e12)
-    elseif damage >= 1e8 then
-        return string.format("%.1f亿", damage / 1e8)
-    elseif damage >= 1e4 then
-        return string.format("%.0f万", damage / 1e4)
-    else
-        return tostring(math.floor(damage))
-    end
+    return FormatUtil.FormatNum(damage)
 end
 
 -- ============================================================================

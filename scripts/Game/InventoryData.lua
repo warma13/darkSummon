@@ -390,6 +390,14 @@ InventoryData.ITEM_DEFS = {
         rarity = "SR",
         stackable = true,
     },
+    transcend_forge_ticket = {
+        id = "transcend_forge_ticket",
+        name = "锻魂熔炉挑战券",
+        desc = "可在锻魂熔炉·超越消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "SR",
+        stackable = true,
+    },
     -- 货币福袋
     nether_crystal_pack = {
         id = "nether_crystal_pack",

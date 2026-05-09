@@ -116,4 +116,134 @@ function Toast.Draw(vg, screenW, fontFaceId)
     end
 end
 
+-- ── 加载进度条 ─────────────────────────────────
+-- 屏幕中上方显示的持久进度条，需手动调用 HideLoading 关闭
+local loading = nil  -- { text, elapsed, fadingOut, fadeTime }
+
+local LOAD_BAR_W      = 200   -- 进度条宽度
+local LOAD_BAR_H      = 6    -- 进度条高度
+local LOAD_BOX_PAD_H  = 20
+local LOAD_BOX_PAD_V  = 10
+local LOAD_TOP_MARGIN = 60
+local LOAD_CYCLE      = 2.0   -- 进度条来回一个周期的秒数
+local LOAD_FADE_DUR   = 0.3   -- 淡出动画时长
+
+--- 显示加载进度条（持久显示，直到调用 HideLoading）
+---@param text? string 提示文字，默认 "加载中..."
+function Toast.ShowLoading(text)
+    loading = {
+        text     = text or "加载中...",
+        elapsed  = 0,
+        fadingOut = false,
+        fadeTime  = 0,
+    }
+end
+
+--- 隐藏加载进度条（带淡出动画）
+function Toast.HideLoading()
+    if loading and not loading.fadingOut then
+        loading.fadingOut = true
+        loading.fadeTime  = 0
+    end
+end
+
+--- 加载进度条是否正在显示
+function Toast.IsLoading()
+    return loading ~= nil
+end
+
+--- 更新加载进度条（在 Toast.Update 中已自动调用）
+local function _updateLoading(dt)
+    if not loading then return end
+    loading.elapsed = loading.elapsed + dt
+    if loading.fadingOut then
+        loading.fadeTime = loading.fadeTime + dt
+        if loading.fadeTime >= LOAD_FADE_DUR then
+            loading = nil
+        end
+    end
+end
+
+--- 绘制加载进度条
+local function _drawLoading(vg, screenW, fontFaceId)
+    if not loading then return end
+
+    -- 透明度
+    local alpha = 1.0
+    if loading.fadingOut then
+        alpha = 1.0 - loading.fadeTime / LOAD_FADE_DUR
+    end
+    -- 入场淡入
+    if loading.elapsed < 0.2 then
+        alpha = alpha * (loading.elapsed / 0.2)
+    end
+    alpha = math.max(0, math.min(1, alpha))
+
+    local cx = screenW * 0.5
+
+    -- 文字
+    nvgFontFaceId(vg, fontFaceId)
+    nvgFontSize(vg, FONT_SIZE)
+    nvgTextAlign(vg, NVG_ALIGN_CENTER + NVG_ALIGN_MIDDLE)
+
+    local advance, bounds = nvgTextBounds(vg, 0, 0, loading.text)
+    local textW = bounds and (bounds[3] - bounds[1]) or advance
+    local boxW = math.max(textW + LOAD_BOX_PAD_H * 2, LOAD_BAR_W + LOAD_BOX_PAD_H * 2)
+    local textH = FONT_SIZE
+    local boxH = textH + LOAD_BOX_PAD_V + LOAD_BAR_H + LOAD_BOX_PAD_V * 2
+
+    local boxX = cx - boxW * 0.5
+    local boxY = LOAD_TOP_MARGIN
+
+    -- 背景
+    local bgA = math.floor(200 * alpha)
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, boxX, boxY, boxW, boxH, CORNER_RADIUS)
+    nvgFillColor(vg, nvgRGBA(20, 20, 30, bgA))
+    nvgFill(vg)
+
+    -- 文字
+    local textY = boxY + LOAD_BOX_PAD_V + textH * 0.5
+    nvgFillColor(vg, nvgRGBA(220, 220, 230, math.floor(255 * alpha)))
+    nvgText(vg, cx, textY, loading.text, nil)
+
+    -- 进度条背景（轨道）
+    local barX = cx - LOAD_BAR_W * 0.5
+    local barY = textY + textH * 0.5 + LOAD_BOX_PAD_V
+    local barR = LOAD_BAR_H * 0.5
+
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, barX, barY, LOAD_BAR_W, LOAD_BAR_H, barR)
+    nvgFillColor(vg, nvgRGBA(60, 55, 70, math.floor(180 * alpha)))
+    nvgFill(vg)
+
+    -- 进度条滑块（来回往复动画）
+    local t = (loading.elapsed % LOAD_CYCLE) / LOAD_CYCLE  -- 0~1
+    local pos = t < 0.5 and (t * 2) or (1 - (t - 0.5) * 2)  -- 0→1→0 三角波
+    -- 缓动：smoothstep
+    pos = pos * pos * (3 - 2 * pos)
+
+    local sliderW = LOAD_BAR_W * 0.35
+    local sliderX = barX + pos * (LOAD_BAR_W - sliderW)
+
+    nvgBeginPath(vg)
+    nvgRoundedRect(vg, sliderX, barY, sliderW, LOAD_BAR_H, barR)
+    nvgFillColor(vg, nvgRGBA(140, 100, 220, math.floor(255 * alpha)))
+    nvgFill(vg)
+end
+
+-- 包装原有 Update，追加加载条更新
+local _origUpdate = Toast.Update
+function Toast.Update(dt)
+    _origUpdate(dt)
+    _updateLoading(dt)
+end
+
+-- 包装原有 Draw，追加加载条绘制
+local _origDraw = Toast.Draw
+function Toast.Draw(vg, screenW, fontFaceId)
+    _origDraw(vg, screenW, fontFaceId)
+    _drawLoading(vg, screenW, fontFaceId)
+end
+
 return Toast

@@ -261,11 +261,17 @@ function Wave.BuildStageWaves(stageNum)
         local hpScale    = GetHPScale(stageNum, waveInStage)
         local speedScale = GetSpeedScale(stageNum)
         -- 将缩放系数嵌入 entry，供 BattleManager.SpawnEntry 使用
-        -- Boss entry 需额外乘 tierMult（tier^2.25 幂函数曲线），与 SpawnFromEntry 逻辑保持一致
+        -- Boss / 小怪各有独立 tierMult 指数，两边同步缩放
+        local tier = GetBossTier(stageNum)
+        local bossExp   = Config.BOSS_TIER_EXPONENT   or 1.50
+        local minionExp = Config.MINION_TIER_EXPONENT or 1.00
+        local bossTierMult  = tier ^ bossExp
+        local minionTierMult = tier ^ minionExp
         for _, entry in ipairs(queue) do
             if entry.type == "__boss" then
-                local tierMult = (entry.bossTier or 1) ^ 2.25
-                entry.hpScale = hpScale * tierMult
+                entry.hpScale = hpScale * bossTierMult
+            elseif entry.type ~= "__pause" then
+                entry.hpScale = hpScale * minionTierMult
             else
                 entry.hpScale = hpScale
             end
@@ -338,17 +344,21 @@ local function SpawnFromEntry(entry, stageNum, waveInStage)
     local speedScale = GetSpeedScale(stageNum)
     local globalWave = Wave.GlobalWave(stageNum, waveInStage)
 
+    local tier = mceil(stageNum / 10)
+
     if entry.type == "__boss" then
         local bossDef = entry.bossDef
-        local tier = entry.bossTier
-        local tierMult = tier ^ 2.25
+        local bossExp = Config.BOSS_TIER_EXPONENT or 1.50
+        local tierMult = tier ^ bossExp
         Enemy.CreateBoss(bossDef, globalWave, hpScale * tierMult, speedScale, entry.affixes, tier)
     elseif entry.typeDef then
-        -- 新系统：直接使用携带的完整定义
-        Enemy.CreateEnemyFromDef(entry.typeDef, globalWave, hpScale, speedScale, entry.isElite, entry.affixes)
+        local minionExp = Config.MINION_TIER_EXPONENT or 1.00
+        local tierMult = tier ^ minionExp
+        Enemy.CreateEnemyFromDef(entry.typeDef, globalWave, hpScale * tierMult, speedScale, entry.isElite, entry.affixes)
     else
-        -- 向后兼容：通过 ID 查找
-        Enemy.CreateEnemy(entry.type, globalWave, hpScale, speedScale, entry.isElite, entry.affixes)
+        local minionExp = Config.MINION_TIER_EXPONENT or 1.00
+        local tierMult = tier ^ minionExp
+        Enemy.CreateEnemy(entry.type, globalWave, hpScale * tierMult, speedScale, entry.isElite, entry.affixes)
     end
 end
 

@@ -42,21 +42,23 @@ local BOSS_SPEED_FACTOR  = 0.65
 local ENEMY_REWARD_MULT  = 1.8     -- 敌人奖励 = 资源格 × 1.8
 
 -- 活动时间（与劳动奖章共享）
-local START_DATE, END_DATE
+local _LDD
 do
-    local ok, LDD = pcall(require, "Game.LaborDayData")
-    if ok then
-        START_DATE = LDD.START_DATE
-        END_DATE   = LDD.END_DATE
-    else
-        START_DATE = "2026-04-30"
-        END_DATE   = "2026-05-08"
-    end
+    local ok, mod = pcall(require, "Game.LaborDayData")
+    if ok then _LDD = mod end
 end
 
--- 导出常量
-MDD.START_DATE       = START_DATE
-MDD.END_DATE         = END_DATE
+--- 获取活动开始日期（动态，按服务器配置）
+function MDD.GetStartDate()
+    if _LDD then return _LDD.GetStartDate() end
+    return "2026-04-30"
+end
+
+--- 获取活动结束日期（动态，按服务器配置）
+function MDD.GetEndDate()
+    if _LDD then return _LDD.GetEndDate() end
+    return "2026-05-08"
+end
 MDD.GRID_ROWS        = GRID_ROWS
 MDD.GRID_COLS        = GRID_COLS
 MDD.TOTAL_CELLS      = TOTAL_CELLS
@@ -251,11 +253,11 @@ end
 
 function MDD.IsActive()
     local today = DateUtil.TodayStr()
-    return today >= START_DATE and today <= END_DATE
+    return today >= MDD.GetStartDate() and today <= MDD.GetEndDate()
 end
 
 function MDD.IsExpired()
-    return DateUtil.TodayStr() > END_DATE
+    return DateUtil.TodayStr() > MDD.GetEndDate()
 end
 
 -- ============================================================================

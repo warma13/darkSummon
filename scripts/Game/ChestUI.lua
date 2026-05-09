@@ -259,6 +259,11 @@ function ChestUI.CreateChestDisplay()
 
     -- 掉落概率说明
     local dropDesc = {}
+    -- 挂机收益型宝箱：显示挂机时长说明
+    if def.idleMinutes and def.idleMinutes > 0 and def.idleCurrency then
+        local currName = GetCurrencyName(def.idleCurrency)
+        dropDesc[#dropDesc + 1] = "必得 " .. def.idleMinutes .. "分钟挂机" .. currName
+    end
     for _, d in ipairs(def.drops) do
         local pctStr
         if d.chance >= 1.0 then

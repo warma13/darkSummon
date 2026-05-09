@@ -16,20 +16,27 @@ local LMD = {}
 -- 活动时间（与劳动节签到共用）
 -- ============================================================================
 
-LMD.START_DATE = LaborDayData.START_DATE   -- "2026-05-01"
-LMD.END_DATE   = LaborDayData.END_DATE     -- "2026-05-08"
+--- 获取活动开始日期（动态，按服务器配置）
+function LMD.GetStartDate()
+    return LaborDayData.GetStartDate()
+end
+
+--- 获取活动结束日期（动态，按服务器配置）
+function LMD.GetEndDate()
+    return LaborDayData.GetEndDate()
+end
 
 --- 活动是否正在进行
 ---@return boolean
 function LMD.IsActive()
     local today = DateUtil.TodayStr()
-    return today >= LMD.START_DATE and today <= LMD.END_DATE
+    return today >= LMD.GetStartDate() and today <= LMD.GetEndDate()
 end
 
 --- 活动是否已结束
 ---@return boolean
 function LMD.IsExpired()
-    return DateUtil.TodayStr() > LMD.END_DATE
+    return DateUtil.TodayStr() > LMD.GetEndDate()
 end
 
 -- ============================================================================

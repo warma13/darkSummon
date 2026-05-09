@@ -12,6 +12,7 @@ local Currency = require("Game.Currency")
 local SweepPopup = require("Game.SweepPopup")
 
 local RewardIcon = require("Game.RewardIcon")
+local BossSkillManager = require("Game.BossSkillManager")
 
 local AbyssRift = {}
 
@@ -58,19 +59,9 @@ function AbyssRift.BuildDetailView(ctx)
         height = 50,
         flexDirection = "row",
         alignItems = "center",
-        backgroundColor = S.headerBg,
         flexShrink = 0,
         children = {
-            UI.Panel {
-                width = 50, height = 50,
-                justifyContent = "center", alignItems = "center",
-                onClick = function()
-                    ctx.SetView("list")
-                end,
-                children = {
-                    UI.Label { text = "‹", fontSize = 22, fontColor = S.dim, pointerEvents = "none" },
-                },
-            },
+            UI.Panel { width = 12 },
             UI.Label {
                 text = "🌀 深渊裂隙", fontSize = 20, fontWeight = "bold",
                 fontColor = S.white, pointerEvents = "none",
@@ -151,9 +142,10 @@ function AbyssRift.BuildDetailView(ctx)
     -- 难度选择卡片
     for _, diff in ipairs(AbyssRiftData.DIFFICULTIES) do
         local est = AbyssRiftData.EstimateFullClearDrops(diff.id)
-        local diffColor = diff.id == "normal" and { 120, 200, 120 }
-            or diff.id == "hard" and { 200, 160, 60 }
-            or { 220, 80, 80 }
+        local diffColor = diff.color or { 160, 160, 160 }
+        local stageLabel = diff.stageRange
+            and (diff.stageRange[1] .. "~" .. diff.stageRange[2])
+            or ""
 
         -- 构建右侧按钮组
         local actionButtons = {}
@@ -228,7 +220,7 @@ function AbyssRift.BuildDetailView(ctx)
                                     fontColor = diffColor, pointerEvents = "none",
                                 },
                                 UI.Label {
-                                    text = "×" .. (diff.levelMult % 1 == 0 and tostring(math.floor(diff.levelMult)) or string.format("%.1f", diff.levelMult)),
+                                    text = "Lv." .. stageLabel,
                                     fontSize = 12, fontColor = S.dim, pointerEvents = "none",
                                 },
                             },
@@ -355,9 +347,10 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
 
     local diffCards = {}
     for _, diff in ipairs(AbyssRiftData.DIFFICULTIES) do
-        local diffColor = diff.id == "normal" and { 120, 200, 120 }
-            or diff.id == "hard" and { 200, 160, 60 }
-            or { 220, 80, 80 }
+        local diffColor = diff.color or { 160, 160, 160 }
+        local stageLabel = diff.stageRange
+            and (diff.stageRange[1] .. "~" .. diff.stageRange[2])
+            or ""
         local est = AbyssRiftData.EstimateFullClearDrops(diff.id)
 
         -- 构建按钮组
@@ -432,7 +425,7 @@ function AbyssRift._ShowDifficultyPicker(UI, S, ctx)
                                     fontColor = diffColor, pointerEvents = "none",
                                 },
                                 UI.Label {
-                                    text = "×" .. (diff.levelMult % 1 == 0 and tostring(math.floor(diff.levelMult)) or string.format("%.1f", diff.levelMult)),
+                                    text = "Lv." .. stageLabel,
                                     fontSize = 12, fontColor = S.dim, pointerEvents = "none",
                                 },
                             },
@@ -533,6 +526,14 @@ function AbyssRift.StartBattle(UI, S, ctx, difficultyId)
     local label = config.label
     local totalWaves = config.totalWaves
 
+    -- Boss 技能（通用技能，根据难度 ID 缩放）
+    config.onStart = function()
+        BossSkillManager.InitGeneric("abyss_rift", difficultyId)
+    end
+    config.onUpdate = function(dt)
+        BossSkillManager.Update(dt)
+    end
+
     config.onWin = function(result)
         for w = 1, totalWaves do
             session.currentWave = w
@@ -616,20 +617,34 @@ function AbyssRift.OnSweep(UI, S, ctx)
         return
     end
 
+    local freeLeft = AbyssRiftData.GetRemaining()
     local ticketCount = AbyssRiftData.GetTicketCount()
-    if ticketCount <= 0 then
-        Toast.Show("挑战券不足", { 255, 200, 80 })
+    local totalAvailable = freeLeft + ticketCount
+    if totalAvailable <= 0 then
+        Toast.Show("次数不足（无免费次数或挑战券）", { 255, 200, 80 })
         return
     end
 
     local diffDef = AbyssRiftData.DIFFICULTY_MAP[lastDiff]
     local diffName = diffDef and diffDef.name or lastDiff
 
+    local capturedFreeLeft = freeLeft
     SweepPopup.Show(UI, root, S, {
         title = "深渊裂隙 · " .. diffName .. " 扫荡",
-        maxCount = ticketCount,
+        maxCount = totalAvailable,
         sweepLabel = "波次",
         sweepValue = bestWave .. "/" .. AbyssRiftData.TOTAL_WAVES,
+        costFn = function(count)
+            local free = math.min(count, capturedFreeLeft)
+            local ticket = count - free
+            if free > 0 and ticket > 0 then
+                return "免费 " .. free .. " 次 + 挑战券 " .. ticket .. " 张"
+            elseif free > 0 then
+                return "免费 " .. free .. " 次（不消耗挑战券）"
+            else
+                return "消耗 " .. ticket .. " 张挑战券"
+            end
+        end,
         previewFn = function(count)
             -- 使用 EstimateFullClearDrops 预估单次掉落，乘以次数
             local est = AbyssRiftData.EstimateFullClearDrops(lastDiff)
@@ -672,8 +687,15 @@ function AbyssRift.OnSweep(UI, S, ctx)
             local successCount = 0
 
             for i = 1, count do
-                if AbyssRiftData.GetTicketCount() <= 0 then break end
-                if not AbyssRiftData.ConsumeTicket() then break end
+                -- 优先消耗免费次数，免费用完再消耗挑战券
+                local curFree = AbyssRiftData.GetRemaining()
+                if curFree > 0 then
+                    local ok = AbyssRiftData.ConsumeEntry()
+                    if not ok then break end
+                else
+                    if AbyssRiftData.GetTicketCount() <= 0 then break end
+                    if not AbyssRiftData.ConsumeTicket() then break end
+                end
                 local result = AbyssRiftData.ClaimReward(bestWave, lastDiff)
                 totalDust = totalDust + (result.totalDust or 0)
                 totalSeals = totalSeals + (result.totalSeals or 0)

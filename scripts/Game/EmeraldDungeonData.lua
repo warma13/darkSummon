@@ -623,7 +623,9 @@ function Emerald.CalcTokenReward(clearedWaves, difficultyId, affixBonusPct)
 
     local ratio = CalcRewardRatio(clearedWaves, diff.waves)
     local bonus = 1 + (affixBonusPct or 0) / 100
-    return math.floor(diff.tokenReward * ratio * bonus)
+    local WorldTier = require("Game.WorldTier")
+    local wtMult = WorldTier.GetRewardMult()
+    return math.floor(diff.tokenReward * ratio * bonus * wtMult)
 end
 
 --- 获取部分通关奖励描述
@@ -632,11 +634,14 @@ end
 function Emerald.GetRewardTiers(difficultyId)
     local diff = Emerald.DIFFICULTY_MAP[difficultyId]
     if not diff then return {} end
+    local WorldTier = require("Game.WorldTier")
+    local wtMult = WorldTier.GetRewardMult()
+    local base = diff.tokenReward * wtMult
     return {
         { pct = "< 50%",   ratio = 0,   tokens = 0 },
-        { pct = "≥ 50%",   ratio = 0.3, tokens = math.floor(diff.tokenReward * 0.3) },
-        { pct = "≥ 75%",   ratio = 0.6, tokens = math.floor(diff.tokenReward * 0.6) },
-        { pct = "100%",    ratio = 1.0, tokens = diff.tokenReward },
+        { pct = "≥ 50%",   ratio = 0.3, tokens = math.floor(base * 0.3) },
+        { pct = "≥ 75%",   ratio = 0.6, tokens = math.floor(base * 0.6) },
+        { pct = "100%",    ratio = 1.0, tokens = math.floor(base) },
     }
 end
 

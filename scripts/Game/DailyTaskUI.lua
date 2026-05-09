@@ -11,6 +11,7 @@ local RewardIconMod   = require("Game.RewardIcon")
 local TaskCard        = require("Game.TaskCard")
 local ChestData       = require("Game.ChestData")
 local TodayKey        = require("Game.DateUtil").TodayKey
+local FormatUtil      = require("Game.FormatUtil")
 
 local DailyTaskUI = {}
 
@@ -326,9 +327,9 @@ local function _BuildMilestoneRow(opts)
                 onClick = opts.canClaim and opts.onClaim or nil,
                 children = {
                     UI.Label {
-                        text = opts.canClaim and "领取" or "未达成",
+                        text = opts.canClaim and "领取" or (opts.reached and "已完成" or "未达成"),
                         fontSize = 11,
-                        fontColor = opts.canClaim and S.textWhite or S.textDim,
+                        fontColor = opts.canClaim and S.textWhite or (opts.reached and S.textGreen or S.textDim),
                     },
                 },
             },
@@ -338,9 +339,7 @@ end
 
 --- 格式化大数字
 local function _FormatNum(n)
-    if n >= 10000000 then return math.floor(n / 10000000) .. "kw"
-    elseif n >= 10000 then return math.floor(n / 10000) .. "w"
-    else return tostring(n) end
+    return FormatUtil.FormatNum(n)
 end
 
 function DailyTaskUI._BuildAchievementSection()
@@ -353,7 +352,7 @@ function DailyTaskUI._BuildAchievementSection()
         current  = bestStage,
         target   = stageTarget,
         rewardId = "shadow_essence",
-        rewardAmt = 50,
+        rewardAmt = 1000,
         canClaim = stageCanClaim,
         reached  = stageReached,
         onClaim  = function()
@@ -402,14 +401,15 @@ function DailyTaskUI._BuildAchievementSection()
     })
 
     -- 4) 主线排行榜名次行
+    local rankUnlocked = AchievementData.IsRankUnlocked()
     local crTarget, crCanClaim, crReached, crReward = AchievementData.GetCurrentCampaignRankMilestone()
     local campaignRank, towerRank = AchievementData.GetCachedRanks()
     local campaignRow = _BuildMilestoneRow({
         badge    = "前" .. crTarget,
-        desc     = "主线排名前" .. crTarget,
+        desc     = rankUnlocked and ("主线排名前" .. crTarget) or ("主线排名前" .. crTarget .. " (开服一天后解锁)"),
         current  = campaignRank and campaignRank or 0,
         target   = crTarget,
-        progress = campaignRank and ("第" .. campaignRank .. "名") or "未上榜",
+        progress = (not rankUnlocked) and "🔒 未解锁" or (campaignRank and ("第" .. campaignRank .. "名") or "未上榜"),
         rewardId = "shadow_essence",
         rewardAmt = crReward,
         canClaim = crCanClaim,
@@ -425,10 +425,10 @@ function DailyTaskUI._BuildAchievementSection()
     local trTarget, trCanClaim, trReached, trReward = AchievementData.GetCurrentTowerRankMilestone()
     local towerRow = _BuildMilestoneRow({
         badge    = "前" .. trTarget,
-        desc     = "试练塔排名前" .. trTarget,
+        desc     = rankUnlocked and ("试练塔排名前" .. trTarget) or ("试练塔排名前" .. trTarget .. " (开服一天后解锁)"),
         current  = towerRank and towerRank or 0,
         target   = trTarget,
-        progress = towerRank and ("第" .. towerRank .. "名") or "未上榜",
+        progress = (not rankUnlocked) and "🔒 未解锁" or (towerRank and ("第" .. towerRank .. "名") or "未上榜"),
         rewardId = "shadow_essence",
         rewardAmt = trReward,
         canClaim = trCanClaim,

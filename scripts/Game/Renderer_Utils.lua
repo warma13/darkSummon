@@ -180,6 +180,10 @@ SpriteSheet.Register("nature_elf", {
     path = "image/lingyan_spritesheet_3frames.png",
     cols = 3,   -- 0=idle, 1=attack, 2=projectile
 })
+SpriteSheet.Register("moon", {
+    path = "image/crimson_moon_spritesheet.png",
+    cols = 3,   -- 0=idle, 1=attack, 2=projectile
+})
 SpriteSheet.Register("crimson_night", {
     path = "image/crimson_night_sprite.png",
     cols = 3,   -- 0=idle, 1=attack, 2=projectile

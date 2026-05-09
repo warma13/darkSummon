@@ -340,10 +340,10 @@ function EquipUI.CreateEquipCard(slotDef, info)
                     },
                 },
             },
-            -- 中: 属性信息 (50%)
+            -- 中: 属性信息 (flex填充)
             UI.Panel {
-                width = "50%",
-                flexShrink = 0,
+                flex = 1,
+                flexShrink = 1,
                 gap = 2,
                 children = {
                     -- 装备名
@@ -446,10 +446,10 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
             costWidget = UI.Panel {
                 flexDirection = "row", alignItems = "center", gap = 2,
                 children = {
-                    Currency.IconWidget(UI, "forge_iron", 10),
+                    Currency.IconWidget(UI, "forge_iron", 12),
                     UI.Label {
                         text = FormatNumber(transcendCost),
-                        fontSize = 8,
+                        fontSize = 9,
                         fontColor = canTranscend and { 130, 160, 200, 180 } or { 130, 160, 200, 100 },
                     },
                 },
@@ -531,17 +531,19 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         local tDisabled = (transcendBtn.variant == "ghost")
         local pDisabled = (temperBtn.variant == "ghost")
         return UI.Panel {
-            width = "20%",
+            width = 86,
             flexShrink = 0,
             justifyContent = "center",
             alignItems = "center",
-            gap = 2,
+            gap = 4,
             children = {
                 UI.Button {
                     text = transcendBtn.text,
-                    fontSize = 10,
+                    fontSize = 12,
+                    fontWeight = "bold",
                     variant = tDisabled and "outline" or transcendBtn.variant,
-                    width = "100%", height = 26,
+                    width = "100%", height = 32,
+                    borderRadius = 6,
                     backgroundColor = tDisabled and { 50, 45, 65, 180 } or nil,
                     textColor = tDisabled and { 120, 110, 100, 160 } or nil,
                     borderColor = tDisabled and { 70, 60, 90, 120 } or nil,
@@ -550,9 +552,11 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
                 transcendBtn.costWidget,
                 UI.Button {
                     text = temperBtn.text,
-                    fontSize = 10,
+                    fontSize = 12,
+                    fontWeight = "bold",
                     variant = pDisabled and "outline" or temperBtn.variant,
-                    width = "100%", height = 26,
+                    width = "100%", height = 32,
+                    borderRadius = 6,
                     backgroundColor = pDisabled and { 50, 45, 65, 180 } or nil,
                     textColor = pDisabled and { 120, 110, 100, 160 } or nil,
                     borderColor = pDisabled and { 70, 60, 90, 120 } or nil,
@@ -571,10 +575,10 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         costWidget = UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 2,
             children = {
-                Currency.IconWidget(UI, "forge_iron", 11),
+                Currency.IconWidget(UI, "forge_iron", 12),
                 UI.Label {
                     text = tostring(upgradeCost),
-                    fontSize = 9,
+                    fontSize = 10,
                     fontColor = { 130, 160, 200, 100 },
                 },
             },
@@ -603,10 +607,10 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         costWidget = UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 2,
             children = {
-                Currency.IconWidget(UI, "forge_iron", 11),
+                Currency.IconWidget(UI, "forge_iron", 12),
                 UI.Label {
                     text = tostring(breakCost),
-                    fontSize = 9,
+                    fontSize = 10,
                     fontColor = canBreak and { 130, 160, 200, 180 } or { 130, 160, 200, 100 },
                 },
             },
@@ -645,10 +649,10 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         costWidget = UI.Panel {
             flexDirection = "row", alignItems = "center", gap = 2,
             children = {
-                Currency.IconWidget(UI, "forge_iron", 11),
+                Currency.IconWidget(UI, "forge_iron", 12),
                 UI.Label {
                     text = FormatNumber(costNum),
-                    fontSize = 9,
+                    fontSize = 10,
                     fontColor = canUpgrade and { 130, 160, 200, 180 } or { 130, 160, 200, 100 },
                 },
             },
@@ -659,7 +663,7 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
     local btnDisabled = (btnVariant == "ghost")
 
     return UI.Panel {
-        width = "20%",
+        width = 86,
         flexShrink = 0,
         justifyContent = "center",
         alignItems = "center",
@@ -667,9 +671,11 @@ function EquipUI.CreateCardButtons(slotDef, info, isMaxLevel, isAtTierMax, isAtH
         children = {
             UI.Button {
                 text = btnText,
-                fontSize = 11,
+                fontSize = 13,
+                fontWeight = "bold",
                 variant = btnDisabled and "outline" or btnVariant,
-                width = "100%", height = 32,
+                width = "100%", height = 38,
+                borderRadius = 6,
                 backgroundColor = btnDisabled and { 50, 45, 65, 180 } or nil,
                 textColor = btnDisabled and { 120, 110, 100, 160 } or nil,
                 borderColor = btnDisabled and { 70, 60, 90, 120 } or nil,

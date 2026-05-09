@@ -218,6 +218,17 @@ function LaborDay._BuildDayCard(ctx, dayIndex)
 
     local dayLabel = isFinal and ("第" .. dayIndex .. "天 🎁 终极大奖") or ("第" .. dayIndex .. "天")
 
+    -- 可领取状态 → 点击领取奖励
+    local onClickClaim = nil
+    if status == "available" then
+        onClickClaim = function()
+            if LDD.ClaimDay(dayIndex) then
+                local WeeklyActivityUI = require("Game.WeeklyActivityUI")
+                WeeklyActivityUI.Refresh()
+            end
+        end
+    end
+
     return UI.Panel {
         width = "100%",
         flexDirection = "row",
@@ -229,6 +240,7 @@ function LaborDay._BuildDayCard(ctx, dayIndex)
         paddingTop = 12, paddingBottom = 12,
         paddingLeft = 14, paddingRight = 14,
         gap = 10,
+        onClick = onClickClaim,
         children = {
             -- 左侧：天数标签
             UI.Panel {

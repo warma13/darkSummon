@@ -103,6 +103,9 @@ function State.Reset()
     -- 世界BOSS状态
     State.worldBossActive = false       -- 是否在世界BOSS战斗中
     State.worldBossTotalDamage = 0      -- 本场对BOSS累计伤害
+
+    -- 训练木桩实时调控
+    State.trainingDummy = nil           -- { defMult, resMult, movingEnabled, dummyDef }
     State.worldBossWarning = nil        -- 销毁预警 { timer, targetTowerId }
     State.worldBoss = nil               -- 世界BOSS直接引用（避免每帧O(E)扫描）
 
@@ -231,13 +234,15 @@ function State.AddFloatingText(ft)
     if #fts < State.MAX_FLOATING_TEXTS then
         fts[#fts + 1] = ft
     else
-        -- 找剩余 life 最小的槽位替换，回收被替换的旧飘字
-        local minLife = fts[1].life
-        local minIdx = 1
-        for i = 2, #fts do
-            if fts[i].life < minLife then
-                minLife = fts[i].life
-                minIdx = i
+        -- 随机采样 4 个槽位取 life 最小者替换（O(1) 近似，避免 O(N=150) 全扫描）
+        local n = #fts
+        local minIdx = math.random(1, n)
+        local minLife = fts[minIdx].life
+        for _ = 1, 3 do
+            local idx = math.random(1, n)
+            if fts[idx].life < minLife then
+                minLife = fts[idx].life
+                minIdx = idx
             end
         end
         State.RecycleFloatingText(fts[minIdx])

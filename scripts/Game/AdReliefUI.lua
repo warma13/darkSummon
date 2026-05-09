@@ -9,6 +9,11 @@ local RC             = require("Game.RewardController")
 local RewardIconMod  = require("Game.RewardIcon")
 local PrivilegeData  = require("Game.PrivilegeData")
 
+--- 获取免广卡阈值（委托给数据层）
+local function GetThreshold()
+    return AdReliefData.GetAdFreeThreshold and AdReliefData.GetAdFreeThreshold() or 20
+end
+
 local AdReliefUI = {}
 
 ---@type any
@@ -107,7 +112,7 @@ local function RefreshPrivilegePanel()
     end
     if _progressLabelPriv then
         local maxThreshold = cards[#cards].threshold
-        _progressLabelPriv:SetText("总积分: " .. pts .. "/" .. maxThreshold .. "  (每天看满20次广告 = 1点)")
+        _progressLabelPriv:SetText("总积分: " .. pts .. "/" .. maxThreshold .. "  (每天看满" .. GetThreshold() .. "次广告 = 1点)")
     end
 
     -- buff 值
@@ -160,14 +165,14 @@ local function RefreshUI()
     if label1 then
         label1:SetText("今日看广告: " .. math.min(todayAds, 9) .. "/9")
     end
-    -- 第二行：9 ~ 20（起点为 9）
+    -- 第二行：9 ~ 20（起点为 9，这段范围固定，非1服第三行处理 20~30）
     if _progressBar2 then
-        local pct2 = math.max(0, math.min(1, (todayAds - 9) / (20 - 9)))
+        local pct2 = math.max(0, math.min(1, (todayAds - 9) / 11))
         _progressBar2:SetStyle({ width = math.floor(pct2 * 100) .. "%" })
     end
     local label2 = pageRoot:FindById("progressLabel2")
     if label2 then
-        local cur2 = math.max(0, todayAds - 9)
+        local cur2 = math.min(math.max(0, todayAds - 9), 11)
         label2:SetText("进阶奖励: " .. cur2 .. "/11")
     end
 
@@ -534,7 +539,8 @@ local function CreatePrivilegePanel()
                     },
                     -- 提示
                     UI.Label {
-                        text = "每天看满20次广告获得1点，累计解锁更高等级特权",
+                        id = "privBottomHint",
+                        text = "每天看满" .. GetThreshold() .. "次广告获得1点，累计解锁更高等级特权",
                         fontSize = 10,
                         fontColor = { 100, 90, 120, 130 },
                         textAlign = "center",
@@ -548,6 +554,69 @@ local function CreatePrivilegePanel()
 
     RefreshPrivilegePanel()
     return panel
+end
+
+--- 创建里程碑行区块（一组里程碑节点 + 进度条）
+---@param milestones table[] 数据层返回的里程碑配置
+---@param startIdx number 起始索引（在完整列表中的位置）
+---@param endIdx number 结束索引
+---@param rangeLabel string 范围标签（如 "0~9"）
+---@param progressBarRef any|nil 进度条引用
+---@param labelId string label 的 id
+---@return any UI.Panel
+local function CreateMilestoneRow(milestones, startIdx, endIdx, rangeLabel, progressBarRef, labelId)
+    local nodes = {}
+    for i = startIdx, endIdx do
+        local ms = milestones[i]
+        if ms then
+            -- 简化 rewards 显示（只需 id 和 amount）
+            local displayRewards = {}
+            for _, r in ipairs(ms.rewards) do
+                displayRewards[#displayRewards + 1] = { id = r.id, amount = r.amount }
+            end
+            nodes[#nodes + 1] = CreateMilestoneNode(i, { threshold = ms.threshold, rewards = displayRewards })
+        end
+    end
+
+    local children = {
+        UI.Label {
+            text = rangeLabel,
+            fontSize = 12,
+            fontColor = { 180, 170, 200, 200 },
+            id = labelId,
+        },
+    }
+
+    if progressBarRef then
+        children[#children + 1] = UI.Panel {
+            width = "100%", height = 8,
+            backgroundColor = { 40, 35, 60, 200 },
+            borderRadius = 4,
+            overflow = "hidden",
+            children = { progressBarRef },
+        }
+    end
+
+    children[#children + 1] = UI.Panel {
+        width = "100%",
+        flexDirection = "row",
+        justifyContent = "space-around",
+        alignItems = "flex-start",
+        children = nodes,
+    }
+
+    return UI.Panel {
+        width = "100%",
+        backgroundColor = { 25, 30, 50, 220 },
+        borderRadius = 12,
+        borderWidth = 1,
+        borderColor = { 80, 60, 120, 100 },
+        paddingTop = 14, paddingBottom = 14,
+        paddingLeft = 16, paddingRight = 16,
+        flexDirection = "column",
+        gap = 8,
+        children = children,
+    }
 end
 
 ---@param uiModule any
@@ -630,19 +699,10 @@ function AdReliefUI.CreatePage(uiModule)
                     },
                 },
             },
-            -- 内容区（可滚动）
-            UI.ScrollView {
-                width = "100%",
-                flexGrow = 1, flexShrink = 1, flexBasis = 0,
-                contentContainerStyle = {
-                    flexDirection = "column",
-                    alignItems = "center",
-                    paddingTop = 16, paddingBottom = 16,
-                    paddingLeft = 16, paddingRight = 16,
-                    gap = 16,
-                },
-                children = {
-                    -- 免广卡状态区
+            -- 内容区（可滚动）— 先构建 children 数组，避免 table.unpack 在中间位置只展开一项
+            (function()
+                -- 1. 免广卡状态区
+                local scrollChildren = {
                     UI.Panel {
                         width = "100%",
                         backgroundColor = { 25, 30, 50, 220 },
@@ -678,7 +738,7 @@ function AdReliefUI.CreatePage(uiModule)
                             },
                             UI.Label {
                                 id = "adFreeDesc",
-                                text = "每日看满20次广告，当天免看所有广告",
+                                text = "每日看满" .. GetThreshold() .. "次广告，当天免看所有广告",
                                 fontSize = 12,
                                 fontColor = { 160, 150, 180, 180 },
                             },
@@ -707,148 +767,103 @@ function AdReliefUI.CreatePage(uiModule)
                             },
                         },
                     },
-                    -- 进度条区：第一行 (3, 6, 9)
-                    UI.Panel {
-                        width = "100%",
-                        backgroundColor = { 25, 30, 50, 220 },
-                        borderRadius = 12,
-                        borderWidth = 1,
-                        borderColor = { 80, 60, 120, 100 },
-                        paddingTop = 14, paddingBottom = 14,
+                }
+
+                -- 2. 里程碑行：从数据层动态生成
+                local allMs = AdReliefData.GetMilestones()
+                local threshold = GetThreshold()
+
+                -- 第一行：0~9 次（前3个里程碑）
+                scrollChildren[#scrollChildren + 1] = CreateMilestoneRow(
+                    allMs, 1, 3,
+                    "今日看广告: 0~9 次",
+                    _progressBar1,
+                    "progressLabel1"
+                )
+
+                -- 第二行：9~20 次（第4~7个里程碑）
+                scrollChildren[#scrollChildren + 1] = CreateMilestoneRow(
+                    allMs, 4, 7,
+                    "看广告: 9~20 次",
+                    _progressBar2,
+                    "progressLabel2"
+                )
+
+                -- 第三行（非1服才有）：20~30 次（额外里程碑）
+                if #allMs > 7 then
+                    scrollChildren[#scrollChildren + 1] = CreateMilestoneRow(
+                        allMs, 8, #allMs,
+                        "看广告: 20~" .. threshold .. " 次",
+                        nil,
+                        "progressLabel3"
+                    )
+                end
+
+                -- 3. 加速信息区
+                scrollChildren[#scrollChildren + 1] = UI.Panel {
+                    width = "100%",
+                    backgroundColor = { 25, 30, 50, 220 },
+                    borderRadius = 12,
+                    borderWidth = 1,
+                    borderColor = { 200, 180, 60, 80 },
+                    paddingTop = 14, paddingBottom = 14,
+                    paddingLeft = 20, paddingRight = 20,
+                    flexDirection = "column",
+                    gap = 6,
+                    children = {
+                        UI.Label {
+                            text = "2倍速加成",
+                            fontSize = 16,
+                            fontColor = { 255, 220, 100, 255 },
+                            fontWeight = "bold",
+                        },
+                        _bonusLabel,
+                        _streakLabel,
+                        -- 规则说明
+                        UI.Panel {
+                            width = "100%", height = 1,
+                            marginTop = 4, marginBottom = 4,
+                            backgroundColor = { 100, 80, 60, 60 },
+                        },
+                        UI.Label {
+                            text = "看广告获得战斗加速时长（2倍速）",
+                            fontSize = 11,
+                            fontColor = { 120, 110, 130, 140 },
+                        },
+                        UI.Label {
+                            text = "每日≥3次广告计入连续天数",
+                            fontSize = 11,
+                            fontColor = { 120, 110, 130, 140 },
+                        },
+                        UI.Label {
+                            text = "连续1天: 2h/次 | 连续3天: 3h/次",
+                            fontSize = 11,
+                            fontColor = { 120, 110, 130, 140 },
+                        },
+                        UI.Label {
+                            text = "中断则每天减1h，最低1h/次",
+                            fontSize = 11,
+                            fontColor = { 120, 110, 130, 140 },
+                        },
+                    },
+                }
+
+                -- 4. 特权加成区
+                scrollChildren[#scrollChildren + 1] = CreatePrivilegePanel()
+
+                return UI.ScrollView {
+                    width = "100%",
+                    flexGrow = 1, flexShrink = 1, flexBasis = 0,
+                    contentContainerStyle = {
+                        flexDirection = "column",
+                        alignItems = "center",
+                        paddingTop = 16, paddingBottom = 16,
                         paddingLeft = 16, paddingRight = 16,
-                        flexDirection = "column",
-                        gap = 8,
-                        children = {
-                            UI.Label {
-                                text = "今日看广告: 0~9 次",
-                                fontSize = 12,
-                                fontColor = { 180, 170, 200, 200 },
-                                id = "progressLabel1",
-                            },
-                            -- 进度条
-                            UI.Panel {
-                                width = "100%", height = 8,
-                                backgroundColor = { 40, 35, 60, 200 },
-                                borderRadius = 4,
-                                overflow = "hidden",
-                                children = { _progressBar1 },
-                            },
-                            -- 里程碑节点
-                            UI.Panel {
-                                width = "100%",
-                                flexDirection = "row",
-                                justifyContent = "space-around",
-                                alignItems = "flex-start",
-                                children = {
-                                    CreateMilestoneNode(1, { threshold = 3,  rewards = {{ id = "nether_crystal_pack", amount = 1 }} }),
-                                    CreateMilestoneNode(2, { threshold = 6,  rewards = {{ id = "dungeon_ticket", amount = 1 }} }),
-                                    CreateMilestoneNode(3, { threshold = 9,  rewards = {{ id = "nether_crystal_pack", amount = 4 }} }),
-                                },
-                            },
-                        },
+                        gap = 16,
                     },
-                    -- 进度条区：第二行 (12, 15, 17, 20)
-                    UI.Panel {
-                        width = "100%",
-                        backgroundColor = { 25, 30, 50, 220 },
-                        borderRadius = 12,
-                        borderWidth = 1,
-                        borderColor = { 80, 60, 120, 100 },
-                        paddingTop = 14, paddingBottom = 14,
-                        paddingLeft = 16, paddingRight = 16,
-                        flexDirection = "column",
-                        gap = 8,
-                        children = {
-                            UI.Label {
-                                text = "看广告: 9~20 次",
-                                fontSize = 12,
-                                fontColor = { 180, 170, 200, 200 },
-                                id = "progressLabel2",
-                            },
-                            -- 进度条
-                            UI.Panel {
-                                width = "100%", height = 8,
-                                backgroundColor = { 40, 35, 60, 200 },
-                                borderRadius = 4,
-                                overflow = "hidden",
-                                children = { _progressBar2 },
-                            },
-                            -- 里程碑节点
-                            UI.Panel {
-                                width = "100%",
-                                flexDirection = "row",
-                                justifyContent = "space-around",
-                                alignItems = "flex-start",
-                                children = {
-                                    CreateMilestoneNode(4, { threshold = 12, rewards = {
-                                        { id = "shadow_essence_bag", amount = 2 }, { id = "dungeon_ticket", amount = 1 },
-                                    }}),
-                                    CreateMilestoneNode(5, { threshold = 15, rewards = {
-                                        { id = "devour_stone", amount = 3000 }, { id = "dungeon_ticket", amount = 2 },
-                                    }}),
-                                    CreateMilestoneNode(6, { threshold = 17, rewards = {
-                                        { id = "trial_ticket", amount = 3 }, { id = "recruit_ticket_select_box", amount = 10 },
-                                    }}),
-                                    CreateMilestoneNode(7, { threshold = 20, rewards = {
-                                        { id = "boss_ticket", amount = 1 }, { id = "shadow_essence_bag", amount = 2 },
-                                        { id = "nether_crystal_pack", amount = 4 }, { id = "recruit_ticket_select_box", amount = 20 },
-                                    }}),
-                                },
-                            },
-                        },
-                    },
-                    -- 加速信息区
-                    UI.Panel {
-                        width = "100%",
-                        backgroundColor = { 25, 30, 50, 220 },
-                        borderRadius = 12,
-                        borderWidth = 1,
-                        borderColor = { 200, 180, 60, 80 },
-                        paddingTop = 14, paddingBottom = 14,
-                        paddingLeft = 20, paddingRight = 20,
-                        flexDirection = "column",
-                        gap = 6,
-                        children = {
-                            UI.Label {
-                                text = "2倍速加成",
-                                fontSize = 16,
-                                fontColor = { 255, 220, 100, 255 },
-                                fontWeight = "bold",
-                            },
-                            _bonusLabel,
-                            _streakLabel,
-                            -- 规则说明
-                            UI.Panel {
-                                width = "100%", height = 1,
-                                marginTop = 4, marginBottom = 4,
-                                backgroundColor = { 100, 80, 60, 60 },
-                            },
-                            UI.Label {
-                                text = "看广告获得战斗加速时长（2倍速）",
-                                fontSize = 11,
-                                fontColor = { 120, 110, 130, 140 },
-                            },
-                            UI.Label {
-                                text = "每日≥3次广告计入连续天数",
-                                fontSize = 11,
-                                fontColor = { 120, 110, 130, 140 },
-                            },
-                            UI.Label {
-                                text = "连续1天: 2h/次 | 连续3天: 3h/次",
-                                fontSize = 11,
-                                fontColor = { 120, 110, 130, 140 },
-                            },
-                            UI.Label {
-                                text = "中断则每天减1h，最低1h/次",
-                                fontSize = 11,
-                                fontColor = { 120, 110, 130, 140 },
-                            },
-                        },
-                    },
-                    -- 特权加成区（左右切换）
-                    CreatePrivilegePanel(),
-                },
-            },
+                    children = scrollChildren,
+                }
+            end)(),
             -- 底部按钮栏：左返回 + 中一键领取
             UI.Panel {
                 width = "100%",

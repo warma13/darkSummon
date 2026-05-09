@@ -307,6 +307,7 @@ function GameUI.ShowSettingsPopup()
 
     local SlotSave = require("Game.SlotSaveSystem")
     local Toast    = require("Game.Toast")
+    local WorldTier = require("Game.WorldTier")
 
     local function closeModal()
         local m = ctx.uiRoot and ctx.uiRoot:FindById("settingsModal")
@@ -444,6 +445,90 @@ function GameUI.ShowSettingsPopup()
                         },
                     },
 
+                    -- 世界等级选择
+                    ctx.UI.Panel {
+                        width = "100%",
+                        gap = 4,
+                        children = (function()
+                            local FeatureGate = require("Game.FeatureGate")
+                            local bestStage = FeatureGate.GetBestStage()
+                            local options = {}
+                            for _, tier in ipairs(WorldTier.TIERS) do
+                                local unlocked = WorldTier.IsUnlocked(tier.id, bestStage)
+                                local label = tier.name .. "  " .. tier.desc
+                                if not unlocked then
+                                    label = tier.name .. "  (通关" .. tier.unlockStage .. "关解锁)"
+                                end
+                                options[#options + 1] = {
+                                    value = tier.id,
+                                    label = label,
+                                    disabled = not unlocked,
+                                }
+                            end
+                            local cur = WorldTier.GetCurrent()
+                            local function tierInfoText(t)
+                                return "怪物×" .. t.hpMult .. "  奖励+" .. math.floor((t.rewardMult - 1) * 100) .. "%"
+                            end
+                            return {
+                                ctx.UI.Label {
+                                    text = "世界等级",
+                                    fontSize = 13,
+                                    fontColor = { 180, 160, 220, 255 },
+                                },
+                                ctx.UI.Dropdown {
+                                    options = options,
+                                    value = WorldTier.GetCurrentId(),
+                                    width = "100%",
+                                    height = 34,
+                                    fontSize = 13,
+                                    maxVisibleItems = 5,
+                                    onChange = function(self, val)
+                                        -- 副本战斗中禁止切换（敌人数值已预计算，切换无效且会导致奖励倍率不一致）
+                                        local BM = require("Game.BattleManager")
+                                        local mode = BM.GetMode()
+                                        if mode and mode ~= "campaign" then
+                                            Toast.Show("副本战斗中无法切换世界等级，请返回主线后再切换")
+                                            self:SetValue(WorldTier.GetCurrentId())
+                                            return
+                                        end
+                                        -- 选择了当前等级，无需切换
+                                        if val == WorldTier.GetCurrentId() then return end
+                                        -- 目标等级信息
+                                        local targetTier = WorldTier.TIERS[val]
+                                        if not targetTier then return end
+                                        local curTier = WorldTier.GetCurrent()
+                                        -- 弹出确认弹窗
+                                        local dropdownRef = self
+                                        GameUI._ShowWorldTierConfirm(curTier, targetTier, bestStage, function(confirmed)
+                                            if confirmed then
+                                                local ok = WorldTier.Set(val, bestStage)
+                                                if ok then
+                                                    local t = WorldTier.GetCurrent()
+                                                    Toast.Show("世界等级: " .. t.name .. " — " .. t.desc)
+                                                    local infoLabel = ctx.uiRoot:FindById("worldTierInfoLabel")
+                                                    if infoLabel then
+                                                        infoLabel:SetText(tierInfoText(t))
+                                                        infoLabel:SetStyle({ fontColor = { t.color[1], t.color[2], t.color[3], 180 } })
+                                                    end
+                                                    GameUI.RetryStage()
+                                                end
+                                            else
+                                                -- 用户取消，恢复下拉框
+                                                dropdownRef:SetValue(WorldTier.GetCurrentId())
+                                            end
+                                        end)
+                                    end,
+                                },
+                                ctx.UI.Label {
+                                    id = "worldTierInfoLabel",
+                                    text = tierInfoText(cur),
+                                    fontSize = 10,
+                                    fontColor = { cur.color[1], cur.color[2], cur.color[3], 180 },
+                                },
+                            }
+                        end)(),
+                    },
+
                     ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 160, 120, 255, 40 } },
 
                     -- 手动保存
@@ -489,18 +574,34 @@ function GameUI.ShowSettingsPopup()
                             IdleScreen.Show()
                         end,
                     },
-                    -- 检测新版本
-                    ctx.UI.Button {
-                        text = "检测新版本",
-                        fontSize = 14,
+                    -- 检测新版本（带红点容器）
+                    ctx.UI.Panel {
                         width = "100%",
-                        height = 40,
-                        borderRadius = 8,
-                        variant = "outline",
-                        onClick = function(self)
-                            local GameVersion = require("Game.GameVersion")
-                            GameVersion.CheckAndReport(closeModal)
-                        end,
+                        children = {
+                            ctx.UI.Button {
+                                text = "检测新版本",
+                                fontSize = 14,
+                                width = "100%",
+                                height = 40,
+                                borderRadius = 8,
+                                variant = "outline",
+                                onClick = function(self)
+                                    local GameVersion = require("Game.GameVersion")
+                                    GameVersion.CheckAndReport(closeModal)
+                                end,
+                            },
+                            -- 红点
+                            ctx.UI.Panel {
+                                id = "checkVersionRedDot",
+                                position = "absolute",
+                                top = 4, right = 4,
+                                width = 10, height = 10,
+                                borderRadius = 5,
+                                backgroundColor = { 255, 50, 50, 255 },
+                                visible = require("Game.GameVersion").HasNewVersion(),
+                                pointerEvents = "none",
+                            },
+                        },
                     },
 
                     ctx.UI.Panel { width = "100%", height = 1, backgroundColor = { 160, 120, 255, 40 } },
@@ -614,7 +715,6 @@ local function StartStage(stageNum)
         stageNum = stageNum,
         onWin    = function() GameUI.DoStageClear() end,
         onLose   = function() GameUI.DoGameOver() end,
-        initialDarkSoul = Config.INITIAL_DARK_SOUL,
     })
     print("[GameUI] Starting stage " .. stageNum)
 end
@@ -692,6 +792,179 @@ function GameUI.DoGameOver()
     local failedStage = State.currentStage
     CS.SettleGameOver(failedStage, State.currentWave)
     StartStage(failedStage)
+end
+
+--- 世界等级切换确认弹窗
+---@param curTier table 当前等级
+---@param targetTier table 目标等级
+---@param bestStage number 最高通关
+---@param callback fun(confirmed:boolean)
+function GameUI._ShowWorldTierConfirm(curTier, targetTier, bestStage, callback)
+    if not ctx.uiRoot or not ctx.UI then
+        callback(true)
+        return
+    end
+
+    -- 移除已有弹窗
+    local old = ctx.uiRoot:FindById("worldTierConfirmModal")
+    if old then ctx.uiRoot:RemoveChild(old) end
+
+    local isUpgrade = targetTier.id > curTier.id
+    local tc = targetTier.color
+
+    local function closeConfirm(confirmed)
+        local m = ctx.uiRoot and ctx.uiRoot:FindById("worldTierConfirmModal")
+        if m then ctx.uiRoot:RemoveChild(m) end
+        if callback then callback(confirmed) end
+    end
+
+    local modal = ctx.UI.Panel {
+        id = "worldTierConfirmModal",
+        position = "absolute",
+        top = 0, left = 0, right = 0, bottom = 0,
+        backgroundColor = { 0, 0, 0, 180 },
+        justifyContent = "center",
+        alignItems = "center",
+        pointerEvents = "auto",
+        zIndex = 500,
+        onClick = function(self)
+            closeConfirm(false)
+        end,
+        children = {
+            ctx.UI.Panel {
+                width = 280,
+                backgroundColor = { 20, 14, 40, 250 },
+                borderRadius = 14,
+                borderWidth = 2,
+                borderColor = { tc[1], tc[2], tc[3], 200 },
+                paddingTop = 20, paddingBottom = 18,
+                paddingLeft = 20, paddingRight = 20,
+                gap = 12,
+                alignItems = "center",
+                pointerEvents = "auto",
+                onClick = function() end,  -- 阻止冒泡
+                children = {
+                    -- 标题
+                    ctx.UI.Label {
+                        text = isUpgrade and "提升世界等级" or "降低世界等级",
+                        fontSize = 18,
+                        fontColor = { tc[1], tc[2], tc[3], 255 },
+                        fontWeight = "bold",
+                    },
+                    -- 切换方向
+                    ctx.UI.Panel {
+                        flexDirection = "row",
+                        alignItems = "center",
+                        gap = 8,
+                        children = {
+                            ctx.UI.Label {
+                                text = curTier.name,
+                                fontSize = 15,
+                                fontColor = { curTier.color[1], curTier.color[2], curTier.color[3], 255 },
+                                fontWeight = "bold",
+                            },
+                            ctx.UI.Label {
+                                text = "→",
+                                fontSize = 16,
+                                fontColor = { 200, 190, 220, 200 },
+                            },
+                            ctx.UI.Label {
+                                text = targetTier.name,
+                                fontSize = 15,
+                                fontColor = { tc[1], tc[2], tc[3], 255 },
+                                fontWeight = "bold",
+                            },
+                        },
+                    },
+                    -- 分隔线
+                    ctx.UI.Panel { width = "90%", height = 1, backgroundColor = { tc[1], tc[2], tc[3], 60 } },
+                    -- 描述
+                    ctx.UI.Label {
+                        text = targetTier.desc,
+                        fontSize = 13,
+                        fontColor = { 200, 190, 230, 220 },
+                        textAlign = "center",
+                    },
+                    -- 倍率信息
+                    ctx.UI.Panel {
+                        width = "100%",
+                        gap = 4,
+                        paddingLeft = 8, paddingRight = 8,
+                        children = {
+                            ctx.UI.Label {
+                                text = "怪物强度: ×" .. targetTier.hpMult,
+                                fontSize = 12,
+                                fontColor = isUpgrade and { 255, 120, 80, 200 } or { 100, 220, 140, 200 },
+                            },
+                            ctx.UI.Label {
+                                text = "奖励倍率: +" .. math.floor((targetTier.rewardMult - 1) * 100) .. "%",
+                                fontSize = 12,
+                                fontColor = isUpgrade and { 100, 220, 140, 200 } or { 255, 120, 80, 200 },
+                            },
+                        },
+                    },
+                    -- 提示
+                    ctx.UI.Label {
+                        text = "切换后将重新开始当前关卡",
+                        fontSize = 11,
+                        fontColor = { 180, 160, 120, 180 },
+                    },
+                    -- 分隔线
+                    ctx.UI.Panel { width = "90%", height = 1, backgroundColor = { tc[1], tc[2], tc[3], 40 } },
+                    -- 按钮行
+                    ctx.UI.Panel {
+                        width = "100%",
+                        flexDirection = "row",
+                        justifyContent = "center",
+                        gap = 12,
+                        children = {
+                            -- 取消
+                            ctx.UI.Panel {
+                                paddingLeft = 24, paddingRight = 24,
+                                paddingTop = 10, paddingBottom = 10,
+                                backgroundColor = { 60, 50, 80, 220 },
+                                borderRadius = 8,
+                                borderWidth = 1,
+                                borderColor = { 120, 100, 160, 150 },
+                                justifyContent = "center",
+                                alignItems = "center",
+                                onClick = function() closeConfirm(false) end,
+                                children = {
+                                    ctx.UI.Label {
+                                        text = "取消",
+                                        fontSize = 14,
+                                        fontColor = { 200, 190, 220, 255 },
+                                    },
+                                },
+                            },
+                            -- 确认
+                            ctx.UI.Panel {
+                                paddingLeft = 24, paddingRight = 24,
+                                paddingTop = 10, paddingBottom = 10,
+                                backgroundColor = { tc[1], tc[2], tc[3], 230 },
+                                borderRadius = 8,
+                                borderWidth = 1,
+                                borderColor = { tc[1], tc[2], tc[3], 255 },
+                                justifyContent = "center",
+                                alignItems = "center",
+                                onClick = function() closeConfirm(true) end,
+                                children = {
+                                    ctx.UI.Label {
+                                        text = "确认切换",
+                                        fontSize = 14,
+                                        fontColor = { 255, 255, 255, 255 },
+                                        fontWeight = "bold",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    ctx.uiRoot:AddChild(modal)
 end
 
 

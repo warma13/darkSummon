@@ -111,6 +111,7 @@ function BattleFlow.ExitDungeon()
             wave = State.currentWave,
             totalWaves = BM.config.totalWaves,
             score = State.score,
+            totalDamage = BM.config.mode == "world_boss" and State.worldBossTotalDamage or nil,
         }
         onExit(result, doExitCleanup)
         return

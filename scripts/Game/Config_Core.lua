@@ -6,10 +6,36 @@ local function apply(Config)
 -- ============================================================================
 -- 游戏基础设置
 -- ============================================================================
-Config.SERVER_START_DATE        = "2026-04-12"  -- 开服日期（YYYY-MM-DD）
-Config.WEEKLY_ACTIVITY_START    = "2026-04-13"  -- 宝箱周活动起始日期（提前1周测试黑市周）
-Config.LIMITED_BANNER_START     = "2026-04-14"  -- 限定池起始日期
-Config.COSTUME_SIGN_IN_START    = "2026-04-18"  -- 暗影之翼时装签到活动起始日期（YYYY-MM-DD）
+-- 各服日期配置（按 serverId 索引）
+Config.SERVER_CONFIGS = {
+    [1] = {  -- 1服：征途之始（日期来源：git 历史）
+        SERVER_START_DATE     = "2026-04-12",
+        WEEKLY_ACTIVITY_START = "2026-04-13",
+        LIMITED_BANNER_START  = "2026-04-14",
+        NATURE_BANNER_START   = "2026-04-22",
+        COSTUME_SIGN_IN_START = "2026-04-18",
+        LABOR_DAY_START       = "2026-04-30",
+        LABOR_DAY_END         = "2026-05-08",
+    },
+    [2] = {  -- 2服：暗影新途
+        SERVER_START_DATE     = "2026-05-03",
+        WEEKLY_ACTIVITY_START = "2026-05-03",
+        LIMITED_BANNER_START  = "2026-05-03",
+        NATURE_BANNER_START   = "2026-05-03",
+        COSTUME_SIGN_IN_START = "2026-05-03",
+        LABOR_DAY_START       = "2026-05-03",
+        LABOR_DAY_END         = "2026-05-11",
+    },
+}
+
+-- 当前生效的日期（默认2服，StartGame 时按 serverId 覆盖）
+Config.SERVER_START_DATE        = "2026-05-03"
+Config.WEEKLY_ACTIVITY_START    = "2026-05-03"
+Config.LIMITED_BANNER_START     = "2026-05-03"
+Config.NATURE_BANNER_START      = "2026-05-03"
+Config.COSTUME_SIGN_IN_START    = "2026-05-03"
+Config.LABOR_DAY_START          = "2026-05-03"
+Config.LABOR_DAY_END            = "2026-05-11"
 Config.TITLE = "Dark Merge TD"
 Config.INITIAL_DARK_SOUL = 260     -- 开局初始暗魂（默认值，可被 BattleManager 配置覆盖）
 Config.SUMMON_BASE_COST = 50       -- 召唤初始消耗（暗魂）
@@ -355,9 +381,9 @@ Config.TOWER_TYPES = {
         critDmgBonus = 0.50,
         echoRatio = 0.50,
         echoDuration = 2.0,
-        -- 技能3：深渊一刺
+        -- 技能3：深渊一刺（实际倍率由 Config_Meta 控制）
         abyssBaseAtkPct = 8.0,
-        abyssStackBonusPct = 1.0,
+        abyssStackBonusPct = 0.50,
         abyssCooldown = 14,
         faction = "undead",
         icon = "crimson_night",
@@ -470,10 +496,54 @@ Config.TOWER_TYPES = {
         glowColor = { 0.85, 0.1, 0.1 },
         attackType = "single",
         baseRange = 120,
-        baseSpeed = 0.7,
+        baseSpeed = 0.75,
         special = "high_damage",
         faction = "demon",
         icon = "archfiend",
+    },
+    {
+        id = "crimson_moon",
+        name = "弦月",
+        rarity = "LR",
+        color = { 220, 40, 60 },
+        glowColor = { 0.95, 0.30, 0.40 },
+        attackType = "chain",
+        baseRange = 130,
+        baseSpeed = 0.85,
+        special = "chain_ignite",
+        faction = "human",
+        chainCount = 4,
+        chainDecay = 0.85,
+
+        -- 被动：蚀月之链
+        eclipseMaxStacks = 5,
+        eclipseStackDuration = 8.0,
+        eclipseDmgAmpPerStack = 0.04,
+        eclipseBurstAtkPct = 1.80,
+        eclipseBurstRange = 60,
+
+        -- 被动：血月共鸣
+        resonanceResReduce = 0.15,
+        resonanceResReduceDuration = 3.0,
+        resonanceSpdPerStack = 0.06,
+        resonanceSpdMaxStacks = 5,
+        resonanceSpdDuration = 4.0,
+
+        -- 主动：绯红新月
+        activeCooldown = 10.0,
+        crescentDmgAtkPct = 3.50,
+        crescentMarkStacks = 3,
+        awakenDuration = 6.0,
+        awakenAtkBuff = 0.25,
+        awakenChainBonus = 2,
+
+        -- 被动：月蚀领域
+        domainFieldAmp = 0.12,
+        domainSoulAtkPerKill = 0.03,
+        domainSoulCap = 0.30,
+        domainFullMoonDuration = 5.0,
+
+        icon = "moon",
     },
 }
 
@@ -524,6 +594,7 @@ Config.HERO_ROLE = {
     ghost_assassin    = { "dps", "burst" },
     abyss_hunter      = { "dps", "sniper" },
     eternal_archfiend = { "dps", "crit" },
+    crimson_moon      = { "caster", "chain", "burst" },
     fallen_archangel  = { "dps", "aoe" },
     crimson_night     = { "dps", "burst" },
 

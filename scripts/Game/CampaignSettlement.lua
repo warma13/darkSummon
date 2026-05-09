@@ -8,6 +8,17 @@ local Currency     = require("Game.Currency")
 
 local CS = {}
 
+--- 判断当前是否为非1服（2服及以后的服务器）
+---@return boolean
+local function IsNonFirstServer()
+    local ok, SlotSave = pcall(require, "Game.SlotSaveSystem")
+    if ok and SlotSave and SlotSave.GetActiveSlot then
+        local slotId = SlotSave.GetActiveSlot()
+        return slotId > 1
+    end
+    return false
+end
+
 -- ============================================================================
 -- 通关结算
 -- ============================================================================
@@ -24,7 +35,11 @@ function CS.SettleStageClear(stageNum, score)
     ChestData.GrantStageDrop(stageNum)
 
     -- 通关产出虚空契约（对数曲线：floor(2 * ln(stage + 1))）
-    local voidPact = math.floor(2 * math.log(stageNum + 1))
+    -- 非1服去掉主线通关虚空契约奖励
+    local voidPact = 0
+    if not IsNonFirstServer() then
+        voidPact = math.floor(2 * math.log(stageNum + 1))
+    end
     if voidPact > 0 then
         Currency.Add("void_pact", voidPact)
     end

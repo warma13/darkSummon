@@ -36,10 +36,9 @@ local AddFloatingText = State.AddFloatingText
 local COLOR_FROZEN      = { 100, 180, 255, 255 }
 local COLOR_CURSE_BURST = { 140, 180, 140, 255 }
 local COLOR_DOUBLE_SOUL = { 160, 80, 200, 255 }
-local COLOR_STUN        = { 255, 220, 60, 255 }
 
 -- 延迟 require 缓存（避免循环依赖）
-local _Enemy, _Combat, _CostumeData, _Debuff
+local _Enemy, _Combat, _Debuff
 local function GetEnemy()
     if not _Enemy then _Enemy = require("Game.Enemy") end
     return _Enemy
@@ -52,20 +51,6 @@ local function GetCombat()
     if not _Combat then _Combat = require("Game.Combat") end
     return _Combat
 end
-local function GetCostumeData()
-    if not _CostumeData then _CostumeData = require("Game.CostumeData") end
-    return _CostumeData
-end
-local _Tower, _TitleData
-local function GetTower()
-    if not _Tower then _Tower = require("Game.Tower") end
-    return _Tower
-end
-local function GetTitleData()
-    if not _TitleData then _TitleData = require("Game.TitleData") end
-    return _TitleData
-end
-
 -- ============================================================================
 -- 英雄模块注册表
 -- ============================================================================
@@ -98,6 +83,7 @@ local _modules = {
     crimson_night     = require("Game.Heroes.crimson_night"),
     ember_wraith      = require("Game.Heroes.ember_wraith"),
     dream_weave       = require("Game.Heroes.dream_weave"),
+    crimson_moon      = require("Game.Heroes.crimson_moon"),
 }
 
 -- 按 hook 类型缓存有实现的模块列表（避免每帧遍历所有模块）
@@ -113,33 +99,6 @@ end
 ---@return HeroModule|nil
 local function getmod(tower)
     return tower.typeDef and _modules[tower.typeDef.id]
-end
-
--- ============================================================================
--- 星级缩放系数
--- ============================================================================
-
---- 根据英雄星级计算缩放系数：0星→10%，满星→100%
----@param heroStar number  0-30
----@return number  0.10 ~ 1.00
-function HeroSkills.GetStarScaleFactor(heroStar)
-    local maxStar = Config.MAX_HERO_STAR or 30
-    return 0.10 + 0.90 * math.sqrt(math.min(heroStar, maxStar) / maxStar)
-end
-
--- ============================================================================
--- 工具函数
--- ============================================================================
-
----@param tower table
----@param skillId string
----@return table|nil
-function HeroSkills.HasSkill(tower, skillId)
-    if not tower.skills then return nil end
-    for _, skill in ipairs(tower.skills) do
-        if skill.id == skillId then return skill end
-    end
-    return nil
 end
 
 local function CloneSkill(skillDef)
@@ -253,6 +212,19 @@ function HeroSkills.InitTowerSkills(tower)
         -- Dream Weave: 幻梦印记（per-target）
         dreamSpdBuff        = nil,   -- lucid_pulse 叠印记期间攻速加成
         -- 梦境共鸣光环已改用通用字段 auraCritRateBuff/auraSpdBuff/auraAtkBuff/auraCritDmgBuff
+        -- Crimson Moon: 蚀月之链 + 血月共鸣 + 绯红新月 + 月蚀领域
+        eclipseMarks        = nil,   -- table<targetId, {stacks, timer}>
+        resonanceStacks     = 0,
+        resonanceTimer      = 0,
+        isAwakened          = false,
+        awakenTimer         = 0,
+        awakenAtkBuff       = 0,
+        soulAtkBonus        = 0,     -- 月蚀领域永久攻击力加成
+        fullMoonActive      = false,
+        fullMoonTimer       = 0,
+        _isPureDamage       = false,
+        totalBursts         = 0,
+        totalKills          = 0,
         -- Nature Elf: 自然之力 + 鲜花环 + 翠意庇护（由 nature_elf 写入其他塔）
         naturalForce        = 0,
         naturalForceTimer   = 0,
@@ -860,13 +832,9 @@ function HeroSkills.UpdateAuras(towers, gridOffsetX, gridOffsetY)
             end
 
             -- 全局减速光环（winter_domain: globalSlowAura）
+            -- P0 优化：缓存最大减速率，由 Enemy.UpdateTimers 统一施加
             if eff.globalSlowAura then
-                local Enemy = GetEnemy()
-                for _, e in ipairs(State.enemies) do
-                    if e.alive then
-                        Enemy.ApplySlow(e, 1.0, eff.globalSlowAura)
-                    end
-                end
+                State._globalSlowRate = math.max(State._globalSlowRate or 0, eff.globalSlowAura)
             end
 
             -- 毒雾领域（miasma_zone: auraDotPct — 光环 DOT）
@@ -918,153 +886,6 @@ function HeroSkills.TriggerActive(tower, skill)
         State.skillFlash = { type = "hell_gate", timer = 0.5, tower = tower }
     end
 end
-
--- ============================================================================
--- 标签系统：active 类标签更新（v1.0.82）
--- ============================================================================
-
----@param tower table
----@param dt number
-function HeroSkills.UpdateTagActive(tower, dt)
-    if not tower.tags then return end
-    if tower.shackled then return end
-
-    local Enemy = GetEnemy()
-
-    for tagId, ts in pairs(tower.tags) do
-        if ts.tier <= 0 or ts.def.type ~= "active" then goto next_active end
-        local eff = ts.def.effects and ts.def.effects[ts.tier]
-        if not eff or not eff.interval then goto next_active end
-
-        ts.cd = (ts.cd or 0) - dt
-        if ts.cd > 0 then goto next_active end
-        ts.cd = eff.interval
-
-        -- ---- blizzard: 全屏减速 ----
-        if eff.slowPct then
-            for _, e in ipairs(State.enemies) do
-                if e.alive then
-                    Enemy.ApplySlow(e, eff.duration or 3.0, eff.slowPct)
-                end
-            end
-        end
-
-        -- ---- war_cry: 全体攻击 buff ----
-        if eff.atkBuffPct then
-            State.tagWarCryBuff = {
-                atkMult = eff.atkBuffPct,
-                timer   = eff.duration or 5.0,
-            }
-        end
-
-        -- ---- shadow_devour: 全屏伤害 ----
-        if eff.damagePct and not eff.slowPct and not eff.detonateAll and not eff.trueDmgToLinked then
-            local dmg = HeroSkills.GetEffectiveAttack(tower) * eff.damagePct
-            for _, e in ipairs(State.enemies) do
-                if e.alive then
-                    Enemy.TakeDamage(e, dmg)
-                end
-            end
-            -- 如果同时有减速（dragon_wrath 原版 active）
-            if eff.slowDuration and eff.slowPct then
-                for _, e in ipairs(State.enemies) do
-                    if e.alive then
-                        Enemy.ApplySlow(e, eff.slowDuration, eff.slowPct)
-                    end
-                end
-            end
-        end
-
-        -- ---- wilds_call: 全体自然之力 + 鲜花环 ----
-        if eff.wreathAtkBonus then
-            for _, t in ipairs(State.towers) do
-                if t.hstate then
-                    t.hstate.naturalForce = (t.hstate.naturalForce or 0) + (eff.force or 30)
-                    t.hstate.wreathActive = true
-                    t.hstate.wreathTimer  = eff.wreathDuration or 6.0
-                    t.hstate.wreathBonus  = eff.wreathAtkBonus
-                end
-            end
-        end
-
-        -- ---- crimson_eclipse: 引爆暗影印记 + 全队攻速 buff ----
-        if eff.detonateAll then
-            -- 引爆所有标记了 tagDmgStacks 的敌人
-            for _, e in ipairs(State.enemies) do
-                if e.alive and e.tagDmgStacks and e.tagDmgStacks > 0 then
-                    local burstDmg = HeroSkills.GetEffectiveAttack(tower) * e.tagDmgStacks * 0.50
-                    Enemy.TakeDamage(e, burstDmg)
-                    e.tagDmgStacks = 0
-                end
-            end
-            -- 全队攻速 buff
-            if eff.teamSpdBuff then
-                State.tagTeamSpdBuff = {
-                    spdMult = eff.teamSpdBuff,
-                    timer   = eff.buffDuration or 5.0,
-                }
-            end
-        end
-
-        -- ---- hunt_decree: 标记目标受伤加成 ----
-        if eff.vulnRate and not eff.spreadOnKill then
-            -- 找血量最高的敌人
-            local best = nil
-            local bestHp = 0
-            for _, e in ipairs(State.enemies) do
-                if e.alive and e.hp > bestHp then
-                    bestHp = e.hp
-                    best = e
-                end
-            end
-            if best then
-                best.ampDamage = math.max(best.ampDamage or 0, eff.vulnRate)
-                best.ampDamageTimer = eff.duration or 8.0
-            end
-        end
-
-        -- ---- abyss_mark: 标记血量最高敌人（死亡转移版） ----
-        if eff.vulnRate and eff.spreadOnKill then
-            local best = nil
-            local bestHp = 0
-            for _, e in ipairs(State.enemies) do
-                if e.alive and e.hp > bestHp then
-                    bestHp = e.hp
-                    best = e
-                end
-            end
-            if best then
-                best.ampDamage = math.max(best.ampDamage or 0, eff.vulnRate)
-                best.ampDamageTimer = eff.duration or 12.0
-                best.tagAbyssMarked = true
-            end
-        end
-
-        -- ---- final_weave: 对链接目标真伤 ----
-        if eff.trueDmgToLinked then
-            local trueDmg = HeroSkills.GetEffectiveAttack(tower) * eff.trueDmgToLinked
-            for _, e in ipairs(State.enemies) do
-                if e.alive and e.tagLinked then
-                    Enemy.TakeDamage(e, trueDmg)
-                end
-            end
-            -- T2: 重置全体友方 CD
-            if eff.resetCd then
-                for _, t in ipairs(State.towers) do
-                    if t.skillTimers then
-                        for timerId, _ in pairs(t.skillTimers) do
-                            t.skillTimers[timerId] = 0
-                        end
-                    end
-                end
-            end
-        end
-
-        ::next_active::
-    end
-end
-
--- ============================================================================
 -- 统一帧更新（替代 UpdateChillPassive + UpdateNatureAura）
 -- ============================================================================
 
@@ -1082,6 +903,20 @@ function HeroSkills.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
     -- 标签系统：帧更新（v1.0.82）
     -- ================================================================
     local Enemy = GetEnemy()
+
+    -- P0 优化：预计算全局统计值（ember_resonance / blood_pact 共享）
+    local _globalBurnCount = 0
+    local _globalTotalMarks = 0
+    for _, e in ipairs(State.enemies) do
+        if e.alive then
+            if e.igniteStacks and e.igniteStacks > 0 then
+                _globalBurnCount = _globalBurnCount + 1
+            end
+            if e.tagDmgStacks and e.tagDmgStacks > 0 then
+                _globalTotalMarks = _globalTotalMarks + e.tagDmgStacks
+            end
+        end
+    end
 
     for _, tower in ipairs(towers) do
         -- 更新标签 active CD 倒计时
@@ -1156,43 +991,31 @@ function HeroSkills.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             end
         end
 
-        -- ember_resonance: 每帧统计灼烧中敌人数量，动态调整攻击/DOT
+        -- ember_resonance: 动态调整攻击/DOT（使用预计算的全局灼烧数）
         if tower.tags and tower.tags["ember_resonance"] then
             local erTs = tower.tags["ember_resonance"]
             if erTs.tier > 0 then
                 local eff = erTs.def.effects and erTs.def.effects[erTs.tier]
                 if eff then
-                    local burnCount = 0
-                    for _, e in ipairs(State.enemies) do
-                        if e.alive and e.igniteStacks and e.igniteStacks > 0 then
-                            burnCount = burnCount + 1
-                        end
-                    end
-                    burnCount = math.min(burnCount, eff.maxBurns or 12)
+                    local bc = math.min(_globalBurnCount, eff.maxBurns or 12)
                     hs = tower.hstate
                     if hs then
-                        hs.resonanceAtkBonus = burnCount * (eff.atkPerBurn or 0.04)
-                        hs.resonanceDotAmp   = burnCount * (eff.dotAmpPerBurn or 0.06)
+                        hs.resonanceAtkBonus = bc * (eff.atkPerBurn or 0.04)
+                        hs.resonanceDotAmp   = bc * (eff.dotAmpPerBurn or 0.06)
                     end
                 end
             end
         end
 
-        -- blood_pact: 每帧统计所有敌人上的暗影印记层数
+        -- blood_pact: 暗影印记攻击加成（使用预计算的全局印记数）
         if tower.tags and tower.tags["blood_pact"] then
             local bpTs = tower.tags["blood_pact"]
             if bpTs.tier > 0 then
                 local eff = bpTs.def.effects and bpTs.def.effects[bpTs.tier]
                 if eff and eff.atkPerMark then
-                    local totalMarks = 0
-                    for _, e in ipairs(State.enemies) do
-                        if e.alive and e.tagDmgStacks and e.tagDmgStacks > 0 then
-                            totalMarks = totalMarks + e.tagDmgStacks
-                        end
-                    end
                     hs = tower.hstate
                     if hs then
-                        hs.resonanceAtkBonus = (hs.resonanceAtkBonus or 0) + totalMarks * eff.atkPerMark
+                        hs.resonanceAtkBonus = (hs.resonanceAtkBonus or 0) + _globalTotalMarks * eff.atkPerMark
                     end
                 end
             end
@@ -1231,13 +1054,7 @@ function HeroSkills.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             e.tagDmgStackTimer = e.tagDmgStackTimer - dt
             if e.tagDmgStackTimer <= 0 then e.tagDmgStacks = nil; e.tagDmgPerStack = nil; e.tagDmgStackTimer = nil end
         end
-        if e.ampDamageTimer and e.ampDamageTimer > 0 then
-            e.ampDamageTimer = e.ampDamageTimer - dt
-            if e.ampDamageTimer <= 0 then
-                e.ampDamage = nil; e.ampDamageTimer = nil
-                e.tagAbyssMarked = nil
-            end
-        end
+        -- ampDamageTimer 由 Enemy.UpdateTimers 统一衰减（修复双重衰减 bug）
         if e.slowImmuneLift and e.slowImmuneLift > 0 then
             e.slowImmuneLift = e.slowImmuneLift - dt
             if e.slowImmuneLift <= 0 then e.slowImmuneLift = nil end
@@ -1310,873 +1127,6 @@ function HeroSkills.UpdateGlobalBuffs(dt)
 
     -- causality: 每帧由 UpdateAuras 重新写入，这里不需要衰减
 end
-
--- ============================================================================
--- 眩晕（BOSS减半）
--- ============================================================================
-
----@param target table
----@param duration number
-function HeroSkills.ApplyStun(target, duration)
-    -- 静态免疫检查（immune_cc / void_aura 已注册）
-    if GetDebuff().IsImmune(target, "stun") then return end
-    if target.isBoss then
-        duration = duration * (Config.BOSS_BALANCE.stunDurationMult or 0.50)
-    end
-    if not target.stunTimer or target.stunTimer <= 0 then
-        AddFloatingText({
-            text     = "眩晕",
-            x        = target.x + (math.random() - 0.5) * 10,
-            y        = target.y - (target.typeDef.size or 8) - 16,
-            life     = 0.6,
-            color    = COLOR_STUN,
-            fontSize = 12,
-        })
-    end
-    GetDebuff().Apply(target, "stun", { duration = duration })
-end
-
--- ============================================================================
--- 获取塔最终攻击力/暴击率
--- ============================================================================
-
----@param tower table
----@return number
-function HeroSkills.GetEffectiveAttack(tower)
-    -- 先应用 debuff 削弱，再叠加光环/时装等增益
-    local Tower = GetTower()
-    local baseAtk = Tower.GetEffectiveAttack(tower)
-
-    -- 加算桶：所有百分比加成先相加，再一次性乘算
-    local pctBucket = 0
-    if tower.auraAtkBuff and tower.auraAtkBuff > 0 then
-        pctBucket = pctBucket + tower.auraAtkBuff
-    end
-    if State.heroicAnthemBuff then
-        pctBucket = pctBucket + State.heroicAnthemBuff.atkMult
-    end
-    local CD    = GetCostumeData()
-    local bonus = CD.GetGlobalAtkBonus()
-    if bonus > 0 then pctBucket = pctBucket + bonus end
-    -- 称号攻击加成
-    local TD = GetTitleData()
-    if TD then
-        local titleAtk = TD.GetGlobalAtkBonus()
-        if titleAtk > 0 then pctBucket = pctBucket + titleAtk end
-    end
-    local hs = tower.hstate
-    if hs and hs.wreathActive and hs.wreathBonus and hs.wreathBonus > 0 then
-        pctBucket = pctBucket + hs.wreathBonus
-    end
-    if hs and hs.resonanceAtkBonus and hs.resonanceAtkBonus > 0 then
-        pctBucket = pctBucket + hs.resonanceAtkBonus
-    end
-
-    -- ================================================================
-    -- 标签系统：攻击力加成（v1.0.82）
-    -- ================================================================
-
-    -- war_cry: 全队攻击 buff（active 标签触发）
-    if State.tagWarCryBuff and State.tagWarCryBuff.timer > 0 then
-        pctBucket = pctBucket + State.tagWarCryBuff.atkMult
-    end
-
-    -- 击杀叠伤（on_kill 标签：killDmgBonus）
-    if hs and hs.killDmgStacks and hs.killDmgStacks > 0 and hs.killDmgBonus then
-        pctBucket = pctBucket + hs.killDmgStacks * hs.killDmgBonus
-    end
-
-    local atk = baseAtk * (1 + pctBucket)
-
-    -- 固定值加成（加法）
-    if hs and hs.natureFlatAtk and hs.natureFlatAtk > 0 then
-        atk = atk + hs.natureFlatAtk
-    end
-
-    return atk
-end
-
----@param tower table
----@return number
-function HeroSkills.GetEffectiveSpeed(tower)
-    local Tower = GetTower()
-    return HeroSkills.ModifyAttackSpeed(tower, Tower.GetEffectiveSpeed(tower))
-end
-
----@param tower table
----@return number
-function HeroSkills.GetEffectiveCritRate(tower)
-    local Tower = GetTower()
-    local rate = Tower.GetEffectiveCritRate(tower)
-    if tower.auraCritRateBuff and tower.auraCritRateBuff > 0 then
-        rate = rate + tower.auraCritRateBuff
-    end
-    -- 英雄模块额外暴击率（绯夜绯瞳锁定等）
-    local hs2 = tower.hstate
-    if hs2 then
-        if hs2.bonusCritRate and hs2.bonusCritRate > 0 then
-            rate = rate + hs2.bonusCritRate
-        end
-
-    end
-
-    -- ================================================================
-    -- 标签系统：暴击率加成（v1.0.82）
-    -- ================================================================
-
-    -- blood_eye: 连续命中叠加暴击率
-    if tower.tagCritRateBonus and tower.tagCritRateBonus > 0 then
-        rate = rate + tower.tagCritRateBonus
-    end
-
-    -- infernal_stack: 灼烧叠层暴击加成
-    if tower.tagInfernalCritRate and tower.tagInfernalCritRate > 0 then
-        rate = rate + tower.tagInfernalCritRate
-    end
-
-    -- fallen_glory: 击杀后必暴（暂时将暴击率设为100%）
-    if tower.tagGuaranteedCrit then
-        rate = 1.0
-    end
-
-    return rate
-end
-
--- ============================================================================
--- 命运终章（暴击溅射）
--- ============================================================================
-
----@param tower table
----@param target table
----@param damage number
-function HeroSkills.CheckCritSplash(tower, target, damage)
-    -- 命运织者 fate_finale
-    for _, t in ipairs(State.towers) do
-        local splash = HeroSkills.HasSkill(t, "fate_finale")
-        if splash then
-            local splashDmg = damage * (splash.critSplashPct or 0.50)
-            local Enemy = GetEnemy()
-            for _, e in ipairs(State.enemies) do
-                if e.alive and e ~= target then
-                    local dx = e.x - target.x
-                    local dy = e.y - target.y
-                    if dx * dx + dy * dy < 3600 then -- 60²
-                        Enemy.TakeDamage(e, splashDmg)
-                    end
-                end
-            end
-            break
-        end
-    end
-
-    -- 符文套装：雷霆 set3 — 暴击时溅射
-    if tower.runeSetEffects then
-        for _, eff in ipairs(tower.runeSetEffects) do
-            if eff.effect == "crit_splash" then
-                local splashDmg = damage * (eff.splashPct or 0.30)
-                local Enemy = GetEnemy()
-                for _, e in ipairs(State.enemies) do
-                    if e.alive and e ~= target then
-                        local dx = e.x - target.x
-                        local dy = e.y - target.y
-                        if dx * dx + dy * dy < 2500 then -- 50²
-                            Enemy.TakeDamage(e, splashDmg)
-                        end
-                    end
-                end
-                break
-            end
-        end
-    end
-end
-
--- ============================================================================
--- 技能标签系统
--- ============================================================================
-
-local AffixTagResolver = require("Game.AffixTagResolver")
-
---- 初始化塔的技能标签状态
---- 从 Config.HERO_SKILL_TAGS 读取定义，结合 HeroData 持久化层级
----@param tower table
-function HeroSkills.InitTagState(tower)
-    local heroId = tower.typeDef.id
-    local tagDefs = Config.HERO_SKILL_TAGS[heroId]
-    if not tagDefs then
-        tower.tags = {}
-        return
-    end
-
-    tower.tags = {}
-    for i, tagDef in ipairs(tagDefs) do
-        local tier = HeroData.GetTagTier(heroId, tagDef.id)
-        local unlocked = HeroData.IsTagUnlocked(heroId, tagDef)
-
-        -- 顺序解锁：前一个标签 tier > 0 才能解锁后一个
-        local reqMet = true
-        if i > 1 then
-            local prevTag = tagDefs[i - 1]
-            if HeroData.GetTagTier(heroId, prevTag.id) <= 0 then
-                reqMet = false
-            end
-        end
-
-        -- 检查显式依赖标签
-        if reqMet and tagDef.requires then
-            for _, reqId in ipairs(tagDef.requires) do
-                if HeroData.GetTagTier(heroId, reqId) <= 0 then
-                    reqMet = false
-                    break
-                end
-            end
-        end
-
-        tower.tags[tagDef.id] = {
-            def      = tagDef,
-            tier     = (unlocked and reqMet) and tier or 0,
-            maxTier  = tagDef.maxTier or 1,
-            unlocked = unlocked,
-            reqMet   = reqMet,
-            -- 运行时状态（用于 cooldown / stacks 等）
-            cd       = 0,
-            stacks   = 0,
-            timer    = 0,
-        }
-
-        -- 被动标签立即应用属性加成
-        if tagDef.type == "passive" and tier > 0 and unlocked and reqMet then
-            local eff = tagDef.effects and tagDef.effects[tier]
-            if eff then
-                if eff.atkSpdBonus then
-                    tower.atkSpdBonus = (tower.atkSpdBonus or 0) + eff.atkSpdBonus
-                end
-                if eff.critRate then
-                    tower.critRate = (tower.critRate or 0) + eff.critRate
-                end
-                if eff.critDmg then
-                    tower.critDmg = (tower.critDmg or 0) + eff.critDmg
-                end
-                if eff.rangeBonus then
-                    tower.range = (tower.range or 0) + eff.rangeBonus
-                end
-
-                -- ---- 标签被动：BOSS 额外伤害 ----
-                if eff.bossExtraDmg then
-                    tower.bossExtraDmg = math.max(tower.bossExtraDmg or 0, eff.bossExtraDmg)
-                end
-
-                -- ---- 标签被动：护甲穿透 ----
-                if eff.armorIgnore then
-                    tower.armorIgnore = (tower.armorIgnore or 0) + eff.armorIgnore
-                end
-
-                -- ---- 标签被动：每波攻速叠加 ----
-                if eff.bonusPerWave then
-                    local hs = tower.hstate
-                    if hs then
-                        hs.bonusPerWaveRate = eff.bonusPerWave
-                        hs.bonusPerWaveMax  = eff.maxBonus or 0.50
-                        hs.bonusPerWaveSpd  = 0  -- 每波开始时按波数计算
-                    end
-                end
-            end
-        end
-    end
-end
-
---- 获取标签当前层级的效果表
----@param tower table
----@param tagId string
----@return table|nil effect, table|nil tagState
-function HeroSkills.GetTagEffect(tower, tagId)
-    local ts = tower.tags and tower.tags[tagId]
-    if not ts or ts.tier <= 0 then return nil, nil end
-    local eff = ts.def.effects and ts.def.effects[ts.tier]
-    return eff, ts
-end
-
---- 按触发类型批量应用标签
---- triggerType: "on_hit" | "on_crit" | "on_kill"
----@param tower table
----@param target table|nil  目标敌人（on_kill 时可能已死亡）
----@param triggerType string
----@param extra table|nil   附加参数 { damage, killed, ... }
-function HeroSkills.ApplyTags(tower, target, triggerType, extra)
-    if not tower.tags then return end
-
-    for tagId, ts in pairs(tower.tags) do
-        if ts.tier > 0 and ts.def.type == triggerType then
-            local eff = ts.def.effects and ts.def.effects[ts.tier]
-            if eff then
-                HeroSkills.ApplyTag(tower, target, ts, eff, extra)
-            end
-        end
-    end
-end
-
---- 应用单个标签效果
---- 通用效果在此处理，特殊效果委托给英雄模块
----@param tower table
----@param target table|nil
----@param tagState table  tower.tags[tagId]
----@param eff table       当前 tier 的效果数值
----@param extra table|nil
-function HeroSkills.ApplyTag(tower, target, tagState, eff, extra)
-    local tagDef = tagState.def
-    local tagId  = tagDef.id
-
-    -- 查询第3层词条加成
-    local tagBonus = AffixTagResolver.GetTagBonus(tower, tagId)
-
-    -- 概率检查（通用：eff.chance）
-    if eff.chance then
-        local finalChance = eff.chance + (tagBonus.tagChance_add or 0)
-        if math.random() > finalChance then return end
-    end
-
-    local Enemy = GetEnemy()
-
-    -- ================================================================
-    -- 通用效果分支（按效果字段匹配）
-    -- 英雄模块可在自己的 OnHit/OnCritHit 中做更精细的处理，
-    -- 这里只处理数据驱动的通用效果
-    -- ================================================================
-
-    -- 减速效果
-    if eff.slowRate and target and target.alive then
-        local slowRate = eff.slowRate + (tagBonus.tagSlowRate_add or 0)
-        local slowDur  = (eff.slowDuration or eff.duration or 2.0) + (tagBonus.tagSlowDur_add or 0)
-        Enemy.ApplySlow(target, slowDur, slowRate)
-    end
-
-    -- DOT 效果
-    if eff.dotMultiplier and target and target.alive then
-        -- dotMultiplier 作为 tower.dotMultiplier 的加成
-        local mult = eff.dotMultiplier + (tagBonus.tagDotMult_add or 0)
-        tower.tagDotMultiplier = (tower.tagDotMultiplier or 1.0) * mult
-    end
-
-    if eff.dotAtkPct and target and target.alive then
-        local dotDmg = tower.attack * (eff.dotAtkPct + (tagBonus.tagDotPct_add or 0))
-        local dotDur = eff.dotDuration or 3.0
-        Enemy.ApplyDOT(target, dotDmg, dotDur)
-    end
-
-    -- 物理易伤
-    if eff.physVuln and target and target.alive then
-        local vuln = eff.physVuln + (tagBonus.tagVuln_add or 0)
-        local dur  = (eff.duration or 3.0) + (tagBonus.tagDur_add or 0)
-        target.physVuln = math.max(target.physVuln or 0, vuln)
-        target.physVulnTimer = math.max(target.physVulnTimer or 0, dur)
-    end
-
-    -- 法术易伤（soul_leech: magicVuln）
-    if eff.magicVuln and target and target.alive then
-        local vuln = eff.magicVuln + (tagBonus.tagVuln_add or 0)
-        local dur  = (eff.duration or 3.0) + (tagBonus.tagDur_add or 0)
-        target.magicVuln = math.max(target.magicVuln or 0, vuln)
-        target.magicVulnTimer = math.max(target.magicVulnTimer or 0, dur)
-    end
-
-    -- 破甲
-    if eff.armorBreak and target and target.alive then
-        local breakAmt = eff.armorBreak * (1 + (tagBonus.tagArmorBreak_amp or 0))
-        target.armorBreak = math.min((target.armorBreak or 0) + breakAmt, 1.0)
-    end
-
-    if eff.defReducePerStack and target and target.alive then
-        local reduce = eff.defReducePerStack * (1 + (tagBonus.tagArmorBreak_amp or 0))
-        target.defReduce = math.min((target.defReduce or 0) + reduce, 0.80)
-    end
-
-    -- 增伤标记
-    if eff.ampRate and target and target.alive then
-        local amp = eff.ampRate + (tagBonus.tagAmp_add or 0)
-        target.ampDamage = math.max(target.ampDamage or 0, amp)
-    end
-
-    -- 攻速爆发（on_kill 类）
-    if eff.atkSpdBurst then
-        local burst = eff.atkSpdBurst + (tagBonus.tagAtkSpd_add or 0)
-        local dur   = eff.burstDuration or 3.0
-        tower.hstate.killAtkBurst = burst
-        tower.hstate.killAtkBurstTimer = dur
-    end
-
-    -- 击杀加伤（on_kill 类叠层）
-    if eff.killDmgBonus then
-        local bonus = eff.killDmgBonus + (tagBonus.tagDmgBonus_add or 0)
-        local max   = eff.maxStacks or 3
-        tower.hstate.killDmgStacks = math.min((tower.hstate.killDmgStacks or 0) + 1, max)
-        tower.hstate.killDmgBonus  = bonus
-    end
-
-    -- 击杀爆炸（phantom_chain / holy_chain: deathExplosionPct + explosionRange）
-    if eff.deathExplosionPct and target then
-        local explDmg = tower.attack * eff.deathExplosionPct
-        local explRange = eff.explosionRange or 40
-        local rangeSq = explRange * explRange
-        for _, e in ipairs(State.enemies) do
-            if e.alive and e ~= target then
-                local dx = e.x - target.x
-                local dy = e.y - target.y
-                if dx * dx + dy * dy < rangeSq then
-                    Enemy.TakeDamage(e, explDmg)
-                end
-            end
-        end
-    end
-
-    -- 眩晕
-    if eff.stunChance and target and target.alive then
-        local stunChance = eff.stunChance + (tagBonus.tagStunChance_add or 0)
-        if math.random() < stunChance then
-            local stunDur = (eff.stunDuration or 1.0) + (tagBonus.tagStunDur_add or 0)
-            HeroSkills.ApplyStun(target, stunDur)
-        end
-    end
-
-    -- 溅射
-    if eff.splashRange and target and target.alive then
-        local range = eff.splashRange + (tagBonus.tagSplashRange_add or 0)
-        local rangeSq = range * range
-        local splashDmg = (extra and extra.damage or tower.attack) * (eff.splashPct or 0.50)
-        for _, e in ipairs(State.enemies) do
-            if e.alive and e ~= target then
-                local dx = e.x - target.x
-                local dy = e.y - target.y
-                if dx * dx + dy * dy < rangeSq then
-                    Enemy.TakeDamage(e, splashDmg)
-                end
-            end
-        end
-    end
-
-    -- 治疗削弱
-    if eff.healReduction and target and target.alive then
-        target.healReduction = math.max(target.healReduction or 0, eff.healReduction)
-    end
-
-    -- 连锁
-    if eff.chainRange and target and target.alive then
-        local chainRange = eff.chainRange + (tagBonus.tagChainRange_add or 0)
-        local maxTargets = eff.chainMaxTargets or 2
-        local rangeSq = chainRange * chainRange
-        local count = 0
-        local chainDmg = (extra and extra.damage or tower.attack) * (eff.chainDmgPct or 0.50)
-        for _, e in ipairs(State.enemies) do
-            if e.alive and e ~= target and count < maxTargets then
-                local dx = e.x - target.x
-                local dy = e.y - target.y
-                if dx * dx + dy * dy < rangeSq then
-                    Enemy.TakeDamage(e, chainDmg)
-                    count = count + 1
-                end
-            end
-        end
-    end
-
-    -- ================================================================
-    -- 以下为新增标签效果处理（v1.0.82）
-    -- ================================================================
-
-    -- 首击加伤（shadow_stab: firstHitMult）
-    if eff.firstHitMult and target and target.alive then
-        -- 通过 tagState 记录已攻击过的目标
-        tagState._hitTargets = tagState._hitTargets or {}
-        if not tagState._hitTargets[target] then
-            tagState._hitTargets[target] = true
-            -- 追加额外伤害 = baseDamage * (mult - 1)
-            local baseDmg = extra and extra.damage or tower.attack
-            local bonusDmg = baseDmg * (eff.firstHitMult - 1)
-            Enemy.TakeDamage(target, bonusDmg)
-            AddFloatingText({
-                text     = "暗刺",
-                x        = target.x + (math.random() - 0.5) * 10,
-                y        = target.y - (target.typeDef.size or 8) - 20,
-                life     = 0.6,
-                color    = { 180, 80, 220, 255 },
-                fontSize = 12,
-            })
-        end
-    end
-
-    -- 概率AOE伤害（conflagration: chance + aoeDmgPct + aoeRange）
-    -- chance 已在通用概率检查中处理，到这里说明概率已通过
-    if eff.aoeDmgPct and target and target.alive then
-        local aoeDmg = tower.attack * eff.aoeDmgPct
-        local aoeRange = eff.aoeRange or 40
-        local rangeSq = aoeRange * aoeRange
-        for _, e in ipairs(State.enemies) do
-            if e.alive and e ~= target then
-                local dx = e.x - target.x
-                local dy = e.y - target.y
-                if dx * dx + dy * dy < rangeSq then
-                    Enemy.TakeDamage(e, aoeDmg)
-                end
-            end
-        end
-    end
-
-    -- 魔抗降低（searing / spatial_warp / chaos_rift 等）
-    -- 支持单目标和 AOE（当 aoeRange 存在时，范围内敌人均受影响）
-    if eff.resReduce and target and target.alive then
-        local dur = (eff.duration or 3.0) + (tagBonus.tagDur_add or 0)
-        if eff.aoeRange and not eff.aoeDmgPct then
-            -- AOE 魔抗降低（chaos_rift: on_crit + resReduce + aoeRange）
-            local rangeSq = eff.aoeRange * eff.aoeRange
-            for _, e in ipairs(State.enemies) do
-                if e.alive then
-                    local dx = e.x - target.x
-                    local dy = e.y - target.y
-                    if dx * dx + dy * dy < rangeSq then
-                        e.tagResReduce = math.max(e.tagResReduce or 0, eff.resReduce)
-                        e.tagResReduceTimer = math.max(e.tagResReduceTimer or 0, dur)
-                    end
-                end
-            end
-        else
-            -- 单目标魔抗降低
-            target.tagResReduce = math.max(target.tagResReduce or 0, eff.resReduce)
-            target.tagResReduceTimer = math.max(target.tagResReduceTimer or 0, dur)
-        end
-    end
-
-    -- 物防降低百分比（scald: defReduce / brittle: defReduce）
-    if eff.defReduce and target and target.alive then
-        local dur = (eff.duration or 3.0) + (tagBonus.tagDur_add or 0)
-        target.tagDefReduce = math.min((target.tagDefReduce or 0) + eff.defReduce, 0.60)
-        target.tagDefReduceTimer = math.max(target.tagDefReduceTimer or 0, dur)
-    end
-
-    -- 受伤加成标记（pierce_mark: bonusDmg — 不同于 ampRate，独立叠加）
-    if eff.bonusDmg and not eff.defReducePct and target and target.alive then
-        local dur = (eff.duration or 3.0) + (tagBonus.tagDur_add or 0)
-        target.tagBonusDmg = math.max(target.tagBonusDmg or 0, eff.bonusDmg)
-        target.tagBonusDmgTimer = math.max(target.tagBonusDmgTimer or 0, dur)
-    end
-
-    -- 叠层受伤加成（shadow_mark / charge / toxin_layer / hellfire_brand: dmgPerStack）
-    if eff.dmgPerStack and target and target.alive then
-        target.tagDmgStacks = math.min((target.tagDmgStacks or 0) + 1, eff.maxStacks or 5)
-        target.tagDmgPerStack = eff.dmgPerStack
-        target.tagDmgStackTimer = eff.stackDuration or eff.duration or 6.0
-    end
-
-    -- 每N次攻击真伤（heavy_blow: everyN + trueDmgPct）
-    if eff.everyN and target and target.alive then
-        tagState._hitCount = (tagState._hitCount or 0) + 1
-        if tagState._hitCount >= eff.everyN then
-            tagState._hitCount = 0
-            local trueDmg = tower.attack * (eff.trueDmgPct or 0.50)
-            Enemy.TakeDamage(target, trueDmg)
-            AddFloatingText({
-                text     = "重击",
-                x        = target.x + (math.random() - 0.5) * 10,
-                y        = target.y - (target.typeDef.size or 8) - 20,
-                life     = 0.6,
-                color    = { 255, 160, 60, 255 },
-                fontSize = 12,
-            })
-        end
-    end
-
-    -- 低血线真伤（divine_wrath: lowHpThreshold + trueDmgPct）
-    if eff.lowHpThreshold and target and target.alive then
-        local hpRatio = target.hp / (target.maxHp or target.hp)
-        if hpRatio < eff.lowHpThreshold then
-            local trueDmg = tower.attack * (eff.trueDmgPct or 1.0)
-            Enemy.TakeDamage(target, trueDmg)
-        end
-    end
-
-    -- 冰封（frozen: freezeChance + freezeDuration + bonusDmg）
-    if eff.freezeChance and target and target.alive then
-        if math.random() < eff.freezeChance then
-            local dur = eff.freezeDuration or 0.8
-            if target.isBoss then
-                dur = dur * (Config.BOSS_BALANCE.stunDurationMult or 0.50)
-                Enemy.ApplySlow(target, dur, 0.50 * (Config.BOSS_BALANCE.slowEfficiency or 0.50))
-            else
-                Enemy.ApplySlow(target, dur, 1.0)
-                GetDebuff().Apply(target, "frozen", { duration = dur })
-            end
-            -- 冰封受伤加成
-            if eff.bonusDmg then
-                target.tagFrozenBonusDmg = eff.bonusDmg
-                target.tagFrozenTimer = dur
-            end
-            AddFloatingText({
-                text     = "冰封",
-                x        = target.x + (math.random() - 0.5) * 10,
-                y        = target.y - (target.typeDef.size or 8) - 16,
-                life     = 0.6,
-                color    = COLOR_FROZEN,
-                fontSize = 12,
-            })
-        end
-    end
-
-    -- 逐层暴击叠加（blood_eye: critRatePerHit + maxCritStacks + critDmgBonus）
-    if eff.critRatePerHit and target and target.alive then
-        tagState.stacks = math.min((tagState.stacks or 0) + 1, eff.maxCritStacks or 5)
-        -- 将叠加的暴击率/暴伤写入 tower 的运行时加成
-        tower.tagCritRateBonus = tagState.stacks * eff.critRatePerHit
-        tower.tagCritDmgBonus  = eff.critDmgBonus or 0
-    end
-
-    -- 魔焰叠层暴击暴伤（infernal_stack: critPerStack + critDmgPerStack）
-    if eff.critPerStack and target and target.alive then
-        tagState.stacks = math.min((tagState.stacks or 0) + 1, eff.maxStacks or 5)
-        tagState.timer  = eff.stackDuration or 5.0
-        tower.tagInfernalCritRate = tagState.stacks * eff.critPerStack
-        tower.tagInfernalCritDmg = tagState.stacks * eff.critDmgPerStack
-    end
-
-    -- 连续攻击同目标叠伤（focus_fire: dmgIncPerHit + maxStacks）
-    if eff.dmgIncPerHit and target and target.alive then
-        if tagState._lastTarget == target then
-            tagState._focusStacks = math.min((tagState._focusStacks or 0) + 1, eff.maxStacks or 10)
-        else
-            tagState._lastTarget = target
-            tagState._focusStacks = 1
-        end
-        -- 伤害加成由 ModifyDamage 读取
-        tower.tagFocusFireBonus = tagState._focusStacks * eff.dmgIncPerHit
-    end
-
-    -- 穿透（penetrate: pierce + pierceDmgPct）
-    if eff.pierce and target and target.alive then
-        local pierceDmg = tower.attack * (eff.pierceDmgPct or 0.60)
-        -- 查找目标身后最近的敌人
-        local bestDist = math.huge
-        local bestEnemy = nil
-        for _, e in ipairs(State.enemies) do
-            if e.alive and e ~= target then
-                local dx = e.x - target.x
-                local dy = e.y - target.y
-                local dist = dx * dx + dy * dy
-                if dist < bestDist and dist < 80 * 80 then
-                    bestDist = dist
-                    bestEnemy = e
-                end
-            end
-        end
-        if bestEnemy then
-            Enemy.TakeDamage(bestEnemy, pierceDmg)
-        end
-    end
-
-    -- 拉拽（dimension_collapse: pullChance + pullDistance）
-    if eff.pullChance and target and target.alive then
-        if math.random() < eff.pullChance then
-            -- 将目标位置向路径回退 pullDistance 像素
-            target.pathProgress = math.max(0, (target.pathProgress or 0) - (eff.pullDistance or 30))
-        end
-    end
-
-    -- 斩杀（annihilate: executeThreshold）
-    if eff.executeThreshold and target and target.alive then
-        local hpRatio = target.hp / (target.maxHp or target.hp)
-        if target.isBoss then
-            local bossCap = eff.bossCap or 0
-            if bossCap > 0 and hpRatio < bossCap then
-                target.hp = 0
-                target.alive = false
-            end
-        else
-            if hpRatio < eff.executeThreshold then
-                target.hp = 0
-                target.alive = false
-            end
-        end
-    end
-
-    -- 破甲扩散（aftershock: spreadRange + spreadRatio）
-    if eff.spreadRange and eff.spreadRatio and target and target.alive then
-        local armorVal = target.armorBreak or 0
-        if armorVal > 0 then
-            local rangeSq = eff.spreadRange * eff.spreadRange
-            for _, e in ipairs(State.enemies) do
-                if e.alive and e ~= target then
-                    local dx = e.x - target.x
-                    local dy = e.y - target.y
-                    if dx * dx + dy * dy < rangeSq then
-                        e.armorBreak = math.min((e.armorBreak or 0) + armorVal * eff.spreadRatio, 1.0)
-                    end
-                end
-            end
-        end
-    end
-
-    -- 无视护盾（shadow_chain: ignoreShield — 标记到 tower 供伤害流程读取）
-    if eff.ignoreShield and target and target.alive then
-        tower._tagIgnoreShield = true
-    end
-
-    -- 链接分伤（fate_thread: linkDmgShare + maxLinks）
-    if eff.linkDmgShare and target and target.alive then
-        target.tagLinked = true
-        target.tagLinkShare = eff.linkDmgShare
-        -- 收集所有 linked 目标由 TakeDamage 流程读取
-    end
-
-    -- 链接减速/魔抗（fate_entangle: linkedSlow + linkedResShred）
-    if eff.linkedSlow and target and target.alive then
-        if target.tagLinked then
-            Enemy.ApplySlow(target, 2.0, eff.linkedSlow)
-            if eff.linkedResShred then
-                target.tagResReduce = (target.tagResReduce or 0) + eff.linkedResShred
-                target.tagResReduceTimer = math.max(target.tagResReduceTimer or 0, 3.0)
-            end
-        end
-    end
-
-    -- 击杀相关 on_kill 效果（不在 on_hit 触发，由 ApplyTags on_kill 调用）
-
-    -- 击杀缩短主动CD（soul_drain: cdReduce）
-    if eff.cdReduce then
-        if tower.skillTimers then
-            for timerId, v in pairs(tower.skillTimers) do
-                tower.skillTimers[timerId] = math.max(0, v - eff.cdReduce)
-            end
-        end
-        -- 同时缩短标签 active CD
-        if tower.tags then
-            for _, ts2 in pairs(tower.tags) do
-                if ts2.def.type == "active" and ts2.cd > 0 then
-                    ts2.cd = math.max(0, ts2.cd - eff.cdReduce)
-                end
-            end
-        end
-    end
-
-    -- 击杀后必暴（fallen_glory: guaranteedCrit + critDmgBonus）
-    if eff.guaranteedCrit then
-        tower.tagGuaranteedCrit = true
-        tower.tagGuaranteedCritDmg = eff.critDmgBonus or 0
-    end
-
-    -- 击杀CD概率缩短（lord_will: chance + cdResetAmount）
-    if eff.cdResetAmount then
-        -- chance 已在通用概率检查中处理
-        if tower.skillTimers then
-            for timerId, v in pairs(tower.skillTimers) do
-                tower.skillTimers[timerId] = math.max(0, v - eff.cdResetAmount)
-            end
-        end
-    end
-
-    -- 额外掉落（life_spring: extraDropChance）
-    if eff.extraDropChance and target and math.random() < eff.extraDropChance then
-        local LootDrop     = require("Game.LootDrop")
-        local DivineBlessDB = require("Game.DivineBlessData")
-        local enemyTier = target.isBoss and "boss" or (target.isElite and "elite" or "normal")
-        local s = State.currentStage - 1
-        local dropScale = 1.0 + s * Config.KILL_DROP.stageScale + s * s * (Config.KILL_DROP.stageQuadratic or 0)
-        local mfloor = math.floor
-
-        -- 冥晶
-        local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
-        if crystalBase > 0 then
-            local amt = mfloor(crystalBase * dropScale)
-            local multi = DivineBlessDB.GetBuffValue("crystal_multi")
-            if multi > 1.0 then amt = mfloor(amt * multi) end
-            if amt > 0 then LootDrop.Spawn("nether_crystal", amt, target.x, target.y) end
-        end
-        -- 噬魂石
-        local stoneBase = Config.KILL_DROP.stone[enemyTier] or 0
-        if stoneBase > 0 then
-            local amt = mfloor(stoneBase * dropScale)
-            local multi = DivineBlessDB.GetBuffValue("stone_multi")
-            if multi > 1.0 then amt = mfloor(amt * multi) end
-            if amt > 0 then LootDrop.Spawn("devour_stone", amt, target.x, target.y) end
-        end
-        -- 锻魂铁
-        local ironBase = Config.KILL_DROP.iron[enemyTier] or 0
-        if ironBase > 0 then
-            local amt = mfloor(ironBase * dropScale)
-            local multi = DivineBlessDB.GetBuffValue("iron_multi")
-            if multi > 1.0 then amt = mfloor(amt * multi) end
-            if amt > 0 then LootDrop.Spawn("forge_iron", amt, target.x, target.y) end
-        end
-
-        AddFloatingText({
-            text = "额外掉落!",
-            x = target.x, y = target.y - (target.typeDef and target.typeDef.size or 8) - 20,
-            life = 0.8,
-            color = { 100, 255, 100, 255 },
-            fontSize = 12,
-        })
-    end
-end
-
---- 升级标签（供 UI / 技能书 调用）
----@param heroId string
----@param tagId string
----@return boolean success, string|nil error
-function HeroSkills.UpgradeTag(heroId, tagId)
-    local tagDefs = Config.HERO_SKILL_TAGS[heroId]
-    if not tagDefs then return false, "hero_no_tags" end
-
-    local tagDef
-    for _, td in ipairs(tagDefs) do
-        if td.id == tagId then tagDef = td; break end
-    end
-    if not tagDef then return false, "tag_not_found" end
-
-    -- 检查解锁条件
-    if not HeroData.IsTagUnlocked(heroId, tagDef) then
-        return false, "tag_locked"
-    end
-
-    -- 顺序解锁：前一个标签必须 tier > 0
-    for i, td in ipairs(tagDefs) do
-        if td.id == tagId and i > 1 then
-            local prevTag = tagDefs[i - 1]
-            if HeroData.GetTagTier(heroId, prevTag.id) <= 0 then
-                return false, "prev_tag_required"
-            end
-            break
-        end
-    end
-
-    -- 检查显式依赖
-    if tagDef.requires then
-        for _, reqId in ipairs(tagDef.requires) do
-            if HeroData.GetTagTier(heroId, reqId) <= 0 then
-                return false, "requires_" .. reqId
-            end
-        end
-    end
-
-    local curTier = HeroData.GetTagTier(heroId, tagDef.id)
-    local maxTier = tagDef.maxTier or 1
-    if curTier >= maxTier then return false, "max_tier" end
-
-    -- 消耗多阶技能书（按英雄稀有度查表）
-    local rarity = Config.HERO_RARITY and Config.HERO_RARITY[heroId] or "N"
-    local costTable = Config.SKILL_BOOK_COST and Config.SKILL_BOOK_COST[rarity]
-    local costMap = costTable and costTable[curTier]  -- curTier=1→升到T2的费用表
-    if costMap then
-        local Currency = require("Game.Currency")
-        -- 检查所有技能书是否足够
-        for bookId, amount in pairs(costMap) do
-            if not Currency.Has(bookId, amount) then
-                return false, "not_enough_skill_book"
-            end
-        end
-        -- 全部足够才扣除
-        for bookId, amount in pairs(costMap) do
-            Currency.Spend(bookId, amount)
-        end
-    end
-
-    HeroData.SetTagTier(heroId, tagDef.id, curTier + 1)
-    return true
-end
-
--- ============================================================================
 -- 每波重置
 -- ============================================================================
 
@@ -2286,5 +1236,11 @@ function HeroSkills.OnWaveStart()
         e.slowImmuneLift = nil
     end
 end
+
+-- ============================================================================
+-- 注入子模块
+-- ============================================================================
+require("Game.HeroSkills_Stats")(HeroSkills)
+require("Game.HeroSkills_Tags")(HeroSkills)
 
 return HeroSkills

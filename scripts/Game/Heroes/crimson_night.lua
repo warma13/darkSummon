@@ -3,6 +3,7 @@
 local M = {}
 
 local State = require("Game.State")
+local FormatUtil = require("Game.FormatUtil")
 
 local AddFloatingText = State.AddFloatingText
 
@@ -158,12 +159,7 @@ function M.TriggerActive(tower, skill)
     })
 
     -- 伤害数字飘字
-    local dmgText = tostring(math.floor(finalDmg))
-    if finalDmg >= 1e8 then
-        dmgText = string.format("%.1f亿", finalDmg / 1e8):gsub("%.0亿", "亿")
-    elseif finalDmg >= 1e4 then
-        dmgText = string.format("%.1f万", finalDmg / 1e4):gsub("%.0万", "万")
-    end
+    local dmgText = FormatUtil.FormatNum(finalDmg)
     local vx = (math.random() - 0.5) * 80
     local vy = -(80 + math.random() * 40)
     AddFloatingText({

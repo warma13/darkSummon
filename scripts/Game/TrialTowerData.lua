@@ -12,6 +12,17 @@ local WaveGen = require("Game.WaveGenerator")
 
 local TrialTowerData = {}
 
+--- 判断当前是否为非1服（2服及以后的服务器）
+---@return boolean
+local function IsNonFirstServer()
+    local ok, SlotSave = pcall(require, "Game.SlotSaveSystem")
+    if ok and SlotSave and SlotSave.GetActiveSlot then
+        local slotId = SlotSave.GetActiveSlot()
+        return slotId > 1
+    end
+    return false
+end
+
 -- ============================================================================
 -- 试练塔奖励配置（前 10 塔精确定义）
 -- ============================================================================
@@ -67,18 +78,20 @@ end
 ---@return number stones 进阶石(噬魂石)
 ---@return number gold 金币(冥晶)
 function TrialTowerData.GetFloorReward(towerNum)
+    local WorldTier = require("Game.WorldTier")
+    local wtMult = WorldTier.GetRewardMult()
+    local stones, gold
     if towerNum <= 10 then
         local r = TOWER_REWARDS[towerNum]
-        return r.stones, r.gold
+        stones, gold = r.stones, r.gold
     elseif towerNum <= 19 then
-        local stones = 28 + (towerNum - 11) * 2
-        local gold = 1400 + (towerNum - 11) * 100
-        return stones, gold
+        stones = 28 + (towerNum - 11) * 2
+        gold = 1400 + (towerNum - 11) * 100
     else
-        local stones = 50 + (towerNum - 20) * 5
-        local gold = 2500 + (towerNum - 20) * 200
-        return stones, gold
+        stones = 50 + (towerNum - 20) * 5
+        gold = 2500 + (towerNum - 20) * 200
     end
+    return math.floor(stones * wtMult), math.floor(gold * wtMult)
 end
 
 --- 获取指定塔的难度标签
@@ -209,8 +222,11 @@ function TrialTowerData.ClearFloor(floor)
     Currency.GrantReward({ type = "currency", id = "devour_stone", amount = stones }, "TrialTower")
     Currency.GrantReward({ type = "currency", id = "nether_crystal", amount = gold }, "TrialTower")
 
-    -- 每层发放虚空契约（对数曲线）
-    local floorPact = CalcFloorVoidPact(towerNum)
+    -- 每层发放虚空契约（对数曲线）—— 非1服不发
+    local floorPact = 0
+    if not IsNonFirstServer() then
+        floorPact = CalcFloorVoidPact(towerNum)
+    end
     if floorPact > 0 then
         Currency.GrantReward({ type = "currency", id = "void_pact", amount = floorPact }, "TrialTower")
     end
@@ -241,7 +257,13 @@ function TrialTowerData.ClearFloor(floor)
 
     -- 检查是否通塔（第 10 层）
     if floorInTower == 10 then
-        local clearPact = CalcTowerClearVoidPact(towerNum)
+        -- 非1服通塔虚空契约奖励固定为10，1服保持原对数曲线
+        local clearPact
+        if IsNonFirstServer() then
+            clearPact = 10
+        else
+            clearPact = CalcTowerClearVoidPact(towerNum)
+        end
         rewards.isTowerClear    = true
         rewards.void_pact       = rewards.void_pact + clearPact
         rewards.tower_clear_pact = clearPact
@@ -353,17 +375,19 @@ function TrialTowerData.GenerateWaveEnemies(floor, wave)
     return enemies
 end
 
---- 获取每层虚空契约奖励（对数曲线）
+--- 获取每层虚空契约奖励（对数曲线）—— 非1服返回0
 ---@param towerNum number 塔号
 ---@return number
 function TrialTowerData.GetFloorVoidPact(towerNum)
+    if IsNonFirstServer() then return 0 end
     return CalcFloorVoidPact(towerNum)
 end
 
---- 获取通塔虚空契约奖励
+--- 获取通塔虚空契约奖励 —— 非1服固定10
 ---@param towerNum number 塔号
 ---@return number
 function TrialTowerData.GetTowerClearVoidPact(towerNum)
+    if IsNonFirstServer() then return 10 end
     return CalcTowerClearVoidPact(towerNum)
 end
 

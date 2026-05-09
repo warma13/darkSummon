@@ -12,6 +12,7 @@ local Toast = require("Game.Toast")
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
 local LaborDayData = require("Game.LaborDayData")
+local WorldTier = require("Game.WorldTier")
 
 local Abyss = {}
 
@@ -159,23 +160,33 @@ end
 
 -- ============================================================================
 -- 难度缩放
--- 深渊裂隙基于玩家当前关卡 × 难度系数，15波内从低到高递增
--- wave 1 ≈ 当前关卡 × levelMult × 0.5
--- wave 15 ≈ 当前关卡 × levelMult × 1.5
+-- 每个难度有独立的关卡范围 stageRange={min, max}
+-- 15波使用 S曲线（sigmoid）递进：前期缓慢→中期陡升→后期趋稳
 -- ============================================================================
 
---- 将副本波次映射到等效关卡
+--- S曲线映射函数（归一化 sigmoid）
+---@param t number 0~1 原始进度
+---@param k number 陡度系数（默认6，越大中段越陡）
+---@return number 0~1 S曲线映射后的进度
+local function sigmoidMap(t, k)
+    k = k or 6
+    local function sig(x) return 1 / (1 + math.exp(-k * (x - 0.5))) end
+    local s0, s1 = sig(0), sig(1)
+    return (sig(t) - s0) / (s1 - s0)
+end
+
+--- 将副本波次映射到等效关卡（S曲线难度递进）
 ---@param wave number 1-15
----@param difficultyId string "normal"/"hard"/"nightmare"
+---@param difficultyId string "tier1"~"tier5"
 ---@return number stageEquiv
 function Abyss.WaveToStage(wave, difficultyId)
     local diff = Abyss.DIFFICULTY_MAP[difficultyId] or Abyss.DIFFICULTIES[1]
-    local base  = RuneConfig.ABYSS_RIFT.baseStage   -- 500
-    local final = RuneConfig.ABYSS_RIFT.finalStage   -- 6000
+    local minStage = diff.stageRange and diff.stageRange[1] or 1
+    local maxStage = diff.stageRange and diff.stageRange[2] or 1000
 
-    -- 指数增长：ratio=12，wave1=500, wave8≈1732, wave15=6000 (× 难度系数)
-    local t = (wave - 1) / (TOTAL_WAVES - 1)         -- 0 ~ 1
-    local stageEquiv = base * (final / base) ^ t * diff.levelMult
+    local t = (wave - 1) / (TOTAL_WAVES - 1)   -- 0~1
+    local tCurved = sigmoidMap(t, 6)
+    local stageEquiv = minStage + (maxStage - minStage) * tCurved
 
     return math.max(1, math.floor(stageEquiv))
 end
@@ -274,18 +285,32 @@ function Abyss.CalcWaveDrops(wave, difficultyId)
 
     local drops = { dust = 0, runes = {}, seals = 0 }
 
-    -- 裂隙之尘（基础掉落 × 难度系数范围）
+    -- 裂隙之尘（基础掉落 × 难度系数范围 × 世界等级）
     local baseDust = math.random(dropDef.dustMin, dropDef.dustMax)
     -- 难度额外尘：从 dustRange 取
     local extraDust = math.random(diff.dustRange[1], diff.dustRange[2])
-    drops.dust = baseDust + extraDust
+    drops.dust = math.floor((baseDust + extraDust) * WorldTier.GetDustMult())
 
-    -- 符文掉落（dropChanceMult 按难度提升爆率）
+    -- 符文掉落（dropChanceMult 按难度提升爆率，bonusRuneRolls 增加 roll 次数 × 世界等级）
     local chanceMult = diff.dropChanceMult or 1.0
     local runeChance = math.min((dropDef.runeChance or 0) * chanceMult, 1.0)
-    if runeChance > 0 and math.random() < runeChance then
-        local rune = RuneData.Generate(diff.qualityMult)
-        drops.runes[#drops.runes + 1] = rune
+    local baseRolls = 1 + (diff.bonusRuneRolls or 0)  -- 基础1次 + 额外次数
+    local totalRolls = math.floor(baseRolls * WorldTier.GetRuneMult())
+    local mythicBonus = diff.mythicBonusChance or 0     -- 每颗符文神话升级概率
+
+    for _ = 1, totalRolls do
+        if runeChance > 0 and math.random() < runeChance then
+            local rune = RuneData.Generate(diff.qualityMult)
+            -- 神话升级：若 roll 出的品质不是神话，额外概率升级
+            if mythicBonus > 0 and rune and rune.qualityId ~= "red" then
+                if math.random() < mythicBonus then
+                    rune = RuneData.GenerateFixedQuality("red")
+                end
+            end
+            if rune then
+                drops.runes[#drops.runes + 1] = rune
+            end
+        end
     end
 
     -- 符文封印掉落
@@ -308,6 +333,8 @@ function Abyss.EstimateFullClearDrops(difficultyId)
     local avgRunes = 0
     local avgSeals = 0
 
+    local totalRolls = 1 + (diff.bonusRuneRolls or 0)
+
     for w = 1, TOTAL_WAVES do
         local waveType = Abyss.GetWaveType(w)
         local dropDef = RuneConfig.ABYSS_WAVE_DROPS[waveType]
@@ -317,9 +344,9 @@ function Abyss.EstimateFullClearDrops(difficultyId)
             local avgDiffDust = (diff.dustRange[1] + diff.dustRange[2]) / 2
             totalDust = totalDust + avgWaveDust + avgDiffDust
 
-            -- 符文概率（×难度爆率系数）
+            -- 符文概率（×难度爆率系数 × roll 次数）
             local rc = math.min((dropDef.runeChance or 0) * chanceMult, 1.0)
-            avgRunes = avgRunes + rc
+            avgRunes = avgRunes + rc * totalRolls
 
             -- 封印概率（×难度爆率系数）
             if dropDef.sealChance then
@@ -452,20 +479,7 @@ function Abyss.GetDifficultyInfo(difficultyId)
     if not diff then
         return "未知", { 160, 160, 160 }, ""
     end
-
-    local colorMap = {
-        normal    = { 120, 200, 120 },
-        hard      = { 255, 180, 40 },
-        nightmare = { 255, 60, 60 },
-    }
-
-    local descMap = {
-        normal    = "入门难度，保底符文，适合日常刷取",
-        hard      = "怪物等级×5，符文品质提升，材料更丰厚",
-        nightmare = "怪物×20倍等级，高品质符文频出，终极试炼",
-    }
-
-    return diff.name, colorMap[difficultyId] or { 160, 160, 160 }, descMap[difficultyId] or ""
+    return diff.name, diff.color or { 160, 160, 160 }, diff.desc or ""
 end
 
 --- 获取波次难度描述

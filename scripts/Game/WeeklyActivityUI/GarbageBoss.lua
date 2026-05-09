@@ -4,6 +4,7 @@
 
 local GB                = require("Game.GarbageBossData")
 local GarbageBossSkills = require("Game.GarbageBossSkills")
+local BossSkillManager = require("Game.BossSkillManager")
 local Currency          = require("Game.Currency")
 local HeroData          = require("Game.HeroData")
 local Config            = require("Game.Config")
@@ -471,7 +472,7 @@ function GarbageBossUI._OnChallenge(ctx)
 
     local function handleResult(result, isExit, continueExit)
         _isChallenging = false
-        GarbageBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         State.worldBossActive = false
 
         local sessionDamage = result.totalDamage or State.worldBossTotalDamage or 0
@@ -498,10 +499,10 @@ function GarbageBossUI._OnChallenge(ctx)
 
     config.onStart = function()
         State.worldBossActive = true
-        GarbageBossSkills.Init(bossDef.bossSkills)
+        BossSkillManager.Init("garbage_boss", bossDef.bossSkills)
     end
     config.onUpdate = function(dt)
-        GarbageBossSkills.Update(dt)
+        BossSkillManager.Update(dt)
     end
 
     config.onWin  = function(result) handleResult(result, false) end

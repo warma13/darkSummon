@@ -6,8 +6,32 @@ local HeroData = require("Game.HeroData")
 local Config = require("Game.Config")
 local TodayKey = require("Game.DateUtil").TodayKey
 local TodayStr = require("Game.DateUtil").TodayStr
+local FormatUtil = require("Game.FormatUtil")
 
 local LB = {}
+
+-- ============================================================================
+-- 服务器隔离：所有排行榜 key 加上当前服务器 ID 后缀
+-- ============================================================================
+
+--- 获取当前服务器 ID（延迟加载避免循环依赖）
+---@return number
+local function _GetServerId()
+    local ok, SSU = pcall(require, "Game.ServerSelectUI")
+    if ok and SSU and SSU.GetSelectedServer then
+        return SSU.GetSelectedServer() or 1
+    end
+    return 1
+end
+
+--- 为排行榜 key 追加服务器后缀，实现不同服务器排行榜隔离
+--- 例如: "lb_campaign_v5" → "lb_campaign_v5_s2"
+---@param key string 原始排行榜 key
+---@return string 带服务器后缀的 key
+function LB.S(key)
+    local sid = _GetServerId()
+    return key .. "_s" .. sid
+end
 
 -- ============================================================================
 -- 排行榜 key 定义（iscores 中的 key）
@@ -23,6 +47,7 @@ LB.KEY_EMERALD_TOKEN    = "lb_emerald_token"    -- 翠影秘境累计凭证
 LB.KEY_EMERALD_PROGRESS = "lb_emerald_progress" -- 翠影秘境最高进度 (tier*100+wave)
 LB.KEY_HATRED_LAND      = "lb_hatred_land"      -- 憎恨之地最高伤害（历史总榜）
 LB.KEY_GARBAGE_BOSS     = "lb_garbage_boss"     -- 垃圾大扫除个人累计伤害
+LB.KEY_CONSENSUS        = "lb_server_time"      -- 共识天投票（无服务器隔离）
 
 --- 获取世界BOSS每日排行榜 key（每天一个，格式：lb_wbv3_20260415）
 ---@return string
@@ -128,7 +153,7 @@ end
 function LB.UploadCampaign(bestGlobalWave)
     if not bestGlobalWave or bestGlobalWave <= 0 then return end
     if not clientCloud then return end
-    clientCloud:SetInt(LB.KEY_CAMPAIGN, bestGlobalWave, {
+    clientCloud:SetInt(LB.S(LB.KEY_CAMPAIGN), bestGlobalWave, {
         ok = function()
             print("[LB] Campaign score uploaded: globalWave=" .. bestGlobalWave)
         end,
@@ -143,7 +168,7 @@ end
 function LB.UploadTower(floor)
     if not floor or floor <= 0 then return end
     if not clientCloud then return end
-    clientCloud:SetInt(LB.KEY_TOWER, floor, {
+    clientCloud:SetInt(LB.S(LB.KEY_TOWER), floor, {
         ok = function()
             print("[LB] Tower score uploaded: " .. floor)
         end,
@@ -158,7 +183,7 @@ end
 function LB.UploadDungeon(wave)
     if not wave or wave <= 0 then return end
     if not clientCloud then return end
-    clientCloud:SetInt(LB.KEY_DUNGEON, wave, {
+    clientCloud:SetInt(LB.S(LB.KEY_DUNGEON), wave, {
         ok = function()
             print("[LB] Dungeon score uploaded: " .. wave)
         end,
@@ -175,7 +200,7 @@ function LB.UploadWorldBoss(weightedDamage, difficultyLevel)
     if not weightedDamage or weightedDamage <= 0 then return end
     if not clientCloud then return end
     local encoded = LB.EncodeBossScore(weightedDamage, difficultyLevel or 0)
-    clientCloud:SetInt(LB.KEY_WORLD_BOSS, encoded, {
+    clientCloud:SetInt(LB.S(LB.KEY_WORLD_BOSS), encoded, {
         ok = function()
             print("[LB] World Boss score uploaded: weighted=" .. weightedDamage
                 .. " diff=" .. tostring(difficultyLevel) .. " (encoded=" .. encoded .. ")")
@@ -192,7 +217,7 @@ end
 function LB.UploadWorldBossDaily(weightedDamage, difficultyLevel)
     if not weightedDamage or weightedDamage <= 0 then return end
     if not clientCloud then return end
-    local dailyKey = LB.GetWorldBossDailyKey()
+    local dailyKey = LB.S(LB.GetWorldBossDailyKey())
     local encoded = LB.EncodeBossScore(weightedDamage, difficultyLevel or 0)
     clientCloud:SetInt(dailyKey, encoded, {
         ok = function()
@@ -211,7 +236,7 @@ end
 function LB.UploadWorldBossDiffDaily(rawDamage, difficultyLevel)
     if not rawDamage or rawDamage <= 0 then return end
     if not clientCloud then return end
-    local dailyKey = LB.GetWorldBossDiffDailyKey(difficultyLevel or 0)
+    local dailyKey = LB.S(LB.GetWorldBossDiffDailyKey(difficultyLevel or 0))
     -- 不含难度位编码（同难度内排序，无需标记）
     local encoded = LB.EncodeBossScore(rawDamage, 0)
     clientCloud:SetInt(dailyKey, encoded, {
@@ -231,7 +256,7 @@ end
 function LB.UploadHatredLandDiffDaily(rawDamage, difficultyLevel)
     if not rawDamage or rawDamage <= 0 then return end
     if not clientCloud then return end
-    local dailyKey = LB.GetHatredLandDiffDailyKey(difficultyLevel or 0)
+    local dailyKey = LB.S(LB.GetHatredLandDiffDailyKey(difficultyLevel or 0))
     local encoded = LB.EncodeBossScore(rawDamage, 0)
     clientCloud:SetInt(dailyKey, encoded, {
         ok = function()
@@ -257,7 +282,7 @@ function LB.UploadAbyss(difficultyId, wave)
     local idx = ABYSS_DIFF_INDEX[difficultyId]
     if not idx then return end
     local score = idx * 100 + wave
-    clientCloud:SetInt(LB.KEY_ABYSS, score, {
+    clientCloud:SetInt(LB.S(LB.KEY_ABYSS), score, {
         ok = function()
             print("[LB] Abyss uploaded: " .. difficultyId .. " wave " .. wave .. " (score=" .. score .. ")")
         end,
@@ -272,7 +297,7 @@ end
 function LB.UploadCostume(bonus)
     if not bonus or bonus <= 0 then return end
     if not clientCloud then return end
-    clientCloud:SetInt(LB.KEY_COSTUME, bonus, {
+    clientCloud:SetInt(LB.S(LB.KEY_COSTUME), bonus, {
         ok = function()
             print("[LB] Costume score uploaded: " .. bonus)
         end,
@@ -305,7 +330,7 @@ local EMERALD_TIER_NAMES = {
 function LB.UploadEmeraldToken(totalToken)
     if not totalToken or totalToken <= 0 then return end
     if not clientCloud then return end
-    clientCloud:SetInt(LB.KEY_EMERALD_TOKEN, totalToken, {
+    clientCloud:SetInt(LB.S(LB.KEY_EMERALD_TOKEN), totalToken, {
         ok = function()
             print("[LB] Emerald token uploaded: " .. totalToken)
         end,
@@ -340,7 +365,7 @@ function LB.UploadEmeraldProgress(tier, wave)
     if not tier or tier <= 0 then return end
     if not clientCloud then return end
     local encoded = LB.EncodeEmeraldProgress(tier, wave)
-    clientCloud:SetInt(LB.KEY_EMERALD_PROGRESS, encoded, {
+    clientCloud:SetInt(LB.S(LB.KEY_EMERALD_PROGRESS), encoded, {
         ok = function()
             print("[LB] Emerald progress uploaded: tier=" .. tier .. " wave=" .. wave .. " (encoded=" .. encoded .. ")")
         end,
@@ -355,12 +380,7 @@ end
 ---@return string
 function LB.FormatEmeraldToken(score)
     if not score or score <= 0 then return "—" end
-    if score >= 100000 then
-        return string.format("%.1f万", score / 10000)
-    elseif score >= 10000 then
-        return string.format("%.2f万", score / 10000)
-    end
-    return tostring(score)
+    return FormatUtil.FormatNum(score)
 end
 
 --- 格式化翠影秘境进度（编码值 → 可读字符串）
@@ -395,7 +415,7 @@ function LB.UploadGarbageBoss(totalDamage)
     if not totalDamage or totalDamage <= 0 then return end
     if not clientCloud then return end
     local encoded = LB.EncodeBossScore(totalDamage, 0)
-    clientCloud:SetInt(LB.KEY_GARBAGE_BOSS, encoded, {
+    clientCloud:SetInt(LB.S(LB.KEY_GARBAGE_BOSS), encoded, {
         ok = function()
             print("[LB] Garbage Boss score uploaded: totalDamage=" .. totalDamage
                 .. " (encoded=" .. encoded .. ")")
@@ -412,19 +432,7 @@ end
 function LB.FormatGarbageBoss(encoded)
     if not encoded or encoded <= 0 then return "—" end
     local damage = LB.DecodeBossScore(encoded)
-    if damage >= 1e20 then
-        return string.format("%.1f垓", damage / 1e20)
-    elseif damage >= 1e16 then
-        return string.format("%.1f京", damage / 1e16)
-    elseif damage >= 1e12 then
-        return string.format("%.1f兆", damage / 1e12)
-    elseif damage >= 1e8 then
-        return string.format("%.1f亿", damage / 1e8)
-    elseif damage >= 1e4 then
-        return string.format("%.0f万", damage / 1e4)
-    else
-        return tostring(math.floor(damage))
-    end
+    return FormatUtil.FormatNum(damage)
 end
 
 --- 同步所有排行榜分数（游戏初始化 / Save 时调用）
@@ -518,12 +526,17 @@ end
 ---@param start number    起始位置 (0-based)
 ---@param count number    获取数量
 ---@param callback function(list, myRank, myScore, total)
-function LB.FetchRankList(key, start, count, callback)
+---@param opts? { noIsolation?: boolean }
+function LB.FetchRankList(key, start, count, callback, opts)
     if not clientCloud then
         if callback then callback(nil) end
         return
     end
 
+    -- 服务器隔离：追加服务器后缀（除非 noIsolation）
+    if not (opts and opts.noIsolation) then
+        key = LB.S(key)
+    end
     -- 将排名 key 作为附加字段传入，确保 iscore 中包含该 key 的值
     clientCloud:GetRankList(key, start, count, {
         ok = function(rankList)
@@ -598,10 +611,15 @@ end
 --- 获取自己的排名
 ---@param key string
 ---@param callback function(rank, score)  rank=nil 表示未上榜
-function LB.FetchMyRank(key, callback)
+---@param opts? { noIsolation?: boolean }
+function LB.FetchMyRank(key, callback, opts)
     if not clientCloud then
         if callback then callback(nil, 0) end
         return
+    end
+    -- 服务器隔离：追加服务器后缀（除非 noIsolation）
+    if not (opts and opts.noIsolation) then
+        key = LB.S(key)
     end
     print("[LB] FetchMyRank key=" .. key)
     clientCloud:GetUserRank(clientCloud.userId, key, {
@@ -619,10 +637,15 @@ end
 --- 获取排行榜总人数
 ---@param key string
 ---@param callback function(total)
-function LB.FetchRankTotal(key, callback)
+---@param opts? { noIsolation?: boolean }
+function LB.FetchRankTotal(key, callback, opts)
     if not clientCloud then
         if callback then callback(0) end
         return
+    end
+    -- 服务器隔离：追加服务器后缀（除非 noIsolation）
+    if not (opts and opts.noIsolation) then
+        key = LB.S(key)
     end
     clientCloud:GetRankTotal(key, {
         ok = function(total)
@@ -671,17 +694,19 @@ end
 function LB.FormatWorldBoss(encoded)
     if not encoded or encoded <= 0 then return "—" end
     local damage = LB.DecodeBossScore(encoded)
-    if damage >= 10000000000000000 then
-        return string.format("%.1f京", damage / 10000000000000000)
-    elseif damage >= 1000000000000 then
-        return string.format("%.1f兆", damage / 1000000000000)
-    elseif damage >= 100000000 then
-        return string.format("%.1f亿", damage / 100000000)
-    elseif damage >= 10000 then
-        return string.format("%.0f万", damage / 10000)
-    else
-        return tostring(math.floor(damage))
-    end
+    return FormatUtil.FormatNum(damage)
+end
+
+--- 格式化共识天投票分数
+--- 编码: score = gameDay * 10000 + voteSeq
+---@param score number
+---@return string
+function LB.FormatConsensus(score)
+    if not score or score <= 0 then return "—" end
+    local SCALE = 10000
+    local day = math.floor(score / SCALE)
+    local vote = score % SCALE
+    return string.format("Day %d #%d", day, vote)
 end
 
 -- ============================================================================

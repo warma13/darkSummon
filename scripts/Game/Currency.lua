@@ -5,6 +5,7 @@
 local Config = require("Game.Config")
 local HeroData = require("Game.HeroData")
 local EventBus = require("Game.EventBus")
+local FormatUtil = require("Game.FormatUtil")
 
 local Currency = {}
 
@@ -394,13 +395,7 @@ end
 ---@param amount number
 ---@return string
 function Currency.FormatAmount(currencyId, amount)
-    if amount >= 1e8 then
-        return string.format("%.1f亿", amount / 1e8)
-    elseif amount >= 1e4 then
-        return string.format("%.1f万", amount / 1e4)
-    else
-        return tostring(math.floor(amount))
-    end
+    return FormatUtil.FormatNum(amount)
 end
 
 --- 获取货币显示名称

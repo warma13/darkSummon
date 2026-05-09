@@ -289,8 +289,17 @@ end
 ---@param transcendLv number 当前超越等级
 ---@return number
 function EquipData.GetTranscendCost(transcendLv)
-    local cost = Config.TRANSCEND_COST_BASE + transcendLv * Config.TRANSCEND_COST_GROWTH
-    return math.min(cost, Config.TRANSCEND_COST_MAX)
+    -- 阶梯费用：按等级区间固定单价
+    local targetLv = transcendLv + 1
+    local tiers = Config.TRANSCEND_COST_TIERS
+    local cost = tiers[#tiers][2]
+    for i = #tiers, 1, -1 do
+        if targetLv >= tiers[i][1] then
+            cost = tiers[i][2]
+            break
+        end
+    end
+    return cost
 end
 
 --- 超越升级（单次）
@@ -323,9 +332,10 @@ end
 ---@param heroId string
 ---@param slotId string
 ---@param maxCount number 最多升多少级（-1=升满）
+---@param skipSave? boolean 跳过立即存档（批量升级时由调用方统一存档）
 ---@return number upgraded
 ---@return number totalCost
-function EquipData.TranscendUpgradeMulti(heroId, slotId, maxCount)
+function EquipData.TranscendUpgradeMulti(heroId, slotId, maxCount, skipSave)
     local equips = EquipData.GetHeroEquips(heroId)
     local e = equips[slotId]
     local tier = Config.EQUIP_TIERS[e.tierIdx]
@@ -349,29 +359,187 @@ function EquipData.TranscendUpgradeMulti(heroId, slotId, maxCount)
         upgraded = upgraded + 1
     end
 
-    if upgraded > 0 then
-        HeroData.Save(true)
+    if upgraded > 0 and not skipSave then
+        HeroData.Save()
     end
     return upgraded, totalCost
 end
 
---- 一键升级所有部位（升到各自品质段上限，满级红色则超越）
+--- 一键升级所有部位（注水法：先追平低等级，再均分剩余预算，升级后各部位等级接近）
 ---@param heroId string
 ---@return number totalUpgraded
 ---@return number totalCost
 function EquipData.UpgradeAllSlots(heroId)
     local totalUpgraded = 0
     local totalCost = 0
-    for _, slot in ipairs(Config.EQUIP_SLOTS) do
-        local up, cost = EquipData.UpgradeMulti(heroId, slot.id, -1)
-        totalUpgraded = totalUpgraded + up
-        totalCost = totalCost + cost
+    local equips = EquipData.GetHeroEquips(heroId)
+    local leaderLevel = HeroData.GetLeaderLevel()
+
+    -- 计算从 fromLv 升到 toLv 的总费用（按阶梯分段批量）
+    local function costRange(fromLv, toLv)
+        if toLv <= fromLv then return 0 end
+        local sum, lv = 0, fromLv
+        while lv < toLv do
+            local uc = EquipData.GetUpgradeCost(lv)
+            if uc <= 0 then break end
+            local segEnd = toLv
+            for _, s in ipairs(EQUIP_COST_STEPS) do
+                if s[1] > lv + 1 then segEnd = math.min(s[1] - 1, toLv); break end
+            end
+            sum = sum + uc * (segEnd - lv)
+            lv = segEnd
+        end
+        return sum
     end
-    -- 满级红色的部位尝试超越升级
+
+    -- 给定预算，从 fromLv 最多能升到几级
+    local function maxReachable(fromLv, cap, bgt)
+        local lv, spent = fromLv, 0
+        while lv < cap do
+            local uc = EquipData.GetUpgradeCost(lv)
+            if uc <= 0 then break end
+            local segEnd = cap
+            for _, s in ipairs(EQUIP_COST_STEPS) do
+                if s[1] > lv + 1 then segEnd = math.min(s[1] - 1, cap); break end
+            end
+            local a = math.min(segEnd - lv, math.floor((bgt - spent) / uc))
+            if a <= 0 then break end
+            spent = spent + uc * a
+            lv = lv + a
+        end
+        return lv
+    end
+
+    -- 收集可升级部位，按等级升序
+    local slots = {}
     for _, slot in ipairs(Config.EQUIP_SLOTS) do
-        local up, cost = EquipData.TranscendUpgradeMulti(heroId, slot.id, -1)
-        totalUpgraded = totalUpgraded + up
-        totalCost = totalCost + cost
+        local e = equips[slot.id]
+        if e then
+            local tier = Config.EQUIP_TIERS[e.tierIdx]
+            local cap = math.min(tier.maxLevel, Config.EQUIP_MAX_LEVEL, leaderLevel)
+            if e.level < cap then
+                slots[#slots + 1] = { slot = slot, e = e, cap = cap }
+            end
+        end
+    end
+    table.sort(slots, function(a, b) return a.e.level < b.e.level end)
+
+    local n = #slots
+    if n > 0 then
+        local budget = HeroData.currencies.forge_iron or 0
+        local groupLevel = slots[1].e.level
+        local filled = false
+
+        -- 注水法：逐步将低等级部位追平到下一个等级台阶
+        for i = 2, n do
+            local targetLv = slots[i].e.level
+            if targetLv <= groupLevel then goto continue end
+            local groupSize = i - 1
+            local costPerSlot = costRange(groupLevel, targetLv)
+            local needed = costPerSlot * groupSize
+            if budget >= needed then
+                budget = budget - needed
+                groupLevel = targetLv
+            else
+                -- 预算不够追平，平分给当前组
+                local perSlot = math.floor(budget / groupSize)
+                groupLevel = maxReachable(groupLevel, slots[1].cap, perSlot)
+                filled = true
+                break
+            end
+            ::continue::
+        end
+
+        -- 全部追平后，剩余预算均分给所有部位
+        if not filled and budget > 0 then
+            local minCap = slots[1].cap
+            for i = 2, n do minCap = math.min(minCap, slots[i].cap) end
+            local perSlot = math.floor(budget / n)
+            groupLevel = maxReachable(groupLevel, minCap, perSlot)
+        end
+
+        -- 执行实际升级
+        for i = 1, n do
+            local target = math.min(groupLevel, slots[i].cap)
+            local count = target - slots[i].e.level
+            if count > 0 then
+                local up, cost = EquipData.UpgradeMulti(heroId, slots[i].slot.id, count)
+                totalUpgraded = totalUpgraded + up
+                totalCost = totalCost + cost
+            end
+        end
+    end
+
+    -- 超越升级同理：注水法追平超越等级
+    local tSlots = {}
+    for _, slot in ipairs(Config.EQUIP_SLOTS) do
+        local e = equips[slot.id]
+        if e then
+            local tier = Config.EQUIP_TIERS[e.tierIdx]
+            if e.tierIdx >= #Config.EQUIP_TIERS and e.level >= tier.maxLevel then
+                tSlots[#tSlots + 1] = { slot = slot, e = e, tlv = e.transcendLv or 0 }
+            end
+        end
+    end
+    table.sort(tSlots, function(a, b) return a.tlv < b.tlv end)
+    local tn = #tSlots
+    if tn > 0 then
+        local budget = HeroData.currencies.forge_iron or 0
+        local groupTLv = tSlots[1].tlv
+        local filled = false
+
+        for i = 2, tn do
+            local targetTLv = tSlots[i].tlv
+            if targetTLv <= groupTLv then goto tcontinue end
+            local groupSize = i - 1
+            local needed = 0
+            for lv = groupTLv, targetTLv - 1 do
+                needed = needed + EquipData.GetTranscendCost(lv)
+            end
+            needed = needed * groupSize
+            if budget >= needed then
+                budget = budget - needed
+                groupTLv = targetTLv
+            else
+                local perSlot = math.floor(budget / groupSize)
+                local lv, spent = groupTLv, 0
+                while true do
+                    local c = EquipData.GetTranscendCost(lv)
+                    if c <= 0 or spent + c > perSlot then break end
+                    spent = spent + c
+                    lv = lv + 1
+                end
+                groupTLv = lv
+                filled = true
+                break
+            end
+            ::tcontinue::
+        end
+
+        if not filled and budget > 0 then
+            local perSlot = math.floor(budget / tn)
+            local lv, spent = groupTLv, 0
+            while true do
+                local c = EquipData.GetTranscendCost(lv)
+                if c <= 0 or spent + c > perSlot then break end
+                spent = spent + c
+                lv = lv + 1
+            end
+            groupTLv = lv
+        end
+
+        for i = 1, tn do
+            local count = groupTLv - tSlots[i].tlv
+            if count > 0 then
+                local up, cost = EquipData.TranscendUpgradeMulti(heroId, tSlots[i].slot.id, count, true)
+                totalUpgraded = totalUpgraded + up
+                totalCost = totalCost + cost
+            end
+        end
+    end
+
+    if totalUpgraded > 0 then
+        HeroData.Save()
     end
     return totalUpgraded, totalCost
 end

@@ -13,15 +13,15 @@ local AchievementData = {}
 -- ============================================================================
 
 --- 关卡成就：每5关奖励暗影精粹（虚空契约已改为通关直发，此处不再重复）
-local STAGE_INTERVAL = 5
-local STAGE_REWARD   = { type = "currency", id = "shadow_essence", amount = 50 }
+local STAGE_INTERVAL = 100
+local STAGE_REWARD   = { type = "currency", id = "shadow_essence", amount = 1000 }
 
---- 暗影君主升级成就：每100级，100~6000级，奖励冥晶从1万到1000万
-local LEVEL_INTERVAL = 100
-local LEVEL_MIN      = 100
-local LEVEL_MAX      = 6000
-local LEVEL_REWARD_MIN = 10000      -- 1万
-local LEVEL_REWARD_MAX = 10000000   -- 1000万
+--- 暗影君主升级成就：每100级，无上限，奖励按幂函数增长
+local LEVEL_INTERVAL     = 100
+local LEVEL_MIN          = 100
+local LEVEL_REWARD_BASE  = 10000   -- 100级基础奖励（冥晶）
+local LEVEL_REWARD_POWER = 1.7     -- 增长指数
+-- 参考值: 100级→1万, 1000级→50万, 6000级→1057万, 10000级→2512万
 
 --- 累积登录成就：固定天数里程碑，奖励暗影精粹
 local LOGIN_MILESTONES = {
@@ -94,16 +94,27 @@ local _rankCache = {
 -- 工具
 -- ============================================================================
 
---- 计算暗影君主升级里程碑的冥晶奖励
+local LEVEL_REWARD_CAP = 50000000  -- 5000万
+
+--- 计算暗影君主升级里程碑的冥晶奖励（幂函数，上限5000万）
 ---@param level number 里程碑等级（100的倍数）
 ---@return number
 local function CalcLevelReward(level)
-    local t = (level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN)
-    t = math.max(0, math.min(1, t))
-    return math.floor(LEVEL_REWARD_MIN + (LEVEL_REWARD_MAX - LEVEL_REWARD_MIN) * t)
+    local n = math.max(1, level / LEVEL_INTERVAL) -- 第n个里程碑
+    return math.min(LEVEL_REWARD_CAP, math.floor(LEVEL_REWARD_BASE * n ^ LEVEL_REWARD_POWER))
 end
 
 local TodayStr = require("Game.DateUtil").TodayStr
+
+--- 排名成就是否已解锁（开服满1天后解锁）
+---@return boolean
+local function IsRankUnlocked()
+    local ok, ConfigModule = pcall(require, "Game.Config")
+    if not ok or not ConfigModule then return false end
+    local startDate = ConfigModule.SERVER_START_DATE
+    if not startDate then return false end
+    return TodayStr() > startDate  -- 字符串比较 "YYYY-MM-DD" 格式天然有效
+end
 
 -- ============================================================================
 -- 数据访问
@@ -217,8 +228,9 @@ function AchievementData.GetCurrentStageMilestone()
             return s, true, true
         end
     end
+    -- 全部领完：显示下一个目标，但标记为已达成（UI 显示"已完成"）
     local nextStage = (math.floor(bestStage / STAGE_INTERVAL) + 1) * STAGE_INTERVAL
-    return nextStage, false, false
+    return nextStage, false, true
 end
 
 -- ============================================================================
@@ -259,14 +271,13 @@ end
 function AchievementData.GetCurrentLevelMilestone()
     local data = AchievementData.EnsureData()
     local curLevel = AchievementData.GetLeaderLevel()
-    local maxClaimed = math.min(curLevel, LEVEL_MAX)
-    for lv = LEVEL_MIN, maxClaimed, LEVEL_INTERVAL do
+    for lv = LEVEL_MIN, curLevel, LEVEL_INTERVAL do
         if not data.levelClaimed[tostring(lv)] then
             return lv, true, true, CalcLevelReward(lv)
         end
     end
+    -- 全部已领：显示下一个等级目标
     local nextLevel = math.max(LEVEL_MIN, (math.floor(curLevel / LEVEL_INTERVAL) + 1) * LEVEL_INTERVAL)
-    nextLevel = math.min(nextLevel, LEVEL_MAX)
     return nextLevel, false, false, CalcLevelReward(nextLevel)
 end
 
@@ -321,6 +332,12 @@ end
 -- 排行榜名次成就（主线 + 试练塔）
 -- ============================================================================
 
+--- 排名成就是否已解锁（公开 API，供 UI 层使用）
+---@return boolean
+function AchievementData.IsRankUnlocked()
+    return IsRankUnlocked()
+end
+
 --- 异步获取排名并缓存（打开成就页时调用一次）
 ---@param onDone function|nil  两个排名都到位后的回调
 function AchievementData.FetchRanks(onDone)
@@ -362,6 +379,11 @@ end
 ---@param myRank number|nil 我的排名（nil=未上榜）
 ---@return number targetRank, boolean canClaim, boolean reached, number reward
 local function _GetCurrentRankMilestone(claimedTbl, myRank)
+    -- 开服未满1天，排名成就全部锁定
+    if not IsRankUnlocked() then
+        local first = RANK_MILESTONES[1]
+        return first.rank, false, false, first.reward
+    end
     -- 里程碑从大到小（100→1），排名越小越好
     for _, m in ipairs(RANK_MILESTONES) do
         if not claimedTbl[tostring(m.rank)] then
@@ -381,6 +403,7 @@ end
 ---@param label string  显示用标签（"主线"/"试练塔"）
 ---@return boolean success, string msg
 local function _ClaimRank(claimedTbl, myRank, targetRank, label)
+    if not IsRankUnlocked() then return false, "开服未满1天，排名成就尚未解锁" end
     local key = tostring(targetRank)
     if claimedTbl[key] then return false, "已领取" end
     if not myRank or myRank > targetRank then
@@ -665,8 +688,7 @@ function AchievementData.HasClaimable()
     end
     -- 暗影君主升级成就
     local curLevel = AchievementData.GetLeaderLevel()
-    local maxCheck = math.min(curLevel, LEVEL_MAX)
-    for lv = LEVEL_MIN, maxCheck, LEVEL_INTERVAL do
+    for lv = LEVEL_MIN, curLevel, LEVEL_INTERVAL do
         if not data.levelClaimed[tostring(lv)] then return true end
     end
     -- 累积登录成就
@@ -675,18 +697,20 @@ function AchievementData.HasClaimable()
             return true
         end
     end
-    -- 排行榜名次成就（依赖缓存排名）
-    if _rankCache.campaign then
-        for _, m in ipairs(RANK_MILESTONES) do
-            if _rankCache.campaign <= m.rank and not data.rankCampaignClaimed[tostring(m.rank)] then
-                return true
+    -- 排行榜名次成就（依赖缓存排名，开服满1天后才解锁）
+    if IsRankUnlocked() then
+        if _rankCache.campaign then
+            for _, m in ipairs(RANK_MILESTONES) do
+                if _rankCache.campaign <= m.rank and not data.rankCampaignClaimed[tostring(m.rank)] then
+                    return true
+                end
             end
         end
-    end
-    if _rankCache.tower then
-        for _, m in ipairs(RANK_MILESTONES) do
-            if _rankCache.tower <= m.rank and not data.rankTowerClaimed[tostring(m.rank)] then
-                return true
+        if _rankCache.tower then
+            for _, m in ipairs(RANK_MILESTONES) do
+                if _rankCache.tower <= m.rank and not data.rankTowerClaimed[tostring(m.rank)] then
+                    return true
+                end
             end
         end
     end
@@ -757,7 +781,7 @@ function AchievementData.Update(dt)
 
     -- 暗影君主等级（每 100 级）
     local curLevel = AchievementData.GetLeaderLevel()
-    for lv = LEVEL_MIN, math.min(curLevel, LEVEL_MAX), LEVEL_INTERVAL do
+    for lv = LEVEL_MIN, curLevel, LEVEL_INTERVAL do
         _NotifyIf("l" .. lv, true, data.levelClaimed[tostring(lv)],
             "暗影君主达到" .. lv .. "级", "冥晶x" .. CalcLevelReward(lv))
     end
@@ -768,16 +792,16 @@ function AchievementData.Update(dt)
             "累积登录" .. m.days .. "天", "暗影精粹x" .. m.reward)
     end
 
-    -- 主线排名
-    if _rankCache.campaign then
+    -- 主线排名（开服满1天后才解锁）
+    if IsRankUnlocked() and _rankCache.campaign then
         for _, m in ipairs(RANK_MILESTONES) do
             _NotifyIf("rc" .. m.rank, _rankCache.campaign <= m.rank, data.rankCampaignClaimed[tostring(m.rank)],
                 "主线排名前" .. m.rank, "暗影精粹x" .. m.reward)
         end
     end
 
-    -- 试练塔排名
-    if _rankCache.tower then
+    -- 试练塔排名（开服满1天后才解锁）
+    if IsRankUnlocked() and _rankCache.tower then
         for _, m in ipairs(RANK_MILESTONES) do
             _NotifyIf("rt" .. m.rank, _rankCache.tower <= m.rank, data.rankTowerClaimed[tostring(m.rank)],
                 "试练塔排名前" .. m.rank, "暗影精粹x" .. m.reward)

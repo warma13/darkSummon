@@ -6,6 +6,7 @@ local HeroData = require("Game.HeroData")
 local Currency = require("Game.Currency")
 local HL = require("Game.HatredLandData")
 local HatredBossSkills = require("Game.HatredBossSkills")
+local BossSkillManager = require("Game.BossSkillManager")
 local Toast = require("Game.Toast")
 local RewardDisplay = require("Game.RewardDisplay")
 local RC = require("Game.RewardController")
@@ -33,14 +34,9 @@ function HatredLand.BuildDetailView(ctx)
     pageRoot:AddChild(UI.Panel {
         width = "100%", height = 50,
         flexDirection = "row", alignItems = "center",
-        backgroundColor = S.headerBg, flexShrink = 0,
+        flexShrink = 0,
         children = {
-            UI.Panel {
-                width = 50, height = 50,
-                justifyContent = "center", alignItems = "center",
-                onClick = function() ctx.SetView("list") end,
-                children = { UI.Label { text = "‹", fontSize = 22, fontColor = S.dim, pointerEvents = "none" } },
-            },
+            UI.Panel { width = 12 },
             UI.Label {
                 text = "憎恨之地", fontSize = 20, fontWeight = "bold",
                 fontColor = S.white, pointerEvents = "none",
@@ -427,9 +423,18 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
     local label = config.label
 
     local function handleResult(result, isExit, continueExit)
-        HatredBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         State.worldBossActive = false
         local totalDamage = result.totalDamage or State.worldBossTotalDamage
+
+        -- 战斗结束后立即清理所有副本敌人，避免结算期间渲染大量残留精英导致卡顿
+        for _, e in ipairs(State.enemies) do
+            if e.alive and e.isDungeonEnemy then
+                e.alive = false
+                e.hp = 0
+                e._dyingAnim = false  -- 跳过死亡动画，立即消失
+            end
+        end
 
         local rewards = HL.ClaimReward(totalDamage, challengeDifficulty)
         local defs = rewards and rewards.rewardDefs or {}
@@ -450,10 +455,10 @@ function HatredLand.OnChallenge(UI, S, ctx, skipConsume)
 
     config.onStart = function()
         State.worldBossActive = true
-        HatredBossSkills.Init(bossDef.bossSkills)
+        BossSkillManager.Init("hatred_land", bossDef.bossSkills)
     end
     config.onUpdate = function(dt)
-        HatredBossSkills.Update(dt)
+        BossSkillManager.Update(dt)
     end
 
     config.onWin = function(result) handleResult(result, false) end
@@ -476,9 +481,11 @@ function HatredLand.OnSweep(UI, S, ctx)
         return
     end
 
+    local freeLeft = HL.GetFreeRemaining()
     local ticketCount = HL.GetTicketCount()
-    if ticketCount <= 0 then
-        Toast.Show("没有可用的挑战券", { 255, 200, 80 })
+    local totalAvailable = freeLeft + ticketCount
+    if totalAvailable <= 0 then
+        Toast.Show("没有可用的免费次数或挑战券", { 255, 200, 80 })
         return
     end
 
@@ -488,11 +495,23 @@ function HatredLand.OnSweep(UI, S, ctx)
 
     local selectedDiff = HL.GetSelectedDifficulty()
 
+    local capturedFreeLeft = freeLeft
     SweepPopup.Show(UI, root, S, {
         title = "憎恨之地 · 连续扫荡",
-        maxCount = ticketCount,
+        maxCount = totalAvailable,
         sweepLabel = "最高伤害",
         sweepValue = HL.FormatDamage(bestDamage),
+        costFn = function(count)
+            local free = math.min(count, capturedFreeLeft)
+            local ticket = count - free
+            if free > 0 and ticket > 0 then
+                return "免费 " .. free .. " 次 + 挑战券 " .. ticket .. " 张"
+            elseif free > 0 then
+                return "免费 " .. free .. " 次（不消耗挑战券）"
+            else
+                return "消耗 " .. ticket .. " 张挑战券"
+            end
+        end,
         previewFn = function(count)
             local calc = HL.CalcRewards(bestDamage, selectedDiff)
             local items = {}
@@ -525,17 +544,29 @@ function HatredLand.OnSweep(UI, S, ctx)
             local successCount = 0
             local totalEssence = 0
             local totalShards = 0
-            local slotShards = {}   -- { [slotId] = totalShardCount }
-            local synthResults = {} -- 合成结果列表
+            local slotShards = {}       -- { [slotId] = totalShardCount }
+            local allShardDetail = {}   -- { [relicId] = totalCount } 汇总每轮的碎片明细
+            local synthResults = {}     -- 合成结果列表
             for i = 1, count do
-                if not HL.ConsumeTicket() then
-                    Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
-                    break
+                local curFree = HL.GetFreeRemaining()
+                if curFree > 0 then
+                    if not HL.ConsumeAttempt() then break end
+                else
+                    if not HL.ConsumeTicket() then
+                        Toast.Show("挑战券不足，已扫荡 " .. successCount .. " 次", { 255, 200, 80 })
+                        break
+                    end
                 end
                 local rewards = HL.ClaimReward(bestDamage, selectedDiff)
                 if rewards then
                     totalEssence = totalEssence + (rewards.essence or 0)
                     totalShards = totalShards + (rewards.shards or 0)
+                    -- 汇总每轮随机碎片明细
+                    if rewards.shardDetail then
+                        for relicId, cnt in pairs(rewards.shardDetail) do
+                            allShardDetail[relicId] = (allShardDetail[relicId] or 0) + cnt
+                        end
+                    end
                     -- 汇总遗物碎片掉落
                     if rewards.relicDrop then
                         local rd = rewards.relicDrop
@@ -562,22 +593,29 @@ function HatredLand.OnSweep(UI, S, ctx)
                         borderColor = { 200, 150, 255, 200 },
                     }
                 end
-                if totalShards > 0 then
+                -- 按遗物逐个展示随机碎片（带图标）
+                for relicId, cnt in pairs(allShardDetail) do
+                    local rDef = Config.RELICS[relicId]
                     rewardItems[#rewardItems + 1] = {
-                        icon = "",
-                        name = "部位碎片",
-                        amount = totalShards,
+                        icon = rDef and rDef.image or "",
+                        name = (rDef and rDef.name or relicId) .. "碎片",
+                        amount = cnt,
                         borderColor = { 150, 200, 255, 200 },
                     }
                 end
-                -- 各部位遗物碎片
+                -- 各部位遗物碎片（relicDrop，使用部位图标）
                 for slotId, cnt in pairs(slotShards) do
                     local slotName = ""
+                    local slotIcon = ""
                     for _, s in ipairs(Config.RELIC_SLOTS) do
-                        if s.id == slotId then slotName = s.name; break end
+                        if s.id == slotId then
+                            slotName = s.name
+                            slotIcon = s.icon or ""
+                            break
+                        end
                     end
                     rewardItems[#rewardItems + 1] = {
-                        icon = "",
+                        icon = slotIcon,
                         name = slotName .. "碎片",
                         amount = cnt,
                         borderColor = { 150, 200, 255, 200 },

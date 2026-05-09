@@ -37,6 +37,7 @@ local CostumeSignInUI   = require("Game.CostumeSignInUI")
 local CostumeSignInData = require("Game.CostumeSignInData")
 local AdDashboardUI  = require("Game.AdDashboardUI")
 local MiniGameUI     = require("Game.MiniGameUI")
+local FeatureGate    = require("Game.FeatureGate")
 
 local GameUI = {}
 
@@ -86,6 +87,7 @@ local function GetHudRefs()
         summonBtn        = uiRoot:FindById("summonBtn"),
         summonCostLabel  = uiRoot:FindById("summonCostLabel"),
         heroInfoPanel    = uiRoot:FindById("heroInfoPanel"),
+        autoPlayContainer = uiRoot:FindById("autoPlayContainer"),
         autoSummonBtn    = uiRoot:FindById("autoSummonBtn"),
         autoMergeBtn     = uiRoot:FindById("autoMergeBtn"),
         autoDeployBtn    = uiRoot:FindById("autoDeployBtn"),
@@ -94,6 +96,17 @@ local function GetHudRefs()
         exitDungeonBtn   = uiRoot:FindById("exitDungeonBtn"),
         skipBossBtn      = uiRoot:FindById("skipBossBtn"),
         skipBossLabel    = uiRoot:FindById("skipBossLabel"),
+        -- 左侧按钮（FeatureGate 动态显隐）
+        recruitBtn       = uiRoot:FindById("recruitBtn"),
+        afkButton        = uiRoot:FindById("afkButton"),
+        activityBtn      = uiRoot:FindById("activityBtn"),
+        exchangeShopBtn  = uiRoot:FindById("exchangeShopBtn"),
+        adReliefBtn      = uiRoot:FindById("adReliefBtn"),
+        -- 右侧按钮（FeatureGate 动态显隐）
+        weeklyActivityBtn = uiRoot:FindById("weeklyActivityBtn"),
+        vaultEntryBtn    = uiRoot:FindById("vaultEntryBtn"),
+        costumeSignInBtn = uiRoot:FindById("costumeSignInBtn"),
+        miniGameBtn      = uiRoot:FindById("miniGameBtn"),
     }
     return hudCache.refs
 end
@@ -187,6 +200,12 @@ function GameUI.UpdateHUD()
             end
             waveText = State.currentStage .. "-" .. State.currentWave .. typeTag
         end
+        -- 非普通难度时前置世界等级名称
+        local WorldTier = require("Game.WorldTier")
+        local tier = WorldTier.GetCurrent()
+        if tier.id > 1 then
+            waveText = "[" .. tier.name .. "] " .. waveText
+        end
         if waveText ~= hudCache.waveText then
             hudCache.waveText = waveText
             refs.waveLabel:SetText(waveText)
@@ -258,6 +277,29 @@ function GameUI.UpdateHUD()
         refs.exitDungeonBtn:SetVisible(showExit)
     end
 
+    -- ======== 功能解锁动态显隐（SetVisible + YGNodeStyleSetDisplay 不占位） ========
+    local function setFeatureVisible(ref, unlocked)
+        if not ref then return end
+        ref:SetVisible(unlocked)
+        YGNodeStyleSetDisplay(ref.node, unlocked and YGDisplayFlex or YGDisplayNone)
+    end
+
+    -- 自动按钮容器
+    setFeatureVisible(refs.autoPlayContainer, FeatureGate.IsUnlocked("auto_play"))
+
+    -- 左侧按钮
+    setFeatureVisible(refs.recruitBtn,      FeatureGate.IsUnlocked("recruit"))
+    setFeatureVisible(refs.afkButton,       FeatureGate.IsUnlocked("idle"))
+    setFeatureVisible(refs.activityBtn,     FeatureGate.IsUnlocked("activity"))
+    setFeatureVisible(refs.exchangeShopBtn, FeatureGate.IsUnlocked("exchange"))
+    setFeatureVisible(refs.adReliefBtn,     FeatureGate.IsUnlocked("ad_relief"))
+
+    -- 右侧按钮
+    setFeatureVisible(refs.weeklyActivityBtn, FeatureGate.IsUnlocked("weekly_activity"))
+    setFeatureVisible(refs.vaultEntryBtn,     FeatureGate.IsUnlocked("vault"))
+    setFeatureVisible(refs.costumeSignInBtn,  FeatureGate.IsUnlocked("costume") and CostumeSignInData.IsEventActive())
+    setFeatureVisible(refs.miniGameBtn,       FeatureGate.IsUnlocked("mini_game"))
+
     -- ======== 自动按钮状态（仅状态变化时更新） ========
     if refs.autoSummonBtn then
         local st = AutoPlay.autoSummon and "on" or "off"
@@ -303,6 +345,8 @@ function GameUI.UpdateHUD()
 
     -- ======== 加速按钮（仅状态/文本变化时更新） ========
     if refs.speedBoostBtn then
+        -- 动态解锁检查
+        setFeatureVisible(refs.speedBoostBtn, FeatureGate.IsUnlocked("speed_boost"))
         local active = SpeedBoost.enabled and SpeedBoost.remaining > 0
         local st = active and "on" or "off"
         if st ~= hudCache.speedState then
@@ -394,7 +438,7 @@ function GameUI.CreateBattlePage()
                     },
                 },
             },
-            -- x2 加速按钮（独立定位，在自动召唤上方）
+            -- x2 加速按钮（通关第10关解锁，独立定位，在自动召唤上方）
             UI.Panel {
                 id = "speedBoostBtn",
                 position = "absolute",
@@ -407,6 +451,7 @@ function GameUI.CreateBattlePage()
                 backgroundColor = { 60, 50, 80, 200 },
                 pointerEvents = "auto",
                 alignItems = "center",
+                visible = FeatureGate.IsUnlocked("speed_boost"),
                 onClick = function(self)
                     GameUI.ShowSpeedBoostDialog(true)
                 end,
@@ -1550,6 +1595,9 @@ end
 
 --- 主更新循环
 function GameUI.Update(dt)
+    -- 定时版本检测
+    require("Game.GameVersion").Update(dt)
+
     -- 注：超限判定 + BOSS 倒计时 + 通关桥接已迁移到 BattleManager.UpdateWaves
 
     -- 自动召唤/合成定时触发

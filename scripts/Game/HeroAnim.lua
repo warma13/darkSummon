@@ -35,6 +35,10 @@ local SQUASH_Y   = 1.08   -- Y 最高（108% 高）
 local STRETCH_X  = 1.08   -- X 最宽（108% 宽）
 local STRETCH_Y  = 0.93   -- Y 最矮（93% 高）
 
+-- 转向动画
+local TURN_DURATION = 0.12   -- s   转身动画时长（scaleX 1→0→1）
+local TURN_COOLDOWN = 0.25   -- s   两次转向之间的最小间隔（防抖动）
+
 -- ============================================================================
 -- 缓动函数
 -- ============================================================================
@@ -60,6 +64,9 @@ local _r = {
     scaleY  = 1,   -- 攻击压缩弹出 Y 缩放
     -- floatPhase 用于阴影缩放同步（-1 ~ 1），与 bobY 相位一致
     floatPhase = 0,
+    -- 转向动画
+    visualFaceLeft = false,  -- 当前视觉朝向（渲染层读取，替代 tower.faceLeft）
+    turnScaleX     = 1.0,    -- 转向缩放（1.0 正常，0.0 中间态）
 }
 
 -- ============================================================================
@@ -72,7 +79,32 @@ function HeroAnim.InitAnim(tower)
     tower.hanim = {
         breathePhase = math.random() * PI * 2,  -- 随机初相位，避免所有英雄同步呼吸
         atkProgress  = 0,                        -- 攻击动画进度（秒，倒计时）
+        -- 转向动画状态
+        visualFaceLeft = tower.faceLeft or false, -- 当前视觉朝向
+        targetFaceLeft = tower.faceLeft or false, -- 目标朝向
+        turnTimer      = 0,                       -- 转向动画计时器（倒计时）
+        turnCooldown   = 0,                       -- 转向冷却（防抖动）
     }
+end
+
+--- 设置目标朝向（替代直接赋值 tower.faceLeft，带冷却防抖）
+---@param tower table    塔/英雄实体
+---@param faceLeft boolean 目标朝向
+function HeroAnim.SetFacing(tower, faceLeft)
+    local h = tower.hanim
+    if not h then
+        -- 无动画数据，回退到直接赋值
+        tower.faceLeft = faceLeft
+        return
+    end
+    -- 方向没变或正在转向中，忽略
+    if faceLeft == h.targetFaceLeft then return end
+    -- 冷却期内忽略（防止高攻速英雄频繁抖动）
+    if h.turnCooldown > 0 then return end
+    -- 启动转向动画
+    h.targetFaceLeft = faceLeft
+    h.turnTimer = TURN_DURATION
+    h.turnCooldown = TURN_COOLDOWN
 end
 
 --- 每帧 tick（在 Tower.Update 末尾调用）
@@ -89,6 +121,21 @@ function HeroAnim.Update(dt, towers)
         -- 攻击动画倒计时
         if h.atkProgress > 0 then
             h.atkProgress = math.max(0, h.atkProgress - dt)
+        end
+
+        -- 转向冷却倒计时
+        if h.turnCooldown > 0 then
+            h.turnCooldown = math.max(0, h.turnCooldown - dt)
+        end
+
+        -- 转向动画倒计时
+        if h.turnTimer > 0 then
+            h.turnTimer = math.max(0, h.turnTimer - dt)
+            -- 过了半程（scaleX=0）时切换视觉朝向
+            if h.turnTimer <= TURN_DURATION * 0.5 and h.visualFaceLeft ~= h.targetFaceLeft then
+                h.visualFaceLeft = h.targetFaceLeft
+                tower.faceLeft = h.targetFaceLeft  -- 同步逻辑层（武器等读取）
+            end
         end
 
         ::continue::
@@ -112,6 +159,8 @@ function HeroAnim.GetDrawTransform(tower)
     -- 无动画数据：返回默认
     if not h then
         _r.bobY = 0; _r.scaleX = 1; _r.scaleY = 1; _r.floatPhase = 0
+        _r.visualFaceLeft = tower.faceLeft or false
+        _r.turnScaleX = 1.0
         return _r
     end
 
@@ -154,6 +203,25 @@ function HeroAnim.GetDrawTransform(tower)
 
     _r.scaleX = sX
     _r.scaleY = sY
+
+    -- 转向动画缩放
+    _r.visualFaceLeft = h.visualFaceLeft
+    if h.turnTimer > 0 then
+        -- 前半程 scaleX: 1 → 0，后半程 0 → 1
+        local half = TURN_DURATION * 0.5
+        if h.turnTimer > half then
+            -- 前半程：收缩
+            local p = (h.turnTimer - half) / half  -- 1→0
+            _r.turnScaleX = p
+        else
+            -- 后半程：展开
+            local p = 1.0 - h.turnTimer / half     -- 0→1
+            _r.turnScaleX = p
+        end
+    else
+        _r.turnScaleX = 1.0
+    end
+
     return _r
 end
 

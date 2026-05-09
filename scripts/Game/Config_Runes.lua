@@ -205,9 +205,18 @@ RuneConfig.UPGRADE_SUCCESS_RATE_BY_QUALITY = {
 -- ============================================================================
 
 RuneConfig.BAG_CAPACITY = 50            -- 初始容量
-RuneConfig.BAG_MAX_CAPACITY = 100       -- 最大容量
-RuneConfig.BAG_EXPAND_COST = 500        -- 每次扩容消耗裂隙之尘
+RuneConfig.BAG_MAX_CAPACITY = 200       -- 最大容量
 RuneConfig.BAG_EXPAND_AMOUNT = 10       -- 每次扩容增加
+RuneConfig.BAG_EXPAND_BASE_COST = 500   -- 首次扩容基础消耗裂隙之尘
+RuneConfig.BAG_EXPAND_COST_STEP = 300   -- 每次扩容递增消耗
+
+--- 计算当前扩容费用（随已扩容次数递增）
+---@param currentCapacity number 当前背包容量
+---@return number cost 本次扩容消耗裂隙之尘
+function RuneConfig.GetExpandCost(currentCapacity)
+    local expandLevel = math.floor((currentCapacity - RuneConfig.BAG_CAPACITY) / RuneConfig.BAG_EXPAND_AMOUNT)
+    return RuneConfig.BAG_EXPAND_BASE_COST + expandLevel * RuneConfig.BAG_EXPAND_COST_STEP
+end
 
 -- ============================================================================
 -- 分解产出
@@ -236,11 +245,17 @@ RuneConfig.ABYSS_RIFT = {
     finalStage     = 6000,        -- 第15波等效关卡
 }
 
--- 三档难度：梯度平滑（×1 → ×5 → ×20），避免断层
+-- 五档难度：每档覆盖独立的等效关卡范围，S曲线波次递进
+-- stageRange: 15波映射到的等效关卡区间（决定怪物 HP/DEF/速度）
+-- bonusRuneRolls: 每波额外 roll 符文次数（0=默认1次，N=总共N+1次）
+-- mythicBonusChance: 每颗符文额外神话升级概率（在 qualityMult 基础上叠加）
+-- 最高难度综合神话爆率 ≈ 93%（约等于保底）
 RuneConfig.ABYSS_DIFFICULTY = {
-    { id = "normal",    name = "普通", levelMult = 1,  qualityMult = 1.0, dustRange = {3, 5},   dropChanceMult = 1.0 },
-    { id = "hard",      name = "困难", levelMult = 5,  qualityMult = 1.8, dustRange = {8, 14},  dropChanceMult = 1.3 },
-    { id = "nightmare", name = "噩梦", levelMult = 20, qualityMult = 3.5, dustRange = {16, 26}, dropChanceMult = 1.8 },
+    { id = "tier1", name = "初级", stageRange = {500, 1500},   qualityMult = 1.0,  dustRange = {2, 4},    dropChanceMult = 1.0, bonusRuneRolls = 0, mythicBonusChance = 0,    color = {120,200,120}, desc = "入门试炼，小量符文掉落" },
+    { id = "tier2", name = "进阶", stageRange = {800, 3000},   qualityMult = 2.0,  dustRange = {5, 9},    dropChanceMult = 1.3, bonusRuneRolls = 0, mythicBonusChance = 0,    color = { 80,160,255}, desc = "难度提升，材料与符文增加" },
+    { id = "tier3", name = "精英", stageRange = {1500, 5000},  qualityMult = 4.0,  dustRange = {10, 16},  dropChanceMult = 1.6, bonusRuneRolls = 1, mythicBonusChance = 0,    color = {180,100,255}, desc = "精英试炼，高品质符文概率提升" },
+    { id = "tier4", name = "噩梦", stageRange = {3000, 8000},  qualityMult = 6.0,  dustRange = {16, 26},  dropChanceMult = 2.0, bonusRuneRolls = 1, mythicBonusChance = 0.03, color = {255,160, 40}, desc = "噩梦强度，大量材料与稀有符文" },
+    { id = "tier5", name = "深渊", stageRange = {5000, 15000}, qualityMult = 10.0, dustRange = {26, 40},  dropChanceMult = 2.5, bonusRuneRolls = 2, mythicBonusChance = 0.12, color = {255, 50, 50}, desc = "终极深渊，综合神话爆率约等于保底" },
 }
 
 --- 波次掉落规则

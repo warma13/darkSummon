@@ -8,18 +8,28 @@ local SaveRegistry = require("Game.SaveRegistry")
 local Toast        = require("Game.Toast")
 local DateUtil     = require("Game.DateUtil")
 
+local Config     = require("Game.Config")
+
 local LDD = {}
 
 -- ============================================================================
--- 活动时间配置
+-- 活动时间配置（从 Config 动态读取，按服务器独立配置）
 -- ============================================================================
 
---- 活动开始日期（含）
-LDD.START_DATE = "2026-04-30"
---- 活动结束日期（含，共8天）
-LDD.END_DATE   = "2026-05-08"
 --- 签到总天数
 LDD.TOTAL_DAYS = 7
+
+--- 获取活动开始日期（含）
+---@return string "YYYY-MM-DD"
+function LDD.GetStartDate()
+    return Config.LABOR_DAY_START or "2026-05-03"
+end
+
+--- 获取活动结束日期（含）
+---@return string "YYYY-MM-DD"
+function LDD.GetEndDate()
+    return Config.LABOR_DAY_END or "2026-05-11"
+end
 
 -- ============================================================================
 -- 签到奖励配置（7天递增，第7天大奖）
@@ -106,20 +116,20 @@ end
 ---@return boolean
 function LDD.IsActive()
     local today = DateUtil.TodayStr()
-    return today >= LDD.START_DATE and today <= LDD.END_DATE
+    return today >= LDD.GetStartDate() and today <= LDD.GetEndDate()
 end
 
 --- 活动是否已结束
 ---@return boolean
 function LDD.IsExpired()
-    return DateUtil.TodayStr() > LDD.END_DATE
+    return DateUtil.TodayStr() > LDD.GetEndDate()
 end
 
 --- 获取活动剩余时间字符串
 ---@return string
 function LDD.GetRemainingTimeStr()
     if not LDD.IsActive() then return "已结束" end
-    local endTs = DateToTime(LDD.END_DATE) + 86400 -- 结束日当天24:00
+    local endTs = DateToTime(LDD.GetEndDate()) + 86400 -- 结束日当天24:00
     local remainSec = math.max(0, endTs - os.time())
     local days = math.floor(remainSec / 86400)
     local hours = math.floor((remainSec % 86400) / 3600)
@@ -129,7 +139,7 @@ end
 --- 获取活动已进行的天数（从第1天开始）
 ---@return number
 function LDD.GetEventDay()
-    local startTs = DateToTime(LDD.START_DATE)
+    local startTs = DateToTime(LDD.GetStartDate())
     local todayTs = DateToTime(DateUtil.TodayStr())
     local day = math.floor((todayTs - startTs) / 86400) + 1
     return math.max(1, math.min(day, LDD.TOTAL_DAYS))
@@ -155,6 +165,14 @@ function LDD.EnsureData()
     local d = HeroData.laborDayData
     if d.doubleDate == nil then d.doubleDate = "" end
     if d.doubleUsed == nil then d.doubleUsed = 0 end
+
+    -- 一次性重置：仅2026-05-07当天登录的玩家重置翻倍次数
+    if not d._doubleReset_0507 and DateUtil.TodayStr() == "2026-05-07" then
+        d._doubleReset_0507 = true
+        d.doubleUsed = 0
+        d.doubleDate = ""
+    end
+
     return d
 end
 
@@ -187,23 +205,53 @@ function LDD.SignIn()
     data.signedDays[today] = true
     data.lastSignDate = today
 
-    -- 自动领取对应天数的奖励
+    -- 自动领取所有已解锁但未领取的天数奖励
     local signedCount = LDD.GetSignedCount()
-    local reward = LDD.REWARDS[signedCount]
-    if reward and not data.claimedDays[signedCount] then
-        data.claimedDays[signedCount] = true
-        -- 发放奖励到邮箱
-        MailboxData.Add({
-            title = "劳动节签到奖励",
-            desc = "第" .. signedCount .. "天签到奖励",
-            rewards = reward.rewards,
-        })
-        Toast.Show("签到成功！第" .. signedCount .. "天奖励已发送到邮箱", { 255, 200, 60 })
+    local claimedAny = false
+    for i = 1, signedCount do
+        local reward = LDD.REWARDS[i]
+        if reward and not data.claimedDays[i] then
+            data.claimedDays[i] = true
+            MailboxData.Add({
+                title = "劳动节签到奖励",
+                desc  = "第" .. i .. "天签到奖励",
+                rewards = reward.rewards,
+            })
+            claimedAny = true
+        end
+    end
+    if claimedAny then
+        Toast.Show("签到成功！奖励已发送到邮箱", { 255, 200, 60 })
     end
 
     local okLM, LMD2 = pcall(require, "Game.LaborMedalData")
     if okLM then LMD2.EarnMedals("labor_signin") end
 
+    HeroData.Save()
+    return true
+end
+
+--- 手动领取第 N 天奖励（已解锁但未领取时可用）
+---@param dayIndex number 1~7
+---@return boolean success
+function LDD.ClaimDay(dayIndex)
+    local data = LDD.EnsureData()
+    -- 已领取则跳过
+    if data.claimedDays[dayIndex] then return false end
+    -- 签到数不够则不能领
+    local signedCount = LDD.GetSignedCount()
+    if signedCount < dayIndex then return false end
+    -- 发放奖励
+    local reward = LDD.REWARDS[dayIndex]
+    if not reward then return false end
+
+    data.claimedDays[dayIndex] = true
+    MailboxData.Add({
+        title = "劳动节签到奖励",
+        desc  = "第" .. dayIndex .. "天签到奖励",
+        rewards = reward.rewards,
+    })
+    Toast.Show("第" .. dayIndex .. "天奖励已发送到邮箱", { 255, 200, 60 })
     HeroData.Save()
     return true
 end
@@ -232,7 +280,17 @@ end
 ---@return boolean
 function LDD.HasClaimable()
     if not LDD.IsActive() then return false end
-    return not LDD.HasSignedToday()
+    -- 可签到
+    if not LDD.HasSignedToday() then return true end
+    -- 有已解锁但未领取的奖励
+    local data = LDD.EnsureData()
+    local signedCount = LDD.GetSignedCount()
+    for i = 1, signedCount do
+        if LDD.REWARDS[i] and not data.claimedDays[i] then
+            return true
+        end
+    end
+    return false
 end
 
 -- ============================================================================

@@ -35,6 +35,8 @@ local DEFAULT_TABS = {
           local ok, CD = pcall(require, "Game.CostumeData")
           if ok then LB.UploadCostume(CD.GetTotalScoreBonus()) end
       end },
+    { key = LB.KEY_CONSENSUS, label = "共识", format = function(s) return LB.FormatConsensus(s) end,
+      noIsolation = true },
 }
 local TABS = DEFAULT_TABS
 local activeTab = 1  -- 当前选中标签索引
@@ -86,6 +88,15 @@ end
 
 local function GetActiveFormat()
     return TABS[activeTab].format
+end
+
+--- 获取当前标签的 fetch opts（用于 noIsolation 等）
+local function GetActiveOpts()
+    local tab = TABS[activeTab]
+    if tab.noIsolation then
+        return { noIsolation = true }
+    end
+    return nil
 end
 
 -- ============================================================================
@@ -380,17 +391,18 @@ function LeaderboardUI.LoadMyRank()
 
     -- 普通模式
     local key = GetActiveKey()
+    local opts = GetActiveOpts()
     LB.FetchMyRank(key, function(rank, score)
         myScore = score or 0
         -- 无有效分数时视为未上榜（API 可能对 score=0 也返回 rank=1）
         myRank = (myScore > 0 and rank) and rank or nil
         LeaderboardUI.UpdateMyRankCard()
-    end)
+    end, opts)
 
     LB.FetchRankTotal(key, function(total)
         rankTotal = total or 0
         LeaderboardUI.UpdateMyRankCard()
-    end)
+    end, opts)
 end
 
 --- combined 模式下更新底部"我的排名"
@@ -509,7 +521,7 @@ function LeaderboardUI.LoadMore()
         loadedCount = loadedCount + #list
 
         LeaderboardUI.RebuildList(#list >= PAGE_SIZE and loadedCount < MAX_LOAD)
-    end)
+    end, GetActiveOpts())
 end
 
 -- ============================================================================

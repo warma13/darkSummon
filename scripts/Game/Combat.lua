@@ -10,6 +10,8 @@ local HeroSkills = require("Game.HeroSkills")
 local Debuff     = require("Game.Debuff")
 local AudioManager = require("Game.AudioManager")
 local HeroAnim = require("Game.HeroAnim")
+local FormatUtil = require("Game.FormatUtil")
+local SpeedBoost = require("Game.SpeedBoostData")
 
 -- 音效节流：避免高频攻击时音效堆叠
 local lastAttackSfxTime = 0
@@ -134,31 +136,12 @@ end
 ---@param n number
 ---@return string
 local function FormatDamage(n)
-    if not n or n ~= n or n == math.huge or n == -math.huge then return "0" end  -- nil / NaN / Inf 保护
-    if n < 0 then n = -n end  -- 负数取绝对值（防止溢出显示负数）
-    if n >= 1e16 then
-        local v = n / 1e16
-        local s = v >= 100 and string.format("%.0f京", v)
-            or string.format("%.1f京", v)
-        return (s:gsub("%.0京", "京"))
-    elseif n >= 1e12 then
-        local v = n / 1e12
-        local s = v >= 100 and string.format("%.0f万亿", v)
-            or string.format("%.1f万亿", v)
-        return (s:gsub("%.0万亿", "万亿"))
-    elseif n >= 1e8 then
-        local v = n / 1e8
-        local s = v >= 100 and string.format("%.0f亿", v)
-            or string.format("%.1f亿", v)
-        return (s:gsub("%.0亿", "亿"))
-    elseif n >= 1e4 then
-        local v = n / 1e4
-        local s = v >= 100 and string.format("%.0f万", v)
-            or string.format("%.1f万", v)
-        return (s:gsub("%.0万", "万"))
-    end
-    return tostring(math.floor(n))
+    if not n or n ~= n or n == math.huge or n == -math.huge then return "0" end
+    if n < 0 then n = -n end
+    return FormatUtil.FormatNum(n)
 end
+
+local _ftSkipAccum = 0   -- x2 加速时非暴击飘字节流计数器
 
 --- 统一伤害飘字（暴击/普通自动格式化）
 ---@param target table   被击中的敌人
@@ -166,6 +149,11 @@ end
 ---@param isCrit boolean  是否暴击
 ---@param elemColor table 普通伤害颜色（元素着色后）
 local function ShowDamageText(target, finalDmg, isCrit, elemColor)
+    -- x2 加速时节流普通飘字（跳过~50%非暴击，减轻渲染和字符串分配压力）
+    if not isCrit and SpeedBoost.GetMultiplier() > 1 then
+        _ftSkipAccum = _ftSkipAccum + 1
+        if _ftSkipAccum % 2 == 0 then return end
+    end
     local text = FormatDamage(finalDmg)
     local size = target.typeDef.size or 8
     -- 随机抛物线初速度
@@ -270,16 +258,7 @@ local function CalcFinalDamage(tower, enemy, damage)
         local critRate = HeroSkills.GetEffectiveCritRate(tower)
         if critRate > 0 and math.random() < critRate then
             isCrit = true
-            local critDmg = Tower.GetEffectiveCritDmg(tower)
-            -- 英雄模块额外暴击伤害（绯夜缚瞳锁定等，hstate 子命名空间）
-            local hs = tower.hstate
-            if hs and hs.bonusCritDmg and hs.bonusCritDmg > 0 then
-                critDmg = critDmg + hs.bonusCritDmg
-            end
-            -- 光环暴击伤害加成（cadence / probability_warp 标签）
-            if tower.auraCritDmgBuff and tower.auraCritDmgBuff > 0 then
-                critDmg = critDmg + tower.auraCritDmgBuff
-            end
+            local critDmg = HeroSkills.GetEffectiveCritDmg(tower)
             local critReduce = enemy.critDmgReduce or 0
             if critReduce > 0 then
                 critDmg = critDmg * (1 - critReduce)
@@ -298,12 +277,7 @@ local function CalcFinalDamage(tower, enemy, damage)
     -- [伤害加成] 通用独立乘区 (1 + dmgBonus)
     -- 怪物伤害加成减免：dmgBonusReduce 削减英雄 dmgBonus
     do
-        local dmgBonus = Tower.GetEffectiveDmgBonus(tower)
-        -- 英雄模块额外伤害加成（永恒魔君侵蚀等，hstate 子命名空间）
-        local hs = tower.hstate
-        if hs and hs.bonusDmgBonus and hs.bonusDmgBonus > 0 then
-            dmgBonus = dmgBonus + hs.bonusDmgBonus
-        end
+        local dmgBonus = HeroSkills.GetEffectiveDmgBonus(tower)
         local dmgReduce = enemy.dmgBonusReduce or 0
         if dmgReduce > 0 then
             dmgBonus = dmgBonus * (1 - dmgReduce)
@@ -730,8 +704,9 @@ local function OnProjectileHit(proj)
         tower.scorchReduction = reduce
     end
 
-    -- 命中粒子（对象池复用）
-    for i = 1, 4 do
+    -- 命中粒子（对象池复用；x2 加速时减半以降低搅动压力）
+    local hitPtCount = SpeedBoost.GetMultiplier() > 1 and 2 or 4
+    for i = 1, hitPtCount do
         local angle = math.random() * math.pi * 2
         local spd = 20 + math.random() * 30
         local hp = AcquireParticle()
@@ -798,9 +773,9 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         local tx, ty = Grid.CellToScreen(tower.col, tower.row, gridOffsetX, gridOffsetY)
         local target = FindTarget(tower, tx, ty)
 
-        -- 更新朝向
+        -- 更新朝向（通过 HeroAnim 平滑转向，带冷却防抖）
         if target then
-            tower.faceLeft = target.x < tx
+            HeroAnim.SetFacing(tower, target.x < tx)
         end
 
         -- 沉默期间无法攻击（death_silence / disable 施加）
@@ -848,15 +823,9 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
                 local dy = p.ty - p.y
                 local distSq = dx * dx + dy * dy
 
-                if distSq < 64 or p.life <= 0 then  -- 64 = 8²
-                    -- pcall 保护：OnProjectileHit 报错时仍移除弹道，
-                    -- 防止卡死弹道导致 Combat.Update 每帧崩溃（飘字/掉落物/攻击全部停止）
-                    local ok, err = pcall(OnProjectileHit, p)
-                    if not ok then
-                        print("[Combat] ERROR in OnProjectileHit: " .. tostring(err))
-                    end
-                    remove = true
-                else
+                -- 命中判定：到达目标附近 OR 生命耗尽 OR 本帧移动可越过目标
+                local hit = distSq < 64 or p.life <= 0   -- 64 = 8²
+                if not hit then
                     local dist = math.sqrt(distSq)
                     -- 动态追踪：弹体速度至少比目标快 150 px/s，防止高速怪永远追不上
                     local effSpeed = p.speed
@@ -865,8 +834,24 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
                         effSpeed = math.max(effSpeed, tgt.speed + 150)
                     end
                     local move = effSpeed * dt
-                    p.x = p.x + dx / dist * move
-                    p.y = p.y + dy / dist * move
+                    if move >= dist then
+                        -- 本帧移动距离 >= 到目标距离，直接命中
+                        -- （防止低帧率/x2加速下弹道越过目标后振荡折返）
+                        hit = true
+                    else
+                        p.x = p.x + dx / dist * move
+                        p.y = p.y + dy / dist * move
+                    end
+                end
+
+                if hit then
+                    -- pcall 保护：OnProjectileHit 报错时仍移除弹道，
+                    -- 防止卡死弹道导致 Combat.Update 每帧崩溃
+                    local ok, err = pcall(OnProjectileHit, p)
+                    if not ok then
+                        print("[Combat] ERROR in OnProjectileHit: " .. tostring(err))
+                    end
+                    remove = true
                 end
             end
 
@@ -953,36 +938,7 @@ function Combat.Update(dt, gridOffsetX, gridOffsetY)
         end
     end
 
-    -- 更新敌人buff计时器
-    for _, e in ipairs(State.enemies) do
-        -- 增伤标记衰减
-        if e.ampDamageTimer and e.ampDamageTimer > 0 then
-            e.ampDamageTimer = e.ampDamageTimer - dt
-            if e.ampDamageTimer <= 0 then
-                Debuff.Clear(e, "amp_damage")
-            end
-        end
-        -- 破甲叠层衰减
-        if e.armorBreakTimer and e.armorBreakTimer > 0 then
-            e.armorBreakTimer = e.armorBreakTimer - dt
-            if e.armorBreakTimer <= 0 then
-                e.armorBreakStacks = nil
-                e.armorBreakValue = nil
-                e.armorBreakTimer = nil
-            end
-        end
-        -- 眩晕衰减
-        if e.stunTimer and e.stunTimer > 0 then
-            e.stunTimer = e.stunTimer - dt
-        end
-        -- 冰冻衰减
-        if e.frozenTimer and e.frozenTimer > 0 then
-            e.frozenTimer = e.frozenTimer - dt
-            if e.frozenTimer <= 0 then
-                Debuff.Clear(e, "frozen")
-            end
-        end
-    end
+    -- 敌人 buff 计时器已合并到 Enemy.UpdateTimers（P1 优化：消除重复遍历）
 end
 
 return Combat

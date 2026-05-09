@@ -173,17 +173,6 @@ function ActivityData.Load()
         ActivityData.data = ActivityData.InitDefault()
     end
 
-    -- 一次性补偿迁移：本期因代码变更导致签到天数不足的玩家，补到第7天
-    local si2 = ActivityData.data.signIn
-    if not si2._compV1 then
-        if si2.totalLogins < 7 then
-            si2.totalLogins = 7
-            print("[ActivityData] compV1: restored totalLogins to 7")
-        end
-        si2._compV1 = true
-        ActivityData.Save()
-    end
-
     -- 加载特权系统（含一次性迁移：历史广告次数 → 特权点数）
     local ok, PrivilegeData = pcall(require, "Game.PrivilegeData")
     if ok and PrivilegeData then

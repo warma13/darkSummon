@@ -96,15 +96,10 @@ function RC.BuildEntry(def)
         name = (id or "?") .. "万能碎片"
 
     elseif def.type == "relic_shard" then
-        -- 遗物碎片：id 是 relicId，需查 RelicData 获取名称
-        local ok3, RelicData = pcall(require, "Game.RelicData")
-        if ok3 and RelicData.RELIC_DEFS then
-            local rd = RelicData.RELIC_DEFS[id]
-            name = rd and (rd.name .. "碎片") or (id .. "碎片")
-            icon = rd and rd.icon or icon
-        else
-            name = (id or "?") .. "碎片"
-        end
+        -- 遗物碎片：id 是 relicId，查 Config.RELICS 获取名称和图片
+        local rd = Config.RELICS and Config.RELICS[id]
+        name = rd and (rd.name .. "碎片") or ((id or "?") .. "碎片")
+        icon = rd and rd.image or icon
         if not icon then icon = "image/icon_fragment.png" end
 
     elseif def.type == "rune" then

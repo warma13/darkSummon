@@ -30,6 +30,7 @@ function SweepPopup.Show(UI, root, S, opts)
     local sweepValue = opts.sweepValue or "—"
     local previewFn  = opts.previewFn
     local onConfirm  = opts.onConfirm
+    local costFn     = opts.costFn      -- 可选: function(count) -> string 消耗提示文本
 
     -- 移除旧弹窗
     local old = root:FindById(POPUP_ID)
@@ -224,8 +225,10 @@ function SweepPopup.Show(UI, root, S, opts)
         end
 
         -- 消耗提示
+        local costText = costFn and costFn(selectedCount)
+            or ("消耗 " .. selectedCount .. " 张挑战券")
         popupContent[#popupContent + 1] = UI.Label {
-            text = "消耗 " .. selectedCount .. " 张挑战券",
+            text = costText,
             fontSize = 11, fontColor = { 200, 160, 80 },
             pointerEvents = "none", alignSelf = "center",
             marginTop = 4,

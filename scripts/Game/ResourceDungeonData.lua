@@ -77,6 +77,17 @@ RD.DUNGEON_DEFS = {
         bonusCurrency  = nil,
         cover          = "image/dungeon_library.png",
     },
+    {
+        key            = "temper",
+        name           = "淬魂试炼",
+        emoji          = "🔮",
+        desc           = "淬炼灵魂，获取粹玉与封魂玉",
+        accentColor    = { 100, 60, 200, 255 },
+        rewardCurrency = "pale_jade",
+        bonusCurrency  = "rainbow_jade",
+        cover          = "image/dungeon_temper_trial_20260508080029.png",
+        totalWaves     = 10,    -- 10 波制
+    },
 }
 
 -- 按 key 索引
@@ -92,6 +103,7 @@ RD.DUNGEON_TICKET_MAP = {
     iron       = "dungeon_ticket_iron",
     chest      = "dungeon_ticket_chest",
     skill_book = "dungeon_ticket_skill_book",
+    temper     = "dungeon_ticket_temper",
 }
 
 -- ============================================================================
@@ -106,10 +118,10 @@ RD.BOSS_HP_MULT    = 5.0    -- Boss HP = 该波普通怪 × 5
 -- ============================================================================
 RD.DIFFICULTY_LEVELS = {
     { level = 0, label = "普通",  statMult = 1,     rewardMult = 1 },
-    { level = 1, label = "困难",  statMult = 10,    rewardMult = 2 },
-    { level = 2, label = "噩梦",  statMult = 100,   rewardMult = 3 },
-    { level = 3, label = "地狱",  statMult = 1000,  rewardMult = 4 },
-    { level = 4, label = "炼狱",  statMult = 10000, rewardMult = 5 },
+    { level = 1, label = "困难",  statMult = 10,    rewardMult = 1.5 },
+    { level = 2, label = "噩梦",  statMult = 100,   rewardMult = 2 },
+    { level = 3, label = "地狱",  statMult = 1000,  rewardMult = 2.5 },
+    { level = 4, label = "炼狱",  statMult = 10000, rewardMult = 3 },
 }
 
 --- 根据 level 返回难度定义
@@ -132,10 +144,17 @@ end
 -- ============================================================================
 
 --- 副本第 w 波对应的等效主线关卡号
----@param wave number 1~20
+---@param wave number 1~20 (或 1~10 淬魂试炼)
+---@param dungeonKey string|nil 副本 key（淬魂试炼用专属映射）
 ---@return number stageEquiv
-function RD.WaveToStage(wave)
-    -- s(w) = 10 * 600^((w-1)/19)
+function RD.WaveToStage(wave, dungeonKey)
+    if dungeonKey == "temper" then
+        -- 淬魂试炼 10 波制：wave 1 ≈ 50, wave 10 ≈ 500 (普通难度基准)
+        local totalW = 10
+        local t = (wave - 1) / (totalW - 1)
+        return 50 * (10 ^ t)  -- 50 → 500
+    end
+    -- 标准 20 波: s(w) = 10 * 600^((w-1)/19)
     local t = (wave - 1) / (RD.TOTAL_WAVES - 1)
     return 10 * (600 ^ t)
 end
@@ -175,6 +194,7 @@ local REWARD_KNOTS = {
     nether_crystal = { {1, 50}, {5, 157}, {10, 632}, {15, 2529}, {20, 4000} },
     devour_stone   = { {1, 3},  {5, 9},   {10, 37},  {15, 151},  {20, 240} },
     forge_iron     = { {1, 3},  {5, 9},   {10, 37},  {15, 151},  {20, 240} },
+    pale_jade      = { {1, 30}, {3, 60},  {5, 120},  {7, 200},   {10, 350} },
 }
 
 --- 各锚点的基础全通关累计值（LogInterp 20波求和）
@@ -182,6 +202,7 @@ local BASE_FULL_CLEAR = {
     nether_crystal = 13098,
     devour_stone   = 784,
     forge_iron     = 784,
+    pale_jade      = 1180,   -- 10波 LogInterp 求和近似
 }
 
 --- 各副本全通关目标总奖励（固定值）
@@ -190,6 +211,7 @@ local FULL_CLEAR_TARGET = {
     nether_crystal = 4000000,   -- 400万冥晶
     devour_stone   = 5000,      -- 5000噬魂石
     forge_iron     = 2500,      -- 2500锻魂铁
+    pale_jade      = 800,       -- 每次全通关800粹玉（≈8次淬炼）
 }
 
 --- 宝箱秘境每波奖励定义（每5波一组：前4波朽木宝箱×1，第5波为阶段性奖励）
@@ -250,6 +272,20 @@ local SKILL_BOOK_WAVE_REWARDS = {
     [20] = { id = "skill_book_3", count = 0 },   -- 最终boss不掉书
 }
 
+--- 淬魂试炼封魂玉奖励定义（10波制，仅 Boss 波掉落封魂玉）
+--- 全通关(diff0): 封魂玉 ×3（第5波×1 + 第10波×2）
+local TEMPER_BONUS_REWARDS = {
+    [5]  = { id = "rainbow_jade", count = 1 },   -- 中段 Boss
+    [10] = { id = "rainbow_jade", count = 2 },   -- 最终 Boss
+}
+
+--- 获取淬魂试炼某波的封魂玉奖励
+---@param wave number 1~10
+---@return table|nil { id = "rainbow_jade", count = N }
+function RD.GetTemperBonusReward(wave)
+    return TEMPER_BONUS_REWARDS[wave]
+end
+
 --- 获取宝箱副本某波的奖励定义
 ---@param wave number 1~20
 ---@return table|nil  { id = "wood", count = 1 }
@@ -277,15 +313,17 @@ function RD.GetWaveReward(dungeonKey, wave, diffLevel)
 
     local diffDef = RD.GetDifficultyDef(diffLevel or 0)
     local rewardMult = diffDef.rewardMult or 1
+    local WorldTier = require("Game.WorldTier")
+    local wtMult = WorldTier.GetRewardMult()
 
     if def.rewardCurrency == "chest" then
         local cr = CHEST_WAVE_REWARDS[wave]
-        return cr and (cr.count * rewardMult) or 0
+        return cr and math.floor(cr.count * rewardMult * wtMult) or 0
     end
 
     if def.rewardCurrency == "skill_book" then
         local sr = SKILL_BOOK_WAVE_REWARDS[wave]
-        return sr and (sr.count * rewardMult) or 0
+        return sr and math.floor(sr.count * rewardMult * wtMult) or 0
     end
 
     local currId = def.rewardCurrency
@@ -295,7 +333,21 @@ function RD.GetWaveReward(dungeonKey, wave, diffLevel)
     local base = LogInterp(wave, knots)
     local baseFull = BASE_FULL_CLEAR[currId] or 1
     local target = FULL_CLEAR_TARGET[currId] or baseFull
-    return math.floor(base * target / baseFull * rewardMult)
+    return math.floor(base * target / baseFull * rewardMult * wtMult)
+end
+
+--- 获取淬魂试炼某波的封魂玉（bonus）奖励数量
+---@param wave number
+---@param diffLevel number|nil
+---@return number
+function RD.GetTemperBonusWaveReward(wave, diffLevel)
+    local br = TEMPER_BONUS_REWARDS[wave]
+    if not br then return 0 end
+    local diffDef = RD.GetDifficultyDef(diffLevel or 0)
+    local rewardMult = diffDef.rewardMult or 1
+    local WorldTier = require("Game.WorldTier")
+    local wtMult = WorldTier.GetRewardMult()
+    return math.floor(br.count * rewardMult * wtMult)
 end
 
 --- 计算通关到第 maxWave 波的总奖励
@@ -309,13 +361,15 @@ function RD.CalcTotalRewards(dungeonKey, maxWave, diffLevel)
 
     local diffDef = RD.GetDifficultyDef(diffLevel or 0)
     local rewardMult = diffDef.rewardMult or 1
+    local WorldTier = require("Game.WorldTier")
+    local wtMult = WorldTier.GetRewardMult()
 
     if def.rewardCurrency == "chest" then
         local chests = {}  -- chestId -> count
         for w = 1, maxWave do
             local cr = CHEST_WAVE_REWARDS[w]
             if cr then
-                chests[cr.id] = (chests[cr.id] or 0) + cr.count * rewardMult
+                chests[cr.id] = (chests[cr.id] or 0) + math.floor(cr.count * rewardMult * wtMult)
             end
         end
         return { chests = chests }
@@ -326,7 +380,7 @@ function RD.CalcTotalRewards(dungeonKey, maxWave, diffLevel)
         for w = 1, maxWave do
             local sr = SKILL_BOOK_WAVE_REWARDS[w]
             if sr and sr.count > 0 then
-                books[sr.id] = (books[sr.id] or 0) + sr.count * rewardMult
+                books[sr.id] = (books[sr.id] or 0) + math.floor(sr.count * rewardMult * wtMult)
             end
         end
         return { skill_books = books }
@@ -336,7 +390,21 @@ function RD.CalcTotalRewards(dungeonKey, maxWave, diffLevel)
     for w = 1, maxWave do
         total = total + RD.GetWaveReward(dungeonKey, w, diffLevel)
     end
-    return { [def.rewardCurrency] = total }
+
+    local result = { [def.rewardCurrency] = total }
+
+    -- 淬魂试炼额外掉落封魂玉
+    if dungeonKey == "temper" then
+        local bonusTotal = 0
+        for w = 1, maxWave do
+            bonusTotal = bonusTotal + RD.GetTemperBonusWaveReward(w, diffLevel)
+        end
+        if bonusTotal > 0 then
+            result["rainbow_jade"] = bonusTotal
+        end
+    end
+
+    return result
 end
 
 -- ============================================================================
@@ -349,7 +417,9 @@ end
 ---@param diffLevel number|nil 难度等级（默认0）
 ---@return table enemies 敌人定义列表
 function RD.GenerateWaveEnemies(dungeonKey, wave, diffLevel)
-    local stageEquiv = RD.WaveToStage(wave)
+    local def = RD.DUNGEON_MAP[dungeonKey]
+    local totalW = (def and def.totalWaves) or RD.TOTAL_WAVES
+    local stageEquiv = RD.WaveToStage(wave, dungeonKey)
     local stageNum = math.max(1, math.floor(stageEquiv))
     local hpScale = RD.CalcHPScale(stageEquiv)
     local spdScale = RD.CalcSpeedScale(stageEquiv)
@@ -358,19 +428,27 @@ function RD.GenerateWaveEnemies(dungeonKey, wave, diffLevel)
     local diffDef = RD.GetDifficultyDef(diffLevel or 0)
     local statMult = diffDef.statMult or 1
 
-    -- 获取该等效关卡的主题
-    local themeIdx = ((stageNum - 1) % Config.THEME_COUNT) + 1
-    local round = math.floor((stageNum - 1) / Config.THEME_COUNT) + 1
-    local roundHPMult = 1.0 + (round - 1) * 0.5
-
-    -- 前 19 个普通怪
+    -- 前 N-1 个普通怪
     local normalCount = RD.ENEMIES_PER_WAVE - 1
     local enemies = WaveGen.GenerateBatch(stageNum, normalCount, hpScale * statMult, spdScale)
 
-    -- 第 20 个是 Boss
-    local bossDef = WaveGen.CreateBoss(stageNum, hpScale * statMult, spdScale, RD.BOSS_HP_MULT, 0.7)
-    if bossDef then
-        enemies[#enemies + 1] = bossDef
+    -- 最后 1 个是 Boss（淬魂试炼只在第 5/10 波出 Boss）
+    local hasBoss = true
+    if dungeonKey == "temper" then
+        hasBoss = (wave % 5 == 0)
+    end
+
+    if hasBoss then
+        local bossDef = WaveGen.CreateBoss(stageNum, hpScale * statMult, spdScale, RD.BOSS_HP_MULT, 0.7)
+        if bossDef then
+            enemies[#enemies + 1] = bossDef
+        end
+    else
+        -- 非 Boss 波补一个强化普通怪
+        local extraEnemies = WaveGen.GenerateBatch(stageNum, 1, hpScale * statMult * 2, spdScale)
+        if #extraEnemies > 0 then
+            enemies[#enemies + 1] = extraEnemies[1]
+        end
     end
 
     return enemies
@@ -436,21 +514,36 @@ function RD.GetData()
         }
     end
 
-    -- 兼容旧存档：补充 skill_book 副本数据
+    -- 兼容旧存档：补充新副本数据
     if not HeroData.resourceDungeon.bestWave then
-        HeroData.resourceDungeon.bestWave = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0 }
-    elseif HeroData.resourceDungeon.bestWave.skill_book == nil then
-        HeroData.resourceDungeon.bestWave.skill_book = 0
+        HeroData.resourceDungeon.bestWave = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0, temper = 0 }
+    else
+        if HeroData.resourceDungeon.bestWave.skill_book == nil then
+            HeroData.resourceDungeon.bestWave.skill_book = 0
+        end
+        if HeroData.resourceDungeon.bestWave.temper == nil then
+            HeroData.resourceDungeon.bestWave.temper = 0
+        end
     end
     if not HeroData.resourceDungeon.todayAttempts then
-        HeroData.resourceDungeon.todayAttempts = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0 }
-    elseif HeroData.resourceDungeon.todayAttempts.skill_book == nil then
-        HeroData.resourceDungeon.todayAttempts.skill_book = 0
+        HeroData.resourceDungeon.todayAttempts = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0, temper = 0 }
+    else
+        if HeroData.resourceDungeon.todayAttempts.skill_book == nil then
+            HeroData.resourceDungeon.todayAttempts.skill_book = 0
+        end
+        if HeroData.resourceDungeon.todayAttempts.temper == nil then
+            HeroData.resourceDungeon.todayAttempts.temper = 0
+        end
     end
     if not HeroData.resourceDungeon.todayAdAttempts then
-        HeroData.resourceDungeon.todayAdAttempts = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0 }
-    elseif HeroData.resourceDungeon.todayAdAttempts.skill_book == nil then
-        HeroData.resourceDungeon.todayAdAttempts.skill_book = 0
+        HeroData.resourceDungeon.todayAdAttempts = { crystal = 0, stone = 0, iron = 0, chest = 0, skill_book = 0, temper = 0 }
+    else
+        if HeroData.resourceDungeon.todayAdAttempts.skill_book == nil then
+            HeroData.resourceDungeon.todayAdAttempts.skill_book = 0
+        end
+        if HeroData.resourceDungeon.todayAdAttempts.temper == nil then
+            HeroData.resourceDungeon.todayAdAttempts.temper = 0
+        end
     end
 
     -- 每日重置检查
@@ -519,9 +612,10 @@ function RD.GetBestWave(dungeonKey, diffLevel)
     -- 难度1+ 使用 bestWaveDiff[diffLevel][dungeonKey]
     local bwd = data.bestWaveDiff
     if not bwd then return 0 end
-    local dk = tostring(diffLevel)
-    if not bwd[dk] then return 0 end
-    return bwd[dk][dungeonKey] or 0
+    -- 兼容：DeepNormalizeIntKeys 会将 string "1" 转为 number 1，需查找两种 key
+    local diffEntry = bwd[diffLevel] or bwd[tostring(diffLevel)]
+    if not diffEntry then return 0 end
+    return diffEntry[dungeonKey] or 0
 end
 
 -- ============================================================================
@@ -712,15 +806,22 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
         end
     else
         if not data.bestWaveDiff then data.bestWaveDiff = {} end
-        local dk = tostring(diffLevel)
-        if not data.bestWaveDiff[dk] then data.bestWaveDiff[dk] = {} end
-        if clearedWave > (data.bestWaveDiff[dk][dungeonKey] or 0) then
-            data.bestWaveDiff[dk][dungeonKey] = clearedWave
+        -- 使用 number key 写入（与 DeepNormalizeIntKeys 一致，避免 save/load 后 key 类型不匹配）
+        -- 合并旧 string key 数据（兼容已有存档）
+        local diffEntry = data.bestWaveDiff[diffLevel]
+        if not diffEntry then
+            diffEntry = data.bestWaveDiff[tostring(diffLevel)] or {}
+            data.bestWaveDiff[diffLevel] = diffEntry
+            data.bestWaveDiff[tostring(diffLevel)] = nil  -- 清理旧 string key
+        end
+        if clearedWave > (diffEntry[dungeonKey] or 0) then
+            diffEntry[dungeonKey] = clearedWave
         end
     end
 
-    -- 全通 20 波时标记该难度通关（解锁下一难度）
-    if clearedWave >= RD.TOTAL_WAVES then
+    -- 全通关时标记该难度通关（解锁下一难度）
+    local totalW = def.totalWaves or RD.TOTAL_WAVES
+    if clearedWave >= totalW then
         RD.MarkDifficultyCleared(diffLevel)
     end
 
@@ -754,11 +855,15 @@ function RD.ClaimReward(dungeonKey, clearedWave, diffLevel)
             end
         end
     else
-        -- 货币副本：发放对应货币
+        -- 货币副本：发放对应货币（含淬魂试炼的 pale_jade + rainbow_jade）
         for currId, amount in pairs(rewards) do
-            amount = math.floor(amount * laborMult)
-            Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "ResourceDungeon")
-            rewardDefs[#rewardDefs + 1] = { type = "currency", id = currId, amount = amount }
+            if currId ~= "rewardDefs" then
+                amount = math.floor(amount * laborMult)
+                if amount > 0 then
+                    Currency.GrantReward({ type = "currency", id = currId, amount = amount }, "ResourceDungeon")
+                    rewardDefs[#rewardDefs + 1] = { type = "currency", id = currId, amount = amount }
+                end
+            end
         end
     end
 
@@ -884,19 +989,20 @@ function RD.BuildBattleConfig(dungeonKey, diffLevel)
     local def = RD.DUNGEON_MAP[dungeonKey]
     if not def then return nil end
 
+    local totalW = def.totalWaves or RD.TOTAL_WAVES
     local diffDef = RD.GetDifficultyDef(diffLevel)
     local diffSuffix = diffLevel > 0 and (" [" .. diffDef.label .. "]") or ""
     local label = (def.name or dungeonKey) .. "副本" .. diffSuffix
 
     local waves = {}
-    for w = 1, RD.TOTAL_WAVES do
+    for w = 1, totalW do
         waves[w] = BM.BuildSpawnQueue(RD.GenerateWaveEnemies(dungeonKey, w, diffLevel), 0.5)
     end
 
     return {
         mode = "resource_dungeon",
         waves = waves,
-        totalWaves = RD.TOTAL_WAVES,
+        totalWaves = totalW,
         stageNum = 1,
         label = label,
         waveInterval = 30,

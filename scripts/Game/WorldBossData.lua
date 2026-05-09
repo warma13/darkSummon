@@ -12,6 +12,7 @@ local TodayStr = require("Game.DateUtil").TodayStr
 local DungeonScaling = require("Game.DungeonScaling")
 local WaveGen = require("Game.WaveGenerator")
 local LaborDayData = require("Game.LaborDayData")
+local FormatUtil = require("Game.FormatUtil")
 
 local WB = {}
 
@@ -659,19 +660,7 @@ function WB.FormatDamage(damage)
     if not damage or damage ~= damage or damage == math.huge or damage == -math.huge then
         return "0"
     end
-    if damage >= 100000000000000000000 then
-        return string.format("%.1f垓", damage / 100000000000000000000)
-    elseif damage >= 10000000000000000 then
-        return string.format("%.1f京", damage / 10000000000000000)
-    elseif damage >= 1000000000000 then
-        return string.format("%.1f兆", damage / 1000000000000)
-    elseif damage >= 100000000 then
-        return string.format("%.1f亿", damage / 100000000)
-    elseif damage >= 10000 then
-        return string.format("%.0f万", damage / 10000)
-    else
-        return tostring(math.floor(damage))
-    end
+    return FormatUtil.FormatNum(damage)
 end
 
 -- ============================================================================

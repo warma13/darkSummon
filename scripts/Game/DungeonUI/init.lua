@@ -11,6 +11,7 @@ local AbyssRift = require("Game.AbyssRiftDungeon")
 local EmeraldDungeonData = require("Game.EmeraldDungeonData")
 local HLData = require("Game.HatredLandData")
 local FormatNum = require("Game.FormatUtil").FormatNum
+local FeatureGate = require("Game.FeatureGate")
 
 local LB = require("Game.LeaderboardData")
 
@@ -21,6 +22,8 @@ local WorldBoss
 local AbyssRiftMod
 local EmeraldDungeonMod
 local HatredLandMod
+local TrainingDummyMod
+
 
 local DungeonUI = {}
 
@@ -30,7 +33,7 @@ local UI = nil
 local pageRoot = nil
 
 -- 当前视图状态
-local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "hatred_land_detail" | "abyss_rift_detail" | "emerald_dungeon_detail"
+local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "hatred_land_detail" | "abyss_rift_detail" | "emerald_dungeon_detail" | "training_dummy_detail"
 local currentResourceKey = nil  -- 当前选中的资源副本 key
 
 -- 严格点击判定：拖动超过阈值不触发 onClick
@@ -118,7 +121,7 @@ local DUNGEON_DEFS = {
         accentColor = S.towerAccent,
         available = true,
         cover = "image/dungeon_trial_tower.png",
-        unlockFloor = 10,
+        unlockFloor = 15,
     },
     {
         key = "resource",
@@ -127,7 +130,16 @@ local DUNGEON_DEFS = {
         accentColor = S.dailyAccent,
         available = true,
         cover = "image/dungeon_resource_cover.png",
-        unlockFloor = 5,
+        unlockFloor = 20,
+    },
+    {
+        key = "abyss_rift",
+        name = "深渊裂隙",
+        desc = "探索裂隙深处，获取符文与洗练材料",
+        accentColor = { 160, 80, 220, 255 },
+        available = true,
+        cover = "image/banner_abyss_rift_20260415162859.png",
+        unlockStage = 50,
     },
     {
         key = "world_boss",
@@ -148,13 +160,13 @@ local DUNGEON_DEFS = {
         unlockFloor = 40,
     },
     {
-        key = "abyss_rift",
-        name = "深渊裂隙",
-        desc = "探索裂隙深处，获取符文与洗练材料",
-        accentColor = { 160, 80, 220, 255 },
+        key = "training_dummy",
+        name = "木桩",
+        desc = "测试阵容伤害，记录数据，调节参数",
+        accentColor = { 180, 60, 60, 255 },
         available = true,
-        cover = "image/banner_abyss_rift_20260415162859.png",
-        unlockStage = 50,
+        cover = "image/dungeon_training_dummy_banner.png",
+        unlockFloor = 10,
     },
 }
 
@@ -197,6 +209,7 @@ function DungeonUI.CreatePage(uiModule)
         AbyssRiftMod = require("Game.DungeonUI.AbyssRift")
         EmeraldDungeonMod = require("Game.DungeonUI.EmeraldDungeon")
         HatredLandMod = require("Game.DungeonUI.HatredLand")
+        TrainingDummyMod = require("Game.DungeonUI.TrainingDummy")
     end
 
     pageRoot = UI.Panel {
@@ -233,6 +246,8 @@ function DungeonUI.Refresh()
         EmeraldDungeonMod.BuildDetailView(DungeonUI)
     elseif currentView == "hatred_land_detail" then
         HatredLandMod.BuildDetailView(DungeonUI)
+    elseif currentView == "training_dummy_detail" then
+        TrainingDummyMod.BuildDetailView(DungeonUI)
     end
 end
 
@@ -313,8 +328,9 @@ function DungeonUI.BuildListView()
         },
     })
 
-    -- 两列副本 key 集合（世界BOSS + 憎恨之地并排显示）
-    local twoColKeys = { world_boss = true, hatred_land = true }
+    -- 两列副本 key 集合（左右并排显示的副本对）
+    -- 按顺序配对：resource+abyss_rift, world_boss+hatred_land
+    local twoColKeys = { resource = true, abyss_rift = true, world_boss = true, hatred_land = true }
 
     local cards = {}
     local twoColBuf = {}  -- 收集需要两列显示的定义
@@ -322,6 +338,11 @@ function DungeonUI.BuildListView()
     for _, def in ipairs(DUNGEON_DEFS) do
         if twoColKeys[def.key] then
             twoColBuf[#twoColBuf + 1] = def
+            -- 每 2 个一组输出一行
+            if #twoColBuf >= 2 then
+                cards[#cards + 1] = DungeonUI.BuildTwoColRow(twoColBuf)
+                twoColBuf = {}
+            end
         else
             -- 先把已收集的两列卡片输出
             if #twoColBuf > 0 then
@@ -374,9 +395,16 @@ end
 function DungeonUI.BuildCompactCard(def)
     local isAvailable = def.available
 
-    if def.key == "world_boss" or def.key == "hatred_land" then
-        local State = require("Game.State")
-        if (State.currentStage or 1) < (def.unlockFloor or 20) then
+    -- 统一根据 bestStage（最高通关关卡）判断解锁
+    if def.unlockFloor then
+        if FeatureGate.GetBestStage() < def.unlockFloor then
+            isAvailable = false
+        end
+    end
+
+    -- abyss_rift 的额外解锁检查
+    if def.key == "abyss_rift" then
+        if not AbyssRift.IsUnlocked() then
             isAvailable = false
         end
     end
@@ -407,15 +435,43 @@ function DungeonUI.BuildCompactCard(def)
             progressText = "今日已用完"
             progressColor = S.red
         end
+    elseif def.key == "resource" and isAvailable then
+        local totalFree, totalTicket, totalAdRemain = 0, 0, 0
+        local InventoryData = require("Game.InventoryData")
+        local genericTickets = InventoryData.GetCount("dungeon_ticket")
+        for _, rd in ipairs(RD.DUNGEON_DEFS) do
+            totalFree = totalFree + RD.GetFreeRemaining(rd.key)
+            local specific = RD.GetDungeonTicketCount(rd.key)
+            totalTicket = totalTicket + specific
+            totalAdRemain = totalAdRemain + RD.GetAdRemaining(rd.key)
+        end
+        totalTicket = totalTicket + genericTickets
+        local totalRemain = totalFree + totalTicket
+        progressText = "免费" .. totalFree .. " 券" .. totalTicket
+        progressColor = totalRemain > 0 and S.green or (totalAdRemain > 0 and S.gold or S.red)
+    elseif def.key == "abyss_rift" and isAvailable then
+        local remaining = AbyssRift.GetRemaining()
+        progressText = remaining .. "/" .. AbyssRift.DAILY_FREE
+        progressColor = remaining > 0 and S.green or S.red
     elseif not isAvailable then
-        progressText = "第" .. (def.unlockFloor or 20) .. "关解锁"
+        if def.key == "abyss_rift" then
+            progressText = "通关第" .. (def.unlockStage or 50) .. "关解锁"
+        else
+            progressText = "通关第" .. (def.unlockFloor or 20) .. "关解锁"
+        end
         progressColor = S.comingSoon
     end
 
     local accentColor = isAvailable and def.accentColor or S.comingSoon
 
-    -- 点击目标视图
-    local targetView = def.key == "world_boss" and "world_boss_detail" or "hatred_land_detail"
+    -- 点击目标视图映射
+    local viewMap = {
+        world_boss  = "world_boss_detail",
+        hatred_land = "hatred_land_detail",
+        resource    = "resource_list",
+        abyss_rift  = "abyss_rift_detail",
+    }
+    local targetView = viewMap[def.key] or (def.key .. "_detail")
 
     return UI.Panel {
         flex = 1,
@@ -511,22 +567,15 @@ end
 function DungeonUI.BuildDungeonCard(def)
     local isAvailable = def.available
 
-    if def.key == "world_boss" then
-        local State = require("Game.State")
-        if (State.currentStage or 1) < (def.unlockFloor or 20) then
+    -- 统一根据 bestStage（最高通关关卡）判断解锁
+    if def.unlockFloor then
+        if FeatureGate.GetBestStage() < def.unlockFloor then
             isAvailable = false
         end
     end
 
     if def.key == "abyss_rift" then
         if not AbyssRift.IsUnlocked() then
-            isAvailable = false
-        end
-    end
-
-    if def.key == "hatred_land" then
-        local State = require("Game.State")
-        if (State.currentStage or 1) < (def.unlockFloor or 20) then
             isAvailable = false
         end
     end
@@ -597,13 +646,14 @@ function DungeonUI.BuildDungeonCard(def)
         local remainDays = EmeraldDungeonData.GetRemainingDays()
         progressText = tickets .. "券 · 可领" .. adLeft .. " · 剩余" .. remainDays .. "天"
         progressColor = tickets > 0 and S.green or (adLeft > 0 and S.gold or S.red)
+    elseif def.key == "training_dummy" and isAvailable then
+        progressText = "伤害测试"
+        progressColor = S.dim
     elseif not isAvailable then
-        if def.key == "world_boss" then
-            progressText = "主线第" .. (def.unlockFloor or 20) .. "关解锁"
-        elseif def.key == "hatred_land" then
-            progressText = "主线第" .. (def.unlockFloor or 20) .. "关解锁"
+        if def.unlockFloor and FeatureGate.GetBestStage() < def.unlockFloor then
+            progressText = "通关第" .. def.unlockFloor .. "关解锁"
         elseif def.key == "abyss_rift" then
-            progressText = "主线第" .. (def.unlockStage or 100) .. "关解锁"
+            progressText = "通关第" .. (def.unlockStage or 100) .. "关解锁"
         elseif def.key == "emerald_dungeon" then
             if not EmeraldDungeonData.IsTimeUnlocked() then
                 local sec = EmeraldDungeonData.GetUnlockRemainingSec()
@@ -682,6 +732,10 @@ function DungeonUI.BuildDungeonCard(def)
             Currency.IconWidget(UI, "linyan_oath", 13),
             UI.Label { text = "翎嫣之誓", fontSize = 11, fontColor = { 100, 220, 140 }, pointerEvents = "none" },
         }
+    elseif def.key == "training_dummy" and isAvailable then
+        rewardChildren = {
+            UI.Label { text = "🎯 调参 · 模拟 · 记录", fontSize = 11, fontColor = { 180, 120, 120 }, pointerEvents = "none" },
+        }
     end
 
     local bgImage = def.cover
@@ -722,6 +776,9 @@ function DungeonUI.BuildDungeonCard(def)
                     DungeonUI.Refresh()
                 elseif def.key == "emerald_dungeon" then
                     currentView = "emerald_dungeon_detail"
+                    DungeonUI.Refresh()
+                elseif def.key == "training_dummy" then
+                    currentView = "training_dummy_detail"
                     DungeonUI.Refresh()
                 end
             end

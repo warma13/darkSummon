@@ -9,6 +9,7 @@ local SaveRegistry = require("Game.SaveRegistry")
 local InventoryData = require("Game.InventoryData")
 local TodayStr = require("Game.DateUtil").TodayStr
 local LaborDayData = require("Game.LaborDayData")
+local FormatUtil = require("Game.FormatUtil")
 
 local HL = {}
 
@@ -315,17 +316,7 @@ function HL.FormatDamage(damage)
         return "0"
     end
     if damage < 0 then damage = -damage end
-    if damage >= 10000000000000000 then
-        return string.format("%.1f京", damage / 10000000000000000)
-    elseif damage >= 1000000000000 then
-        return string.format("%.1f兆", damage / 1000000000000)
-    elseif damage >= 100000000 then
-        return string.format("%.1f亿", damage / 100000000)
-    elseif damage >= 10000 then
-        return string.format("%.0f万", damage / 10000)
-    else
-        return tostring(math.floor(damage))
-    end
+    return FormatUtil.FormatNum(damage)
 end
 
 --- 公式计算奖励（内部，不含难度倍率）
@@ -398,23 +389,29 @@ function HL.ClaimReward(totalDamage, difficultyLevel)
         HeroData.currencies.relic_essence = (HeroData.currencies.relic_essence or 0) + calc.essence
     end
 
-    -- 发放随机遗物碎片（per-relic 模式）
+    -- 发放随机遗物碎片（per-relic 模式，均分）
     local RelicData = require("Game.RelicData")
     local shardDetail = {}  -- { [relicId] = count }
     if calc.shards > 0 then
-        -- 构建全遗物池
-        local allRelicIds = {}
+        -- 构建遗物池
+        local pool = {}
         for _, slot in ipairs(Config.RELIC_SLOT_IDS) do
             for _, rDef in ipairs(Config.RELICS_BY_SLOT[slot] or {}) do
-                allRelicIds[#allRelicIds + 1] = rDef.id
+                pool[#pool + 1] = rDef.id
             end
         end
-        for i = 1, calc.shards do
-            local relicId = allRelicIds[math.random(1, #allRelicIds)]
-            shardDetail[relicId] = (shardDetail[relicId] or 0) + 1
-        end
-        for relicId, count in pairs(shardDetail) do
-            RelicData.Decompose(relicId, count)
+
+        -- 均分碎片（O(池大小)，避免高伤害时逐个循环）
+        if #pool > 0 then
+            local base = math.floor(calc.shards / #pool)
+            local remainder = calc.shards - base * #pool
+            for i, relicId in ipairs(pool) do
+                local share = base + (i <= remainder and 1 or 0)
+                if share > 0 then
+                    shardDetail[relicId] = share
+                    RelicData.Decompose(relicId, share)
+                end
+            end
         end
     end
 
@@ -526,7 +523,8 @@ function HL.BuildBattleConfig(challengeDifficulty)
         waveInterval = 0,
         autoAdvanceWave = false,
         bossTimerEnabled = true,
-        overloadEnabled = false,
+        overloadEnabled = true,
+        overloadLimit = 30,
         worldBossDuration = cfg.totalDuration,
         worldBossDarkSoulDrain = cfg.darkSoulDrain + diffDef.darkSoulBonus,
         initialDarkSoul = Config.INITIAL_DARK_SOUL,

@@ -12,6 +12,7 @@ local Currency         = require("Game.Currency")
 
 local SweepPopup      = require("Game.SweepPopup")
 local EmeraldBossSkills = require("Game.EmeraldBossSkills")
+local BossSkillManager = require("Game.BossSkillManager")
 local FormatNum = require("Game.FormatUtil").FormatNum
 local LeaderboardUI = require("Game.LeaderboardUI")
 local LB = require("Game.LeaderboardData")
@@ -58,20 +59,9 @@ function EmeraldDungeon._BuildDungeonView(ctx)
     pageRoot:AddChild(UI.Panel {
         width = "100%", height = 50,
         flexDirection = "row", alignItems = "center",
-        backgroundColor = S.headerBg,
         flexShrink = 0,
         children = {
-            UI.Panel {
-                width = 50, height = 50,
-                justifyContent = "center", alignItems = "center",
-                onClick = function()
-                    subView = "detail"
-                    ctx.SetView("list")
-                end,
-                children = {
-                    UI.Label { text = "‹", fontSize = 22, fontColor = S.dim, pointerEvents = "none" },
-                },
-            },
+            UI.Panel { width = 12 },
             UI.Label {
                 text = "翠影秘境", fontSize = 20, fontWeight = "bold",
                 fontColor = { 100, 220, 140 }, pointerEvents = "none",
@@ -992,15 +982,15 @@ function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
     config.onStart = function()
         local mechanics = bossDef and bossDef.bossSkills or nil
         if mechanics then
-            EmeraldBossSkills.Init(mechanics)
+            BossSkillManager.Init("emerald_dungeon", mechanics)
         end
     end
     config.onUpdate = function(dt)
-        EmeraldBossSkills.Update(dt)
+        BossSkillManager.Update(dt)
     end
 
     config.onWin = function(result)
-        EmeraldBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         for w = 1, totalWaves do
             session.currentWave = w
             EmeraldData.CompleteWave(session)
@@ -1010,7 +1000,7 @@ function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
     end
 
     config.onLose = function(result)
-        EmeraldBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         local clearedWaves = result and result.clearedWave or 0
         for w = 1, clearedWaves do
             session.currentWave = w
@@ -1021,7 +1011,7 @@ function EmeraldDungeon.StartBattle(UI, S, ctx, difficultyId)
     end
 
     config.onExit = function(result, continueExit)
-        EmeraldBossSkills.Cleanup()
+        BossSkillManager.Cleanup()
         local clearedWaves = math.max(0, (result.wave or 1) - 1)
         for w = 1, clearedWaves do
             session.currentWave = w

@@ -8,10 +8,25 @@ local SaveRegistry = require("Game.SaveRegistry")
 local LaunchGiftData = {}
 
 -- ============================================================================
+-- 分服工具
+-- ============================================================================
+
+--- 判断当前是否为非1服（2服及以后的服务器）
+---@return boolean
+local function IsNonFirstServer()
+    local ok, SlotSave = pcall(require, "Game.SlotSaveSystem")
+    if ok and SlotSave and SlotSave.GetActiveSlot then
+        local slotId = SlotSave.GetActiveSlot()
+        return slotId > 1
+    end
+    return false
+end
+
+-- ============================================================================
 -- 配置
 -- ============================================================================
 
---- 每日免费招募次数
+--- 每日免费招募次数（1服发虚空契约，非1服发招募自选包，数量相同）
 LaunchGiftData.DAILY_FREE_PULLS = 20
 
 --- 活动持续天数（开服后7天）
@@ -142,11 +157,30 @@ function LaunchGiftData.ClaimDailyPulls()
         return false, "今日已领取"
     end
     data.dailyClaimed = TodayStr()
-    Currency.GrantReward({ type = "currency", id = "void_pact", amount = LaunchGiftData.DAILY_FREE_PULLS }, "LaunchGiftDaily")
+
+    -- 非1服发放招募自选包，1服发放虚空契约
+    local rewardDef
+    if IsNonFirstServer() then
+        rewardDef = { type = "item", id = "recruit_ticket_select_box", amount = LaunchGiftData.DAILY_FREE_PULLS }
+    else
+        rewardDef = { type = "currency", id = "void_pact", amount = LaunchGiftData.DAILY_FREE_PULLS }
+    end
+    Currency.GrantReward(rewardDef, "LaunchGiftDaily")
     HeroData.Save()
-    print("[LaunchGift] Claimed daily " .. LaunchGiftData.DAILY_FREE_PULLS .. " pulls")
-    local rewardDef = { type = "currency", id = "void_pact", amount = LaunchGiftData.DAILY_FREE_PULLS }
-    return true, "获得 " .. LaunchGiftData.DAILY_FREE_PULLS .. " 次免费招募", rewardDef
+    print("[LaunchGift] Claimed daily " .. LaunchGiftData.DAILY_FREE_PULLS .. " (" .. rewardDef.id .. ")")
+    local desc = IsNonFirstServer() and "招募自选包" or "免费招募"
+    return true, "获得 " .. LaunchGiftData.DAILY_FREE_PULLS .. " " .. desc, rewardDef
+end
+
+--- 获取每日招募的展示信息（供 UI 使用）
+---@return string rewardId 奖励物品id
+---@return string label 展示文本
+function LaunchGiftData.GetDailyPullInfo()
+    if IsNonFirstServer() then
+        return "recruit_ticket_select_box", "招募自选包"
+    else
+        return "void_pact", "每日免费招募"
+    end
 end
 
 -- ============================================================================
