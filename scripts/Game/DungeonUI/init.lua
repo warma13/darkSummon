@@ -25,6 +25,7 @@ local HatredLandMod
 local TrainingDummyMod
 
 
+
 local DungeonUI = {}
 
 ---@type any
@@ -33,7 +34,7 @@ local UI = nil
 local pageRoot = nil
 
 -- 当前视图状态
-local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "hatred_land_detail" | "abyss_rift_detail" | "emerald_dungeon_detail" | "training_dummy_detail"
+local currentView = "list"  -- "list" | "tower" | "resource_list" | "resource_detail" | "world_boss_detail" | "hatred_land_detail" | "abyss_rift_detail" | "emerald_dungeon_detail" | "training_dummy_detail" | "collectible_detail"
 local currentResourceKey = nil  -- 当前选中的资源副本 key
 
 -- 严格点击判定：拖动超过阈值不触发 onClick
@@ -159,6 +160,7 @@ local DUNGEON_DEFS = {
         cover = "image/dungeon_hatred_land_20260424045354.png",
         unlockFloor = 40,
     },
+
     {
         key = "training_dummy",
         name = "木桩",
@@ -210,6 +212,7 @@ function DungeonUI.CreatePage(uiModule)
         EmeraldDungeonMod = require("Game.DungeonUI.EmeraldDungeon")
         HatredLandMod = require("Game.DungeonUI.HatredLand")
         TrainingDummyMod = require("Game.DungeonUI.TrainingDummy")
+
     end
 
     pageRoot = UI.Panel {

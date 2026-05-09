@@ -269,7 +269,7 @@ Config.HERO_SKILLS = {
     -- 3-4被动 + 1主动。总收益约为UR级的2倍。顶级定位。
     -- fate_weaver:       治愈削减85% + 70%双倍伤害 + 暴击溅射230% + 主动重置CD（纯辅助）
     -- eternal_archfiend: 魔焰8层(+64%暴击率/+280%暴击伤害) + 侵蚀6层(+30%伤害,满层30%转真伤) + 42%暴击AoE + 主动深渊印记+40%
-    -- crimson_moon:      连锁×4(0.85衰减) + 蚀月5层(+20%魔伤,满层爆发180%ATK) + 觉醒+25%ATK+2跳 + 灵魂+30%ATK + 满月真伤
+    -- crimson_moon:      连锁×4(0.85衰减) + 蚀痕6层(受伤+30%) + 月穿8层(+32%法穿) + 血月猎杀10层→状态(上限翻倍+20%ATK) + 主动全场增伤+递增ATK
     -- ====================================================================
     fate_weaver = {
         { id = "fate_thread",    name = "命运之线", desc = "光环降低敌人受治愈效果85%",
@@ -305,41 +305,41 @@ Config.HERO_SKILLS = {
           buildDesc = function(f) return "标记血量最高敌人,受伤+" .. P(0.40, f) .. ",持续" .. I(12, f) .. "秒,死亡转移" end },
     },
     crimson_moon = {
-        { id = "eclipse_chain",    name = "蚀月之链",
-          desc = "连锁弹跳命中敌人时施加蚀月印记（最多5层，持续8秒）；印记每层使该敌人受到的魔法伤害+4%；叠满5层后爆发，对该敌人及周围敌人造成攻击力×180%的魔法伤害",
+        { id = "eclipse_scar",     name = "蚀痕",
+          desc = "攻击命中敌人时施加1层蚀痕（最多6层，持续6秒）；蚀痕每层使该敌人受到的所有伤害+5%",
           type = "passive",
-          maxStacks = 5, stackDuration = 8.0,
-          dmgAmpPerStack = 0.04, burstAtkPct = 1.80, burstRange = 60,
+          maxStacks = 6, stackDuration = 6.0,
+          dmgAmpPerStack = 0.05,
           starScale = true,
           buildDesc = function(f)
-              return "连锁命中叠蚀月印记（最多5层）；每层使该敌人魔法受伤+" .. PD(0.04, f) .. "；叠满后爆发，对周围造成攻击力×" .. M(1.80, f) .. "魔法伤害"
+              return "攻击命中叠蚀痕（最多" .. I(6, f) .. "层）；每层使目标受伤+" .. PD(0.05, f)
           end },
-        { id = "blood_resonance",  name = "血月共鸣",
-          desc = "蚀月爆发时：被炸到的敌人魔抗-15%（持续3秒）；爆发每炸到1个敌人，弦月自身攻速+6%（最多5层，持续4秒）；若爆发击杀了敌人，弦月立即可以再次攻击",
+        { id = "moon_pierce",      name = "月穿",
+          desc = "每次攻击获得1层月穿（最多8层，持续5秒）；每层+4%法术穿透",
           type = "passive",
-          resReduce = 0.15, resReduceDuration = 3.0,
-          spdBuffPerStack = 0.06, spdMaxStacks = 5, spdBuffDuration = 4.0,
+          maxStacks = 8, stackDuration = 5.0,
+          penPerStack = 0.04,
           starScale = true,
           buildDesc = function(f)
-              return "蚀月爆发时：敌人魔抗-" .. P(0.15, f) .. "（3秒）；每炸到1个敌人，自身攻速+" .. PD(0.06, f) .. "（最多5层）；爆发击杀后立即可再次攻击"
+              return "攻击叠月穿（最多" .. I(8, f) .. "层）；每层+" .. PD(0.04, f) .. "法穿"
+          end },
+        { id = "blood_hunt",       name = "血月猎杀",
+          desc = "击杀敌人获得1层血月；满10层时消耗全部层数进入【血月】状态（8秒）：蚀痕和月穿叠层上限翻倍，攻击力+20%",
+          type = "passive",
+          maxStacks = 10, stateDuration = 8.0,
+          atkBuff = 0.20,
+          starScale = true,
+          buildDesc = function(f)
+              return "击杀叠血月（满" .. I(10, f) .. "层）；消耗进入【血月】" .. I(8, f) .. "秒：叠层上限×2，攻击力+" .. P(0.20, f)
           end },
         { id = "crimson_crescent", name = "绯红新月",
-          desc = "对全屏敌人造成攻击力×350%的魔法伤害，并给每个敌人施加3层蚀月印记；释放后弦月进入【血月觉醒】状态（持续6秒）：攻击力+25%，连锁弹射数+2（CD:10秒）",
-          type = "active", interval = 10,
-          dmgAtkPct = 3.50, markStacks = 3,
-          awakenDuration = 6.0, awakenAtkBuff = 0.25, awakenChainBonus = 2,
+          desc = "使全场敌人受伤+25%，持续8秒；期间弦月每次攻击自身攻击力+3%（最多叠10次+30%）（CD:12秒）",
+          type = "active", interval = 12,
+          globalAmp = 0.25, ampDuration = 8.0,
+          atkPerHit = 0.03, atkMaxStacks = 10,
           starScale = true,
           buildDesc = function(f)
-              return "全屏攻击力×" .. M(3.50, f) .. "魔法伤害+3层印记；进入【血月觉醒】" .. I(6, f) .. "秒：攻击力+" .. P(0.25, f) .. "，连锁+2"
-          end },
-        { id = "eclipse_domain",   name = "月蚀领域",
-          desc = "弦月攻击范围内的敌人受到的魔法伤害+12%；每击杀1个敌人，弦月永久+3%攻击力（上限30%）；攻击力加成达到上限时触发【满月】：5秒内所有攻击变为真实伤害（无视防御和魔抗）",
-          type = "passive",
-          fieldAmp = 0.12, soulAtkPerKill = 0.03, soulCap = 0.30,
-          fullMoonDuration = 5.0,
-          starScale = true,
-          buildDesc = function(f)
-              return "攻击范围内敌人魔法受伤+" .. P(0.12, f) .. "；每击杀+攻击力" .. PD(0.03, f) .. "（上限" .. P(0.30, f) .. "）；达上限触发【满月】：真实伤害" .. I(5, f) .. "秒"
+              return "全场敌人受伤+" .. P(0.25, f) .. "（" .. I(8, f) .. "秒）；每次攻击ATK+" .. PD(0.03, f) .. "（最多" .. I(10, f) .. "次）"
           end },
     },
     -- 主角（按SSR级功率预算 8×）
@@ -1466,29 +1466,29 @@ Config.HERO_SKILL_TAGS = {
 
     crimson_moon = {
         {
-            id = "eclipse_pulse", name = "蚀月脉冲", type = "on_hit", category = "stack_ramp",
+            id = "deep_scar", name = "深蚀", type = "on_hit", category = "stack_ramp",
             tier = 1, maxTier = 3,
             unlock = { star = 0 },
             effects = {
                 [1] = { extraDmgAmpPerStack = 0.02,
-                        desc = "蚀月印记每层额外增伤+2%（总计6%/层）" },
-                [2] = { extraDmgAmpPerStack = 0.03, burstSplashBonus = 0.30,
-                        desc = "每层额外+3%增伤，爆发溅射伤害+30%" },
-                [3] = { extraDmgAmpPerStack = 0.04, burstSplashBonus = 0.50, stackSpeedUp = 1,
-                        desc = "每层额外+4%增伤，溅射+50%，连锁命中叠2层印记" },
+                        desc = "蚀痕每层额外增伤+2%（总计7%/层）" },
+                [2] = { extraDmgAmpPerStack = 0.03, scarMaxStacksBonus = 2,
+                        desc = "每层额外+3%增伤，蚀痕上限+2" },
+                [3] = { extraDmgAmpPerStack = 0.04, scarMaxStacksBonus = 3, scarDoubleApply = true,
+                        desc = "每层额外+4%增伤，上限+3，连锁命中叠2层蚀痕" },
             },
         },
         {
-            id = "blood_tide", name = "血潮涌动", type = "on_hit", category = "burst",
+            id = "lunar_edge", name = "月刃穿透", type = "on_hit", category = "stack_ramp",
             tier = 1, maxTier = 3,
             unlock = { star = 0 },
             effects = {
-                [1] = { resonanceExtraSpd = 0.03,
-                        desc = "血月共鸣攻速提升额外+3%/层" },
-                [2] = { resonanceExtraSpd = 0.04, resReduceBonus = 0.05,
-                        desc = "攻速+4%/层，爆发减魔抗额外+5%" },
-                [3] = { resonanceExtraSpd = 0.05, resReduceBonus = 0.10, killAtkBurst = 0.15,
-                        desc = "攻速+5%/层，减魔抗+10%，击杀后3秒攻击+15%" },
+                [1] = { extraPenPerStack = 0.02,
+                        desc = "月穿每层额外+2%法穿（总计6%/层）" },
+                [2] = { extraPenPerStack = 0.03, pierceMaxStacksBonus = 2,
+                        desc = "每层额外+3%法穿，月穿上限+2" },
+                [3] = { extraPenPerStack = 0.04, pierceMaxStacksBonus = 4, pierceAtkSpd = 0.03,
+                        desc = "每层额外+4%法穿，上限+4，每层额外+3%攻速" },
             },
         },
         {
@@ -1498,23 +1498,23 @@ Config.HERO_SKILL_TAGS = {
             effects = {
                 [1] = { cdReduction = 1.0,
                         desc = "绯红新月冷却-1秒" },
-                [2] = { cdReduction = 1.5, awakenDurationBonus = 2.0,
-                        desc = "冷却-1.5秒，觉醒时间+2秒" },
-                [3] = { cdReduction = 2.0, awakenDurationBonus = 3.0, awakenAtkBonus = 0.10,
-                        desc = "冷却-2秒，觉醒+3秒，觉醒攻击力额外+10%" },
+                [2] = { cdReduction = 2.0, ampBonus = 0.05,
+                        desc = "冷却-2秒，全场增伤额外+5%" },
+                [3] = { cdReduction = 3.0, ampBonus = 0.10, atkPerHitBonus = 0.01,
+                        desc = "冷却-3秒，增伤+10%，每次攻击ATK额外+1%" },
             },
         },
         {
-            id = "lunar_eclipse", name = "月蚀天象", type = "passive", category = "stack_ramp",
+            id = "blood_frenzy", name = "血月狂潮", type = "passive", category = "stack_ramp",
             tier = 0, maxTier = 3,
             unlock = { star = 10 },
             effects = {
-                [1] = { soulAtkPerKillBonus = 0.01,
-                        desc = "击杀永久攻击力额外+1%（总计4%/击杀）" },
-                [2] = { soulAtkPerKillBonus = 0.02, fullMoonDurationBonus = 2.0,
-                        desc = "击杀+2%/杀（5%/杀），满月时间+2秒" },
-                [3] = { soulAtkPerKillBonus = 0.02, fullMoonDurationBonus = 3.0, fullMoonAoePct = 2.00,
-                        desc = "击杀+2%/杀，满月+3秒，满月激活时全屏200%ATK纯伤" },
+                [1] = { huntStacksReduce = 2,
+                        desc = "血月猎杀满层所需-2（8层触发）" },
+                [2] = { huntStacksReduce = 3, stateDurationBonus = 3.0,
+                        desc = "满层-3（7层触发），血月状态+3秒" },
+                [3] = { huntStacksReduce = 4, stateDurationBonus = 4.0, stateAtkBonus = 0.10,
+                        desc = "满层-4（6层触发），状态+4秒，状态攻击力额外+10%" },
             },
         },
     },

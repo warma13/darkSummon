@@ -13,6 +13,7 @@ local HeroAnim = require("Game.HeroAnim")
 local DivineBlessDB = require("Game.DivineBlessData")
 local AffixTagResolver = require("Game.AffixTagResolver")
 local CodexData = require("Game.CodexData")
+local CollectibleData = require("Game.CollectibleData")
 
 -- 延迟 require 遗物模块（避免循环依赖）
 local _RelicData, _RelicEffects
@@ -100,21 +101,24 @@ local function BuildTowerStats(tower, applyTagBonus)
     -- 图鉴加成（英雄星级+遗物星级的全局攻击加成）
     local codexAtkPct = CodexData.GetTotalBonus()
 
-    -- === 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比 + 神赐百分比) × (1 + 遗物) × (1 + 图鉴) ===
-    tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct) * (1 + codexAtkPct)
-    tower.range = typeDef.baseRange + starRange + levelRange + rangeBonus
-    tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct)
+    -- 收集系统加成（武器收集三层加成）
+    local colRune, colStat, colCollect = CollectibleData.GetBonus()
 
-    -- 战斗子属性
-    tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0)
-    tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + divineCritPct
-    tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct
-    tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0)
+    -- === 最终攻击 = (英雄ATK × 场内星级 + 装备ATK) × (1 + 百分比 + 神赐百分比) × (1 + 遗物) × (1 + 图鉴) × (1 + 收集攻击%) ===
+    tower.attack = (heroStats.atk * starMult + equipAtk) * (1 + atkPctBonus + divineAtkPct) * (1 + relicAtkPct) * (1 + codexAtkPct) * (1 + (colCollect.atkPct or 0))
+    tower.range = (typeDef.baseRange + starRange + levelRange + rangeBonus) * (1 + (colCollect.rangePct or 0))
+    tower.speed = typeDef.baseSpeed / starSpeed / (1 + (heroStats.spdBonus or 0) + spdPctBonus + divineSpdPct + relicSpdPct + (colCollect.spdPct or 0))
 
-    -- 伤害类型加成
-    tower.physDmgBonus = equipBonus.physDmg or 0
-    tower.magicDmgBonus = equipBonus.magicDmg or 0
-    tower.magicPen = equipBonus.magicPen or 0
+    -- 战斗子属性（含收集 stat 层加成）
+    tower.armorPen = (heroStats.armorPen or 0) + (equipBonus.armorPen or 0) + (colStat.armorPen or 0)
+    tower.critRate = (heroStats.critRate or 0) + (equipBonus.critRate or 0) + divineCritPct + (colStat.critRate or 0)
+    tower.critDmg = (heroStats.critDmg or 0) + (equipBonus.critDmg or 0) + relicCritDmgPct + (colStat.critDmg or 0)
+    tower.dmgBonus = (heroStats.dmgBonus or 0) + (equipBonus.dmgBonus or 0) + (colStat.dmgBonus or 0)
+
+    -- 伤害类型加成（含收集 stat 层加成）
+    tower.physDmgBonus = (equipBonus.physDmg or 0) + (colStat.physDmgBonus or 0)
+    tower.magicDmgBonus = (equipBonus.magicDmg or 0) + (colStat.magicDmgBonus or 0)
+    tower.magicPen = (equipBonus.magicPen or 0) + (colCollect.magicPen or 0)
 
     -- typeDmg / elemDmg 路由到英雄对应伤害类型
     local dmgType = Config.HERO_DAMAGE_TYPE[heroId] or "physical"
@@ -127,17 +131,19 @@ local function BuildTowerStats(tower, applyTagBonus)
         end
     end
 
-    -- 符文特殊词条
+    -- 符文特殊词条（含收集 rune 层加成）
     tower.runeBonus = {
-        chain      = equipBonus.chain or 0,
-        slow_amp   = equipBonus.slow_amp or 0,
-        dot_amp    = equipBonus.dot_amp or 0,
-        cdr        = equipBonus.cdr or 0,
-        killReset  = equipBonus.killReset or 0,
-        vulnMark   = equipBonus.vulnMark or 0,
-        elemMastery= equipBonus.elemMastery or 0,
-        luckyDrop  = equipBonus.luckyDrop or 0,
+        chain      = (equipBonus.chain or 0) + (colRune.chain or 0),
+        slow_amp   = (equipBonus.slow_amp or 0) + (colRune.slow_amp or 0),
+        dot_amp    = (equipBonus.dot_amp or 0) + (colRune.dot_amp or 0),
+        cdr        = (equipBonus.cdr or 0) + (colRune.cdr or 0),
+        killReset  = (equipBonus.killReset or 0) + (colRune.killReset or 0),
+        vulnMark   = (equipBonus.vulnMark or 0) + (colRune.vulnMark or 0),
+        elemMastery= (equipBonus.elemMastery or 0) + (colRune.elemMastery or 0),
+        luckyDrop  = (equipBonus.luckyDrop or 0) + (colRune.luckyDrop or 0),
     }
+    -- 收集专属加成（供 HeroSkills/Combat 读取）
+    tower.collectBonus = colCollect
     -- 符文套装特殊效果（3件套触发效果）
     local rok, RuneData = pcall(require, "Game.RuneData")
     tower.runeSetEffects = rok and RuneData.GetSetEffects(heroId) or {}

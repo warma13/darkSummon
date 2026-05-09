@@ -227,7 +227,17 @@ local function CalcFinalDamage(tower, enemy, damage)
         end
         -- 破甲叠层：每层削减固定比例 DEF
         if enemy.armorBreakStacks and enemy.armorBreakStacks > 0 and enemy.armorBreakValue then
-            enemyDEF = enemyDEF * (1 - enemy.armorBreakStacks * enemy.armorBreakValue)
+            local breakVal = enemy.armorBreakValue
+            -- 收集加成：破甲效果放大
+            local cb = tower.collectBonus
+            if cb and cb.armorBreakAmp and cb.armorBreakAmp > 0 then
+                breakVal = breakVal * (1 + cb.armorBreakAmp)
+            end
+            -- 收集加成：防御削减
+            if cb and cb.defReducePct and cb.defReducePct > 0 then
+                breakVal = breakVal + cb.defReducePct
+            end
+            enemyDEF = enemyDEF * (1 - enemy.armorBreakStacks * breakVal)
         end
         -- 剧毒瘴气：额外削减 DEF
         if enemy.armorReduceFromDot then
@@ -271,7 +281,13 @@ local function CalcFinalDamage(tower, enemy, damage)
 
     -- [寒意增伤] 5层寒意时受到的伤害增加
     if enemy.chillStacks and enemy.chillStacks >= 5 then
-        zones.chill = 1.0 + (tower.typeDef.chillDmgAmpAtMax or 0.50)
+        local chillAmp = tower.typeDef.chillDmgAmpAtMax or 0.50
+        -- 收集加成：寒意增伤放大
+        local cb = tower.collectBonus
+        if cb and cb.chillAmp and cb.chillAmp > 0 then
+            chillAmp = chillAmp + cb.chillAmp
+        end
+        zones.chill = 1.0 + chillAmp
     end
 
     -- [伤害加成] 通用独立乘区 (1 + dmgBonus)
@@ -500,7 +516,12 @@ local function HandleChainAttack(tower, firstTarget, damage)
         if typeDef.special == "slow" and nextTarget.alive then
             local slowRate = typeDef.slowRate or 0.25
             slowRate = HeroSkills.ModifySlowRate(tower, slowRate, nextTarget)
-            Enemy.ApplySlow(nextTarget, 2.0, slowRate)
+            local chainSlowDur = 2.0
+            local cb = tower.collectBonus
+            if cb and cb.slowDuration and cb.slowDuration > 0 then
+                chainSlowDur = chainSlowDur * (1 + cb.slowDuration)
+            end
+            Enemy.ApplySlow(nextTarget, chainSlowDur, slowRate)
         end
 
         -- 链闪电粒子（对象池复用）
@@ -617,6 +638,11 @@ local function OnProjectileHit(proj)
         local slowRate = typeDef.slowRate or 0.3
         slowRate = HeroSkills.ModifySlowRate(tower, slowRate, target)
         local slowDur = 2.0
+        -- 收集加成：减速持续时间放大
+        local cb = tower.collectBonus
+        if cb and cb.slowDuration and cb.slowDuration > 0 then
+            slowDur = slowDur * (1 + cb.slowDuration)
+        end
         if target.isBoss then
             -- BOSS减速效率已在ModifySlowRate处理
         end
@@ -626,7 +652,13 @@ local function OnProjectileHit(proj)
     elseif typeDef.special == "dot" and target.alive then
         local dotDmg = typeDef.dotDamage or 5
         dotDmg = HeroSkills.ModifyDotDamage(tower, dotDmg, target)
-        Enemy.ApplyDOT(target, dotDmg, typeDef.dotDuration or 2.0)
+        local dotDur = typeDef.dotDuration or 2.0
+        -- 收集加成：DOT 持续时间放大
+        local cb = tower.collectBonus
+        if cb and cb.dotDuration and cb.dotDuration > 0 then
+            dotDur = dotDur * (1 + cb.dotDuration)
+        end
+        Enemy.ApplyDOT(target, dotDmg, dotDur)
     elseif typeDef.special == "amp_damage" and target.alive then
         -- 增伤标记（优先读取技能升级后的 ampRate，fallback 到 typeDef）
         local skillAmpRate = typeDef.ampRate or 0.08
@@ -634,6 +666,11 @@ local function OnProjectileHit(proj)
             for _, s in ipairs(tower.skills) do
                 if s.ampRate then skillAmpRate = s.ampRate; break end
             end
+        end
+        -- 收集加成：增伤效果放大
+        local cb = tower.collectBonus
+        if cb and cb.ampDmgBonus and cb.ampDmgBonus > 0 then
+            skillAmpRate = skillAmpRate * (1 + cb.ampDmgBonus)
         end
         local isFirst = not Debuff.Has(target, "amp_damage")
         Debuff.Apply(target, "amp_damage", {
@@ -678,6 +715,16 @@ local function OnProjectileHit(proj)
             end
             for _, s in ipairs(tower.skills) do
                 if s.stunDuration then stunDuration = s.stunDuration; break end
+            end
+        end
+        -- 收集加成：眩晕概率和持续时间
+        local cb = tower.collectBonus
+        if cb then
+            if cb.stunChance and cb.stunChance > 0 then
+                stunChance = stunChance + cb.stunChance
+            end
+            if cb.stunDuration and cb.stunDuration > 0 then
+                stunDuration = stunDuration * (1 + cb.stunDuration)
             end
         end
         if stunChance > 0 and math.random() < stunChance then

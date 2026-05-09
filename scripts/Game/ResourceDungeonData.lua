@@ -558,6 +558,27 @@ function RD.GetData()
         HeroData.resourceDungeon.lastResetDate = today
     end
 
+    -- 一次性补发：淬魂试炼券定义缺失导致玩家丢券，补发6张（仅老玩家，首次执行即锁定）
+    if not HeroData.resourceDungeon._fixTemperTicket then
+        HeroData.resourceDungeon._fixTemperTicket = true
+        local bw = HeroData.resourceDungeon.bestWave
+        local isExistingPlayer = false
+        for _, v in pairs(bw) do
+            if v > 0 then isExistingPlayer = true; break end
+        end
+        if isExistingPlayer then
+            local MailboxData = require("Game.MailboxData")
+            MailboxData.SendOnce("fix_temper_ticket_v1", {
+                title = "淬魂试炼券补发",
+                desc = "修复了淬魂试炼挑战券无法正常使用的问题，补发6张挑战券，祝您游戏愉快！",
+                rewards = {
+                    { type = "item", id = "dungeon_ticket_temper", amount = 6 },
+                },
+            })
+        end
+        HeroData.Save()
+    end
+
     return HeroData.resourceDungeon
 end
 

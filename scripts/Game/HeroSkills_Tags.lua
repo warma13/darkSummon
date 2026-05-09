@@ -109,18 +109,68 @@ function HeroSkills.InitTagState(tower)
                 -- 通过 tower.tags["blood_pact"] → resonanceAtkBonus 路径处理，
                 -- 无需在 passive init 中重复写入 hstate
 
-                -- 月蚀天象标签：击杀加攻 / 满月时长 / 满月激活纯伤
-                if eff.soulAtkPerKillBonus or eff.fullMoonDurationBonus or eff.fullMoonAoePct then
+                -- 深蚀标签：蚀痕额外增伤 / 上限加成 / 双层叠加
+                if eff.extraDmgAmpPerStack or eff.scarMaxStacksBonus or eff.scarDoubleApply then
                     local hs = tower.hstate
                     if hs then
-                        if eff.soulAtkPerKillBonus then
-                            hs.soulAtkPerKillBonus = eff.soulAtkPerKillBonus
+                        if eff.extraDmgAmpPerStack then
+                            hs.extraDmgAmpPerStack = eff.extraDmgAmpPerStack
                         end
-                        if eff.fullMoonDurationBonus then
-                            hs.fullMoonDurationBonus = eff.fullMoonDurationBonus
+                        if eff.scarMaxStacksBonus then
+                            hs.scarMaxStacksBonus = eff.scarMaxStacksBonus
                         end
-                        if eff.fullMoonAoePct then
-                            hs.fullMoonAoePct = eff.fullMoonAoePct
+                        if eff.scarDoubleApply then
+                            hs.scarDoubleApply = true
+                        end
+                    end
+                end
+                -- 月刃穿透标签：法穿额外加成 / 上限加成 / 攻速加成
+                if eff.extraPenPerStack or eff.pierceMaxStacksBonus or eff.pierceAtkSpd then
+                    local hs = tower.hstate
+                    if hs then
+                        if eff.extraPenPerStack then
+                            hs.extraPenPerStack = eff.extraPenPerStack
+                        end
+                        if eff.pierceMaxStacksBonus then
+                            hs.pierceMaxStacksBonus = eff.pierceMaxStacksBonus
+                        end
+                        if eff.pierceAtkSpd then
+                            hs.pierceAtkSpd = eff.pierceAtkSpd
+                        end
+                    end
+                end
+                -- 新月锋刃标签：CD减少 / 主动增伤加成 / 每击ATK额外加成
+                if eff.cdReduction or eff.ampBonus or eff.atkPerHitBonus then
+                    local hs = tower.hstate
+                    if hs then
+                        if eff.ampBonus then
+                            hs.ampBonus = eff.ampBonus
+                        end
+                        if eff.atkPerHitBonus then
+                            hs.atkPerHitBonus = eff.atkPerHitBonus
+                        end
+                    end
+                    -- CD 减少：直接修改 skill.interval
+                    if eff.cdReduction and tower.skills then
+                        for _, sk in ipairs(tower.skills) do
+                            if sk.type == "active" and sk.interval then
+                                sk.interval = math.max(1, sk.interval - eff.cdReduction)
+                            end
+                        end
+                    end
+                end
+                -- 血月狂潮标签：满层减少 / 状态时长加成 / 状态攻击力加成
+                if eff.huntStacksReduce or eff.stateDurationBonus or eff.stateAtkBonus then
+                    local hs = tower.hstate
+                    if hs then
+                        if eff.huntStacksReduce then
+                            hs.huntStacksReduce = eff.huntStacksReduce
+                        end
+                        if eff.stateDurationBonus then
+                            hs.stateDurationBonus = eff.stateDurationBonus
+                        end
+                        if eff.stateAtkBonus then
+                            hs.stateAtkBonus = eff.stateAtkBonus
                         end
                     end
                 end

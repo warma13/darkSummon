@@ -1,11 +1,11 @@
 -- Game/Heroes/crimson_moon.lua
--- 弦月：蚀月之链 (eclipse_chain) + 血月共鸣 (blood_resonance)
---       + 绯红新月 (crimson_crescent) + 月蚀领域 (eclipse_domain)
+-- 弦月：蚀痕 (eclipse_scar) + 月穿 (moon_pierce)
+--       + 血月猎杀 (blood_hunt) + 绯红新月 (crimson_crescent)
 --
--- 被动1 蚀月之链：连锁弹跳命中叠加蚀月印记(最多5层)，每层+4%魔法增伤，满层触发月蚀爆发
--- 被动2 血月共鸣：爆发时减魔抗15%，每命中+6%攻速(最多5层)，击杀刷新攻击
--- 主动  绯红新月：全屏350%ATK伤害+3层印记，血月觉醒6s(+25%ATK,连锁+2)
--- 被动3 月蚀领域：领域内魔法增伤+12%，击杀+3%永久ATK，累计30%触发满月(纯伤5s)
+-- 被动1 蚀痕：攻击命中叠加蚀痕(最多6层)，每层使目标受伤+5%
+-- 被动2 月穿：每次攻击获得1层月穿(最多8层)，每层+4%法穿
+-- 被动3 血月猎杀：击杀叠血月，满10层消耗进入【血月】状态8s（叠层上限翻倍，ATK+20%）
+-- 主动  绯红新月：全场敌人受伤+25%持续8s，期间每次攻击ATK+3%（最多10次+30%）
 
 local M = {}
 
@@ -14,9 +14,10 @@ local State = require("Game.State")
 local AddFloatingText = State.AddFloatingText
 
 -- 飘字颜色
-local COLOR_ECLIPSE_BURST = { 220, 40, 80, 255 }     -- 暗红（月蚀爆发）
-local COLOR_FULL_MOON     = { 255, 255, 255, 255 }    -- 纯白（满月）
-local COLOR_RESONANCE     = { 180, 60, 120, 255 }     -- 紫红（血月觉醒）
+local COLOR_SCAR       = { 220, 40, 80, 255 }      -- 暗红（蚀痕）
+local COLOR_BLOOD_MOON = { 255, 60, 60, 255 }       -- 红色（血月状态）
+local COLOR_CRESCENT   = { 255, 200, 100, 255 }     -- 金色（绯红新月）
+local COLOR_PIERCE     = { 180, 120, 255, 255 }     -- 紫色（月穿）
 
 local function has(tower, id)
     if not tower.skills then return nil end
@@ -24,7 +25,7 @@ local function has(tower, id)
 end
 
 -- ============================================================================
--- 被动1+3：伤害修正 — 月蚀领域增伤 + 觉醒ATK + 灵魂ATK + 满月纯伤标记
+-- 伤害修正 — 血月ATK + 主动ATK + 蚀痕受伤（magicVuln由HeroSkills统一处理）
 -- ============================================================================
 
 ---@param tower table
@@ -35,32 +36,21 @@ function M.ModifyDamage(tower, target, damage)
     local hs = tower.hstate
     if not hs then return damage end
 
-    -- 月蚀领域：领域内魔法增伤
-    local domain = has(tower, "eclipse_domain")
-    if domain then
-        damage = damage * (1 + (domain.fieldAmp or 0.12))
+    -- 血月状态：ATK 加成
+    if hs.isBloodMoon and hs.bloodMoonAtkBuff > 0 then
+        damage = damage * (1 + hs.bloodMoonAtkBuff)
     end
 
-    -- 血月觉醒：ATK 加成
-    if hs.isAwakened and hs.awakenAtkBuff > 0 then
-        damage = damage * (1 + hs.awakenAtkBuff)
-    end
-
-    -- 灵魂 ATK 加成（击杀永久累积）
-    if hs.soulAtkBonus > 0 then
-        damage = damage * (1 + hs.soulAtkBonus)
-    end
-
-    -- 满月状态：标记为纯粹伤害（由 Combat 处理跳过魔抗）
-    if hs.fullMoonActive then
-        hs._isPureDamage = true
+    -- 主动期间：递增 ATK 加成
+    if hs.crescentActive and hs.crescentAtkBuff > 0 then
+        damage = damage * (1 + hs.crescentAtkBuff)
     end
 
     return damage
 end
 
 -- ============================================================================
--- 被动2：攻速修正 — 血月共鸣攻速叠加
+-- 攻速修正 — 月穿标签提供的攻速（pierceAtkSpd）
 -- ============================================================================
 
 ---@param tower table
@@ -70,17 +60,16 @@ function M.ModifyAttackSpeed(tower, speed)
     local hs = tower.hstate
     if not hs then return speed end
 
-    if hs.resonanceStacks > 0 and hs.resonanceTimer > 0 then
-        local resonance = has(tower, "blood_resonance")
-        local spdPerStack = resonance and resonance.spdBuffPerStack or 0.06
-        speed = speed / (1 + hs.resonanceStacks * spdPerStack)
+    -- 月穿标签 Tier3 攻速加成
+    if hs.pierceStacks > 0 and hs.pierceTimer > 0 and (hs.pierceAtkSpd or 0) > 0 then
+        speed = speed / (1 + hs.pierceStacks * hs.pierceAtkSpd)
     end
 
     return speed
 end
 
 -- ============================================================================
--- 被动1：命中触发 — 蚀月印记叠加 + 满层爆发 + 击杀处理
+-- 命中触发 — 蚀痕叠加 + 月穿叠加 + 主动ATK递增 + 击杀处理
 -- ============================================================================
 
 ---@param tower table
@@ -91,180 +80,103 @@ function M.OnHit(tower, target, killed)
     if not hs then return end
 
     -- ================================================================
-    -- 蚀月之链：叠加印记
+    -- 被动1 蚀痕：叠加目标受伤
     -- ================================================================
-    local eclipse = has(tower, "eclipse_chain")
-    if eclipse and target.alive then
-        if not hs.eclipseMarks then hs.eclipseMarks = {} end
+    local scar = has(tower, "eclipse_scar")
+    if scar and target.alive then
+        if not hs.scarMarks then hs.scarMarks = {} end
         local targetId = target.id or tostring(target)
-        local mark = hs.eclipseMarks[targetId]
+        local mark = hs.scarMarks[targetId]
         if not mark then
-            mark = { stacks = 0, timer = 8.0 }
-            hs.eclipseMarks[targetId] = mark
+            mark = { stacks = 0, timer = scar.stackDuration or 6.0 }
+            hs.scarMarks[targetId] = mark
         end
 
-        -- 觉醒期间每次叠2层，否则1层
-        local addStacks = hs.isAwakened and 2 or 1
-        local maxStacks = eclipse.maxStacks or 5
-        local prevStacks = mark.stacks
+        -- 每次叠加层数（标签 scarDoubleApply 时叠2层）
+        local addStacks = (hs.scarDoubleApply) and 2 or 1
+        -- 血月状态下上限翻倍
+        local baseMax = (scar.maxStacks or 6) + (hs.scarMaxStacksBonus or 0)
+        local maxStacks = hs.isBloodMoon and (baseMax * 2) or baseMax
         mark.stacks = math.min(mark.stacks + addStacks, maxStacks)
-        mark.timer = eclipse.stackDuration or 8.0
+        mark.timer = scar.stackDuration or 6.0
 
-        -- 施加每层魔法增伤（magicVuln 被 HeroSkills.ModifyDamage 读取）
-        local dmgAmp = eclipse.dmgAmpPerStack or 0.04
+        -- 写入 magicVuln（HeroSkills.ModifyDamage 统一读取）
+        local dmgAmp = (scar.dmgAmpPerStack or 0.05) + (hs.extraDmgAmpPerStack or 0)
         target.magicVuln = mark.stacks * dmgAmp
-        target.magicVulnTimer = eclipse.stackDuration or 8.0
+        target.magicVulnTimer = scar.stackDuration or 6.0
+    end
 
-        -- 满层触发月蚀爆发
-        if prevStacks < maxStacks and mark.stacks >= maxStacks then
-            M._TriggerEclipseBurst(tower, target, eclipse)
+    -- ================================================================
+    -- 被动2 月穿：叠加自身法穿
+    -- ================================================================
+    local pierce = has(tower, "moon_pierce")
+    if pierce then
+        local baseMax = (pierce.maxStacks or 8) + (hs.pierceMaxStacksBonus or 0)
+        local maxStacks = hs.isBloodMoon and (baseMax * 2) or baseMax
+        hs.pierceStacks = math.min(hs.pierceStacks + 1, maxStacks)
+        hs.pierceTimer = pierce.stackDuration or 5.0
+
+        -- 计算法穿并写入 tower.magicPen（Combat.CalcFinalDamage 读取）
+        local penPerStack = (pierce.penPerStack or 0.04) + (hs.extraPenPerStack or 0)
+        tower.magicPen = hs.pierceStacks * penPerStack
+    end
+
+    -- ================================================================
+    -- 主动期间：每次攻击递增 ATK
+    -- ================================================================
+    if hs.crescentActive then
+        local skill = has(tower, "crimson_crescent")
+        if skill then
+            local maxStacks = skill.atkMaxStacks or 10
+            if hs.crescentAtkStacks < maxStacks then
+                hs.crescentAtkStacks = hs.crescentAtkStacks + 1
+                local perHit = (skill.atkPerHit or 0.03) + (hs.atkPerHitBonus or 0)
+                hs.crescentAtkBuff = hs.crescentAtkStacks * perHit
+            end
         end
     end
 
     -- ================================================================
-    -- 月蚀领域：击杀累积灵魂攻击力
+    -- 被动3 血月猎杀：击杀叠血月
     -- ================================================================
     if killed then
-        local domain = has(tower, "eclipse_domain")
-        if domain then
-            local soulAtk = (domain.soulAtkPerKill or 0.03) + (hs.soulAtkPerKillBonus or 0)
-            local soulCap = domain.soulCap or 0.30
-            hs.soulAtkBonus = math.min(hs.soulAtkBonus + soulAtk, soulCap)
-            hs.totalKills = (hs.totalKills or 0) + 1
+        hs.totalKills = (hs.totalKills or 0) + 1
 
-            -- 达到上限触发满月
-            if not hs.fullMoonActive and hs.soulAtkBonus >= soulCap then
-                hs.fullMoonActive = true
-                hs.fullMoonTimer = (domain.fullMoonDuration or 5.0) + (hs.fullMoonDurationBonus or 0)
+        local hunt = has(tower, "blood_hunt")
+        if hunt and not hs.isBloodMoon then
+            local required = (hunt.maxStacks or 10) - (hs.huntStacksReduce or 0)
+            hs.huntStacks = hs.huntStacks + 1
+
+            if hs.huntStacks >= required then
+                -- 消耗层数进入血月状态
+                hs.huntStacks = 0
+                hs.isBloodMoon = true
+                hs.bloodMoonTimer = (hunt.stateDuration or 8.0) + (hs.stateDurationBonus or 0)
+                hs.bloodMoonAtkBuff = (hunt.atkBuff or 0.20) + (hs.stateAtkBonus or 0)
 
                 AddFloatingText({
-                    text     = "满月!",
+                    text     = "血月!",
                     x        = tower._sx or 0,
                     y        = (tower._sy or 0) - 30,
                     life     = 1.5,
-                    color    = COLOR_FULL_MOON,
+                    color    = COLOR_BLOOD_MOON,
                     fontSize = 18,
                 })
-                State.skillFlash = { type = "full_moon", timer = 0.8, tower = tower }
-                print("[Heroes] crimson_moon FULL MOON activated! soulAtkBonus=" .. hs.soulAtkBonus)
-
-                -- 满月激活全屏纯伤（月蚀天象 Tier 3）
-                if (hs.fullMoonAoePct or 0) > 0 then
-                    local Enemy      = require("Game.Enemy")
-                    local HeroSkills = require("Game.HeroSkills")
-                    local atk = HeroSkills.GetEffectiveAttack(tower)
-                    local burstDmg = atk * hs.fullMoonAoePct
-                    for _, e in ipairs(State.enemies) do
-                        if e.alive then
-                            Enemy.TakeDamage(e, burstDmg)  -- 纯伤，无视防御
-                        end
-                    end
-                    AddFloatingText({
-                        text     = "满月爆发!",
-                        x        = tower._sx or 0,
-                        y        = (tower._sy or 0) - 45,
-                        life     = 1.2,
-                        color    = COLOR_FULL_MOON,
-                        fontSize = 16,
-                    })
-                end
+                State.skillFlash = { type = "blood_moon", timer = 0.8, tower = tower }
+                print("[Heroes] crimson_moon BLOOD MOON activated! atkBuff=" .. hs.bloodMoonAtkBuff)
             end
         end
 
-        -- 血月共鸣：击杀刷新攻击间隔（等于额外攻击一次）
-        local resonance = has(tower, "blood_resonance")
-        if resonance then
-            tower.attackTimer = 0
-        end
-
-        -- 清理已死亡目标的印记
-        if hs.eclipseMarks then
+        -- 清理已死亡目标的蚀痕
+        if hs.scarMarks then
             local targetId = target.id or tostring(target)
-            hs.eclipseMarks[targetId] = nil
+            hs.scarMarks[targetId] = nil
         end
     end
 end
 
 -- ============================================================================
--- 内部：月蚀爆发 — 满层印记触发 AoE + 血月共鸣效果
--- ============================================================================
-
----@param tower table
----@param target table
----@param eclipse table  eclipse_chain 技能定义
-function M._TriggerEclipseBurst(tower, target, eclipse)
-    local hs = tower.hstate
-    local Combat     = require("Game.Combat")
-    local Enemy      = require("Game.Enemy")
-    local HeroSkills = require("Game.HeroSkills")
-
-    local atk = HeroSkills.GetEffectiveAttack(tower)
-    local burstPct = eclipse.burstAtkPct or 1.80
-    local baseDmg  = atk * burstPct
-    local burstRange = eclipse.burstRange or 60
-    local rangeSq    = burstRange * burstRange
-
-    -- 对爆发目标造成伤害
-    if target.alive then
-        local finalDmg = Combat.CalcFinalDamage(tower, target, baseDmg)
-        Enemy.TakeDamage(target, finalDmg)
-    end
-
-    -- 溅射周围敌人
-    local hitCount = 0
-    for _, e in ipairs(State.enemies) do
-        if e.alive and e ~= target then
-            local dx = e.x - target.x
-            local dy = e.y - target.y
-            if dx * dx + dy * dy < rangeSq then
-                local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)
-                Enemy.TakeDamage(e, finalDmg)
-                hitCount = hitCount + 1
-            end
-        end
-    end
-
-    -- 重置印记层数
-    local targetId = target.id or tostring(target)
-    if hs.eclipseMarks and hs.eclipseMarks[targetId] then
-        hs.eclipseMarks[targetId].stacks = 0
-    end
-    target.magicVuln = 0
-
-    -- 飘字
-    AddFloatingText({
-        text     = "月蚀爆发!",
-        x        = target.x + (math.random() - 0.5) * 10,
-        y        = target.y - (target.typeDef and target.typeDef.size or 8) - 24,
-        life     = 1.2,
-        color    = COLOR_ECLIPSE_BURST,
-        fontSize = 15,
-    })
-
-    hs.totalBursts = (hs.totalBursts or 0) + 1
-
-    -- ================================================================
-    -- 血月共鸣：爆发触发减魔抗 + 攻速叠加
-    -- ================================================================
-    local resonance = has(tower, "blood_resonance")
-    if resonance then
-        -- 降低目标魔抗
-        local resReduce = resonance.resReduce or 0.15
-        target.tagResReduce = (target.tagResReduce or 0) + resReduce
-        target.tagResReduceTimer = resonance.resReduceDuration or 3.0
-
-        -- 攻速叠加（爆发命中数 = 1目标 + AoE命中数）
-        local totalHits = 1 + hitCount
-        local maxStacks = resonance.spdMaxStacks or 5
-        hs.resonanceStacks = math.min(hs.resonanceStacks + totalHits, maxStacks)
-        hs.resonanceTimer  = resonance.spdBuffDuration or 4.0
-    end
-
-    print("[Heroes] eclipse_burst hit " .. (1 + hitCount) .. " enemies, burstDmg=" .. math.floor(baseDmg))
-end
-
--- ============================================================================
--- 主动技能：绯红新月 — 全屏 AoE + 施加印记 + 血月觉醒
+-- 主动技能：绯红新月 — 全场增伤 + 递增ATK
 -- ============================================================================
 
 ---@param tower table
@@ -275,64 +187,46 @@ function M.TriggerActive(tower, skill)
     local hs = tower.hstate
     if not hs then return end
 
-    local Combat     = require("Game.Combat")
-    local Enemy      = require("Game.Enemy")
-    local HeroSkills = require("Game.HeroSkills")
+    local Debuff = require("Game.Debuff")
 
-    -- 全屏 AoE 伤害
-    local atk = HeroSkills.GetEffectiveAttack(tower)
-    local dmgMult = skill.dmgAtkPct or 3.50
-    local baseDmg = atk * dmgMult
+    -- 全场敌人施加受伤增加
+    local globalAmp = (skill.globalAmp or 0.25) + (hs.ampBonus or 0)
+    local ampDuration = skill.ampDuration or 8.0
 
     local hitCount = 0
     for _, e in ipairs(State.enemies) do
         if e.alive then
-            local finalDmg = Combat.CalcFinalDamage(tower, e, baseDmg)
-            Enemy.TakeDamage(e, finalDmg)
+            Debuff.Apply(e, "amp_damage", {
+                duration = ampDuration,
+                value = globalAmp,
+            })
             hitCount = hitCount + 1
-
-            -- 施加 3 层蚀月印记
-            if not hs.eclipseMarks then hs.eclipseMarks = {} end
-            local targetId = e.id or tostring(e)
-            local mark = hs.eclipseMarks[targetId]
-            if not mark then
-                mark = { stacks = 0, timer = 8.0 }
-                hs.eclipseMarks[targetId] = mark
-            end
-            local eclipse = has(tower, "eclipse_chain")
-            local maxStacks = eclipse and eclipse.maxStacks or 5
-            local addMarks = skill.markStacks or 3
-            mark.stacks = math.min(mark.stacks + addMarks, maxStacks)
-            mark.timer = eclipse and eclipse.stackDuration or 8.0
-
-            -- 施加魔法增伤
-            local dmgAmp = eclipse and eclipse.dmgAmpPerStack or 0.04
-            e.magicVuln = mark.stacks * dmgAmp
-            e.magicVulnTimer = eclipse and eclipse.stackDuration or 8.0
         end
     end
 
-    -- 进入血月觉醒状态
-    hs.isAwakened   = true
-    hs.awakenTimer  = skill.awakenDuration or 6.0
-    hs.awakenAtkBuff = skill.awakenAtkBuff or 0.25
+    -- 进入主动状态（递增ATK）
+    hs.crescentActive = true
+    hs.crescentTimer = ampDuration
+    hs.crescentGlobalAmp = globalAmp
+    hs.crescentAtkStacks = 0
+    hs.crescentAtkBuff = 0
 
     State.skillFlash = { type = "crimson_crescent", timer = 0.6, tower = tower }
 
     AddFloatingText({
-        text     = "血月觉醒!",
+        text     = "绯红新月!",
         x        = tower._sx or 0,
         y        = (tower._sy or 0) - 30,
         life     = 1.5,
-        color    = COLOR_RESONANCE,
+        color    = COLOR_CRESCENT,
         fontSize = 16,
     })
 
-    print("[Heroes] crimson_crescent hit " .. hitCount .. " enemies, awakened for " .. hs.awakenTimer .. "s")
+    print("[Heroes] crimson_crescent: " .. hitCount .. " enemies marked, amp=" .. globalAmp .. ", duration=" .. ampDuration)
 end
 
 -- ============================================================================
--- 帧更新：计时器衰减（觉醒、共鸣攻速、满月、印记）
+-- 帧更新：计时器衰减（血月状态、月穿、主动技能、蚀痕）
 -- ============================================================================
 
 ---@param towers table
@@ -345,50 +239,63 @@ function M.UpdateFrame(towers, dt, gridOffsetX, gridOffsetY)
             local hs = tower.hstate
 
             -- ============================================================
-            -- 血月觉醒：持续时间递减
+            -- 血月状态：持续时间递减
             -- ============================================================
-            if hs.isAwakened and hs.awakenTimer > 0 then
-                hs.awakenTimer = hs.awakenTimer - dt
-                if hs.awakenTimer <= 0 then
-                    hs.isAwakened    = false
-                    hs.awakenTimer   = 0
-                    hs.awakenAtkBuff = 0
+            if hs.isBloodMoon and hs.bloodMoonTimer > 0 then
+                hs.bloodMoonTimer = hs.bloodMoonTimer - dt
+                if hs.bloodMoonTimer <= 0 then
+                    hs.isBloodMoon      = false
+                    hs.bloodMoonTimer   = 0
+                    hs.bloodMoonAtkBuff = 0
+
+                    -- 血月结束时重新计算法穿（上限恢复正常）
+                    local pierce = has(tower, "moon_pierce")
+                    if pierce then
+                        local baseMax = (pierce.maxStacks or 8) + (hs.pierceMaxStacksBonus or 0)
+                        if hs.pierceStacks > baseMax then
+                            hs.pierceStacks = baseMax
+                            local penPerStack = (pierce.penPerStack or 0.04) + (hs.extraPenPerStack or 0)
+                            tower.magicPen = hs.pierceStacks * penPerStack
+                        end
+                    end
                 end
             end
 
             -- ============================================================
-            -- 血月共鸣：攻速 buff 持续时间递减
+            -- 月穿：持续时间递减
             -- ============================================================
-            if hs.resonanceTimer > 0 then
-                hs.resonanceTimer = hs.resonanceTimer - dt
-                if hs.resonanceTimer <= 0 then
-                    hs.resonanceStacks = 0
-                    hs.resonanceTimer  = 0
+            if hs.pierceTimer > 0 then
+                hs.pierceTimer = hs.pierceTimer - dt
+                if hs.pierceTimer <= 0 then
+                    hs.pierceStacks = 0
+                    hs.pierceTimer  = 0
+                    tower.magicPen  = 0
                 end
             end
 
             -- ============================================================
-            -- 满月状态：持续时间递减
+            -- 主动技能：持续时间递减
             -- ============================================================
-            if hs.fullMoonActive and hs.fullMoonTimer > 0 then
-                hs.fullMoonTimer = hs.fullMoonTimer - dt
-                if hs.fullMoonTimer <= 0 then
-                    hs.fullMoonActive = false
-                    hs.fullMoonTimer  = 0
-                    hs._isPureDamage  = false
+            if hs.crescentActive and hs.crescentTimer > 0 then
+                hs.crescentTimer = hs.crescentTimer - dt
+                if hs.crescentTimer <= 0 then
+                    hs.crescentActive    = false
+                    hs.crescentTimer     = 0
+                    hs.crescentAtkStacks = 0
+                    hs.crescentAtkBuff   = 0
                 end
             end
 
             -- ============================================================
-            -- 蚀月印记：计时器到期后逐层衰减
+            -- 蚀痕：计时器到期后逐层衰减
             -- ============================================================
-            if hs.eclipseMarks then
-                for targetId, mark in pairs(hs.eclipseMarks) do
+            if hs.scarMarks then
+                for targetId, mark in pairs(hs.scarMarks) do
                     mark.timer = mark.timer - dt
                     if mark.timer <= 0 then
                         mark.stacks = mark.stacks - 1
                         if mark.stacks <= 0 then
-                            hs.eclipseMarks[targetId] = nil
+                            hs.scarMarks[targetId] = nil
                         else
                             mark.timer = 1.0  -- 后续每1秒掉1层
                         end

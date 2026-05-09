@@ -358,7 +358,7 @@ function DivineBless.Build(ctx)
     local statusText, statusSub
     if isWeekend then
         statusText = "磐古降临中"
-        statusSub = "今日 " .. todayName .. " · 冥晶收益 ×1.5 自动生效"
+        statusSub = "今日 " .. todayName .. " · 冥晶、噬魂石、宝箱掉落 ×2 自动生效"
     elseif active then
         statusText = active.name .. " 降临中"
         statusSub = "今日 " .. todayName .. " · " .. active.desc .. " 已生效"
@@ -509,7 +509,7 @@ function DivineBless.Build(ctx)
                 fontWeight = "bold",
             },
             UI.Label { text = "· 周一至周五：每日随机降临 3 位初裔神，可选择 1 位获得全天加成", fontSize = 12, fontColor = S.textDim },
-            UI.Label { text = "· 周六、周日：土嗣·磐古自动降临，冥晶收益 ×1.5", fontSize = 12, fontColor = S.textDim },
+            UI.Label { text = "· 周六、周日：土嗣·磐古自动降临，冥晶、噬魂石、宝箱掉落 ×2", fontSize = 12, fontColor = S.textDim },
             UI.Label { text = "· 每日 00:00 刷新，选择后当日不可更改", fontSize = 12, fontColor = S.textDim },
             UI.Label { text = "· 加成效果与特权、装备等增益叠加计算", fontSize = 12, fontColor = S.textDim },
         },

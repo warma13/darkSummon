@@ -445,7 +445,7 @@ local function HandleEnemyDeath(enemy)
     local crystalBase = Config.KILL_DROP.crystal[enemyTier] or 0
     if crystalBase > 0 then
         local crystalAmt = mfloor(crystalBase * dropScale)
-        -- 神裔降临：冥晶加成（周末磐古自动 ×1.5 / 工作日选择磐古时 ×1.5）
+        -- 神裔降临：冥晶加成（周末磐古 ×2 / 工作日其他神裔）
         local crystalMulti = DivineBlessDB.GetBuffValue("crystal_multi")
         if crystalMulti > 1.0 then crystalAmt = mfloor(crystalAmt * crystalMulti) end
         if crystalAmt > 0 then

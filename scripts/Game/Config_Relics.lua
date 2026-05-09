@@ -371,17 +371,17 @@ for _, relic in pairs(Config.RELICS) do
 end
 
 -- ============================================================================
--- 升级费用: cost(lv) = floor(80 * 1.08^(lv-1))
+-- 升级费用: cost(lv) = floor(40 * 1.08^(lv-1))
 -- ============================================================================
 
-Config.RELIC_UPGRADE_BASE_COST = 80
+Config.RELIC_UPGRADE_BASE_COST = 40
 Config.RELIC_UPGRADE_COST_RATE = 1.08
 
 -- ============================================================================
--- 升星碎片费用: shards(star) = floor(5 * 1.25^(star-1))
+-- 升星碎片费用: shards(star) = floor(3 * 1.25^(star-1))
 -- ============================================================================
 
-Config.RELIC_STAR_BASE_SHARDS = 5
+Config.RELIC_STAR_BASE_SHARDS = 3
 Config.RELIC_STAR_SHARD_RATE = 1.25
 
 -- ============================================================================

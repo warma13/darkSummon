@@ -363,6 +363,14 @@ InventoryData.ITEM_DEFS = {
         rarity = "R",
         stackable = true,
     },
+    dungeon_ticket_temper = {
+        id = "dungeon_ticket_temper",
+        name = "淬魂试炼挑战券",
+        desc = "可在淬魂试炼消耗，额外挑战1次",
+        icon = "dungeon_ticket",
+        rarity = "R",
+        stackable = true,
+    },
     -- Boss 挑战券
     boss_ticket = {
         id = "boss_ticket",

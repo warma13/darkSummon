@@ -46,9 +46,14 @@ DB.DIVINE_LIST = {
     {
         id = "pangu", name = "土嗣·磐古", title = "大地裔",
         domain = "大地能量·积累", color = { 200, 160, 80 },
-        buffType = "crystal_multi", buffValue = 1.5,
-        desc = "冥晶收益 ×1.5",
-        lore = "十二初裔之一，土嗣·磐古，司掌大地能量与矿脉积聚之道。每逢周末，磐古降临暗界，令冥晶汲取之速大幅提升。",
+        -- 多 buff：冥晶 ×2 + 噬魂石 ×2 + 宝箱 ×2
+        buffs = {
+            { buffType = "crystal_multi", buffValue = 2.0 },
+            { buffType = "stone_multi",   buffValue = 2.0 },
+            { buffType = "chest_multi",   buffValue = 2.0 },
+        },
+        desc = "冥晶、噬魂石、宝箱掉落 ×2",
+        lore = "十二初裔之一，土嗣·磐古，司掌大地能量与矿脉积聚之道。每逢周末，磐古降临暗界，令资源汲取之速大幅提升。",
     },
     {
         id = "linghua", name = "风嗣·翎华", title = "自然裔",
@@ -250,11 +255,12 @@ function DB.HasChosen()
 end
 
 --- 查询指定 buffType 的加成值（供各系统调用）
+--- 支持单 buff（buffType/buffValue）和多 buff（buffs 数组）两种配置
 ---@param buffType string
----@return number  -- 倍率类返回 1.5 等，加算类返回 0.10 等，次数类返回 1，无加成返回 0 或 1.0
+---@return number  -- 倍率类返回 2.0 等，加算类返回 0.10 等，次数类返回 1，无加成返回 0 或 1.0
 function DB.GetBuffValue(buffType)
     local active = DB.GetActiveBlessing()
-    if not active or active.buffType ~= buffType then
+    if not active then
         -- 倍率类默认 1.0，次数/加算类默认 0
         if buffType == "crystal_multi" or buffType == "darksoul_multi"
            or buffType == "stone_multi" or buffType == "iron_multi"
@@ -263,7 +269,28 @@ function DB.GetBuffValue(buffType)
         end
         return 0
     end
-    return active.buffValue
+
+    -- 多 buff 查询（如磐古同时给冥晶/噬魂石/宝箱加成）
+    if active.buffs then
+        for _, b in ipairs(active.buffs) do
+            if b.buffType == buffType then
+                return b.buffValue
+            end
+        end
+    end
+
+    -- 单 buff 查询（其他神裔）
+    if active.buffType == buffType then
+        return active.buffValue
+    end
+
+    -- 无匹配：倍率类默认 1.0，其他默认 0
+    if buffType == "crystal_multi" or buffType == "darksoul_multi"
+       or buffType == "stone_multi" or buffType == "iron_multi"
+       or buffType == "chest_multi" then
+        return 1.0
+    end
+    return 0
 end
 
 -- ============================================================================

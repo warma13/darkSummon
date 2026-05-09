@@ -510,38 +510,32 @@ Config.TOWER_TYPES = {
         attackType = "chain",
         baseRange = 130,
         baseSpeed = 0.85,
-        special = "chain_ignite",
+        special = "chain_burst",
         faction = "human",
         chainCount = 4,
         chainDecay = 0.85,
 
-        -- 被动：蚀月之链
-        eclipseMaxStacks = 5,
-        eclipseStackDuration = 8.0,
-        eclipseDmgAmpPerStack = 0.04,
-        eclipseBurstAtkPct = 1.80,
-        eclipseBurstRange = 60,
+        -- 被动1：蚀痕（受伤叠层）
+        scarMaxStacks = 6,
+        scarStackDuration = 6.0,
+        scarDmgAmpPerStack = 0.05,
 
-        -- 被动：血月共鸣
-        resonanceResReduce = 0.15,
-        resonanceResReduceDuration = 3.0,
-        resonanceSpdPerStack = 0.06,
-        resonanceSpdMaxStacks = 5,
-        resonanceSpdDuration = 4.0,
+        -- 被动2：月穿（法穿叠层）
+        pierceMaxStacks = 8,
+        pierceStackDuration = 5.0,
+        piercePenPerStack = 0.04,
 
-        -- 主动：绯红新月
-        activeCooldown = 10.0,
-        crescentDmgAtkPct = 3.50,
-        crescentMarkStacks = 3,
-        awakenDuration = 6.0,
-        awakenAtkBuff = 0.25,
-        awakenChainBonus = 2,
+        -- 被动3：血月猎杀（击杀叠层→状态）
+        huntMaxStacks = 10,
+        huntStateDuration = 8.0,
+        huntAtkBuff = 0.20,
 
-        -- 被动：月蚀领域
-        domainFieldAmp = 0.12,
-        domainSoulAtkPerKill = 0.03,
-        domainSoulCap = 0.30,
-        domainFullMoonDuration = 5.0,
+        -- 主动：绯红新月（全场增伤+递增ATK）
+        activeCooldown = 12.0,
+        crescentGlobalAmp = 0.25,
+        crescentAmpDuration = 8.0,
+        crescentAtkPerHit = 0.03,
+        crescentAtkMaxStacks = 10,
 
         icon = "moon",
     },

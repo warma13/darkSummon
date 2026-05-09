@@ -661,6 +661,109 @@ local function CalcWaveEHP(stageNum, wave, refDamage, armorPen)
 end
 
 -- ============================================================================
+-- 普通波超限检查（v5 新增）
+-- 超限机制：场上怪物 > MAX_ENEMIES 持续 OVERLOAD_COUNTDOWN 秒则失败
+-- ============================================================================
+
+--- 计算单只普通怪的平均 EHP（不含 waveCount 乘算）
+---@param stageNum number
+---@param wave number
+---@param refDamage number
+---@param armorPen number
+---@return number singleEHP
+local function CalcSingleEnemyEHP(stageNum, wave, refDamage, armorPen)
+    local hpScale = DungeonScaling.CalcHPScaleWithWave(stageNum, wave)
+    local defScale = DungeonScaling.CalcDEFScale(stageNum)
+
+    local totalWeight = 0
+    local avgBaseHP = 0
+    local avgBaseDEF = 0
+    for roleId, weight in pairs(ROLE_WEIGHTS) do
+        local role = Config.ENEMY_ROLES[roleId]
+        if role then
+            avgBaseHP = avgBaseHP + role.baseHP * weight
+            avgBaseDEF = avgBaseDEF + role.baseDEF * weight
+            totalWeight = totalWeight + weight
+        end
+    end
+    if totalWeight > 0 then
+        avgBaseHP = avgBaseHP / totalWeight
+        avgBaseDEF = avgBaseDEF / totalWeight
+    else
+        avgBaseHP = 10000
+        avgBaseDEF = 800
+    end
+
+    local monsterHP = avgBaseHP * hpScale
+    local monsterDEF = avgBaseDEF * defScale
+    if armorPen > 0 then
+        monsterDEF = monsterDEF * (1 - armorPen)
+    end
+    monsterDEF = math.max(0, monsterDEF)
+
+    local defPenRate = F.Diminishing(monsterDEF, refDamage)
+    local effectiveMult = 1.0
+    if defPenRate > 0.01 then
+        effectiveMult = 1.0 / defPenRate
+    else
+        effectiveMult = 100.0
+    end
+
+    return monsterHP * effectiveMult
+end
+
+--- 计算指定关卡波次的实际出怪数量（复刻 Wave.lua GenerateNormalWave 公式）
+---@param stageNum number
+---@param waveInStage number
+---@return number
+local function CalcWaveEnemyCount(stageNum, waveInStage)
+    local count = math.floor(Config.WAVE_BASE_COUNT + waveInStage * Config.WAVE_COUNT_GROWTH + stageNum * 0.5)
+    count = math.min(count, Config.WAVE_MAX_COUNT or 16)
+    return math.max(4, count)
+end
+
+--- 检查阵容能否在指定关卡的普通波次中避免超限失败
+--- 模型：击杀吞吐率 vs 出怪速率，若怪物堆积超过阈值且持续超过倒计时则失败
+---@param stageNum number 关卡号
+---@param squadDPS number 阵容理论 DPS
+---@param armorPen number 平均穿甲率
+---@return boolean canSurvive 是否能通过普通波次
+local function CanSurviveNormalWaves(stageNum, squadDPS, armorPen)
+    if squadDPS <= 0 then return false end
+
+    local refDamage = squadDPS * 1.5
+    local maxEnemies = Config.MAX_ENEMIES or 7
+    local overloadCD = Config.OVERLOAD_COUNTDOWN or 10
+    -- 普通波平均出怪间隔（普通怪 1.0s，快速怪 0.5s，保守取 0.8s）
+    local avgSpawnInterval = 0.8
+
+    for w = 1, WAVES_PER_STAGE - 1 do
+        local totalCount = CalcWaveEnemyCount(stageNum, w)
+        local singleEHP = CalcSingleEnemyEHP(stageNum, w, refDamage, armorPen)
+
+        -- 击杀吞吐率（只/秒）：DPS 总输出 / 单只 EHP
+        local killRate = squadDPS / singleEHP
+        -- 出怪速率（只/秒）
+        local spawnRate = 1.0 / avgSpawnInterval
+
+        if killRate < spawnRate then
+            -- 怪物堆积速率
+            local accumRate = spawnRate - killRate
+            -- 堆积到超限阈值所需时间
+            local timeToOverload = maxEnemies / accumRate
+            -- 出怪总时长
+            local spawnDuration = totalCount * avgSpawnInterval
+            -- 如果在出怪结束前就超限并持续超过倒计时 → 失败
+            if timeToOverload + overloadCD < spawnDuration then
+                return false
+            end
+        end
+    end
+
+    return true
+end
+
+-- ============================================================================
 -- 关卡通关评估（混合模式：普通波 EHP + Boss 波模拟）
 -- ============================================================================
 
@@ -672,6 +775,11 @@ end
 ---@return number seconds 预计耗时，math.huge 表示无法通关
 function OP.EstimateStageClearTime(stageNum, towers, squadDPS, armorPen)
     if squadDPS <= 0 or #towers == 0 then return math.huge end
+
+    -- 超限检查：普通波 DPS 不足则无法通关
+    if not CanSurviveNormalWaves(stageNum, squadDPS, armorPen) then
+        return math.huge
+    end
 
     local refDamage = squadDPS * 1.5
     local normalWaveTime = 0
@@ -728,62 +836,73 @@ function OP.CalcOfflinePush(offlineSeconds, startStage)
     end
 
     -- ========================================================================
-    -- v3: 基于 DPS/BossEHP 比值的匀速推关
-    -- 设计目标：4 小时 (14400s) 最多推 100 关
-    -- 计算方法：以起始关的 Boss 为基准，算出每关通关时间
+    -- v5: 在 v4 基础上新增普通波超限检查
+    -- v4 修复：逐关模拟，每关重新构建 Boss，碰到打不过的就停
+    -- v5 修复：普通波加入超限判定，DPS 不足以维持清怪速率时视为卡关
     -- ========================================================================
     local MAX_PUSH_STAGES = 100
+    local waveOverhead = (WAVES_PER_STAGE - 1) * WAVE_INTERVAL  -- 27秒
 
-    -- 构建起始关 Boss，计算有效 DPS
-    local boss = BuildStageBoss(startStage)
-    local effectiveDPS = CalcEffectiveDPSvsBoss(towers, boss)
+    -- 预计算阵容理论 DPS 和穿甲（普通波超限检查用，塔不变所以只算一次）
+    local squadDPS = CalcSquadTheoreticalDPS(towers)
+    local armorPen = CalcSquadAvgArmorPen(towers)
 
-    if effectiveDPS <= 0 then
-        print("[OfflinePush] effectiveDPS=0, cannot push")
-        return 0, 0, math.huge
+    local stages = 0
+    local timeUsed = 0
+    local lastClearTime = math.huge
+
+    for i = 0, MAX_PUSH_STAGES - 1 do
+        local stageNum = startStage + i
+
+        -- 超限检查：普通波击杀吞吐率不足 → 怪物堆积超限 → 卡关
+        if not CanSurviveNormalWaves(stageNum, squadDPS, armorPen) then
+            print(string.format("[OfflinePush] Stage %d: normal wave overload (DPS insufficient to clear), STUCK", stageNum))
+            break
+        end
+
+        local boss = BuildStageBoss(stageNum)
+        local effectiveDPS = CalcEffectiveDPSvsBoss(towers, boss)
+
+        if effectiveDPS <= 0 then break end
+
+        -- Boss 击杀时间
+        local bossKillTime = boss.hp / effectiveDPS
+
+        -- Boss 被动惩罚
+        if boss.passive == "disable" then
+            bossKillTime = bossKillTime / 0.80
+        end
+        if boss.passive == "phase" then
+            bossKillTime = bossKillTime + 9.0
+        end
+        if boss.passive == "summon" then
+            bossKillTime = bossKillTime * 1.15
+        end
+
+        -- 打不过（超过 Boss 限时）→ 停
+        if bossKillTime > BOSS_TIMER then
+            lastClearTime = bossKillTime
+            break
+        end
+
+        -- 本关通关耗时
+        local clearTime = math.max(bossKillTime + waveOverhead, 30.0)
+
+        -- 离线时间不够 → 停
+        if timeUsed + clearTime > offlineSeconds then
+            lastClearTime = clearTime
+            break
+        end
+
+        stages = stages + 1
+        timeUsed = timeUsed + clearTime
+        lastClearTime = clearTime
     end
 
-    -- Boss 击杀时间 = BossHP / effectiveDPS
-    local bossKillTime = boss.hp / effectiveDPS
+    print(string.format("[OfflinePush] v5: stages=%d, timeUsed=%.0fs/%ds, lastClear=%.1fs, squadDPS=%.2e",
+        stages, timeUsed, offlineSeconds, lastClearTime, squadDPS))
 
-    -- Boss 被动惩罚
-    if boss.passive == "disable" then
-        -- 沉默：每 8 秒停 2 秒 → 有效时间系数 8/10 = 0.80
-        bossKillTime = bossKillTime / 0.80
-    end
-    if boss.passive == "phase" then
-        -- 相位：3 个阈值 × 3 秒无敌 = +9 秒
-        bossKillTime = bossKillTime + 9.0
-    end
-    if boss.passive == "summon" then
-        -- 召唤：Boss HP +15%
-        bossKillTime = bossKillTime * 1.15
-    end
-
-    -- 无法击杀（超过 Boss 限时）
-    if bossKillTime > BOSS_TIMER then
-        print(string.format("[OfflinePush] Boss too strong: bossHP=%.2e, DPS=%.2e, killTime=%.0fs > %ds",
-            boss.hp, effectiveDPS, bossKillTime, BOSS_TIMER))
-        return 0, 0, bossKillTime
-    end
-
-    -- 普通波开销：9 波 × 3 秒间隔 = 27 秒（简化为固定值，普通波 DPS 远超怪物 EHP）
-    local waveOverhead = (WAVES_PER_STAGE - 1) * WAVE_INTERVAL
-
-    -- 每关通关时间 = Boss 击杀时间 + 普通波开销
-    local clearTimePerStage = bossKillTime + waveOverhead
-
-    -- 安全下限：每关至少 30 秒（防止极端强力阵容瞬推）
-    clearTimePerStage = math.max(clearTimePerStage, 30.0)
-
-    -- 可推关数 = 离线时间 / 每关耗时，上限 100
-    local stages = math.min(math.floor(offlineSeconds / clearTimePerStage), MAX_PUSH_STAGES)
-    local timeUsed = stages * clearTimePerStage
-
-    print(string.format("[OfflinePush] v3: DPS=%.2e, bossHP=%.2e, bossKill=%.1fs, wave=%.1fs, perStage=%.1fs, stages=%d/%ds",
-        effectiveDPS, boss.hp, bossKillTime, waveOverhead, clearTimePerStage, stages, offlineSeconds))
-
-    return stages, timeUsed, clearTimePerStage
+    return stages, timeUsed, lastClearTime
 end
 
 --- 计算阵容总理论 DPS（向后兼容旧接口）

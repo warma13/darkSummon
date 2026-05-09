@@ -1,19 +1,24 @@
 -- Game/ServerTime.lua
--- 防改时间作弊 —— 去中心化共识方案（递进式）
+-- 防改时间作弊 —— 去中心化共识方案（递进式 + Anchor）
 --
 -- 编码: score = gameDay * 10000 + voteCount
 --   高位 = 游戏天数(从上线日起 day0)，天然递增
 --   低4位 = 当天投票序号(近似唯一投票人数)
 --
--- 投票规则：
---   每个玩家每天只投一次票（首次登录时）
---   本地记录 lastVotedDay，同一天不重复上传
+-- 数据存储：
+--   共享排行榜 lb_server_time  → 所有人可见的投票数据
+--   私有云变量 st_anchor        → 每个玩家自己的"已确认共识天"（跨会话持久）
+--
+-- 投票规则（Anchor 机制）：
+--   老玩家（有 anchor）→ 只能投 anchor 或 anchor+1，改时钟无法绕过
+--   回归玩家（anchor 远落后）→ 共识强时允许投 consensusDay 或 +1
+--   新玩家（无 anchor）→ 有共识时只能投 consensusDay 或 +1；无共识时 myGameDay≤1
+--   每次共识确定后更新 anchor → 下次重启继续锚定
 --
 -- 共识推进（递进式）：
---   首次启动 → 票数最多的天作为初始共识（诚实多数安全）
---   后续只允许 +1 递进 → 下一天有足够票数才推进
---   作弊者无法跳跃：Day 100 和 Day 2 之间断链，永远推不过去
---   永不回退：即使当前天票数减少也不回退
+--   首次启动 → 票数最多的天作为初始共识（平票取更小天，保守策略）
+--   后续只允许 +1 递进 → 下一天有足够票数(≥MIN_ADVANCE)才推进
+--   永不回退
 --
 -- 验证：
 --   ahead = 玩家天数 - 共识天
@@ -56,6 +61,8 @@ local lbReady = false
 local timeValid = nil          -- true/false/nil
 local myGameDay = nil          -- 自己算出的天数
 local lastVotedDay = -1        -- 本会话已投票的天（每天只投一次）
+local anchorDay = nil          -- 私有云变量：上次确认的共识天（跨会话持久）
+local ANCHOR_KEY = "st_anchor" -- 私有云变量 key
 
 -- ============================================================================
 -- 核心 API
@@ -69,9 +76,27 @@ function ST.Calibrate()
     print("[ServerTime] Calibrated: " .. os.date("%Y-%m-%d %H:%M:%S", anchorOsTime)
         .. " gameDay=" .. myGameDay)
 
-    if clientCloud then
-        ST._fetchAndVote()
-    end
+    if not clientCloud then return end
+
+    -- 先读私有云变量 anchor，再拉排行榜投票
+    clientCloud:Get(ANCHOR_KEY, {
+        ok = function(values, iscores)
+            local v = iscores[ANCHOR_KEY]
+            if v and v >= 0 then
+                anchorDay = v
+                print("[ServerTime] Loaded anchor: day=" .. anchorDay)
+            else
+                anchorDay = nil
+                print("[ServerTime] No anchor (new player)")
+            end
+            ST._fetchAndVote()
+        end,
+        error = function(code, reason)
+            print("[ServerTime] Anchor read failed: " .. tostring(reason) .. ", proceeding without anchor")
+            anchorDay = nil
+            ST._fetchAndVote()
+        end,
+    })
 end
 
 --- 可信时间（Unix 秒）
@@ -99,47 +124,6 @@ function calcGameDay(t)
     return math.floor((t - LAUNCH_EPOCH) / 86400)
 end
 
---- 拉取排行榜 → 按需投票 → 解析共识
-function ST._fetchAndVote()
-    clientCloud:GetRankList(LB_KEY, 0, FETCH_COUNT, {
-        ok = function(rankList)
-            local shouldVote = (myGameDay ~= lastVotedDay)
-
-            -- 解析排行榜
-            local dayCounts = {}     -- day → 条目数(唯一玩家数)
-            local maxVote = 0        -- 当天最大投票序号
-            for _, entry in ipairs(rankList) do
-                local s = (entry.iscore and entry.iscore[LB_KEY]) or 0
-                local d = math.floor(s / SCALE)
-                local v = s % SCALE
-                dayCounts[d] = (dayCounts[d] or 0) + 1
-                if shouldVote and d == myGameDay and v > maxVote then
-                    maxVote = v
-                end
-            end
-
-            -- 投票：每天只投一次
-            if shouldVote then
-                local myVote = maxVote + 1
-                clientCloud:SetInt(LB_KEY, myGameDay * SCALE + myVote)
-                lastVotedDay = myGameDay
-                dayCounts[myGameDay] = (dayCounts[myGameDay] or 0) + 1
-                print(string.format("[ServerTime] Voted: gameDay=%d vote=%d",
-                    myGameDay, myVote))
-            else
-                print(string.format("[ServerTime] Already voted day %d, fetch only",
-                    myGameDay))
-            end
-
-            local total = #rankList + (shouldVote and 1 or 0)
-            ST._resolveConsensus(dayCounts, total)
-        end,
-        error = function(code, reason)
-            print("[ServerTime] Fetch failed: " .. tostring(reason))
-        end,
-    })
-end
-
 --- 找票数最多的天
 ---@param dayCounts table<integer,integer>
 ---@return integer|nil day
@@ -147,13 +131,127 @@ end
 local function findMostVotedDay(dayCounts)
     local bestDay, bestCount = nil, 0
     for d, c in pairs(dayCounts) do
-        -- 票数更多，或票数相同取更近的天
-        if c > bestCount or (c == bestCount and d > (bestDay or -1)) then
+        -- 票数更多；平票取更小的天（保守策略，防作弊者拉高）
+        if c > bestCount or (c == bestCount and bestDay and d < bestDay) then
             bestDay = d
             bestCount = c
         end
     end
     return bestDay, bestCount
+end
+
+--- 拉取排行榜 → 解析临时共识 → 基于 anchor 决定投票 → 最终共识
+function ST._fetchAndVote()
+    clientCloud:GetRankList(LB_KEY, 0, FETCH_COUNT, {
+        ok = function(rankList)
+            ---------------------------------------------------------
+            -- 1) 解析排行榜数据
+            ---------------------------------------------------------
+            local dayCounts = {}     -- day → 条目数(唯一玩家数)
+            local maxVote = 0        -- myGameDay 当天最大投票序号
+            local alreadyVoted = false
+            local myUserId = clientCloud and clientCloud.userId and tostring(clientCloud.userId) or ""
+            for _, entry in ipairs(rankList) do
+                local s = (entry.iscore and entry.iscore[LB_KEY]) or 0
+                local d = math.floor(s / SCALE)
+                local v = s % SCALE
+                dayCounts[d] = (dayCounts[d] or 0) + 1
+                if d == myGameDay and v > maxVote then
+                    maxVote = v
+                end
+                -- 自己已经在当天投过票
+                local uid = entry.userId and tostring(entry.userId) or ""
+                if uid == myUserId and d == myGameDay then
+                    alreadyVoted = true
+                end
+            end
+
+            ---------------------------------------------------------
+            -- 2) 解析临时共识（用于新玩家/回归玩家参考）
+            ---------------------------------------------------------
+            local tempConsensus, tempVotes = findMostVotedDay(dayCounts)
+            local hasStrongConsensus = tempConsensus and tempVotes >= MIN_ADVANCE
+
+            ---------------------------------------------------------
+            -- 3) 投票决策（基于 anchor）
+            ---------------------------------------------------------
+            local shouldVote = (myGameDay ~= lastVotedDay) and (not alreadyVoted)
+
+            if shouldVote then
+                if anchorDay then
+                    -- 老玩家：只能投 anchor 或 anchor+1
+                    -- 回归玩家宽容：共识强且 myGameDay 在共识附近时也放行
+                    local anchorOk = (myGameDay == anchorDay or myGameDay == anchorDay + 1)
+                    local returnOk = hasStrongConsensus
+                        and (myGameDay == tempConsensus or myGameDay == tempConsensus + 1)
+                    if not anchorOk and not returnOk then
+                        shouldVote = false
+                        print(string.format(
+                            "[ServerTime] Vote rejected: myDay=%d anchor=%d consensus=%s (anti-cheat)",
+                            myGameDay, anchorDay, tostring(tempConsensus)))
+                    end
+                else
+                    -- 新玩家（无 anchor）
+                    if hasStrongConsensus then
+                        -- 排行榜有强共识：只允许投共识天或 +1
+                        if myGameDay ~= tempConsensus and myGameDay ~= tempConsensus + 1 then
+                            shouldVote = false
+                            print(string.format(
+                                "[ServerTime] New player vote rejected: myDay=%d consensus=%d (anti-cheat)",
+                                myGameDay, tempConsensus))
+                        end
+                    elseif tempConsensus then
+                        -- 有数据但不够强：保守，只允许投共识天或 +1
+                        if myGameDay ~= tempConsensus and myGameDay ~= tempConsensus + 1 then
+                            shouldVote = false
+                            print(string.format(
+                                "[ServerTime] New player vote rejected (weak consensus): myDay=%d consensus=%d",
+                                myGameDay, tempConsensus))
+                        end
+                    else
+                        -- 排行榜完全空（上线首日）：只允许 Day 0-1
+                        if myGameDay > 1 then
+                            shouldVote = false
+                            print(string.format(
+                                "[ServerTime] Empty LB, myDay=%d > 1, vote rejected (anti-cheat)", myGameDay))
+                        end
+                    end
+                end
+            end
+
+            ---------------------------------------------------------
+            -- 4) 执行投票
+            ---------------------------------------------------------
+            if shouldVote then
+                local myVote = maxVote + 1
+                clientCloud:SetInt(LB_KEY, myGameDay * SCALE + myVote)
+                lastVotedDay = myGameDay
+                dayCounts[myGameDay] = (dayCounts[myGameDay] or 0) + 1
+                print(string.format("[ServerTime] Voted: gameDay=%d vote=%d", myGameDay, myVote))
+            else
+                if alreadyVoted then lastVotedDay = myGameDay end
+                print(string.format("[ServerTime] No vote this round (myDay=%d)", myGameDay))
+            end
+
+            ---------------------------------------------------------
+            -- 5) 最终共识解析
+            ---------------------------------------------------------
+            local total = #rankList + (shouldVote and 1 or 0)
+            ST._resolveConsensus(dayCounts, total)
+
+            ---------------------------------------------------------
+            -- 6) 共识确定后更新 anchor
+            ---------------------------------------------------------
+            if consensusDay and consensusDay ~= anchorDay then
+                anchorDay = consensusDay
+                clientCloud:SetInt(ANCHOR_KEY, anchorDay)
+                print("[ServerTime] Anchor updated: day=" .. anchorDay)
+            end
+        end,
+        error = function(code, reason)
+            print("[ServerTime] Fetch failed: " .. tostring(reason))
+        end,
+    })
 end
 
 --- 共识判定（递进式）
@@ -164,8 +262,8 @@ function ST._resolveConsensus(dayCounts, total)
 
     if consensusDay == nil then
         -----------------------------------------------------------------
-        -- 首次启动：用票数最多的天做初始共识
-        -- 诚实玩家占多数 → 安全；作弊者少数票不够
+        -- 首次 Bootstrap：票数最多的天作为初始共识
+        -- 作弊投票已在 _fetchAndVote 中被 anchor 机制过滤
         -----------------------------------------------------------------
         local bestDay, bestCount = findMostVotedDay(dayCounts)
         if bestDay then
@@ -176,7 +274,7 @@ function ST._resolveConsensus(dayCounts, total)
         else
             lbReady = false
             timeValid = nil
-            print("[ServerTime] No data, no consensus")
+            print("[ServerTime] No votes available, no consensus")
             return
         end
     end
@@ -185,11 +283,13 @@ function ST._resolveConsensus(dayCounts, total)
     -- 递进：只允许从当前共识天推进到 +1
     -- 条件：下一天在排行榜中有 ≥ MIN_ADVANCE 条记录
     -----------------------------------------------------------------
+    local advanced = false
     local nextDay = consensusDay + 1
     local nextCount = dayCounts[nextDay] or 0
     if nextCount >= MIN_ADVANCE then
         consensusDay = nextDay
         consensusVotes = nextCount
+        advanced = true
         print(string.format("[ServerTime] Advanced consensus: day=%d votes=%d/%d",
             consensusDay, consensusVotes, total))
     else

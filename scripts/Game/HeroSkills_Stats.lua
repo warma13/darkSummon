@@ -272,6 +272,22 @@ function HeroSkills.CheckCritSplash(tower, target, damage)
             end
         end
     end
+
+    -- 收集加成：暴击溅射（critSplash — 独立的溅射来源）
+    local cb = tower.collectBonus
+    if cb and cb.critSplash and cb.critSplash > 0 then
+        local splashDmg = damage * cb.critSplash
+        local Enemy = GetEnemy()
+        for _, e in ipairs(State.enemies) do
+            if e.alive and e ~= target then
+                local dx = e.x - target.x
+                local dy = e.y - target.y
+                if dx * dx + dy * dy < 2500 then -- 50²
+                    Enemy.TakeDamage(e, splashDmg)
+                end
+            end
+        end
+    end
 end
 
 end -- return function(HeroSkills)

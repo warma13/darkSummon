@@ -666,6 +666,7 @@ end
 -- DEF 缩放: 1~1000 手调分段，1000+ log-quadratic 公式（与 HP 解耦）
 -- DEF/HP 比约 2.5~3.0，高关随 stage 缓慢增大
 -- 目标: 终局穿透率 ~37%（无穿甲）/ ~45%（30%穿甲），穿甲有实际价值
+-- v2: 二次项 c 减半（3.51e-8 → 1.75e-8），线性项 b 微调以保持 1000 关衔接
 -- 基准: SSR shadow_mage(baseAtk=3600), minion(baseDEF=500)
 Config.DEF_SCALE_EARLY = {
     {     1,   100,          1.8,           25 },
@@ -673,7 +674,8 @@ Config.DEF_SCALE_EARLY = {
     {   500,  1000,          135,          500 },
 }
 -- log-quadratic 系数: ln(scale) = a + b*stage + c*stage²
-Config.DEF_FORMULA = { a = 4.539351, b = 0.0016829599, c = 3.506006e-08 }
+-- v2: c 减半以抑制高关超指数膨胀，b 微调保持 1000 关衔接
+Config.DEF_FORMULA = { a = 4.539351, b = 0.0018529599, c = 1.75e-08 }
 
 --- 统一 DEF 缩放函数（早期分段 + 高关公式，与 HP 独立）
 ---@param stage number 关卡号（>=1）
@@ -787,7 +789,9 @@ Config.BOSS_TIER_EXPONENT   = 1.50   -- Boss HP 额外乘 tier^1.50
 Config.MINION_TIER_EXPONENT = 1.00   -- 小怪 HP 额外乘 tier^1.00
 
 -- HP 缩放: 1~1000 手调分段（保留早期体验），1000+ log-quadratic 公式
--- 公式由 stage 1000~6000 的原始数据拟合，误差 <5%，可无限延伸
+-- 公式由 stage 1000~6000 的原始数据拟合，可无限延伸
+-- v2: 二次项 c 减半（3.43e-8 → 1.7e-8），线性项 b 微调以保持 stage=1000 连续
+--     效果：高关 HP 增速大幅放缓，减少指数膨胀导致的瓶颈感
 -- 基准: SSR shadow_mage, minion(baseHP=4500)
 Config.HP_SCALE_EARLY = {
     {     1,   100,         1.02,           10 },
@@ -795,7 +799,8 @@ Config.HP_SCALE_EARLY = {
     {   500,  1000,           55,          200 },
 }
 -- log-quadratic 系数: ln(scale) = a + b*stage + c*stage²
-Config.HP_FORMULA = { a = 3.644109, b = 0.0016507943, c = 3.431831e-08 }
+-- v2: c 减半以抑制高关超指数膨胀，b 微调保持 1000 关衔接
+Config.HP_FORMULA = { a = 3.644109, b = 0.0018207943, c = 1.7e-08 }
 
 --- 统一 HP 缩放函数（早期分段 + 高关公式）
 ---@param stage number 关卡号（>=1）

@@ -212,18 +212,19 @@ function HeroSkills.InitTowerSkills(tower)
         -- Dream Weave: 幻梦印记（per-target）
         dreamSpdBuff        = nil,   -- lucid_pulse 叠印记期间攻速加成
         -- 梦境共鸣光环已改用通用字段 auraCritRateBuff/auraSpdBuff/auraAtkBuff/auraCritDmgBuff
-        -- Crimson Moon: 蚀月之链 + 血月共鸣 + 绯红新月 + 月蚀领域
-        eclipseMarks        = nil,   -- table<targetId, {stacks, timer}>
-        resonanceStacks     = 0,
-        resonanceTimer      = 0,
-        isAwakened          = false,
-        awakenTimer         = 0,
-        awakenAtkBuff       = 0,
-        soulAtkBonus        = 0,     -- 月蚀领域永久攻击力加成
-        fullMoonActive      = false,
-        fullMoonTimer       = 0,
-        _isPureDamage       = false,
-        totalBursts         = 0,
+        -- Crimson Moon: 蚀痕 + 月穿 + 血月猎杀 + 绯红新月
+        scarMarks           = nil,   -- table<targetId, {stacks, timer}>
+        pierceStacks        = 0,     -- 月穿当前层数
+        pierceTimer         = 0,     -- 月穿持续计时
+        huntStacks          = 0,     -- 血月猎杀当前层数
+        isBloodMoon         = false, -- 血月状态
+        bloodMoonTimer      = 0,     -- 血月状态剩余时间
+        bloodMoonAtkBuff    = 0,     -- 血月攻击力加成
+        crescentActive      = false, -- 绯红新月主动是否激活
+        crescentTimer       = 0,     -- 绯红新月持续时间
+        crescentGlobalAmp   = 0,     -- 当前全场增伤率
+        crescentAtkStacks   = 0,     -- 主动期间攻击叠加层数
+        crescentAtkBuff     = 0,     -- 主动期间累积ATK加成
         totalKills          = 0,
         -- Nature Elf: 自然之力 + 鲜花环 + 翠意庇护（由 nature_elf 写入其他塔）
         naturalForce        = 0,
@@ -265,9 +266,14 @@ function HeroSkills.ModifyDamage(tower, target, baseDamage)
         damage = damage * (1 + target.ampDamage)
     end
 
-    -- 共享：BOSS 额外伤害（标签 bossExtraDmg 写入 tower.bossExtraDmg）
-    if target.isBoss and tower.bossExtraDmg and tower.bossExtraDmg > 0 then
-        damage = damage * (1 + tower.bossExtraDmg)
+    -- 共享：BOSS 额外伤害（标签 bossExtraDmg + 收集加成）
+    if target.isBoss then
+        local bossExtra = tower.bossExtraDmg or 0
+        local cb = tower.collectBonus
+        if cb and cb.bossExtraDmg then bossExtra = bossExtra + cb.bossExtraDmg end
+        if bossExtra > 0 then
+            damage = damage * (1 + bossExtra)
+        end
     end
 
     -- 共享：因果律 — 全体友方概率双倍伤害
@@ -434,6 +440,13 @@ function HeroSkills.ModifyDamage(tower, target, baseDamage)
         end
     end
 
+    -- 收集加成：波次攻击叠加
+    local cb2 = tower.collectBonus
+    if cb2 and cb2.waveAtkScale and cb2.waveAtkScale > 0 then
+        local currentWave = State.wave or 1
+        damage = damage * (1 + cb2.waveAtkScale * currentWave)
+    end
+
     return damage
 end
 
@@ -540,6 +553,11 @@ function HeroSkills.OnHit(tower, target, killed)
         end
     end
 
+    -- 收集加成：击杀计数（供 onKillSpdBurst 使用）
+    if killed then
+        tower._collectKillCount = (tower._collectKillCount or 0) + 1
+    end
+
     -- 共享：符文词条 killReset — 击杀回复攻速
     if killed and tower.runeBonus and tower.runeBonus.killReset and tower.runeBonus.killReset > 0 then
         if math.random() < tower.runeBonus.killReset then
@@ -611,7 +629,12 @@ end
 function HeroSkills.ShouldMultiShot(tower)
     local mod = getmod(tower)
     if mod and mod.ShouldMultiShot then
-        return mod.ShouldMultiShot(tower)
+        if mod.ShouldMultiShot(tower) then return true end
+    end
+    -- 收集加成：概率连射
+    local cb = tower.collectBonus
+    if cb and cb.multiShot and cb.multiShot > 0 then
+        if math.random() < cb.multiShot then return true end
     end
     return false
 end
@@ -659,6 +682,17 @@ function HeroSkills.ModifyAttackSpeed(tower, baseSpeed)
     -- bonusPerWave: 每波叠加攻速（passive 动态标签）
     if hs and hs.bonusPerWaveSpd and hs.bonusPerWaveSpd > 0 then
         baseSpeed = baseSpeed / (1 + hs.bonusPerWaveSpd)
+    end
+
+    -- 收集加成：击杀加速（永久叠加每次击杀）
+    local cb = tower.collectBonus
+    if cb and cb.onKillSpdBurst and cb.onKillSpdBurst > 0 then
+        local killCount = tower._collectKillCount or 0
+        if killCount > 0 then
+            local maxBoost = 0.50  -- 上限 50%
+            local boost = math.min(cb.onKillSpdBurst * killCount, maxBoost)
+            baseSpeed = baseSpeed / (1 + boost)
+        end
     end
 
     return baseSpeed
@@ -845,6 +879,26 @@ function HeroSkills.UpdateAuras(towers, gridOffsetX, gridOffsetY)
             ::next_tag::
         end
         ::continue_aura::
+    end
+
+    -- 收集加成：光环效果放大（auraBuff — 对所有光环 buff 乘算）
+    local colAuraBuff = nil
+    for ti = 1, towerCount do
+        local t = towers[ti]
+        if t.collectBonus and t.collectBonus.auraBuff and t.collectBonus.auraBuff > 0 then
+            colAuraBuff = t.collectBonus.auraBuff
+            break  -- 全局共享同一份收集加成
+        end
+    end
+    if colAuraBuff and colAuraBuff > 0 then
+        local amp = 1 + colAuraBuff
+        for ti = 1, towerCount do
+            local t = towers[ti]
+            t.auraAtkBuff      = t.auraAtkBuff * amp
+            t.auraSpdBuff      = t.auraSpdBuff * amp
+            t.auraCritRateBuff = t.auraCritRateBuff * amp
+            t.auraCritDmgBuff  = t.auraCritDmgBuff * amp
+        end
     end
 end
 

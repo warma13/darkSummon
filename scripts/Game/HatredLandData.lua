@@ -95,11 +95,11 @@ HL.CONFIG = {
     --- essence = floor(essenceScale * (damage / essenceBase) ^ essenceExp * rewardMult)
     --- shards  = max(1, floor(essence / shardsPerEssence))
     rewardFormula = {
-        essenceScale = 5,           -- 基础系数
+        essenceScale = 2.5,         -- 基础系数（从5降至2.5，产出砍半）
         essenceBase  = 1000000,     -- 归一化基准（百万）
         essenceExp   = 0.4,         -- 指数 <1 → 边际递减
         minDamage    = 10000000,    -- 最低伤害门槛（千万）
-        shardsPerEssence = 300,     -- 每 300 精华产出 1 碎片
+        shardsPerEssence = 150,     -- 每 150 精华产出 1 碎片（配合精华减半，碎片产出不变）
     },
 }
 
